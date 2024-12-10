@@ -115,8 +115,20 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
     }
     #[cfg(feature = "fn-ptr-conversion-expanded-dispatch")]
     pub fn get_push_data(&mut self) -> u256 {
+        // SAFETY:
+        // This assertion assumes that the program counter (self.pc) was not modified after calling
+        // [`CodeReader::get`]. While this can not be guaranteed here, marking the function
+        // as unsafe would propagate all the way to the function dispatch function and also require
+        // that all opcode functions are unsafe. In practice, the only way to modify the
+        // program counter, is through one of the functions of CodeReader that take it by mutable
+        // reference. Those are next, try_jump, jump_to and get_push_data itself.
+        // Calling those and then calling get_push_data makes semantically no sense.
+        unsafe {
+            std::hint::assert_unchecked(self.pc < self.code_analysis.analysis.len());
+        }
+        let res = self.code_analysis.analysis[self.pc].get_data();
         self.pc += 1;
-        self.code_analysis.analysis[self.pc - 1].get_data()
+        res
     }
     #[cfg(all(
         not(feature = "fn-ptr-conversion-expanded-dispatch"),
