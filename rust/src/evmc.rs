@@ -1,16 +1,18 @@
 use std::process;
 
-use evmc_vm::{
-    ffi::evmc_capabilities, EvmcVm, ExecutionContext, ExecutionMessage, ExecutionResult, Revision,
-    StatusCode as EvmcStatusCode, StepResult, StepStatusCode as EvmcStepStatusCode,
-    SteppableEvmcVm, Uint256,
+use common::{
+    evmc_vm::{
+        ffi::evmc_capabilities, EvmcVm, ExecutionContext, ExecutionMessage, ExecutionResult,
+        Revision, SetOptionError, StatusCode as EvmcStatusCode, StepResult,
+        StepStatusCode as EvmcStepStatusCode, SteppableEvmcVm, Uint256,
+    },
+    u256,
 };
 
 use crate::{
     ffi::EVMC_CAPABILITY,
     interpreter::Interpreter,
     types::{LoggingObserver, Memory, NoOpObserver, ObserverType, Stack},
-    u256,
 };
 
 pub struct EvmRs {
@@ -47,7 +49,7 @@ impl EvmcVm for EvmRs {
         }
     }
 
-    fn set_option(&mut self, key: &str, value: &str) -> Result<(), evmc_vm::SetOptionError> {
+    fn set_option(&mut self, key: &str, value: &str) -> Result<(), SetOptionError> {
         match (key, value) {
             ("logging", "true") => self.observer_type = ObserverType::Logging,
             ("logging", "false") => self.observer_type = ObserverType::NoOp,

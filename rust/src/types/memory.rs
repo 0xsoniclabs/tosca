@@ -2,8 +2,10 @@
 use std::sync::Mutex;
 use std::{cmp::max, iter};
 
+use common::u256;
+
 use crate::{
-    types::{u256, FailStatus},
+    types::FailStatus,
     utils::{word_size, Gas},
 };
 
@@ -153,8 +155,10 @@ impl Memory {
 
 #[cfg(test)]
 mod tests {
+    use common::u256;
+
     use crate::{
-        types::{memory::Memory, u256, FailStatus},
+        types::{memory::Memory, FailStatus},
         utils::Gas,
     };
 

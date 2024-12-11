@@ -1,12 +1,12 @@
 use std::fmt::Debug;
 
 #[cfg(feature = "fn-ptr-conversion-expanded-dispatch")]
-use crate::u256;
+use common::u256;
+
 use crate::{
     interpreter::{GenericJumptable, OpFn},
-    types::CodeByteType,
+    types::{CodeByteType, Opcode},
     utils::GetGenericStatic,
-    Opcode,
 };
 
 #[cfg(all(

@@ -4,13 +4,16 @@ use std::{
     ptr,
 };
 
-use evmrs::evmc_vm::{
+use common::evmc_vm::{
     ffi::{
         evmc_host_interface, evmc_message, evmc_step_status_code, evmc_tx_context,
         evmc_vm as evmc_vm_t, evmc_vm_steppable,
     },
     Address, ExecutionResult, Revision, StepResult, Uint256,
 };
+// This is needed in order for driver to link against evmrs.
+#[allow(unused_imports, clippy::single_component_path_imports)]
+use evmrs;
 
 pub mod host_interface;
 

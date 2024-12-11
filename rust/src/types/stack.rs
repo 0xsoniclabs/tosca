@@ -2,7 +2,9 @@ use std::cmp::min;
 #[cfg(feature = "alloc-reuse")]
 use std::sync::Mutex;
 
-use crate::types::{u256, FailStatus};
+use common::u256;
+
+use crate::types::FailStatus;
 
 struct NonZero<const N: usize>;
 
@@ -184,7 +186,9 @@ impl Stack {
 
 #[cfg(test)]
 mod tests {
-    use crate::types::{stack::Stack, u256, FailStatus};
+    use common::u256;
+
+    use crate::types::{stack::Stack, FailStatus};
 
     #[test]
     fn internals() {

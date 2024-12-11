@@ -1,9 +1,9 @@
-use evmc_vm::{AccessStatus, Address, Revision};
-
-use crate::{
-    types::{u256, ExecutionContextTrait, FailStatus},
-    utils::word_size,
+use common::{
+    evmc_vm::{AccessStatus, Address, Revision},
+    u256, ExecutionContextTrait,
 };
+
+use crate::{types::FailStatus, utils::word_size};
 
 #[derive(Debug)]
 pub struct GasRefund(i64);
@@ -118,12 +118,15 @@ impl Gas {
 
 #[cfg(test)]
 mod tests {
-    use evmc_vm::{AccessStatus, Address, Revision};
+    use common::{
+        evmc_vm::{AccessStatus, Address, Revision},
+        u256, MockExecutionContextTrait, MockExecutionMessage,
+    };
     use mockall::predicate;
 
     use crate::{
         interpreter::Interpreter,
-        types::{u256, FailStatus, MockExecutionContextTrait, MockExecutionMessage, Opcode},
+        types::{FailStatus, Opcode},
         utils::Gas,
     };
 

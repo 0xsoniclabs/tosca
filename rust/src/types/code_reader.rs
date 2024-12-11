@@ -2,6 +2,8 @@
 use std::cmp::min;
 use std::{self, ops::Deref};
 
+use common::u256;
+
 #[cfg(feature = "needs-fn-ptr-conversion")]
 use crate::interpreter::OpFn;
 #[cfg(all(
@@ -11,7 +13,7 @@ use crate::interpreter::OpFn;
 use crate::types::op_fn_data::OP_FN_DATA_SIZE;
 #[cfg(not(feature = "needs-fn-ptr-conversion"))]
 use crate::types::Opcode;
-use crate::types::{u256, AnalysisContainer, CodeAnalysis, CodeByteType, FailStatus};
+use crate::types::{AnalysisContainer, CodeAnalysis, CodeByteType, FailStatus};
 
 #[cfg(not(feature = "fn-ptr-conversion-expanded-dispatch"))]
 struct PushDataLen<const N: usize>;
@@ -173,9 +175,11 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
 
 #[cfg(test)]
 mod tests {
+    use common::u256;
+
     use crate::types::{
         code_reader::{CodeReader, GetOpcodeError},
-        u256, FailStatus, Opcode,
+        FailStatus, Opcode,
     };
 
     #[test]
