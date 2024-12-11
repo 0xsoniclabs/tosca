@@ -4,8 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
+default = ["evmrs"]
+
 mock = ["common/mock"]
 
+load-lib = ["dep:libloading"]
+evmrs = ["dep:evmrs"]
 performance = ["evmrs/performance"]
 mimalloc = ["evmrs/mimalloc"]
 unsafe-stack = ["evmrs/unsafe-stack"]
@@ -24,4 +28,8 @@ fn-ptr-conversion-inline-dispatch = ["evmrs/fn-ptr-conversion-inline-dispatch"]
 [dependencies]
 common = { path = "../common" }
 # this ensures that evmrs gets compiled and can be linked
-evmrs = { path = ".." }
+evmrs = { path = "..", optional = true }
+libloading = { version = "0.8.6", optional = true }
+
+[package.metadata.cargo-machete]
+ignored = ["evmrs"]

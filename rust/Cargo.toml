@@ -63,7 +63,7 @@ nohash-hasher = { version = "0.2.0", optional = true }
 
 [dev-dependencies]
 common = { path = "common", features = ["mock"] }
-driver = { path = "driver", features = ["mock"] }
+driver = { path = "driver", features = ["evmrs", "mock"] }
 mockall = "0.13.0"
 
 [lib]

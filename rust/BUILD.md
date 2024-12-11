@@ -74,13 +74,32 @@ cargo build --features mimalloc,custom-evmc
 ## Benchmarking
 
 - Rust Benchmarks
-    - Run with criterion benchmark harness (provides statistics about execution times)
+    - using the [criterion](https://crates.io/crates/criterion) benchmark harness:
+
+        This has the advantage that criterion determines how often to run the target function based on the desired execution time and provides statistics and comparison with the previous run.
         ```sh
         cargo bench --package benchmarks --release --features performance
         ```
-    - Run as normal executable (no statistics but also no overhead from any harness - better suited for profiling)
+    - as as normal executable:
+    
+        The number of executions has to specified manually and not statistics are provided. 
+        This just executes the target function for the specified number of times. 
+        This approach is better suited when profiling. Additionally, it supports runtime loading of evmc interpreters, so it can be also used with other interpreters such as evmzero.
         ```sh
-        cargo run --package benchmarks --release --features performance
+        # with evmrs dynamically linked
+        cargo run --package benchmarks --profile profiling --features performance -- 10 fib20
+
+        # with evmrs runtime loaded
+        cargo build --lib --profile profiling --features performance
+        EVMC_LIB=./target/profiling/libevmrs.so \
+            cargo run --package benchmarks --profile profiling --no-default-features --features load-lib -- 10 fib20
+
+        # with evmzero
+        cd ..
+        make
+        cd rust
+        EVMC_LIB=../cpp/build/vm/evmzero/libevmzero.so \
+            cargo run --package benchmarks --profile profiling --no-default-features --features load-lib -- 10 fib20
         ```
 - Go VM Benchmarks (for more information see [../BUILD.md](../BUILD.md#running-benchmarks))
     - Run with evmrs by hand.
@@ -117,7 +136,7 @@ When running the go benchmarks the link paths have to be adjusted in `../go/inte
     ```sh
     # EITHER use cargo flamegraph
     cargo install cargo-flamegraph
-    cargo flamegraph --package benchmarks --profile profiling --features performance
+    cargo flamegraph --package benchmarks --profile profiling --features performance 10 fib20
 
     # OR build benchmarks and then run perf manually
     cargo install inferno

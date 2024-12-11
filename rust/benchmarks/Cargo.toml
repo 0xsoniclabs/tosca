@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
+default = ["evmrs"]
+
+load-lib = ["driver/load-lib"]
+evmrs = ["driver/evmrs"]
 performance = ["driver/performance"]
 mimalloc = ["driver/mimalloc"]
 unsafe-stack = ["driver/unsafe-stack"]
@@ -21,7 +25,7 @@ fn-ptr-conversion-inline-dispatch = ["driver/fn-ptr-conversion-inline-dispatch"]
 
 [dependencies]
 common = { path = "../common" }
-driver = { path = "../driver" }
+driver = { path = "../driver", default-features = false }
 sha3 = "0.10.8"
 clap = { version = "4.5.21", features = ["derive"] }
 

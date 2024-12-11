@@ -2,6 +2,7 @@ use std::{
     ffi,
     ops::{Deref, DerefMut},
     ptr,
+    sync::LazyLock,
 };
 
 use common::evmc_vm::{
@@ -12,15 +13,64 @@ use common::evmc_vm::{
     Address, ExecutionResult, Revision, StepResult, Uint256,
 };
 // This is needed in order for driver to link against evmrs.
+#[cfg(feature = "evmrs")]
 #[allow(unused_imports, clippy::single_component_path_imports)]
 use evmrs;
+#[cfg(feature = "load-lib")]
+use libloading::Library;
 
 pub mod host_interface;
 
+#[cfg(any(
+    all(feature = "evmrs", feature = "load-lib",),
+    all(not(feature = "evmrs"), not(feature = "load-lib"),)
+))]
+compile_error!("Exactly one of the features `evmrs` and `load-lib` must be enabled.");
+
+#[cfg(feature = "evmrs")]
 unsafe extern "C" {
     safe fn evmc_create_evmrs() -> *mut evmc_vm_t;
     safe fn evmc_create_steppable_evmrs() -> *mut evmc_vm_steppable;
 }
+
+struct ExternFn {
+    pub create: extern "C" fn() -> *mut evmc_vm_t,
+    pub create_steppable: extern "C" fn() -> *mut evmc_vm_steppable,
+}
+
+#[cfg(feature = "evmrs")]
+static EXTERN_FN: LazyLock<ExternFn> = LazyLock::new(|| ExternFn {
+    create: evmc_create_evmrs,
+    create_steppable: evmc_create_steppable_evmrs,
+});
+#[cfg(feature = "load-lib")]
+static EXTERN_FN: LazyLock<ExternFn> = LazyLock::new(|| unsafe {
+    use std::{env, path::Path};
+
+    let Ok(path) = env::var("EVMC_LIB") else {
+        panic!("EVMC_LIB not set. The Rust driver was compiled with feature lib-load. With this feature it loads the evmc library at runtime. The path to the evmc library has to be set with the environment variable EVMC_LIB.");
+    };
+    let path = Path::new(&path);
+    if !path.exists() {
+        panic!("{} does not exist. The Rust driver was compiled with feature lib-load. With this feature it loads the evmc library at runtime. The path to the evmc library has to be set with the environment variable EVMC_LIB.", path.to_str().unwrap());
+    }
+    let path = path.canonicalize().unwrap();
+
+    let lib_name = path.file_name().unwrap().to_str().unwrap();
+    assert!(lib_name.starts_with("lib"));
+    assert!(lib_name.ends_with(".so"));
+    let evm_name = &lib_name[3..lib_name.len() - 3];
+    let create = format!("evmc_create_{evm_name}");
+    let create_steppable = format!("evmc_create_steppable_{evm_name}");
+
+    let lib = Library::new(path).unwrap();
+    let lib = Box::leak(Box::new(lib));
+
+    ExternFn {
+        create: *lib.get(create.as_bytes()).unwrap(),
+        create_steppable: *lib.get(create_steppable.as_bytes()).unwrap(),
+    }
+});
 
 pub const ZERO: Uint256 = Uint256 { bytes: [0; 32] };
 pub const ZERO_ADDR: Address = Address { bytes: [0; 20] };
@@ -63,7 +113,7 @@ impl DerefMut for Instance {
 
 impl Default for Instance {
     fn default() -> Self {
-        let instance = evmc_create_evmrs();
+        let instance = (EXTERN_FN.create)();
         if instance.is_null() {
             panic!("failed to construct evmrs instance")
         }
@@ -183,7 +233,7 @@ impl DerefMut for SteppableInstance {
 
 impl Default for SteppableInstance {
     fn default() -> Self {
-        let instance = evmc_create_steppable_evmrs();
+        let instance = (EXTERN_FN.create_steppable)();
         if instance.is_null() {
             panic!("vm instance is null")
         }

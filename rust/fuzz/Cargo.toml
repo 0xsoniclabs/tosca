@@ -5,6 +5,10 @@ publish = false
 edition = "2021"
 
 [features]
+default = ["evmrs"]
+
+load-lib = ["driver/load-lib"]
+evmrs = ["driver/evmrs"]
 performance = ["driver/performance"]
 mimalloc = ["driver/mimalloc"]
 unsafe-stack = ["driver/unsafe-stack"]
@@ -22,7 +26,7 @@ fn-ptr-conversion-inline-dispatch = ["driver/fn-ptr-conversion-inline-dispatch"]
 
 [dependencies]
 common = { path = "../common", features = ["mock"] }
-driver = { path = "../driver", features = ["mock"] }
+driver = { path = "../driver", default-features = false, features = ["mock"] }
 libfuzzer-sys = "0.4"
 arbitrary = "1.4.1"
 
