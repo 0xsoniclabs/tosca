@@ -1238,7 +1238,10 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let [value, offset] = self.stack.pop()?;
 
         let dest = self.memory.get_mut_slice(offset, 32, &mut self.gas_left)?;
-        dest.copy_from_slice(&value.to_le_bytes());
+        // SAFETY:
+        // dest is 32 bytes long and can be cast to a &mut [u8; 32].
+        let dest = unsafe { &mut *(dest.as_mut_ptr() as *mut [u8; 32]) };
+        *dest = value.to_le_bytes();
         dest.reverse();
         self.code_reader.next();
         self.return_from_op()
