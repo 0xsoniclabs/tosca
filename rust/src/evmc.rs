@@ -9,7 +9,7 @@ use evmc_vm::{
 use crate::{
     ffi::EVMC_CAPABILITY,
     interpreter::Interpreter,
-    types::{LoggingObserver, Memory, NoOpObserver, ObserverType, Stack},
+    types::{LoggingObserver, Memory, NoOpObserver, ObserverType, Stack, StatsObserver},
     u256,
 };
 
@@ -20,7 +20,7 @@ pub struct EvmRs {
 impl EvmcVm for EvmRs {
     fn init() -> Self {
         EvmRs {
-            observer_type: ObserverType::NoOp,
+            observer_type: ObserverType::Stats,
         }
     }
 
@@ -44,6 +44,7 @@ impl EvmcVm for EvmRs {
         match self.observer_type {
             ObserverType::NoOp => interpreter.run(&mut NoOpObserver()),
             ObserverType::Logging => interpreter.run(&mut LoggingObserver::new(std::io::stdout())),
+            ObserverType::Stats => interpreter.run(&mut StatsObserver::new(std::io::stdout())),
         }
     }
 
@@ -122,6 +123,7 @@ impl SteppableEvmcVm for EvmRs {
         match self.observer_type {
             ObserverType::NoOp => interpreter.run(&mut NoOpObserver()),
             ObserverType::Logging => interpreter.run(&mut LoggingObserver::new(std::io::stdout())),
+            ObserverType::Stats => interpreter.run(&mut StatsObserver::new(std::io::stdout())),
         }
     }
 }

@@ -1,26 +1,18 @@
 use std::{borrow::Cow, io::Write};
 
-use crate::interpreter::Interpreter;
-#[cfg(feature = "needs-fn-ptr-conversion")]
-use crate::Opcode;
+use crate::{interpreter::Interpreter, Opcode};
 
 pub trait Observer<const STEPPABLE: bool> {
-    fn pre_op(&mut self, interpreter: &Interpreter<STEPPABLE>);
-
-    fn post_op(&mut self, interpreter: &Interpreter<STEPPABLE>);
-
-    fn log(&mut self, message: Cow<str>);
-}
-
-pub struct NoOpObserver();
-
-impl<const STEPPABLE: bool> Observer<STEPPABLE> for NoOpObserver {
     fn pre_op(&mut self, _interpreter: &Interpreter<STEPPABLE>) {}
 
     fn post_op(&mut self, _interpreter: &Interpreter<STEPPABLE>) {}
 
     fn log(&mut self, _message: Cow<str>) {}
 }
+
+pub struct NoOpObserver();
+
+impl<const STEPPABLE: bool> Observer<STEPPABLE> for NoOpObserver {}
 
 pub struct LoggingObserver<W: Write> {
     writer: W,
@@ -56,11 +48,58 @@ impl<W: Write, const STEPPABLE: bool> Observer<STEPPABLE> for LoggingObserver<W>
         self.writer.flush().unwrap();
     }
 
-    fn post_op(&mut self, _interpreter: &Interpreter<STEPPABLE>) {}
-
     fn log(&mut self, message: Cow<str>) {
         writeln!(self.writer, "{message}").unwrap();
         self.writer.flush().unwrap();
+    }
+}
+
+pub struct StatsObserver<W: Write> {
+    writer: W,
+    op_counts: [u64; 256],
+}
+
+impl<W: Write> StatsObserver<W> {
+    pub fn new(writer: W) -> Self {
+        Self {
+            writer,
+            op_counts: [0; 256],
+        }
+    }
+}
+
+impl<W: Write> Drop for StatsObserver<W> {
+    fn drop(&mut self) {
+        self.op_counts
+            .into_iter()
+            .enumerate()
+            .filter(|(_op, count)| *count != 0)
+            .map(|(op, count)| {
+                (
+                    unsafe { std::mem::transmute::<u8, Opcode>(op as u8) },
+                    count,
+                )
+            })
+            .for_each(|(op, count)| writeln!(self.writer, "{op:?}: {count}").unwrap());
+        self.writer.flush().unwrap();
+    }
+}
+
+impl<W: Write, const STEPPABLE: bool> Observer<STEPPABLE> for StatsObserver<W> {
+    fn pre_op(&mut self, interpreter: &Interpreter<STEPPABLE>) {
+        // pre_op is called after the op is fetched so this will always be Ok(..)
+        #[cfg(not(feature = "needs-fn-ptr-conversion"))]
+        let op = interpreter.code_reader.get().unwrap();
+        #[cfg(feature = "needs-fn-ptr-conversion")]
+        let op = {
+            let op = interpreter.code_reader[interpreter.code_reader.pc()];
+            // SAFETY:
+            // pre_op is called after the op is fetched, which means that code_reader.get() returned
+            // Some(..) which in turn means that the code analysis determined that this byte is a
+            // valid Opcode.
+            unsafe { std::mem::transmute::<u8, Opcode>(op) }
+        };
+        self.op_counts[op as u8 as usize] += 1;
     }
 }
 
@@ -68,4 +107,5 @@ impl<W: Write, const STEPPABLE: bool> Observer<STEPPABLE> for LoggingObserver<W>
 pub enum ObserverType {
     NoOp,
     Logging,
+    Stats,
 }
