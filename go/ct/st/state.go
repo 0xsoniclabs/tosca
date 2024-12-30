@@ -17,14 +17,14 @@ import (
 	"slices"
 	"strings"
 
-	. "github.com/Fantom-foundation/Tosca/go/ct/common"
-	"github.com/Fantom-foundation/Tosca/go/tosca"
-	"github.com/Fantom-foundation/Tosca/go/tosca/vm"
+	. "github.com/0xSonicLabs/Tosca/go/ct/common"
+	"github.com/0xSonicLabs/Tosca/go/tosca"
+	"github.com/0xSonicLabs/Tosca/go/tosca/vm"
 )
 
 // Upper bound for gas, this limit is required since evmc defines a signed type for gas.
 // Limiting gas also solves issue 293 regarding out of memory failures,
-// discussed here: https://github.com/Fantom-foundation/Tosca/issues/293
+// discussed here: https://github.com/0xSonicLabs/Tosca/issues/293
 // The costs for buying memory in an EVM instance is defined by
 //
 //	C(W) = W^2/512 + 3*W

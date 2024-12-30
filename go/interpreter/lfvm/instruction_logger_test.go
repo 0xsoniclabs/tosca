@@ -18,7 +18,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Fantom-foundation/Tosca/go/tosca"
+	"github.com/0xSonicLabs/Tosca/go/tosca"
 )
 
 func TestInterpreter_Logger_ExecutesCodeAndLogs(t *testing.T) {

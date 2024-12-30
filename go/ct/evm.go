@@ -10,7 +10,7 @@
 
 package ct
 
-import "github.com/Fantom-foundation/Tosca/go/ct/st"
+import "github.com/0xSonicLabs/Tosca/go/ct/st"
 
 // Evm represents the interface through which the CT can test a specific EVM implementation.
 type Evm interface {

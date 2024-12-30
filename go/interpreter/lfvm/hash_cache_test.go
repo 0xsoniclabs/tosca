@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Fantom-foundation/Tosca/go/tosca"
+	"github.com/0xSonicLabs/Tosca/go/tosca"
 )
 
 func TestSha3HashCache_hash_ProducesCorrectHashesForInputs(t *testing.T) {

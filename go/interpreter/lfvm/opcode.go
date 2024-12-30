@@ -13,7 +13,7 @@ package lfvm
 import (
 	"fmt"
 
-	"github.com/Fantom-foundation/Tosca/go/tosca/vm"
+	"github.com/0xSonicLabs/Tosca/go/tosca/vm"
 )
 
 type OpCode uint16

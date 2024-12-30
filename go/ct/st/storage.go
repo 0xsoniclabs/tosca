@@ -15,7 +15,7 @@ import (
 
 	"golang.org/x/exp/maps"
 
-	. "github.com/Fantom-foundation/Tosca/go/ct/common"
+	. "github.com/0xSonicLabs/Tosca/go/ct/common"
 )
 
 type Storage struct {

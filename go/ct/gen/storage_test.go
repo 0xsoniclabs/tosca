@@ -17,8 +17,8 @@ import (
 
 	"pgregory.net/rand"
 
-	. "github.com/Fantom-foundation/Tosca/go/ct/common"
-	"github.com/Fantom-foundation/Tosca/go/tosca"
+	. "github.com/0xSonicLabs/Tosca/go/ct/common"
+	"github.com/0xSonicLabs/Tosca/go/tosca"
 )
 
 func TestStorageGenerator_UnconstraintGeneratorCanProduceStorage(t *testing.T) {

@@ -15,18 +15,18 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Fantom-foundation/Tosca/go/tosca"
-	"github.com/Fantom-foundation/Tosca/go/tosca/vm"
+	"github.com/0xSonicLabs/Tosca/go/tosca"
+	"github.com/0xSonicLabs/Tosca/go/tosca/vm"
 	"github.com/ethereum/go-ethereum/common"
 	op "github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"golang.org/x/exp/maps"
 
-	_ "github.com/Fantom-foundation/Tosca/go/processor/floria" // < registers floria processor for testing
-	_ "github.com/Fantom-foundation/Tosca/go/processor/opera"  // < registers opera processor for testing
+	_ "github.com/0xSonicLabs/Tosca/go/processor/floria" // < registers floria processor for testing
+	_ "github.com/0xSonicLabs/Tosca/go/processor/opera"  // < registers opera processor for testing
 
-	_ "github.com/Fantom-foundation/Tosca/go/interpreter/evmzero" // < registers evmzero interpreter for testing
-	_ "github.com/Fantom-foundation/Tosca/go/interpreter/lfvm"    // < registers lfvm interpreter for testing
+	_ "github.com/0xSonicLabs/Tosca/go/interpreter/evmzero" // < registers evmzero interpreter for testing
+	_ "github.com/0xSonicLabs/Tosca/go/interpreter/lfvm"    // < registers lfvm interpreter for testing
 )
 
 // This file contains a few initial shake-down tests or a Processor implementation.

@@ -16,12 +16,12 @@ import (
 
 	"pgregory.net/rand"
 
-	"github.com/Fantom-foundation/Tosca/go/ct"
-	. "github.com/Fantom-foundation/Tosca/go/ct/common"
-	"github.com/Fantom-foundation/Tosca/go/ct/st"
-	"github.com/Fantom-foundation/Tosca/go/interpreter/geth"
-	"github.com/Fantom-foundation/Tosca/go/interpreter/lfvm"
-	"github.com/Fantom-foundation/Tosca/go/tosca"
+	"github.com/0xSonicLabs/Tosca/go/ct"
+	. "github.com/0xSonicLabs/Tosca/go/ct/common"
+	"github.com/0xSonicLabs/Tosca/go/ct/st"
+	"github.com/0xSonicLabs/Tosca/go/interpreter/geth"
+	"github.com/0xSonicLabs/Tosca/go/interpreter/lfvm"
+	"github.com/0xSonicLabs/Tosca/go/tosca"
 )
 
 // FuzzGeth is a fuzzing test for the geth EVM implementation

@@ -16,9 +16,9 @@ import (
 	"path/filepath"
 	"time"
 
-	cliUtils "github.com/Fantom-foundation/Tosca/go/ct/driver/cli"
-	"github.com/Fantom-foundation/Tosca/go/ct/spc"
-	"github.com/Fantom-foundation/Tosca/go/ct/st"
+	cliUtils "github.com/0xSonicLabs/Tosca/go/ct/driver/cli"
+	"github.com/0xSonicLabs/Tosca/go/ct/spc"
+	"github.com/0xSonicLabs/Tosca/go/ct/st"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/exp/maps"
 )

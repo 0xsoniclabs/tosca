@@ -14,8 +14,8 @@ import (
 	"fmt"
 	"sort"
 
-	cliUtils "github.com/Fantom-foundation/Tosca/go/ct/driver/cli"
-	"github.com/Fantom-foundation/Tosca/go/ct/spc"
+	cliUtils "github.com/0xSonicLabs/Tosca/go/ct/driver/cli"
+	"github.com/0xSonicLabs/Tosca/go/ct/spc"
 	"github.com/urfave/cli/v2"
 )
 

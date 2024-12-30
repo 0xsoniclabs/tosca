@@ -17,7 +17,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Fantom-foundation/Tosca/go/tosca/vm"
+	"github.com/0xSonicLabs/Tosca/go/tosca/vm"
 )
 
 func TestCode_NewCode(t *testing.T) {

@@ -14,10 +14,10 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/Fantom-foundation/Tosca/go/ct/st"
-	"github.com/Fantom-foundation/Tosca/go/examples"
-	"github.com/Fantom-foundation/Tosca/go/tosca"
-	"github.com/Fantom-foundation/Tosca/go/tosca/vm"
+	"github.com/0xSonicLabs/Tosca/go/ct/st"
+	"github.com/0xSonicLabs/Tosca/go/examples"
+	"github.com/0xSonicLabs/Tosca/go/tosca"
+	"github.com/0xSonicLabs/Tosca/go/tosca/vm"
 )
 
 func TestFib10(t *testing.T) {

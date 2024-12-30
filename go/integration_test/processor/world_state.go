@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"maps"
 
-	"github.com/Fantom-foundation/Tosca/go/tosca"
+	"github.com/0xSonicLabs/Tosca/go/tosca"
 )
 
 // ----------------------------------------------------------------------------

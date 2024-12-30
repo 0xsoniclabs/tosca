@@ -15,7 +15,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Fantom-foundation/Tosca/go/tosca"
+	"github.com/0xSonicLabs/Tosca/go/tosca"
 	"go.uber.org/mock/gomock"
 )
 

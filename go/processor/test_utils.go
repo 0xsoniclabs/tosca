@@ -10,7 +10,7 @@
 
 package test_utils
 
-import "github.com/Fantom-foundation/Tosca/go/tosca"
+import "github.com/0xSonicLabs/Tosca/go/tosca"
 
 // valid input for point evaluation taken from geth
 var ValidPointEvaluationInput = []byte{1, 231, 152, 21, 71, 8, 254, 119, 137, 66, 150, 52, 5, 60, 191, 159,

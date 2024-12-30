@@ -13,11 +13,11 @@ package evmrs
 import (
 	"fmt"
 
-	"github.com/Fantom-foundation/Tosca/go/ct"
-	"github.com/Fantom-foundation/Tosca/go/ct/st"
-	"github.com/Fantom-foundation/Tosca/go/ct/utils"
-	"github.com/Fantom-foundation/Tosca/go/interpreter/evmc"
-	"github.com/Fantom-foundation/Tosca/go/tosca"
+	"github.com/0xSonicLabs/Tosca/go/ct"
+	"github.com/0xSonicLabs/Tosca/go/ct/st"
+	"github.com/0xSonicLabs/Tosca/go/ct/utils"
+	"github.com/0xSonicLabs/Tosca/go/interpreter/evmc"
+	"github.com/0xSonicLabs/Tosca/go/tosca"
 )
 
 var evmrsSteppable *evmc.SteppableEvmcInterpreter

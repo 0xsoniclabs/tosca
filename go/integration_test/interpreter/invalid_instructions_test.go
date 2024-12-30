@@ -15,7 +15,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Fantom-foundation/Tosca/go/tosca/vm"
+	"github.com/0xSonicLabs/Tosca/go/tosca/vm"
 )
 
 func TestInterpreterDetectsInvalidInstruction(t *testing.T) {
