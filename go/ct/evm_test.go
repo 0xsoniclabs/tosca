@@ -15,17 +15,17 @@ import (
 
 	"pgregory.net/rand"
 
-	"github.com/0xSonicLabs/Tosca/go/ct"
-	. "github.com/0xSonicLabs/Tosca/go/ct/common"
-	"github.com/0xSonicLabs/Tosca/go/ct/gen"
-	. "github.com/0xSonicLabs/Tosca/go/ct/rlz"
-	"github.com/0xSonicLabs/Tosca/go/ct/spc"
-	"github.com/0xSonicLabs/Tosca/go/ct/st"
-	"github.com/0xSonicLabs/Tosca/go/interpreter/evmzero"
-	"github.com/0xSonicLabs/Tosca/go/interpreter/geth"
-	"github.com/0xSonicLabs/Tosca/go/interpreter/lfvm"
-	"github.com/0xSonicLabs/Tosca/go/tosca"
-	"github.com/0xSonicLabs/Tosca/go/tosca/vm"
+	"github.com/0xsoniclabs/Tosca/go/ct"
+	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/gen"
+	. "github.com/0xsoniclabs/Tosca/go/ct/rlz"
+	"github.com/0xsoniclabs/Tosca/go/ct/spc"
+	"github.com/0xsoniclabs/Tosca/go/ct/st"
+	"github.com/0xsoniclabs/Tosca/go/interpreter/evmzero"
+	"github.com/0xsoniclabs/Tosca/go/interpreter/geth"
+	"github.com/0xsoniclabs/Tosca/go/interpreter/lfvm"
+	"github.com/0xsoniclabs/Tosca/go/tosca"
+	"github.com/0xsoniclabs/Tosca/go/tosca/vm"
 )
 
 var evms = map[string]ct.Evm{

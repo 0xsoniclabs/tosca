@@ -16,7 +16,7 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/0xSonicLabs/Tosca/go/tosca"
+	"github.com/0xsoniclabs/Tosca/go/tosca"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -85,7 +85,7 @@ func isStateContract(address tosca.Address) bool {
 
 // handleStateContract is a reworked version of the original function from the Opera client.
 // It is used to handle epochs and allows to set balance, copy code, swap code, set storage, and increment nonce.
-// Source: https://github.com/0xSonicLabs/Sonic/blob/main/opera/contracts/evmwriter/evm_writer.go#L24
+// Source: https://github.com/0xsoniclabs/Sonic/blob/main/opera/contracts/evmwriter/evm_writer.go#L24
 func handleStateContract(
 	state tosca.WorldState,
 	sender tosca.Address,

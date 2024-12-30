@@ -13,7 +13,7 @@ package common
 import (
 	"math"
 
-	"github.com/0xSonicLabs/Tosca/go/tosca"
+	"github.com/0xsoniclabs/Tosca/go/tosca"
 )
 
 // Newest tosca.Revision currently supported by the CT specification

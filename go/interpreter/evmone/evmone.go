@@ -18,8 +18,8 @@ import "C"
 import (
 	"fmt"
 
-	"github.com/0xSonicLabs/Tosca/go/interpreter/evmc"
-	"github.com/0xSonicLabs/Tosca/go/tosca"
+	"github.com/0xsoniclabs/Tosca/go/interpreter/evmc"
+	"github.com/0xsoniclabs/Tosca/go/tosca"
 )
 
 func init() {

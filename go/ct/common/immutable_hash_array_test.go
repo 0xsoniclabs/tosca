@@ -15,7 +15,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/0xSonicLabs/Tosca/go/tosca"
+	"github.com/0xsoniclabs/Tosca/go/tosca"
 	"pgregory.net/rand"
 )
 

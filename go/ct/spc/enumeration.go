@@ -16,8 +16,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/0xSonicLabs/Tosca/go/ct/rlz"
-	"github.com/0xSonicLabs/Tosca/go/ct/st"
+	"github.com/0xsoniclabs/Tosca/go/ct/rlz"
+	"github.com/0xsoniclabs/Tosca/go/ct/st"
 	"pgregory.net/rand"
 )
 

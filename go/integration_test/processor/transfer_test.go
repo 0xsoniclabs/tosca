@@ -16,8 +16,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/0xSonicLabs/Tosca/go/tosca"
-	"github.com/0xSonicLabs/Tosca/go/tosca/vm"
+	"github.com/0xsoniclabs/Tosca/go/tosca"
+	"github.com/0xsoniclabs/Tosca/go/tosca/vm"
 )
 
 func TestProcessor_CallValueTransfersAreHandledCorrectly(t *testing.T) {

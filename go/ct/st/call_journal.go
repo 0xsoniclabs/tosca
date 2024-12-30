@@ -14,8 +14,8 @@ import (
 	"fmt"
 	"slices"
 
-	. "github.com/0xSonicLabs/Tosca/go/ct/common"
-	"github.com/0xSonicLabs/Tosca/go/tosca"
+	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/tosca"
 )
 
 // CallJournal is a part of the state modeling the effect of recursive

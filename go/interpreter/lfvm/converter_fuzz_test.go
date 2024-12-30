@@ -14,7 +14,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/0xSonicLabs/Tosca/go/tosca/vm"
+	"github.com/0xsoniclabs/Tosca/go/tosca/vm"
 )
 
 // To run this fuzzer use the following command:

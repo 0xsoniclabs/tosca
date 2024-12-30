@@ -14,8 +14,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/0xSonicLabs/Tosca/go/examples"
-	"github.com/0xSonicLabs/Tosca/go/tosca"
+	"github.com/0xsoniclabs/Tosca/go/examples"
+	"github.com/0xsoniclabs/Tosca/go/tosca"
 )
 
 var (

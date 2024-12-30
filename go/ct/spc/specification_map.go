@@ -14,9 +14,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/0xSonicLabs/Tosca/go/ct/common"
-	. "github.com/0xSonicLabs/Tosca/go/ct/rlz"
-	"github.com/0xSonicLabs/Tosca/go/ct/st"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
+	. "github.com/0xsoniclabs/Tosca/go/ct/rlz"
+	"github.com/0xsoniclabs/Tosca/go/ct/st"
 )
 
 type specificationMap struct {

@@ -14,8 +14,8 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/0xSonicLabs/Tosca/go/tosca"
-	"github.com/0xSonicLabs/Tosca/go/tosca/vm"
+	"github.com/0xsoniclabs/Tosca/go/tosca"
+	"github.com/0xsoniclabs/Tosca/go/tosca/vm"
 	"go.uber.org/mock/gomock"
 )
 

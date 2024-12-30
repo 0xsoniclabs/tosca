@@ -17,9 +17,9 @@ import (
 	"golang.org/x/exp/maps"
 	"pgregory.net/rand"
 
-	. "github.com/0xSonicLabs/Tosca/go/ct/common"
-	"github.com/0xSonicLabs/Tosca/go/ct/st"
-	"github.com/0xSonicLabs/Tosca/go/tosca/vm"
+	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/st"
+	"github.com/0xsoniclabs/Tosca/go/tosca/vm"
 )
 
 func TestRule_GenerateSatisfyingState(t *testing.T) {

@@ -16,8 +16,8 @@ import (
 
 	"pgregory.net/rand"
 
-	"github.com/0xSonicLabs/Tosca/go/ct/gen"
-	"github.com/0xSonicLabs/Tosca/go/ct/st"
+	"github.com/0xsoniclabs/Tosca/go/ct/gen"
+	"github.com/0xsoniclabs/Tosca/go/ct/st"
 )
 
 func TestSerialization_EndToEndTest(t *testing.T) {

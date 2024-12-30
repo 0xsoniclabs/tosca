@@ -16,7 +16,7 @@ import (
 
 	"pgregory.net/rand"
 
-	. "github.com/0xSonicLabs/Tosca/go/ct/common"
+	. "github.com/0xsoniclabs/Tosca/go/ct/common"
 )
 
 func TestStackGenerator_UnconstrainedGeneratorCanProduceStack(t *testing.T) {

@@ -14,11 +14,11 @@ import (
 	"fmt"
 	"math"
 
-	. "github.com/0xSonicLabs/Tosca/go/ct/common"
-	"github.com/0xSonicLabs/Tosca/go/ct/gen"
-	"github.com/0xSonicLabs/Tosca/go/ct/st"
-	"github.com/0xSonicLabs/Tosca/go/tosca"
-	"github.com/0xSonicLabs/Tosca/go/tosca/vm"
+	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/gen"
+	"github.com/0xsoniclabs/Tosca/go/ct/st"
+	"github.com/0xsoniclabs/Tosca/go/tosca"
+	"github.com/0xsoniclabs/Tosca/go/tosca/vm"
 )
 
 type RestrictionKind int

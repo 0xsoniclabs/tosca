@@ -14,12 +14,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/0xSonicLabs/Tosca/go/tosca"
-	"github.com/0xSonicLabs/Tosca/go/tosca/vm"
+	"github.com/0xsoniclabs/Tosca/go/tosca"
+	"github.com/0xsoniclabs/Tosca/go/tosca/vm"
 	op "github.com/ethereum/go-ethereum/core/vm"
 	"go.uber.org/mock/gomock"
 
-	_ "github.com/0xSonicLabs/Tosca/go/processor/opera" // < registers opera processor for testing
+	_ "github.com/0xsoniclabs/Tosca/go/processor/opera" // < registers opera processor for testing
 )
 
 func TestProcessor_GasBillingEndToEnd(t *testing.T) {

@@ -15,7 +15,7 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/0xSonicLabs/Tosca/go/ct/gen"
+	"github.com/0xsoniclabs/Tosca/go/ct/gen"
 	"golang.org/x/exp/maps"
 )
 

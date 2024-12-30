@@ -16,9 +16,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/0xSonicLabs/Tosca/go/interpreter/lfvm"
-	"github.com/0xSonicLabs/Tosca/go/tosca"
-	"github.com/0xSonicLabs/Tosca/go/tosca/vm"
+	"github.com/0xsoniclabs/Tosca/go/interpreter/lfvm"
+	"github.com/0xsoniclabs/Tosca/go/tosca"
+	"github.com/0xsoniclabs/Tosca/go/tosca/vm"
 	"golang.org/x/sync/errgroup"
 )
 

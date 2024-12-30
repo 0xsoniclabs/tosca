@@ -14,9 +14,9 @@ import (
 	"fmt"
 	"sort"
 
-	cliUtils "github.com/0xSonicLabs/Tosca/go/ct/driver/cli"
-	"github.com/0xSonicLabs/Tosca/go/ct/rlz"
-	"github.com/0xSonicLabs/Tosca/go/ct/spc"
+	cliUtils "github.com/0xsoniclabs/Tosca/go/ct/driver/cli"
+	"github.com/0xsoniclabs/Tosca/go/ct/rlz"
+	"github.com/0xsoniclabs/Tosca/go/ct/spc"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/exp/maps"
 )

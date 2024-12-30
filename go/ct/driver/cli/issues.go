@@ -16,7 +16,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/0xSonicLabs/Tosca/go/ct/st"
+	"github.com/0xsoniclabs/Tosca/go/ct/st"
 )
 
 type issue struct {

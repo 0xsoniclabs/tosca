@@ -15,8 +15,8 @@ import (
 	"fmt"
 	"math/big"
 
-	ct "github.com/0xSonicLabs/Tosca/go/ct/common"
-	"github.com/0xSonicLabs/Tosca/go/tosca"
+	ct "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/tosca"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/stateless"
 	"github.com/ethereum/go-ethereum/core/tracing"

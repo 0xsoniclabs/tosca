@@ -8,7 +8,7 @@
 // On the date above, in accordance with the Business Source License, use of
 // this software will be governed by the GNU Lesser General Public License v3.
 
-module github.com/0xSonicLabs/Tosca
+module github.com/0xsoniclabs/Tosca
 
 go 1.22.0
 
@@ -85,6 +85,6 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ethereum/go-ethereum => github.com/0xSonicLabs/go-ethereum v0.0.0-20240916105249-e7951db0c00b
+replace github.com/ethereum/go-ethereum => github.com/0xsoniclabs/go-ethereum v0.0.0-20240916105249-e7951db0c00b
 
 replace github.com/ethereum/evmc/v11 => ./third_party/evmc
