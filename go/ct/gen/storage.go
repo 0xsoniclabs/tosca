@@ -18,7 +18,7 @@ import (
 	"golang.org/x/exp/slices"
 	"pgregory.net/rand"
 
-	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
 	"github.com/0xsoniclabs/Tosca/go/ct/st"
 	"github.com/0xsoniclabs/Tosca/go/tosca"
 )
@@ -46,7 +46,7 @@ func (a *storageConfigConstraint) Less(b *storageConfigConstraint) bool {
 
 // Check checks if the given storage configuration (org,cur,new) corresponds to
 // the wanted config.
-func CheckStorageStatusConfig(config tosca.StorageStatus, org, cur, new U256) bool {
+func CheckStorageStatusConfig(config tosca.StorageStatus, org, cur, new common.U256) bool {
 	return config == tosca.GetStorageStatus(
 		tosca.Word(org.Bytes32be()),
 		tosca.Word(cur.Bytes32be()),
@@ -127,7 +127,7 @@ func (g *StorageGenerator) Generate(assignment Assignment, rnd *rand.Rand) (*st.
 
 	// When handling unbound variables, we need to generate an unused key for
 	// them. We therefore track which keys have already been used.
-	keysInUse := map[U256]bool{}
+	keysInUse := map[common.U256]bool{}
 	for _, con := range g.cfg {
 		if key, isBound := assignment[con.key]; isBound {
 			keysInUse[key] = true
@@ -138,9 +138,9 @@ func (g *StorageGenerator) Generate(assignment Assignment, rnd *rand.Rand) (*st.
 			keysInUse[key] = true
 		}
 	}
-	getUnusedKey := func() U256 {
+	getUnusedKey := func() common.U256 {
 		for {
-			key := RandU256(rnd)
+			key := common.RandU256(rnd)
 			if _, isPresent := keysInUse[key]; !isPresent {
 				keysInUse[key] = true
 				return key
@@ -148,7 +148,7 @@ func (g *StorageGenerator) Generate(assignment Assignment, rnd *rand.Rand) (*st.
 		}
 	}
 
-	getKey := func(v Variable) U256 {
+	getKey := func(v Variable) common.U256 {
 		key, isBound := assignment[v]
 		if !isBound {
 			key = getUnusedKey()
@@ -156,9 +156,9 @@ func (g *StorageGenerator) Generate(assignment Assignment, rnd *rand.Rand) (*st.
 		}
 		return key
 	}
-	randValueButNot := func(exclusive ...U256) U256 {
+	randValueButNot := func(exclusive ...common.U256) common.U256 {
 		for {
-			value := RandU256(rnd)
+			value := common.RandU256(rnd)
 			if !slices.Contains(exclusive, value) {
 				return value
 			}
@@ -181,46 +181,46 @@ func (g *StorageGenerator) Generate(assignment Assignment, rnd *rand.Rand) (*st.
 		} else {
 			// Pick a suitable newValue.
 			if NewValueMustBeZero(con.config) {
-				newValue = NewU256(0)
+				newValue = common.NewU256(0)
 			} else if NewValueMustNotBeZero(con.config) {
-				newValue = randValueButNot(NewU256(0))
+				newValue = randValueButNot(common.NewU256(0))
 			} else {
 				if rnd.Intn(5) == 0 {
-					newValue = NewU256(0)
+					newValue = common.NewU256(0)
 				} else {
-					newValue = RandU256(rnd)
+					newValue = common.RandU256(rnd)
 				}
 			}
 			assignment[con.newValue] = newValue // update assignment
 		}
 
-		orgValue, curValue := NewU256(0), NewU256(0)
+		orgValue, curValue := common.NewU256(0), common.NewU256(0)
 		switch con.config {
 		case tosca.StorageAdded:
-			orgValue, curValue = NewU256(0), NewU256(0)
+			orgValue, curValue = common.NewU256(0), common.NewU256(0)
 		case tosca.StorageAddedDeleted:
-			curValue = randValueButNot(NewU256(0))
+			curValue = randValueButNot(common.NewU256(0))
 		case tosca.StorageDeletedRestored:
 			orgValue = newValue
 		case tosca.StorageDeletedAdded:
-			orgValue = randValueButNot(NewU256(0), newValue)
+			orgValue = randValueButNot(common.NewU256(0), newValue)
 		case tosca.StorageDeleted:
-			orgValue = randValueButNot(NewU256(0))
+			orgValue = randValueButNot(common.NewU256(0))
 			curValue = orgValue
 		case tosca.StorageModified:
-			orgValue = randValueButNot(NewU256(0), newValue)
+			orgValue = randValueButNot(common.NewU256(0), newValue)
 			curValue = orgValue
 		case tosca.StorageModifiedDeleted:
-			orgValue = randValueButNot(NewU256(0))
-			curValue = randValueButNot(NewU256(0), orgValue)
+			orgValue = randValueButNot(common.NewU256(0))
+			curValue = randValueButNot(common.NewU256(0), orgValue)
 		case tosca.StorageModifiedRestored:
 			orgValue = newValue
-			curValue = randValueButNot(NewU256(0), orgValue)
+			curValue = randValueButNot(common.NewU256(0), orgValue)
 		case tosca.StorageAssigned:
 			// Technically, there are more configurations than this one which
 			// satisfy StorageAssigned; but this should do for now.
-			orgValue = randValueButNot(NewU256(0), newValue)
-			curValue = randValueButNot(NewU256(0), orgValue, newValue)
+			orgValue = randValueButNot(common.NewU256(0), newValue)
+			curValue = randValueButNot(common.NewU256(0), orgValue, newValue)
 		}
 
 		builder.SetOriginal(key, orgValue)
@@ -231,8 +231,8 @@ func (g *StorageGenerator) Generate(assignment Assignment, rnd *rand.Rand) (*st.
 	for _, con := range g.warmCold {
 		key := getKey(con.key)
 		if !builder.IsInOriginal(key) {
-			builder.SetOriginal(key, RandU256(rnd))
-			builder.SetCurrent(key, RandU256(rnd))
+			builder.SetOriginal(key, common.RandU256(rnd))
+			builder.SetCurrent(key, common.RandU256(rnd))
 		}
 		builder.SetWarm(key, con.warm)
 	}
@@ -240,8 +240,8 @@ func (g *StorageGenerator) Generate(assignment Assignment, rnd *rand.Rand) (*st.
 	// Also, add some random entries.
 	for i, max := 0, rnd.Intn(5); i < max; i++ {
 		key := getUnusedKey()
-		builder.SetOriginal(key, RandU256(rnd))
-		builder.SetCurrent(key, RandU256(rnd))
+		builder.SetOriginal(key, common.RandU256(rnd))
+		builder.SetCurrent(key, common.RandU256(rnd))
 		builder.SetWarm(key, rnd.Intn(2) == 1)
 	}
 

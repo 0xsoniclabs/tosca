@@ -15,7 +15,7 @@ import (
 	"math"
 	"strings"
 
-	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
 	"github.com/0xsoniclabs/Tosca/go/ct/gen"
 	"github.com/0xsoniclabs/Tosca/go/ct/st"
 	"github.com/0xsoniclabs/Tosca/go/tosca"
@@ -335,7 +335,7 @@ func IsRevisionCondition(condition Condition) bool {
 
 // AnyKnownRevision restricts the revision to any revision covered by the CT specification.
 func AnyKnownRevision() Condition {
-	return RevisionBounds(MinRevision, NewestSupportedRevision)
+	return RevisionBounds(common.MinRevision, common.NewestSupportedRevision)
 }
 
 func (c *revisionBounds) Check(s *st.State) (bool, error) {
@@ -355,13 +355,13 @@ func (e *revisionBounds) GetTestValues() []TestValue {
 	res := []TestValue{}
 	// If the revision is set to a specific value, only test this value,
 	// except if it is the unknown next revision.
-	if e.min == e.max && e.min != R99_UnknownNextRevision {
+	if e.min == e.max && e.min != common.R99_UnknownNextRevision {
 		res = append(res, NewTestValue(property, domain, e.min, restrict))
 		return res
 	}
 
-	res = append(res, NewTestValue(property, domain, R99_UnknownNextRevision, restrict))
-	for r := tosca.Revision(0); r <= NewestSupportedRevision; r++ {
+	res = append(res, NewTestValue(property, domain, common.R99_UnknownNextRevision, restrict))
+	for r := tosca.Revision(0); r <= common.NewestSupportedRevision; r++ {
 		res = append(res, NewTestValue(property, domain, r, restrict))
 	}
 
@@ -379,10 +379,10 @@ func (c *revisionBounds) String() string {
 // Is Code
 
 type isCode struct {
-	position BindableExpression[U256]
+	position BindableExpression[common.U256]
 }
 
-func IsCode(position BindableExpression[U256]) Condition {
+func IsCode(position BindableExpression[common.U256]) Condition {
 	return &isCode{position}
 }
 
@@ -429,10 +429,10 @@ func (c *isCode) String() string {
 // Is Data
 
 type isData struct {
-	position BindableExpression[U256]
+	position BindableExpression[common.U256]
 }
 
-func IsData(position BindableExpression[U256]) Condition {
+func IsData(position BindableExpression[common.U256]) Condition {
 	return &isData{position}
 }
 
@@ -465,10 +465,10 @@ func (c *isData) String() string {
 // Is Storage Warm
 
 type isStorageWarm struct {
-	key BindableExpression[U256]
+	key BindableExpression[common.U256]
 }
 
-func IsStorageWarm(key BindableExpression[U256]) Condition {
+func IsStorageWarm(key BindableExpression[common.U256]) Condition {
 	return &isStorageWarm{key}
 }
 
@@ -512,10 +512,10 @@ func (c *isStorageWarm) String() string {
 // Is Storage Cold
 
 type isStorageCold struct {
-	key BindableExpression[U256]
+	key BindableExpression[common.U256]
 }
 
-func IsStorageCold(key BindableExpression[U256]) Condition {
+func IsStorageCold(key BindableExpression[common.U256]) Condition {
 	return &isStorageCold{key}
 }
 
@@ -546,11 +546,11 @@ func (c *isStorageCold) String() string {
 
 type storageConfiguration struct {
 	config   tosca.StorageStatus
-	key      BindableExpression[U256]
-	newValue BindableExpression[U256]
+	key      BindableExpression[common.U256]
+	newValue BindableExpression[common.U256]
 }
 
-func StorageConfiguration(config tosca.StorageStatus, key, newValue BindableExpression[U256]) Condition {
+func StorageConfiguration(config tosca.StorageStatus, key, newValue BindableExpression[common.U256]) Condition {
 	return &storageConfiguration{config, key, newValue}
 }
 
@@ -595,10 +595,10 @@ func (c *storageConfiguration) String() string {
 // Bind Transient Storage to non zero value
 
 type bindTransientStorageToNonZero struct {
-	key BindableExpression[U256]
+	key BindableExpression[common.U256]
 }
 
-func BindTransientStorageToNonZero(key BindableExpression[U256]) Condition {
+func BindTransientStorageToNonZero(key BindableExpression[common.U256]) Condition {
 	return &bindTransientStorageToNonZero{key}
 }
 
@@ -642,10 +642,10 @@ func (c *bindTransientStorageToNonZero) String() string {
 // Bind Transient Storage to zero value
 
 type bindTransientStorageToZero struct {
-	key BindableExpression[U256]
+	key BindableExpression[common.U256]
 }
 
-func BindTransientStorageToZero(key BindableExpression[U256]) Condition {
+func BindTransientStorageToZero(key BindableExpression[common.U256]) Condition {
 	return &bindTransientStorageToZero{key}
 }
 
@@ -672,10 +672,10 @@ func (c *bindTransientStorageToZero) String() string {
 // Account Empty
 
 type accountIsEmpty struct {
-	address BindableExpression[U256]
+	address BindableExpression[common.U256]
 }
 
-func AccountIsEmpty(address BindableExpression[U256]) *accountIsEmpty {
+func AccountIsEmpty(address BindableExpression[common.U256]) *accountIsEmpty {
 	return &accountIsEmpty{address}
 }
 
@@ -684,7 +684,7 @@ func (c *accountIsEmpty) Check(s *st.State) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return s.Accounts.IsEmpty(NewAddress(address)), nil
+	return s.Accounts.IsEmpty(common.NewAddress(address)), nil
 }
 
 func (c *accountIsEmpty) Restrict(generator *gen.StateGenerator) {
@@ -716,10 +716,10 @@ func (c *accountIsEmpty) String() string {
 // Address not empty
 
 type accountIsNotEmpty struct {
-	address BindableExpression[U256]
+	address BindableExpression[common.U256]
 }
 
-func AccountIsNotEmpty(address BindableExpression[U256]) *accountIsNotEmpty {
+func AccountIsNotEmpty(address BindableExpression[common.U256]) *accountIsNotEmpty {
 	return &accountIsNotEmpty{address}
 }
 
@@ -746,10 +746,10 @@ func (c *accountIsNotEmpty) String() string {
 // Is Address Warm
 
 type isAddressWarm struct {
-	key BindableExpression[U256]
+	key BindableExpression[common.U256]
 }
 
-func IsAddressWarm(key BindableExpression[U256]) Condition {
+func IsAddressWarm(key BindableExpression[common.U256]) Condition {
 	return &isAddressWarm{key}
 }
 
@@ -758,7 +758,7 @@ func (c *isAddressWarm) Check(s *st.State) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return s.Accounts.IsWarm(NewAddress(key)), nil
+	return s.Accounts.IsWarm(common.NewAddress(key)), nil
 }
 
 func (c *isAddressWarm) Restrict(generator *gen.StateGenerator) {
@@ -782,10 +782,10 @@ func (c *isAddressWarm) String() string {
 // Is Address Cold
 
 type isAddressCold struct {
-	key BindableExpression[U256]
+	key BindableExpression[common.U256]
 }
 
-func IsAddressCold(key BindableExpression[U256]) Condition {
+func IsAddressCold(key BindableExpression[common.U256]) Condition {
 	return &isAddressCold{key}
 }
 
@@ -811,7 +811,7 @@ func (c *isAddressCold) String() string {
 	return fmt.Sprintf("account_cold(%v)", c.key)
 }
 
-func restrictAccountWarmCold(bindKey BindableExpression[U256]) func(generator *gen.StateGenerator, isWarm bool) {
+func restrictAccountWarmCold(bindKey BindableExpression[common.U256]) func(generator *gen.StateGenerator, isWarm bool) {
 	return func(generator *gen.StateGenerator, isWarm bool) {
 		key := bindKey.GetVariable()
 		bindKey.BindTo(generator)
@@ -891,10 +891,10 @@ func (c *hasNotSelfDestructed) String() string {
 // In Range 256 From Current Block
 
 type inRange256FromCurrentBlock struct {
-	blockNumber BindableExpression[U256]
+	blockNumber BindableExpression[common.U256]
 }
 
-func InRange256FromCurrentBlock(blockNumber BindableExpression[U256]) Condition {
+func InRange256FromCurrentBlock(blockNumber BindableExpression[common.U256]) Condition {
 	return &inRange256FromCurrentBlock{blockNumber}
 }
 
@@ -944,10 +944,10 @@ func (c *inRange256FromCurrentBlock) String() string {
 // Out Of Range 256 From Current Block
 
 type outOfRange256FromCurrentBlock struct {
-	blockNumber BindableExpression[U256]
+	blockNumber BindableExpression[common.U256]
 }
 
-func OutOfRange256FromCurrentBlock(blockNumber BindableExpression[U256]) Condition {
+func OutOfRange256FromCurrentBlock(blockNumber BindableExpression[common.U256]) Condition {
 	return &outOfRange256FromCurrentBlock{blockNumber}
 }
 
@@ -975,10 +975,10 @@ func (c *outOfRange256FromCurrentBlock) String() string {
 // index Has a blob hash
 
 type hasBlobHash struct {
-	index BindableExpression[U256]
+	index BindableExpression[common.U256]
 }
 
-func HasBlobHash(blockNumber BindableExpression[U256]) Condition {
+func HasBlobHash(blockNumber BindableExpression[common.U256]) Condition {
 	return &hasBlobHash{blockNumber}
 }
 
@@ -1027,10 +1027,10 @@ func (c *hasBlobHash) String() string {
 // index does not have a blob hash
 
 type hasNoBlobHash struct {
-	index BindableExpression[U256]
+	index BindableExpression[common.U256]
 }
 
-func HasNoBlobHash(index BindableExpression[U256]) Condition {
+func HasNoBlobHash(index BindableExpression[common.U256]) Condition {
 	return &hasNoBlobHash{index}
 }
 

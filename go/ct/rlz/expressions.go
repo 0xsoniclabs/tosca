@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"math"
 
-	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
 	"github.com/0xsoniclabs/Tosca/go/ct/gen"
 	"github.com/0xsoniclabs/Tosca/go/ct/st"
 	"github.com/0xsoniclabs/Tosca/go/tosca"
@@ -90,19 +90,19 @@ func (status) String() string {
 
 type pc struct{}
 
-func Pc() BindableExpression[U256] {
+func Pc() BindableExpression[common.U256] {
 	return pc{}
 }
 
 func (pc) Property() Property { return Property("pc") }
 
-func (pc) Domain() Domain[U256] { return pcDomain{} }
+func (pc) Domain() Domain[common.U256] { return pcDomain{} }
 
-func (pc) Eval(s *st.State) (U256, error) {
-	return NewU256(uint64(s.Pc)), nil
+func (pc) Eval(s *st.State) (common.U256, error) {
+	return common.NewU256(uint64(s.Pc)), nil
 }
 
-func (pc) Restrict(kind RestrictionKind, pc U256, generator *gen.StateGenerator) {
+func (pc) Restrict(kind RestrictionKind, pc common.U256, generator *gen.StateGenerator) {
 	if kind != RestrictEqual {
 		panic("PC can only support equality constraints")
 	}
@@ -230,29 +230,29 @@ type balance struct {
 	account BindableExpression[tosca.Address]
 }
 
-func Balance(account BindableExpression[tosca.Address]) Expression[U256] {
+func Balance(account BindableExpression[tosca.Address]) Expression[common.U256] {
 	return balance{account}
 }
 
 func (b balance) Property() Property { return Property(b.String()) }
 
-func (balance) Domain() Domain[U256] { return u256Domain{} }
+func (balance) Domain() Domain[common.U256] { return u256Domain{} }
 
-func (b balance) Eval(s *st.State) (U256, error) {
+func (b balance) Eval(s *st.State) (common.U256, error) {
 	address, err := b.account.Eval(s)
 	if err != nil {
-		return U256{}, err
+		return common.U256{}, err
 	}
 	return s.Accounts.GetBalance(address), nil
 }
 
-func (b balance) Restrict(kind RestrictionKind, value U256, generator *gen.StateGenerator) {
+func (b balance) Restrict(kind RestrictionKind, value common.U256, generator *gen.StateGenerator) {
 	variable := b.account.GetVariable()
 	b.account.BindTo(generator)
 
 	switch kind {
 	case RestrictLess:
-		generator.AddBalanceUpperBound(variable, value.Sub(NewU256(1)))
+		generator.AddBalanceUpperBound(variable, value.Sub(common.NewU256(1)))
 	case RestrictLessEqual:
 		generator.AddBalanceUpperBound(variable, value)
 	case RestrictEqual:
@@ -261,7 +261,7 @@ func (b balance) Restrict(kind RestrictionKind, value U256, generator *gen.State
 	case RestrictGreaterEqual:
 		generator.AddBalanceLowerBound(variable, value)
 	case RestrictGreater:
-		generator.AddBalanceLowerBound(variable, value.Add(NewU256(1)))
+		generator.AddBalanceLowerBound(variable, value.Add(common.NewU256(1)))
 	}
 }
 
@@ -273,10 +273,10 @@ func (b balance) String() string {
 // Code Operation
 
 type op struct {
-	position BindableExpression[U256]
+	position BindableExpression[common.U256]
 }
 
-func Op(position BindableExpression[U256]) Expression[vm.OpCode] {
+func Op(position BindableExpression[common.U256]) Expression[vm.OpCode] {
 	return op{position}
 }
 
@@ -355,32 +355,32 @@ func (stackSize) String() string {
 
 type param struct {
 	position int
-	domain   Domain[U256]
+	domain   Domain[common.U256]
 }
 
-const ErrStackOutOfBoundsAccess = ConstErr("out-of-bounds stack access")
+const ErrStackOutOfBoundsAccess = common.ConstErr("out-of-bounds stack access")
 
-func Param(pos int) BindableExpression[U256] {
+func Param(pos int) BindableExpression[common.U256] {
 	return param{pos, u256Domain{}}
 }
 
-func ValueParam(pos int) BindableExpression[U256] {
+func ValueParam(pos int) BindableExpression[common.U256] {
 	return param{pos, valueDomain{}}
 }
 
 func (p param) Property() Property { return Property(p.String()) }
 
-func (p param) Domain() Domain[U256] { return p.domain }
+func (p param) Domain() Domain[common.U256] { return p.domain }
 
-func (p param) Eval(s *st.State) (U256, error) {
+func (p param) Eval(s *st.State) (common.U256, error) {
 	stack := s.Stack
 	if p.position >= stack.Size() {
-		return NewU256(0), ErrStackOutOfBoundsAccess
+		return common.NewU256(0), ErrStackOutOfBoundsAccess
 	}
 	return stack.Get(p.position), nil
 }
 
-func (p param) Restrict(kind RestrictionKind, value U256, generator *gen.StateGenerator) {
+func (p param) Restrict(kind RestrictionKind, value common.U256, generator *gen.StateGenerator) {
 	if kind != RestrictEqual {
 		panic("Parameters only support equality constraints")
 	}
@@ -403,13 +403,13 @@ func (p param) BindTo(generator *gen.StateGenerator) {
 // Constants
 
 type constant struct {
-	value U256
+	value common.U256
 }
 
 // Constant creates a bindable expression that can only be bounded to the
 // provided value. It can, for instance, be used to fix the operation at
 // a fixed position in the code.
-func Constant(value U256) BindableExpression[U256] {
+func Constant(value common.U256) BindableExpression[common.U256] {
 	return constant{value}
 }
 
@@ -417,13 +417,13 @@ func (c constant) Property() Property {
 	return Property(fmt.Sprintf("constant(%v)", c.value.ToBigInt()))
 }
 
-func (constant) Domain() Domain[U256] { return u256Domain{} }
+func (constant) Domain() Domain[common.U256] { return u256Domain{} }
 
-func (c constant) Eval(*st.State) (U256, error) {
+func (c constant) Eval(*st.State) (common.U256, error) {
 	return c.value, nil
 }
 
-func (c constant) Restrict(kind RestrictionKind, value U256, generator *gen.StateGenerator) {
+func (c constant) Restrict(kind RestrictionKind, value common.U256, generator *gen.StateGenerator) {
 	panic("not implemented")
 }
 
@@ -446,10 +446,10 @@ func (c constant) BindTo(generator *gen.StateGenerator) {
 // ToAddress
 
 type toAddress struct {
-	expr BindableExpression[U256]
+	expr BindableExpression[common.U256]
 }
 
-func ToAddress(expr BindableExpression[U256]) BindableExpression[tosca.Address] {
+func ToAddress(expr BindableExpression[common.U256]) BindableExpression[tosca.Address] {
 	return toAddress{expr}
 }
 
@@ -462,7 +462,7 @@ func (a toAddress) Eval(s *st.State) (tosca.Address, error) {
 	if err != nil {
 		return tosca.Address{}, err
 	}
-	return NewAddress(value), nil
+	return common.NewAddress(value), nil
 }
 
 func (a toAddress) Restrict(RestrictionKind, tosca.Address, *gen.StateGenerator) {

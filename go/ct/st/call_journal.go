@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"slices"
 
-	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
 	"github.com/0xsoniclabs/Tosca/go/tosca"
 )
 
@@ -37,7 +37,7 @@ func (j *CallJournal) Call(kind tosca.CallKind, parameter tosca.CallParameters) 
 		Kind:        kind,
 		Recipient:   parameter.Recipient,
 		Sender:      parameter.Sender,
-		Input:       NewBytes(parameter.Input),
+		Input:       common.NewBytes(parameter.Input),
 		Value:       parameter.Value,
 		Gas:         parameter.Gas,
 		CodeAddress: parameter.CodeAddress,
@@ -122,7 +122,7 @@ type PastCall struct {
 	Kind        tosca.CallKind
 	Recipient   tosca.Address
 	Sender      tosca.Address
-	Input       Bytes
+	Input       common.Bytes
 	Value       tosca.Value
 	Gas         tosca.Gas
 	CodeAddress tosca.Address
@@ -160,7 +160,7 @@ func (c *PastCall) Diff(other *PastCall) []string {
 
 type FutureCall struct {
 	Success        bool
-	Output         Bytes
+	Output         common.Bytes
 	GasCosts       tosca.Gas
 	GasRefund      tosca.Gas
 	CreatedAccount tosca.Address

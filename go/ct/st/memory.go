@@ -15,7 +15,7 @@ import (
 	"math"
 	"slices"
 
-	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
 	"github.com/0xsoniclabs/Tosca/go/tosca"
 	"golang.org/x/crypto/sha3"
 )
@@ -92,7 +92,7 @@ const (
 
 // ExpansionCosts calculates the expansion costs for the given offset and size.
 // It does not grow memory. It also returns offset and size converted to uint64.
-func (m *Memory) ExpansionCosts(offset_u256, size_u256 U256) (memCost tosca.Gas, offset, size uint64) {
+func (m *Memory) ExpansionCosts(offset_u256, size_u256 common.U256) (memCost tosca.Gas, offset, size uint64) {
 	// static assert
 	const (
 		// Memory expansion cost is done using unsigned arithmetic,

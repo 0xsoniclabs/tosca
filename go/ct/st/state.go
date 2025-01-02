@@ -17,7 +17,7 @@ import (
 	"slices"
 	"strings"
 
-	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
 	"github.com/0xsoniclabs/Tosca/go/tosca"
 	"github.com/0xsoniclabs/Tosca/go/tosca/vm"
 )
@@ -152,12 +152,12 @@ type State struct {
 	CallContext           CallContext
 	CallJournal           *CallJournal
 	BlockContext          BlockContext
-	CallData              Bytes
-	LastCallReturnData    Bytes
-	ReturnData            Bytes
+	CallData              common.Bytes
+	LastCallReturnData    common.Bytes
+	ReturnData            common.Bytes
 	HasSelfDestructed     bool
 	SelfDestructedJournal []SelfDestructEntry
-	RecentBlockHashes     ImmutableHashArray
+	RecentBlockHashes     common.ImmutableHashArray
 	TransactionContext    *TransactionContext
 }
 
@@ -174,10 +174,10 @@ func NewState(code *Code) *State {
 		Accounts:              NewAccounts(),
 		Logs:                  NewLogs(),
 		CallJournal:           NewCallJournal(),
-		CallData:              Bytes{},
-		LastCallReturnData:    Bytes{},
+		CallData:              common.Bytes{},
+		LastCallReturnData:    common.Bytes{},
 		SelfDestructedJournal: []SelfDestructEntry{},
-		RecentBlockHashes:     ImmutableHashArray{},
+		RecentBlockHashes:     common.ImmutableHashArray{},
 		TransactionContext:    NewTransactionContext(),
 	}
 }

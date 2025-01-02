@@ -13,20 +13,20 @@ package st
 import (
 	"fmt"
 
-	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
 	"github.com/0xsoniclabs/Tosca/go/tosca"
 )
 
 // BlockContext holds the block environment information
 type BlockContext struct {
-	BaseFee     U256          // Base fee in wei
-	BlobBaseFee U256          // Blob Base fee in wei
+	BaseFee     common.U256   // Base fee in wei
+	BlobBaseFee common.U256   // Blob Base fee in wei
 	BlockNumber uint64        // Block's number
-	ChainID     U256          // Chain id of the network
+	ChainID     common.U256   // Chain id of the network
 	CoinBase    tosca.Address // Address of the block's beneficiary
 	GasLimit    uint64        // Block's gas limit
-	GasPrice    U256          // Price of gas in current environment
-	PrevRandao  U256          // Previous block's randao mix
+	GasPrice    common.U256   // Price of gas in current environment
+	PrevRandao  common.U256   // Previous block's randao mix
 	TimeStamp   uint64        // Block's timestamp in unix time in seconds
 }
 

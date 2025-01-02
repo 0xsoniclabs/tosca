@@ -15,17 +15,17 @@ import (
 	"strings"
 
 	"github.com/0xsoniclabs/Tosca/go/ct/common"
-	. "github.com/0xsoniclabs/Tosca/go/ct/rlz"
+	"github.com/0xsoniclabs/Tosca/go/ct/rlz"
 	"github.com/0xsoniclabs/Tosca/go/ct/st"
 )
 
 type specificationMap struct {
-	rules map[string][]Rule
+	rules map[string][]rlz.Rule
 }
 
-func (s *specificationMap) GetRules() []Rule {
+func (s *specificationMap) GetRules() []rlz.Rule {
 	// allocating space for 5 rules per rule, checked with GetAllRules benchmark
-	allRules := make([]Rule, 0, len(s.rules)*5)
+	allRules := make([]rlz.Rule, 0, len(s.rules)*5)
 
 	for _, rules := range s.rules {
 		allRules = append(allRules, rules...)
@@ -34,9 +34,9 @@ func (s *specificationMap) GetRules() []Rule {
 	return allRules
 }
 
-func NewSpecificationMap(rules ...Rule) Specification {
+func NewSpecificationMap(rules ...rlz.Rule) Specification {
 	spec := &specificationMap{}
-	spec.rules = make(map[string][]Rule)
+	spec.rules = make(map[string][]rlz.Rule)
 	for _, rule := range rules {
 		opString := ruleToOpString(rule)
 		spec.rules[opString] = append(spec.rules[opString], rule)
@@ -45,7 +45,7 @@ func NewSpecificationMap(rules ...Rule) Specification {
 	return spec
 }
 
-func (s *specificationMap) GetRulesFor(state *st.State) []Rule {
+func (s *specificationMap) GetRulesFor(state *st.State) []rlz.Rule {
 	op, err := state.Code.GetOperation(int(state.Pc))
 	var opString string
 	if err != nil {
@@ -56,7 +56,7 @@ func (s *specificationMap) GetRulesFor(state *st.State) []Rule {
 		opString = op.String()
 	}
 
-	result := []Rule{}
+	result := []rlz.Rule{}
 	for _, rule := range s.rules[opString] {
 		if valid, err := rule.Condition.Check(state); valid && err == nil {
 			result = append(result, rule)
@@ -66,7 +66,7 @@ func (s *specificationMap) GetRulesFor(state *st.State) []Rule {
 	return result
 }
 
-func ruleToOpString(rule Rule) string {
+func ruleToOpString(rule rlz.Rule) string {
 	var ruleString string
 	opString := rule.Condition.String()
 

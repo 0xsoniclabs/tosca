@@ -18,7 +18,7 @@ import (
 
 	"pgregory.net/rand"
 
-	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
 	"github.com/0xsoniclabs/Tosca/go/ct/st"
 )
 
@@ -30,7 +30,7 @@ type StackGenerator struct {
 
 type constValueConstraint struct {
 	pos   int
-	value U256
+	value common.U256
 }
 
 func (c *constValueConstraint) Less(o *constValueConstraint) bool {
@@ -70,7 +70,7 @@ func (g *StackGenerator) SetSize(size int) {
 	g.size.AddEqualityConstraint(size)
 }
 
-func (g *StackGenerator) SetValue(pos int, value U256) {
+func (g *StackGenerator) SetValue(pos int, value common.U256) {
 	v := constValueConstraint{pos, value}
 	if !slices.Contains(g.constValues, v) {
 		g.constValues = append(g.constValues, v)
@@ -126,7 +126,7 @@ func (g *StackGenerator) Generate(assignment Assignment, rnd *rand.Rand) (*st.St
 	// Fill in remaining slots
 	for i, isSet := range stackMask {
 		if !isSet {
-			stack.Set(i, RandU256(rnd))
+			stack.Set(i, common.RandU256(rnd))
 		}
 	}
 

@@ -11,31 +11,31 @@
 package st
 
 import (
-	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
 	"golang.org/x/exp/maps"
 )
 
 type TransientStorage struct {
-	storage map[U256]U256
+	storage map[common.U256]common.U256
 }
 
-func (t *TransientStorage) Set(key U256, value U256) {
+func (t *TransientStorage) Set(key common.U256, value common.U256) {
 	if value.IsZero() {
 		delete(t.storage, key)
 		return
 	}
 
 	if t.storage == nil {
-		t.storage = make(map[U256]U256)
+		t.storage = make(map[common.U256]common.U256)
 	}
 	t.storage[key] = value
 }
 
-func (t *TransientStorage) Get(key U256) U256 {
+func (t *TransientStorage) Get(key common.U256) common.U256 {
 	return t.storage[key]
 }
 
-func (t *TransientStorage) IsZero(key U256) bool {
+func (t *TransientStorage) IsZero(key common.U256) bool {
 	return t.storage[key].IsZero()
 }
 

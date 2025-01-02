@@ -13,7 +13,7 @@ package st
 import (
 	"fmt"
 
-	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
 	"github.com/0xsoniclabs/Tosca/go/tosca"
 )
 
@@ -21,7 +21,7 @@ import (
 type CallContext struct {
 	AccountAddress tosca.Address // Address of currently executing account
 	CallerAddress  tosca.Address // Address of the caller
-	Value          U256          // Deposited value by the instruction/transaction responsible for this execution
+	Value          common.U256   // Deposited value by the instruction/transaction responsible for this execution
 }
 
 // Diff returns a list of differences between the two call contexts.

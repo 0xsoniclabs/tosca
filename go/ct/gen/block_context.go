@@ -19,7 +19,7 @@ import (
 
 	"pgregory.net/rand"
 
-	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
 	"github.com/0xsoniclabs/Tosca/go/ct/st"
 	"github.com/0xsoniclabs/Tosca/go/tosca"
 )
@@ -122,7 +122,7 @@ func (b *BlockContextGenerator) generateBlockNumber(assignment Assignment, rnd *
 // bindVariablesInValueConstraints processes the fixed-value constraints on variables.
 func (b *BlockContextGenerator) bindVariablesInValueConstraints(assignment Assignment, resultingBlockNumber uint64) error {
 	for variable, offset := range b.valueConstraint {
-		requiredValue, underflow := addOffset(NewU256(resultingBlockNumber), -offset)
+		requiredValue, underflow := addOffset(common.NewU256(resultingBlockNumber), -offset)
 		if underflow {
 			return ErrUnsatisfiable
 		}
@@ -159,7 +159,7 @@ func (b *BlockContextGenerator) bindVariablesInRangeConstraints(resultingBlockNu
 				if err != nil {
 					return err
 				}
-				assignment[variable] = NewU256(blockNumber)
+				assignment[variable] = common.NewU256(blockNumber)
 			} else {
 				numberOutOfRangeGenerator := NewIntervalSolver[uint64](0, math.MaxUint64)
 				numberOutOfRangeGenerator.Exclude(resultingBlockNumber-256, resultingBlockNumber-1)
@@ -167,7 +167,7 @@ func (b *BlockContextGenerator) bindVariablesInRangeConstraints(resultingBlockNu
 				if err != nil {
 					return err
 				}
-				assignment[variable] = NewU256(number)
+				assignment[variable] = common.NewU256(number)
 			}
 		}
 	}
@@ -196,19 +196,19 @@ func (b *BlockContextGenerator) Generate(assignment Assignment, rnd *rand.Rand) 
 		return st.BlockContext{}, err
 	}
 
-	chainId := RandU256(rnd)
-	coinbase := RandomAddress(rnd)
+	chainId := common.RandU256(rnd)
+	coinbase := common.RandomAddress(rnd)
 
-	baseFee := RandU256(rnd)
-	blobBaseFee := RandU256(rnd)
+	baseFee := common.RandU256(rnd)
+	blobBaseFee := common.RandU256(rnd)
 	gasLimit := rnd.Uint64()
-	gasPrice := RandU256(rnd)
+	gasPrice := common.RandU256(rnd)
 
-	prevRandao := RandU256(rnd)
+	prevRandao := common.RandU256(rnd)
 
-	revision := GetRevisionForBlock(blockNumber)
-	time := GetForkTime(revision)
-	nextTime := GetForkTime(revision + 1)
+	revision := common.GetRevisionForBlock(blockNumber)
+	time := common.GetForkTime(revision)
+	nextTime := common.GetForkTime(revision + 1)
 	timestamp := rnd.Uint64n(nextTime-time) + time
 
 	return st.BlockContext{
@@ -375,9 +375,9 @@ func (b *BlockContextGenerator) AddRevisionBounds(lower, upper tosca.Revision) {
 		return
 	}
 
-	min := GetForkBlock(lower)
-	max := GetForkBlock(upper)
-	len, err := GetBlockRangeLengthFor(upper)
+	min := common.GetForkBlock(lower)
+	max := common.GetForkBlock(upper)
+	len, err := common.GetBlockRangeLengthFor(upper)
 	if err != nil {
 		b.markUnsatisfiable()
 		return
@@ -406,12 +406,12 @@ func (b *BlockContextGenerator) markUnsatisfiable() {
 }
 
 // addOffset adds an offset to a U256 value, checking for overflow.
-func addOffset(value U256, offset int64) (result U256, hasOverflown bool) {
+func addOffset(value common.U256, offset int64) (result common.U256, hasOverflown bool) {
 	if offset < 0 {
-		result := value.Sub(NewU256(uint64(-offset)))
+		result := value.Sub(common.NewU256(uint64(-offset)))
 		return result, result.Gt(value)
 	}
-	result = value.Add(NewU256(uint64(offset)))
+	result = value.Add(common.NewU256(uint64(offset)))
 	return result, result.Lt(value)
 }
 
@@ -421,7 +421,7 @@ func addWithOverflowCheck(a, b uint64) (result uint64, hasOverflown bool) {
 	return result, result < a
 }
 
-func isInRange(lowerBound uint64, currentValue U256, upperBound uint64) bool {
+func isInRange(lowerBound uint64, currentValue common.U256, upperBound uint64) bool {
 	value := currentValue.Uint64()
 	return currentValue.IsUint64() && lowerBound <= value && value <= upperBound
 }

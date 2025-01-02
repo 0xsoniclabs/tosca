@@ -13,7 +13,7 @@ package rlz
 import (
 	"math"
 
-	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
 	"github.com/0xsoniclabs/Tosca/go/ct/st"
 	"github.com/0xsoniclabs/Tosca/go/tosca"
 	"github.com/0xsoniclabs/Tosca/go/tosca/vm"
@@ -107,21 +107,21 @@ func (uint16Domain) SamplesForAll(as []uint16) []uint16 {
 
 type u256Domain struct{}
 
-func (u256Domain) Equal(a U256, b U256) bool { return a.Eq(b) }
-func (u256Domain) Less(a U256, b U256) bool  { return a.Lt(b) }
-func (u256Domain) Predecessor(a U256) U256   { return a.Sub(NewU256(1)) }
-func (u256Domain) Successor(a U256) U256     { return a.Add(NewU256(1)) }
+func (u256Domain) Equal(a common.U256, b common.U256) bool { return a.Eq(b) }
+func (u256Domain) Less(a common.U256, b common.U256) bool  { return a.Lt(b) }
+func (u256Domain) Predecessor(a common.U256) common.U256   { return a.Sub(common.NewU256(1)) }
+func (u256Domain) Successor(a common.U256) common.U256     { return a.Add(common.NewU256(1)) }
 
-func (u256Domain) SomethingNotEqual(a U256) U256 {
-	return a.Add(NewU256(1))
+func (u256Domain) SomethingNotEqual(a common.U256) common.U256 {
+	return a.Add(common.NewU256(1))
 }
 
-func (d u256Domain) Samples(a U256) []U256 {
-	return d.SamplesForAll([]U256{a})
+func (d u256Domain) Samples(a common.U256) []common.U256 {
+	return d.SamplesForAll([]common.U256{a})
 }
 
-func (d u256Domain) SamplesForAll(as []U256) []U256 {
-	res := []U256{}
+func (d u256Domain) SamplesForAll(as []common.U256) []common.U256 {
+	res := []common.U256{}
 
 	// Test every element off by one.
 	for _, a := range as {
@@ -133,7 +133,7 @@ func (d u256Domain) SamplesForAll(as []U256) []U256 {
 	// Add more interesting values.
 	res = append(res, NumericParameter{}.Samples()...)
 
-	res = removeDuplicatesGeneric[U256](res)
+	res = removeDuplicatesGeneric[common.U256](res)
 
 	return res
 }
@@ -169,12 +169,12 @@ type valueDomain struct {
 	u256Domain
 }
 
-func (d valueDomain) Samples(a U256) []U256 {
-	return d.SamplesForAll([]U256{a})
+func (d valueDomain) Samples(a common.U256) []common.U256 {
+	return d.SamplesForAll([]common.U256{a})
 }
 
-func (d valueDomain) SamplesForAll(as []U256) []U256 {
-	res := []U256{}
+func (d valueDomain) SamplesForAll(as []common.U256) []common.U256 {
+	res := []common.U256{}
 
 	// Test every element off by one.
 	for _, a := range as {
@@ -195,20 +195,20 @@ func (revisionDomain) Equal(a tosca.Revision, b tosca.Revision) bool { return a 
 func (revisionDomain) Less(a tosca.Revision, b tosca.Revision) bool  { return a < b }
 func (revisionDomain) Predecessor(a tosca.Revision) tosca.Revision {
 	if a == tosca.R07_Istanbul {
-		return R99_UnknownNextRevision
+		return common.R99_UnknownNextRevision
 	}
-	if a == R99_UnknownNextRevision {
-		return NewestSupportedRevision
+	if a == common.R99_UnknownNextRevision {
+		return common.NewestSupportedRevision
 	}
 	return a - 1
 }
 
 func (revisionDomain) Successor(a tosca.Revision) tosca.Revision {
-	if a == R99_UnknownNextRevision {
+	if a == common.R99_UnknownNextRevision {
 		return tosca.R07_Istanbul
 	}
-	if a == NewestSupportedRevision {
-		return R99_UnknownNextRevision
+	if a == common.NewestSupportedRevision {
+		return common.R99_UnknownNextRevision
 	}
 	return a + 1
 }
@@ -222,8 +222,8 @@ func (d revisionDomain) Samples(a tosca.Revision) []tosca.Revision {
 }
 
 func (revisionDomain) SamplesForAll(a []tosca.Revision) []tosca.Revision {
-	res := []tosca.Revision{R99_UnknownNextRevision}
-	for r := tosca.R07_Istanbul; r <= NewestSupportedRevision; r++ {
+	res := []tosca.Revision{common.R99_UnknownNextRevision}
+	for r := tosca.R07_Istanbul; r <= common.NewestSupportedRevision; r++ {
 		res = append(res, r)
 	}
 
@@ -260,17 +260,17 @@ func (statusCodeDomain) SamplesForAll(a []st.StatusCode) []st.StatusCode {
 
 type pcDomain struct{}
 
-func (pcDomain) Equal(a U256, b U256) bool     { return a.Eq(b) }
-func (pcDomain) Less(a U256, b U256) bool      { return a.Lt(b) }
-func (pcDomain) Predecessor(a U256) U256       { return a.Sub(NewU256(1)) }
-func (pcDomain) Successor(a U256) U256         { return a.Add(NewU256(1)) }
-func (pcDomain) SomethingNotEqual(a U256) U256 { return a.Add(NewU256(1)) }
+func (pcDomain) Equal(a common.U256, b common.U256) bool     { return a.Eq(b) }
+func (pcDomain) Less(a common.U256, b common.U256) bool      { return a.Lt(b) }
+func (pcDomain) Predecessor(a common.U256) common.U256       { return a.Sub(common.NewU256(1)) }
+func (pcDomain) Successor(a common.U256) common.U256         { return a.Add(common.NewU256(1)) }
+func (pcDomain) SomethingNotEqual(a common.U256) common.U256 { return a.Add(common.NewU256(1)) }
 
-func (d pcDomain) Samples(a U256) []U256 {
-	return d.SamplesForAll([]U256{a})
+func (d pcDomain) Samples(a common.U256) []common.U256 {
+	return d.SamplesForAll([]common.U256{a})
 }
 
-func (pcDomain) SamplesForAll(as []U256) []U256 {
+func (pcDomain) SamplesForAll(as []common.U256) []common.U256 {
 	pcs := []uint16{}
 	for _, a := range as {
 		if a.IsUint64() && a.Uint64() <= uint64(math.MaxUint16) {
@@ -280,9 +280,9 @@ func (pcDomain) SamplesForAll(as []U256) []U256 {
 
 	pcs = uint16Domain{}.SamplesForAll(pcs)
 
-	res := make([]U256, 0, len(pcs))
+	res := make([]common.U256, 0, len(pcs))
 	for _, cur := range pcs {
-		res = append(res, NewU256(uint64(cur)))
+		res = append(res, common.NewU256(uint64(cur)))
 	}
 	return res
 }

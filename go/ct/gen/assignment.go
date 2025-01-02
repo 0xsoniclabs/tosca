@@ -15,7 +15,7 @@ import (
 	"sort"
 	"strings"
 
-	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
 )
 
 // Variable is a placeholder for the generation process that will be mapped to a
@@ -33,7 +33,7 @@ func (v Variable) String() string {
 
 // Assignment holds the mapping from Variables to specific values. It is
 // populated during the generation process.
-type Assignment map[Variable]U256
+type Assignment map[Variable]common.U256
 
 func (a Assignment) String() string {
 	if a == nil {

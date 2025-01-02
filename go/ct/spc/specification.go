@@ -17,8 +17,8 @@ import (
 	"slices"
 	"strings"
 
-	. "github.com/0xsoniclabs/Tosca/go/ct/common"
-	. "github.com/0xsoniclabs/Tosca/go/ct/rlz"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/rlz"
 	"github.com/0xsoniclabs/Tosca/go/ct/st"
 	"github.com/0xsoniclabs/Tosca/go/tosca"
 	"github.com/0xsoniclabs/Tosca/go/tosca/vm"
@@ -28,11 +28,11 @@ import (
 // Specification defines the interface for handling specifications.
 type Specification interface {
 	// GetRules provides access to all rules within the specification.
-	GetRules() []Rule
+	GetRules() []rlz.Rule
 
 	// GetRulesFor gives you all rules that apply to the given State (i.e. where
 	// the rule's Condition holds).
-	GetRulesFor(*st.State) []Rule
+	GetRulesFor(*st.State) []rlz.Rule
 }
 
 var Spec = func() Specification {
@@ -46,49 +46,49 @@ type instruction struct {
 	staticGas  tosca.Gas
 	pops       int
 	pushes     int
-	conditions []Condition       // conditions for the regular case
-	parameters []Parameter       // parameters for the regular case
+	conditions []rlz.Condition   // conditions for the regular case
+	parameters []rlz.Parameter   // parameters for the regular case
 	effect     func(s *st.State) // effect for the regular case
 	name       string
 }
 
 ////////////////////////////////////////////////////////////
 
-func boolToU256(value bool) U256 {
+func boolToU256(value bool) common.U256 {
 	if value {
-		return NewU256(1)
+		return common.NewU256(1)
 	}
-	return NewU256(0)
+	return common.NewU256(0)
 }
 
-func getAllRules() []Rule {
-	rules := []Rule{}
+func getAllRules() []rlz.Rule {
+	rules := []rlz.Rule{}
 
 	// --- Terminal States ---
 
-	rules = append(rules, []Rule{
+	rules = append(rules, []rlz.Rule{
 		{
 			Name:      "stopped_is_end",
-			Condition: And(AnyKnownRevision(), Eq(Status(), st.Stopped)),
-			Effect:    NoEffect(),
+			Condition: rlz.And(rlz.AnyKnownRevision(), rlz.Eq(rlz.Status(), st.Stopped)),
+			Effect:    rlz.NoEffect(),
 		},
 
 		{
 			Name:      "reverted_is_end",
-			Condition: And(AnyKnownRevision(), Eq(Status(), st.Reverted)),
-			Effect:    NoEffect(),
+			Condition: rlz.And(rlz.AnyKnownRevision(), rlz.Eq(rlz.Status(), st.Reverted)),
+			Effect:    rlz.NoEffect(),
 		},
 
 		{
 			Name:      "failed_is_end",
-			Condition: And(AnyKnownRevision(), Eq(Status(), st.Failed)),
-			Effect:    NoEffect(),
+			Condition: rlz.And(rlz.AnyKnownRevision(), rlz.Eq(rlz.Status(), st.Failed)),
+			Effect:    rlz.NoEffect(),
 		},
 
 		{
 			Name:      "pc_on_data_is_ignored",
-			Condition: IsData(Pc()),
-			Effect:    NoEffect(),
+			Condition: rlz.IsData(rlz.Pc()),
+			Effect:    rlz.NoEffect(),
 		},
 	}...)
 
@@ -97,85 +97,85 @@ func getAllRules() []Rule {
 	for i := 0; i < 256; i++ {
 		op := vm.OpCode(i)
 		if !vm.IsValid(op) {
-			rules = append(rules, Rule{
+			rules = append(rules, rlz.Rule{
 				Name: fmt.Sprintf("%v_invalid", op),
-				Condition: And(
-					Eq(Status(), st.Running),
-					Eq(Op(Pc()), op),
-					AnyKnownRevision(),
+				Condition: rlz.And(
+					rlz.Eq(rlz.Status(), st.Running),
+					rlz.Eq(rlz.Op(rlz.Pc()), op),
+					rlz.AnyKnownRevision(),
 				),
-				Effect: FailEffect(),
+				Effect: rlz.FailEffect(),
 			})
 		}
 	}
 
 	// --- Error States ---
 
-	rules = append(rules, []Rule{
+	rules = append(rules, []rlz.Rule{
 		{
 			Name:      "unknown_revision_is_end",
-			Condition: IsRevision(R99_UnknownNextRevision),
-			Effect:    FailEffect(),
+			Condition: rlz.IsRevision(common.R99_UnknownNextRevision),
+			Effect:    rlz.FailEffect(),
 		},
 	}...)
 
 	// --- STOP ---
 
-	rules = append(rules, Rule{
+	rules = append(rules, rlz.Rule{
 		Name: "stop_terminates_interpreter",
-		Condition: And(
-			AnyKnownRevision(),
-			Eq(Status(), st.Running),
-			Eq(Op(Pc()), vm.STOP),
+		Condition: rlz.And(
+			rlz.AnyKnownRevision(),
+			rlz.Eq(rlz.Status(), st.Running),
+			rlz.Eq(rlz.Op(rlz.Pc()), vm.STOP),
 		),
-		Effect: Change(func(s *st.State) {
+		Effect: rlz.Change(func(s *st.State) {
 			s.Status = st.Stopped
-			s.ReturnData = Bytes{}
+			s.ReturnData = common.Bytes{}
 			s.Pc++
 		}),
 	})
 
 	// --- Arithmetic ---
 
-	rules = append(rules, binaryOp(vm.ADD, 3, func(a, b U256) U256 {
+	rules = append(rules, binaryOp(vm.ADD, 3, func(a, b common.U256) common.U256 {
 		return a.Add(b)
 	})...)
 
-	rules = append(rules, binaryOp(vm.MUL, 5, func(a, b U256) U256 {
+	rules = append(rules, binaryOp(vm.MUL, 5, func(a, b common.U256) common.U256 {
 		return a.Mul(b)
 	})...)
 
-	rules = append(rules, binaryOp(vm.SUB, 3, func(a, b U256) U256 {
+	rules = append(rules, binaryOp(vm.SUB, 3, func(a, b common.U256) common.U256 {
 		return a.Sub(b)
 	})...)
 
-	rules = append(rules, binaryOp(vm.DIV, 5, func(a, b U256) U256 {
+	rules = append(rules, binaryOp(vm.DIV, 5, func(a, b common.U256) common.U256 {
 		return a.Div(b)
 	})...)
 
-	rules = append(rules, binaryOp(vm.SDIV, 5, func(a, b U256) U256 {
+	rules = append(rules, binaryOp(vm.SDIV, 5, func(a, b common.U256) common.U256 {
 		return a.SDiv(b)
 	})...)
 
-	rules = append(rules, binaryOp(vm.MOD, 5, func(a, b U256) U256 {
+	rules = append(rules, binaryOp(vm.MOD, 5, func(a, b common.U256) common.U256 {
 		return a.Mod(b)
 	})...)
 
-	rules = append(rules, binaryOp(vm.SMOD, 5, func(a, b U256) U256 {
+	rules = append(rules, binaryOp(vm.SMOD, 5, func(a, b common.U256) common.U256 {
 		return a.SMod(b)
 	})...)
 
-	rules = append(rules, trinaryOp(vm.ADDMOD, 8, func(a, b, n U256) U256 {
+	rules = append(rules, trinaryOp(vm.ADDMOD, 8, func(a, b, n common.U256) common.U256 {
 		return a.AddMod(b, n)
 	})...)
 
-	rules = append(rules, trinaryOp(vm.MULMOD, 8, func(a, b, n U256) U256 {
+	rules = append(rules, trinaryOp(vm.MULMOD, 8, func(a, b, n common.U256) common.U256 {
 		return a.MulMod(b, n)
 	})...)
 
-	rules = append(rules, binaryOpWithDynamicCost(vm.EXP, 10, func(a, e U256) U256 {
+	rules = append(rules, binaryOpWithDynamicCost(vm.EXP, 10, func(a, e common.U256) common.U256 {
 		return a.Exp(e)
-	}, func(a, e U256) tosca.Gas {
+	}, func(a, e common.U256) tosca.Gas {
 		const gasFactor = tosca.Gas(50)
 		expBytes := e.Bytes32be()
 		for i := 0; i < 32; i++ {
@@ -186,66 +186,66 @@ func getAllRules() []Rule {
 		return 0
 	})...)
 
-	rules = append(rules, binaryOp(vm.SIGNEXTEND, 5, func(b, x U256) U256 {
+	rules = append(rules, binaryOp(vm.SIGNEXTEND, 5, func(b, x common.U256) common.U256 {
 		return x.SignExtend(b)
 	})...)
 
-	rules = append(rules, binaryOp(vm.LT, 3, func(a, b U256) U256 {
+	rules = append(rules, binaryOp(vm.LT, 3, func(a, b common.U256) common.U256 {
 		return boolToU256(a.Lt(b))
 	})...)
 
-	rules = append(rules, binaryOp(vm.GT, 3, func(a, b U256) U256 {
+	rules = append(rules, binaryOp(vm.GT, 3, func(a, b common.U256) common.U256 {
 		return boolToU256(a.Gt(b))
 	})...)
 
-	rules = append(rules, binaryOp(vm.SLT, 3, func(a, b U256) U256 {
+	rules = append(rules, binaryOp(vm.SLT, 3, func(a, b common.U256) common.U256 {
 		return boolToU256(a.Slt(b))
 	})...)
 
-	rules = append(rules, binaryOp(vm.SGT, 3, func(a, b U256) U256 {
+	rules = append(rules, binaryOp(vm.SGT, 3, func(a, b common.U256) common.U256 {
 		return boolToU256(a.Sgt(b))
 	})...)
 
-	rules = append(rules, binaryOp(vm.EQ, 3, func(a, b U256) U256 {
+	rules = append(rules, binaryOp(vm.EQ, 3, func(a, b common.U256) common.U256 {
 		return boolToU256(a.Eq(b))
 	})...)
 
-	rules = append(rules, unaryOp(vm.ISZERO, 3, func(a U256) U256 {
+	rules = append(rules, unaryOp(vm.ISZERO, 3, func(a common.U256) common.U256 {
 		return boolToU256(a.IsZero())
 	})...)
 
-	rules = append(rules, binaryOp(vm.AND, 3, func(a, b U256) U256 {
+	rules = append(rules, binaryOp(vm.AND, 3, func(a, b common.U256) common.U256 {
 		return a.And(b)
 	})...)
 
-	rules = append(rules, binaryOp(vm.OR, 3, func(a, b U256) U256 {
+	rules = append(rules, binaryOp(vm.OR, 3, func(a, b common.U256) common.U256 {
 		return a.Or(b)
 	})...)
 
-	rules = append(rules, binaryOp(vm.XOR, 3, func(a, b U256) U256 {
+	rules = append(rules, binaryOp(vm.XOR, 3, func(a, b common.U256) common.U256 {
 		return a.Xor(b)
 	})...)
 
-	rules = append(rules, unaryOp(vm.NOT, 3, func(a U256) U256 {
+	rules = append(rules, unaryOp(vm.NOT, 3, func(a common.U256) common.U256 {
 		return a.Not()
 	})...)
 
-	rules = append(rules, binaryOp(vm.BYTE, 3, func(i, x U256) U256 {
-		if i.Gt(NewU256(31)) {
-			return NewU256(0)
+	rules = append(rules, binaryOp(vm.BYTE, 3, func(i, x common.U256) common.U256 {
+		if i.Gt(common.NewU256(31)) {
+			return common.NewU256(0)
 		}
-		return NewU256(uint64(x.Bytes32be()[i.Uint64()]))
+		return common.NewU256(uint64(x.Bytes32be()[i.Uint64()]))
 	})...)
 
-	rules = append(rules, binaryOp(vm.SHL, 3, func(shift, value U256) U256 {
+	rules = append(rules, binaryOp(vm.SHL, 3, func(shift, value common.U256) common.U256 {
 		return value.Shl(shift)
 	})...)
 
-	rules = append(rules, binaryOp(vm.SHR, 3, func(shift, value U256) U256 {
+	rules = append(rules, binaryOp(vm.SHR, 3, func(shift, value common.U256) common.U256 {
 		return value.Shr(shift)
 	})...)
 
-	rules = append(rules, binaryOp(vm.SAR, 3, func(shift, value U256) U256 {
+	rules = append(rules, binaryOp(vm.SAR, 3, func(shift, value common.U256) common.U256 {
 		return value.Srsh(shift)
 	})...)
 
@@ -256,9 +256,9 @@ func getAllRules() []Rule {
 		staticGas: 30,
 		pops:      2,
 		pushes:    1,
-		parameters: []Parameter{
-			MemoryOffsetParameter{},
-			SizeParameter{},
+		parameters: []rlz.Parameter{
+			rlz.MemoryOffsetParameter{},
+			rlz.SizeParameter{},
 		},
 		effect: func(s *st.State) {
 			offsetU256 := s.Stack.Pop()
@@ -279,7 +279,7 @@ func getAllRules() []Rule {
 			s.Gas -= wordCost
 
 			hash := s.Memory.Hash(offset, size)
-			s.Stack.Push(NewU256FromBytes(hash[:]...))
+			s.Stack.Push(common.NewU256FromBytes(hash[:]...))
 		},
 	})...)
 
@@ -291,15 +291,15 @@ func getAllRules() []Rule {
 		staticGas: 0 + 2600, // 2600 dynamic cost for cold address
 		pops:      1,
 		pushes:    1,
-		conditions: []Condition{
-			RevisionBounds(tosca.R09_Berlin, NewestSupportedRevision),
-			IsAddressCold(Param(0)),
+		conditions: []rlz.Condition{
+			rlz.RevisionBounds(tosca.R09_Berlin, common.NewestSupportedRevision),
+			rlz.IsAddressCold(rlz.Param(0)),
 		},
-		parameters: []Parameter{
-			AddressParameter{},
+		parameters: []rlz.Parameter{
+			rlz.AddressParameter{},
 		},
 		effect: func(s *st.State) {
-			address := NewAddress(s.Stack.Pop())
+			address := common.NewAddress(s.Stack.Pop())
 			s.Stack.Push(s.Accounts.GetBalance(address))
 			s.Accounts.MarkWarm(address)
 		},
@@ -312,15 +312,15 @@ func getAllRules() []Rule {
 		staticGas: 0 + 100, // 100 dynamic cost for warm address
 		pops:      1,
 		pushes:    1,
-		conditions: []Condition{
-			RevisionBounds(tosca.R09_Berlin, NewestSupportedRevision),
-			IsAddressWarm(Param(0)),
+		conditions: []rlz.Condition{
+			rlz.RevisionBounds(tosca.R09_Berlin, common.NewestSupportedRevision),
+			rlz.IsAddressWarm(rlz.Param(0)),
 		},
-		parameters: []Parameter{
-			AddressParameter{},
+		parameters: []rlz.Parameter{
+			rlz.AddressParameter{},
 		},
 		effect: func(s *st.State) {
-			address := NewAddress(s.Stack.Pop())
+			address := common.NewAddress(s.Stack.Pop())
 			s.Stack.Push(s.Accounts.GetBalance(address))
 		},
 		name: "_warm",
@@ -332,14 +332,14 @@ func getAllRules() []Rule {
 		staticGas: 700,
 		pops:      1,
 		pushes:    1,
-		conditions: []Condition{
-			IsRevision(tosca.R07_Istanbul),
+		conditions: []rlz.Condition{
+			rlz.IsRevision(tosca.R07_Istanbul),
 		},
-		parameters: []Parameter{
-			AddressParameter{},
+		parameters: []rlz.Parameter{
+			rlz.AddressParameter{},
 		},
 		effect: func(s *st.State) {
-			address := NewAddress(s.Stack.Pop())
+			address := common.NewAddress(s.Stack.Pop())
 			s.Stack.Push(s.Accounts.GetBalance(address))
 		},
 		name: "_preBerlin",
@@ -352,20 +352,20 @@ func getAllRules() []Rule {
 		staticGas: 3,
 		pops:      1,
 		pushes:    1,
-		parameters: []Parameter{
-			MemoryOffsetParameter{},
+		parameters: []rlz.Parameter{
+			rlz.MemoryOffsetParameter{},
 		},
 		effect: func(s *st.State) {
 			offsetU256 := s.Stack.Pop()
 
-			cost, offset, _ := s.Memory.ExpansionCosts(offsetU256, NewU256(32))
+			cost, offset, _ := s.Memory.ExpansionCosts(offsetU256, common.NewU256(32))
 			if s.Gas < cost {
 				s.Status = st.Failed
 				return
 			}
 			s.Gas -= cost
 
-			value := NewU256FromBytes(s.Memory.Read(offset, 32)...)
+			value := common.NewU256FromBytes(s.Memory.Read(offset, 32)...)
 			s.Stack.Push(value)
 		},
 	})...)
@@ -377,15 +377,15 @@ func getAllRules() []Rule {
 		staticGas: 3,
 		pops:      2,
 		pushes:    0,
-		parameters: []Parameter{
-			MemoryOffsetParameter{},
-			NumericParameter{},
+		parameters: []rlz.Parameter{
+			rlz.MemoryOffsetParameter{},
+			rlz.NumericParameter{},
 		},
 		effect: func(s *st.State) {
 			offsetU256 := s.Stack.Pop()
 			value := s.Stack.Pop()
 
-			cost, offset, _ := s.Memory.ExpansionCosts(offsetU256, NewU256(32))
+			cost, offset, _ := s.Memory.ExpansionCosts(offsetU256, common.NewU256(32))
 			if s.Gas < cost {
 				s.Status = st.Failed
 				return
@@ -404,15 +404,15 @@ func getAllRules() []Rule {
 		staticGas: 3,
 		pops:      2,
 		pushes:    0,
-		parameters: []Parameter{
-			MemoryOffsetParameter{},
-			NumericParameter{},
+		parameters: []rlz.Parameter{
+			rlz.MemoryOffsetParameter{},
+			rlz.NumericParameter{},
 		},
 		effect: func(s *st.State) {
 			offsetU256 := s.Stack.Pop()
 			value := s.Stack.Pop()
 
-			cost, offset, _ := s.Memory.ExpansionCosts(offsetU256, NewU256(1))
+			cost, offset, _ := s.Memory.ExpansionCosts(offsetU256, common.NewU256(1))
 			if s.Gas < cost {
 				s.Status = st.Failed
 				return
@@ -432,12 +432,12 @@ func getAllRules() []Rule {
 		staticGas: 100 + 2000, // 2000 are from the dynamic cost of cold mem
 		pops:      1,
 		pushes:    1,
-		conditions: []Condition{
-			RevisionBounds(tosca.R09_Berlin, NewestSupportedRevision),
-			IsStorageCold(Param(0)),
+		conditions: []rlz.Condition{
+			rlz.RevisionBounds(tosca.R09_Berlin, common.NewestSupportedRevision),
+			rlz.IsStorageCold(rlz.Param(0)),
 		},
-		parameters: []Parameter{
-			NumericParameter{},
+		parameters: []rlz.Parameter{
+			rlz.NumericParameter{},
 		},
 		effect: func(s *st.State) {
 			key := s.Stack.Pop()
@@ -453,12 +453,12 @@ func getAllRules() []Rule {
 		staticGas: 100,
 		pops:      1,
 		pushes:    1,
-		conditions: []Condition{
-			RevisionBounds(tosca.R09_Berlin, NewestSupportedRevision),
-			IsStorageWarm(Param(0)),
+		conditions: []rlz.Condition{
+			rlz.RevisionBounds(tosca.R09_Berlin, common.NewestSupportedRevision),
+			rlz.IsStorageWarm(rlz.Param(0)),
 		},
-		parameters: []Parameter{
-			NumericParameter{},
+		parameters: []rlz.Parameter{
+			rlz.NumericParameter{},
 		},
 		effect: func(s *st.State) {
 			key := s.Stack.Pop()
@@ -473,11 +473,11 @@ func getAllRules() []Rule {
 		staticGas: 800,
 		pops:      1,
 		pushes:    1,
-		conditions: []Condition{
-			IsRevision(tosca.R07_Istanbul),
+		conditions: []rlz.Condition{
+			rlz.IsRevision(tosca.R07_Istanbul),
 		},
-		parameters: []Parameter{
-			NumericParameter{},
+		parameters: []rlz.Parameter{
+			rlz.NumericParameter{},
 		},
 		effect: func(s *st.State) {
 			key := s.Stack.Pop()
@@ -523,7 +523,7 @@ func getAllRules() []Rule {
 		{revision: tosca.R09_Berlin, warm: true, config: tosca.StorageModifiedRestored, gasCost: 100, gasRefund: 2800},
 	}
 
-	for rev := tosca.R10_London; rev <= NewestSupportedRevision; rev++ {
+	for rev := tosca.R10_London; rev <= common.NewestSupportedRevision; rev++ {
 		// Certain storage configurations imply warm access. Not all
 		// combinations are possible; invalid ones are marked below.
 		sstoreRules = append(sstoreRules, []sstoreOpParams{
@@ -565,12 +565,12 @@ func getAllRules() []Rule {
 		staticGas: 8,
 		pops:      1,
 		pushes:    0,
-		parameters: []Parameter{
-			JumpTargetParameter{},
+		parameters: []rlz.Parameter{
+			rlz.JumpTargetParameter{},
 		},
-		conditions: []Condition{
-			IsCode(Param(0)),
-			Eq(Op(Param(0)), vm.JUMPDEST),
+		conditions: []rlz.Condition{
+			rlz.IsCode(rlz.Param(0)),
+			rlz.Eq(rlz.Op(rlz.Param(0)), vm.JUMPDEST),
 		},
 		effect: func(s *st.State) {
 			target := s.Stack.Pop()
@@ -578,35 +578,35 @@ func getAllRules() []Rule {
 		},
 	})...)
 
-	rules = append(rules, []Rule{
+	rules = append(rules, []rlz.Rule{
 		{
 			Name: "jump_to_data",
-			Condition: And(
-				AnyKnownRevision(),
-				Eq(Status(), st.Running),
-				Eq(Op(Pc()), vm.JUMP),
-				Ge(Gas(), 8),
-				Ge(StackSize(), 1),
-				IsData(Param(0)),
+			Condition: rlz.And(
+				rlz.AnyKnownRevision(),
+				rlz.Eq(rlz.Status(), st.Running),
+				rlz.Eq(rlz.Op(rlz.Pc()), vm.JUMP),
+				rlz.Ge(rlz.Gas(), 8),
+				rlz.Ge(rlz.StackSize(), 1),
+				rlz.IsData(rlz.Param(0)),
 			),
-			Effect: FailEffect(),
+			Effect: rlz.FailEffect(),
 		},
 
 		{
 			Name: "jump_to_invalid_destination",
-			Parameter: []Parameter{
-				JumpTargetParameter{},
+			Parameter: []rlz.Parameter{
+				rlz.JumpTargetParameter{},
 			},
-			Condition: And(
-				AnyKnownRevision(),
-				Eq(Status(), st.Running),
-				Eq(Op(Pc()), vm.JUMP),
-				Ge(Gas(), 8),
-				Ge(StackSize(), 1),
-				IsCode(Param(0)),
-				Ne(Op(Param(0)), vm.JUMPDEST),
+			Condition: rlz.And(
+				rlz.AnyKnownRevision(),
+				rlz.Eq(rlz.Status(), st.Running),
+				rlz.Eq(rlz.Op(rlz.Pc()), vm.JUMP),
+				rlz.Ge(rlz.Gas(), 8),
+				rlz.Ge(rlz.StackSize(), 1),
+				rlz.IsCode(rlz.Param(0)),
+				rlz.Ne(rlz.Op(rlz.Param(0)), vm.JUMPDEST),
 			),
-			Effect: FailEffect(),
+			Effect: rlz.FailEffect(),
 		},
 	}...)
 
@@ -617,14 +617,14 @@ func getAllRules() []Rule {
 		staticGas: 10,
 		pops:      2,
 		pushes:    0,
-		parameters: []Parameter{
-			JumpTargetParameter{},
-			NumericParameter{},
+		parameters: []rlz.Parameter{
+			rlz.JumpTargetParameter{},
+			rlz.NumericParameter{},
 		},
-		conditions: []Condition{
-			IsCode(Param(0)),
-			Eq(Op(Param(0)), vm.JUMPDEST),
-			Ne(Param(1), NewU256(0)),
+		conditions: []rlz.Condition{
+			rlz.IsCode(rlz.Param(0)),
+			rlz.Eq(rlz.Op(rlz.Param(0)), vm.JUMPDEST),
+			rlz.Ne(rlz.Param(1), common.NewU256(0)),
 		},
 		effect: func(s *st.State) {
 			target := s.Stack.Pop()
@@ -633,18 +633,18 @@ func getAllRules() []Rule {
 		},
 	})...)
 
-	rules = append(rules, []Rule{
+	rules = append(rules, []rlz.Rule{
 		{
 			Name: "jumpi_not_taken",
-			Condition: And(
-				AnyKnownRevision(),
-				Eq(Status(), st.Running),
-				Eq(Op(Pc()), vm.JUMPI),
-				Ge(Gas(), 10),
-				Ge(StackSize(), 2),
-				Eq(Param(1), NewU256(0)),
+			Condition: rlz.And(
+				rlz.AnyKnownRevision(),
+				rlz.Eq(rlz.Status(), st.Running),
+				rlz.Eq(rlz.Op(rlz.Pc()), vm.JUMPI),
+				rlz.Ge(rlz.Gas(), 10),
+				rlz.Ge(rlz.StackSize(), 2),
+				rlz.Eq(rlz.Param(1), common.NewU256(0)),
 			),
-			Effect: Change(func(s *st.State) {
+			Effect: rlz.Change(func(s *st.State) {
 				s.Gas -= 10
 				s.Stack.Pop()
 				s.Stack.Pop()
@@ -654,35 +654,35 @@ func getAllRules() []Rule {
 
 		{
 			Name: "jumpi_to_data",
-			Condition: And(
-				AnyKnownRevision(),
-				Eq(Status(), st.Running),
-				Eq(Op(Pc()), vm.JUMPI),
-				Ge(Gas(), 10),
-				Ge(StackSize(), 2),
-				IsData(Param(0)),
-				Ne(Param(1), NewU256(0)),
+			Condition: rlz.And(
+				rlz.AnyKnownRevision(),
+				rlz.Eq(rlz.Status(), st.Running),
+				rlz.Eq(rlz.Op(rlz.Pc()), vm.JUMPI),
+				rlz.Ge(rlz.Gas(), 10),
+				rlz.Ge(rlz.StackSize(), 2),
+				rlz.IsData(rlz.Param(0)),
+				rlz.Ne(rlz.Param(1), common.NewU256(0)),
 			),
-			Effect: FailEffect(),
+			Effect: rlz.FailEffect(),
 		},
 
 		{
 			Name: "jumpi_to_invalid_destination",
-			Parameter: []Parameter{
-				JumpTargetParameter{},
-				NumericParameter{},
+			Parameter: []rlz.Parameter{
+				rlz.JumpTargetParameter{},
+				rlz.NumericParameter{},
 			},
-			Condition: And(
-				AnyKnownRevision(),
-				Eq(Status(), st.Running),
-				Eq(Op(Pc()), vm.JUMPI),
-				Ge(Gas(), 10),
-				Ge(StackSize(), 2),
-				IsCode(Param(0)),
-				Ne(Op(Param(0)), vm.JUMPDEST),
-				Ne(Param(1), NewU256(0)),
+			Condition: rlz.And(
+				rlz.AnyKnownRevision(),
+				rlz.Eq(rlz.Status(), st.Running),
+				rlz.Eq(rlz.Op(rlz.Pc()), vm.JUMPI),
+				rlz.Ge(rlz.Gas(), 10),
+				rlz.Ge(rlz.StackSize(), 2),
+				rlz.IsCode(rlz.Param(0)),
+				rlz.Ne(rlz.Op(rlz.Param(0)), vm.JUMPDEST),
+				rlz.Ne(rlz.Param(1), common.NewU256(0)),
 			),
-			Effect: FailEffect(),
+			Effect: rlz.FailEffect(),
 		},
 	}...)
 
@@ -694,7 +694,7 @@ func getAllRules() []Rule {
 		pops:      0,
 		pushes:    1,
 		effect: func(s *st.State) {
-			s.Stack.Push(NewU256(uint64(s.Pc) - 1))
+			s.Stack.Push(common.NewU256(uint64(s.Pc) - 1))
 		},
 	})...)
 
@@ -706,7 +706,7 @@ func getAllRules() []Rule {
 		pops:      0,
 		pushes:    1,
 		effect: func(s *st.State) {
-			s.Stack.Push(NewU256(uint64(s.Memory.Size())))
+			s.Stack.Push(common.NewU256(uint64(s.Memory.Size())))
 		},
 	})...)
 
@@ -718,7 +718,7 @@ func getAllRules() []Rule {
 		pops:      0,
 		pushes:    1,
 		effect: func(s *st.State) {
-			s.Stack.Push(NewU256(uint64(s.Gas)))
+			s.Stack.Push(common.NewU256(uint64(s.Gas)))
 		},
 	})...)
 
@@ -729,7 +729,7 @@ func getAllRules() []Rule {
 		staticGas: 1,
 		pops:      0,
 		pushes:    0,
-		effect:    NoEffect().Apply,
+		effect:    rlz.NoEffect().Apply,
 	})...)
 
 	// --- TLOAD ---
@@ -739,12 +739,12 @@ func getAllRules() []Rule {
 		staticGas: 100,
 		pops:      1,
 		pushes:    1,
-		parameters: []Parameter{
-			StorageAccessKeyParameter{},
+		parameters: []rlz.Parameter{
+			rlz.StorageAccessKeyParameter{},
 		},
-		conditions: []Condition{
-			RevisionBounds(tosca.R13_Cancun, NewestSupportedRevision),
-			BindTransientStorageToNonZero(Param(0)),
+		conditions: []rlz.Condition{
+			rlz.RevisionBounds(tosca.R13_Cancun, common.NewestSupportedRevision),
+			rlz.BindTransientStorageToNonZero(rlz.Param(0)),
 		},
 		effect: func(s *st.State) {
 			key := s.Stack.Pop()
@@ -758,27 +758,27 @@ func getAllRules() []Rule {
 		staticGas: 100,
 		pops:      1,
 		pushes:    1,
-		parameters: []Parameter{
-			StorageAccessKeyParameter{},
+		parameters: []rlz.Parameter{
+			rlz.StorageAccessKeyParameter{},
 		},
-		conditions: []Condition{
-			RevisionBounds(tosca.R13_Cancun, NewestSupportedRevision),
-			BindTransientStorageToZero(Param(0)),
+		conditions: []rlz.Condition{
+			rlz.RevisionBounds(tosca.R13_Cancun, common.NewestSupportedRevision),
+			rlz.BindTransientStorageToZero(rlz.Param(0)),
 		},
 		effect: func(s *st.State) {
 			s.Stack.Pop()
-			s.Stack.Push(NewU256(0))
+			s.Stack.Push(common.NewU256(0))
 		},
 	})...)
 
-	rules = append(rules, Rule{
+	rules = append(rules, rlz.Rule{
 		Name: "tload_pre_cancun",
-		Condition: And(
-			RevisionBounds(tosca.R07_Istanbul, tosca.R12_Shanghai),
-			Eq(Status(), st.Running),
-			Eq(Op(Pc()), vm.TLOAD),
+		Condition: rlz.And(
+			rlz.RevisionBounds(tosca.R07_Istanbul, tosca.R12_Shanghai),
+			rlz.Eq(rlz.Status(), st.Running),
+			rlz.Eq(rlz.Op(rlz.Pc()), vm.TLOAD),
 		),
-		Effect: FailEffect(),
+		Effect: rlz.FailEffect(),
 	})
 
 	// --- TSTORE ---
@@ -788,14 +788,14 @@ func getAllRules() []Rule {
 		staticGas: 100,
 		pops:      2,
 		pushes:    0,
-		parameters: []Parameter{
-			StorageAccessKeyParameter{},
-			NumericParameter{},
+		parameters: []rlz.Parameter{
+			rlz.StorageAccessKeyParameter{},
+			rlz.NumericParameter{},
 		},
-		conditions: []Condition{
-			RevisionBounds(tosca.R13_Cancun, NewestSupportedRevision),
-			Eq(ReadOnly(), false),
-			BindTransientStorageToNonZero(Param(0)),
+		conditions: []rlz.Condition{
+			rlz.RevisionBounds(tosca.R13_Cancun, common.NewestSupportedRevision),
+			rlz.Eq(rlz.ReadOnly(), false),
+			rlz.BindTransientStorageToNonZero(rlz.Param(0)),
 		},
 		effect: func(s *st.State) {
 			key := s.Stack.Pop()
@@ -809,14 +809,14 @@ func getAllRules() []Rule {
 		staticGas: 100,
 		pops:      2,
 		pushes:    0,
-		parameters: []Parameter{
-			StorageAccessKeyParameter{},
-			NumericParameter{},
+		parameters: []rlz.Parameter{
+			rlz.StorageAccessKeyParameter{},
+			rlz.NumericParameter{},
 		},
-		conditions: []Condition{
-			RevisionBounds(tosca.R13_Cancun, NewestSupportedRevision),
-			Eq(ReadOnly(), false),
-			BindTransientStorageToZero(Param(0)),
+		conditions: []rlz.Condition{
+			rlz.RevisionBounds(tosca.R13_Cancun, common.NewestSupportedRevision),
+			rlz.Eq(rlz.ReadOnly(), false),
+			rlz.BindTransientStorageToZero(rlz.Param(0)),
 		},
 		effect: func(s *st.State) {
 			key := s.Stack.Pop()
@@ -825,25 +825,25 @@ func getAllRules() []Rule {
 		},
 	})...)
 
-	rules = append(rules, Rule{
+	rules = append(rules, rlz.Rule{
 		Name: "tstore_pre_cancun",
-		Condition: And(
-			RevisionBounds(tosca.R07_Istanbul, tosca.R12_Shanghai),
-			Eq(Status(), st.Running),
-			Eq(Op(Pc()), vm.TSTORE),
+		Condition: rlz.And(
+			rlz.RevisionBounds(tosca.R07_Istanbul, tosca.R12_Shanghai),
+			rlz.Eq(rlz.Status(), st.Running),
+			rlz.Eq(rlz.Op(rlz.Pc()), vm.TSTORE),
 		),
-		Effect: FailEffect(),
+		Effect: rlz.FailEffect(),
 	})
 
-	rules = append(rules, Rule{
+	rules = append(rules, rlz.Rule{
 		Name: "tstore_read_only",
-		Condition: And(
-			AnyKnownRevision(),
-			Eq(Status(), st.Running),
-			Eq(Op(Pc()), vm.TSTORE),
-			Eq(ReadOnly(), true),
+		Condition: rlz.And(
+			rlz.AnyKnownRevision(),
+			rlz.Eq(rlz.Status(), st.Running),
+			rlz.Eq(rlz.Op(rlz.Pc()), vm.TSTORE),
+			rlz.Eq(rlz.ReadOnly(), true),
 		),
-		Effect: FailEffect(),
+		Effect: rlz.FailEffect(),
 	})
 
 	// --- Stack PUSH0 ---
@@ -853,25 +853,25 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		conditions: []Condition{
-			RevisionBounds(tosca.R12_Shanghai, NewestSupportedRevision),
+		conditions: []rlz.Condition{
+			rlz.RevisionBounds(tosca.R12_Shanghai, common.NewestSupportedRevision),
 		},
 		effect: func(s *st.State) {
-			s.Stack.Push(NewU256(0))
+			s.Stack.Push(common.NewU256(0))
 		},
 	})...)
 
-	rules = append(rules, []Rule{
+	rules = append(rules, []rlz.Rule{
 		{
 			Name: "push0_invalid_revision",
-			Condition: And(
-				RevisionBounds(tosca.R07_Istanbul, tosca.R11_Paris),
-				Eq(Status(), st.Running),
-				Eq(Op(Pc()), vm.PUSH0),
-				Ge(Gas(), 2),
-				Lt(StackSize(), st.MaxStackSize-1),
+			Condition: rlz.And(
+				rlz.RevisionBounds(tosca.R07_Istanbul, tosca.R11_Paris),
+				rlz.Eq(rlz.Status(), st.Running),
+				rlz.Eq(rlz.Op(rlz.Pc()), vm.PUSH0),
+				rlz.Ge(rlz.Gas(), 2),
+				rlz.Lt(rlz.StackSize(), st.MaxStackSize-1),
 			),
-			Effect: FailEffect(),
+			Effect: rlz.FailEffect(),
 		},
 	}...)
 
@@ -882,13 +882,13 @@ func getAllRules() []Rule {
 		staticGas: 3,
 		pops:      3,
 		pushes:    0,
-		parameters: []Parameter{
-			MemoryOffsetParameter{},
-			MemoryOffsetParameter{},
-			SizeParameter{},
+		parameters: []rlz.Parameter{
+			rlz.MemoryOffsetParameter{},
+			rlz.MemoryOffsetParameter{},
+			rlz.SizeParameter{},
 		},
-		conditions: []Condition{
-			RevisionBounds(tosca.R13_Cancun, NewestSupportedRevision),
+		conditions: []rlz.Condition{
+			rlz.RevisionBounds(tosca.R13_Cancun, common.NewestSupportedRevision),
 		},
 		effect: func(s *st.State) {
 			destOffsetU256 := s.Stack.Pop()
@@ -912,15 +912,15 @@ func getAllRules() []Rule {
 		},
 	})...)
 
-	rules = append(rules, []Rule{
+	rules = append(rules, []rlz.Rule{
 		{
 			Name: "mcopy_invalid_revision",
-			Condition: And(
-				RevisionBounds(tosca.R07_Istanbul, tosca.R12_Shanghai),
-				Eq(Status(), st.Running),
-				Eq(Op(Pc()), vm.MCOPY),
+			Condition: rlz.And(
+				rlz.RevisionBounds(tosca.R07_Istanbul, tosca.R12_Shanghai),
+				rlz.Eq(rlz.Status(), st.Running),
+				rlz.Eq(rlz.Op(rlz.Pc()), vm.MCOPY),
 			),
-			Effect: FailEffect(),
+			Effect: rlz.FailEffect(),
 		},
 	}...)
 
@@ -968,7 +968,7 @@ func getAllRules() []Rule {
 		pops:      0,
 		pushes:    1,
 		effect: func(s *st.State) {
-			s.Stack.Push(NewU256FromBytes(s.CallContext.AccountAddress[:]...))
+			s.Stack.Push(common.NewU256FromBytes(s.CallContext.AccountAddress[:]...))
 		},
 	})...)
 
@@ -980,7 +980,7 @@ func getAllRules() []Rule {
 		pops:      0,
 		pushes:    1,
 		effect: func(s *st.State) {
-			s.Stack.Push(NewU256FromBytes(s.TransactionContext.OriginAddress[:]...))
+			s.Stack.Push(common.NewU256FromBytes(s.TransactionContext.OriginAddress[:]...))
 		},
 	})...)
 
@@ -992,7 +992,7 @@ func getAllRules() []Rule {
 		pops:      0,
 		pushes:    1,
 		effect: func(s *st.State) {
-			s.Stack.Push(NewU256FromBytes(s.CallContext.CallerAddress[:]...))
+			s.Stack.Push(common.NewU256FromBytes(s.CallContext.CallerAddress[:]...))
 		},
 	})...)
 
@@ -1016,7 +1016,7 @@ func getAllRules() []Rule {
 		pops:      0,
 		pushes:    1,
 		effect: func(s *st.State) {
-			s.Stack.Push(NewU256(s.BlockContext.BlockNumber))
+			s.Stack.Push(common.NewU256(s.BlockContext.BlockNumber))
 		},
 	})...)
 
@@ -1027,15 +1027,15 @@ func getAllRules() []Rule {
 		staticGas: 20,
 		pops:      1,
 		pushes:    1,
-		conditions: []Condition{
-			InRange256FromCurrentBlock(Param(0)),
+		conditions: []rlz.Condition{
+			rlz.InRange256FromCurrentBlock(rlz.Param(0)),
 		},
-		parameters: []Parameter{NumericParameter{}},
+		parameters: []rlz.Parameter{rlz.NumericParameter{}},
 		effect: func(s *st.State) {
 			targetBlockNumber := s.Stack.Pop()
 			index := s.BlockContext.BlockNumber - targetBlockNumber.Uint64()
 			hash := s.RecentBlockHashes.Get(index - 1)
-			s.Stack.Push(NewU256FromBytes(hash[:]...))
+			s.Stack.Push(common.NewU256FromBytes(hash[:]...))
 		},
 	})...)
 
@@ -1045,13 +1045,13 @@ func getAllRules() []Rule {
 		staticGas: 20,
 		pops:      1,
 		pushes:    1,
-		conditions: []Condition{
-			OutOfRange256FromCurrentBlock(Param(0)),
+		conditions: []rlz.Condition{
+			rlz.OutOfRange256FromCurrentBlock(rlz.Param(0)),
 		},
-		parameters: []Parameter{NumericParameter{}},
+		parameters: []rlz.Parameter{rlz.NumericParameter{}},
 		effect: func(s *st.State) {
 			s.Stack.Pop()
-			s.Stack.Push(NewU256(0))
+			s.Stack.Push(common.NewU256(0))
 		},
 	})...)
 
@@ -1063,7 +1063,7 @@ func getAllRules() []Rule {
 		pops:      0,
 		pushes:    1,
 		effect: func(s *st.State) {
-			s.Stack.Push(NewU256FromBytes(s.BlockContext.CoinBase[:]...))
+			s.Stack.Push(common.NewU256FromBytes(s.BlockContext.CoinBase[:]...))
 		},
 	})...)
 
@@ -1075,7 +1075,7 @@ func getAllRules() []Rule {
 		pops:      0,
 		pushes:    1,
 		effect: func(s *st.State) {
-			s.Stack.Push(NewU256(s.BlockContext.GasLimit))
+			s.Stack.Push(common.NewU256(s.BlockContext.GasLimit))
 		},
 	})...)
 
@@ -1111,17 +1111,17 @@ func getAllRules() []Rule {
 		staticGas: 0 + 2600, // 2600 dynamic cost for cold address
 		pops:      1,
 		pushes:    1,
-		conditions: []Condition{
-			RevisionBounds(tosca.R09_Berlin, NewestSupportedRevision),
-			IsAddressCold(Param(0)),
+		conditions: []rlz.Condition{
+			rlz.RevisionBounds(tosca.R09_Berlin, common.NewestSupportedRevision),
+			rlz.IsAddressCold(rlz.Param(0)),
 		},
-		parameters: []Parameter{
-			AddressParameter{},
+		parameters: []rlz.Parameter{
+			rlz.AddressParameter{},
 		},
 		effect: func(s *st.State) {
-			address := NewAddress(s.Stack.Pop())
+			address := common.NewAddress(s.Stack.Pop())
 			size := s.Accounts.GetCode(address).Length()
-			s.Stack.Push(NewU256(uint64(size)))
+			s.Stack.Push(common.NewU256(uint64(size)))
 			s.Accounts.MarkWarm(address)
 		},
 		name: "_cold",
@@ -1133,17 +1133,17 @@ func getAllRules() []Rule {
 		staticGas: 0 + 100, // 100 dynamic cost for warm address
 		pops:      1,
 		pushes:    1,
-		conditions: []Condition{
-			RevisionBounds(tosca.R09_Berlin, NewestSupportedRevision),
-			IsAddressWarm(Param(0)),
+		conditions: []rlz.Condition{
+			rlz.RevisionBounds(tosca.R09_Berlin, common.NewestSupportedRevision),
+			rlz.IsAddressWarm(rlz.Param(0)),
 		},
-		parameters: []Parameter{
-			AddressParameter{},
+		parameters: []rlz.Parameter{
+			rlz.AddressParameter{},
 		},
 		effect: func(s *st.State) {
-			address := NewAddress(s.Stack.Pop())
+			address := common.NewAddress(s.Stack.Pop())
 			size := s.Accounts.GetCode(address).Length()
-			s.Stack.Push(NewU256(uint64(size)))
+			s.Stack.Push(common.NewU256(uint64(size)))
 		},
 		name: "_warm",
 	})...)
@@ -1154,16 +1154,16 @@ func getAllRules() []Rule {
 		staticGas: 700,
 		pops:      1,
 		pushes:    1,
-		conditions: []Condition{
-			IsRevision(tosca.R07_Istanbul),
+		conditions: []rlz.Condition{
+			rlz.IsRevision(tosca.R07_Istanbul),
 		},
-		parameters: []Parameter{
-			AddressParameter{},
+		parameters: []rlz.Parameter{
+			rlz.AddressParameter{},
 		},
 		effect: func(s *st.State) {
-			address := NewAddress(s.Stack.Pop())
+			address := common.NewAddress(s.Stack.Pop())
 			size := s.Accounts.GetCode(address).Length()
-			s.Stack.Push(NewU256(uint64(size)))
+			s.Stack.Push(common.NewU256(uint64(size)))
 		},
 		name: "_preBerlin",
 	})...)
@@ -1176,15 +1176,15 @@ func getAllRules() []Rule {
 		staticGas: 2600,
 		pops:      4,
 		pushes:    0,
-		conditions: []Condition{
-			RevisionBounds(tosca.R09_Berlin, NewestSupportedRevision),
-			IsAddressCold(Param(0)),
+		conditions: []rlz.Condition{
+			rlz.RevisionBounds(tosca.R09_Berlin, common.NewestSupportedRevision),
+			rlz.IsAddressCold(rlz.Param(0)),
 		},
-		parameters: []Parameter{
-			AddressParameter{},
-			MemoryOffsetParameter{},
-			DataOffsetParameter{},
-			SizeParameter{}},
+		parameters: []rlz.Parameter{
+			rlz.AddressParameter{},
+			rlz.MemoryOffsetParameter{},
+			rlz.DataOffsetParameter{},
+			rlz.SizeParameter{}},
 		effect: func(s *st.State) {
 			extCodeCopyEffect(s, true)
 		},
@@ -1197,15 +1197,15 @@ func getAllRules() []Rule {
 		staticGas: 100,
 		pops:      4,
 		pushes:    0,
-		conditions: []Condition{
-			RevisionBounds(tosca.R09_Berlin, NewestSupportedRevision),
-			IsAddressWarm(Param(0)),
+		conditions: []rlz.Condition{
+			rlz.RevisionBounds(tosca.R09_Berlin, common.NewestSupportedRevision),
+			rlz.IsAddressWarm(rlz.Param(0)),
 		},
-		parameters: []Parameter{
-			AddressParameter{},
-			MemoryOffsetParameter{},
-			DataOffsetParameter{},
-			SizeParameter{}},
+		parameters: []rlz.Parameter{
+			rlz.AddressParameter{},
+			rlz.MemoryOffsetParameter{},
+			rlz.DataOffsetParameter{},
+			rlz.SizeParameter{}},
 		effect: func(s *st.State) {
 			extCodeCopyEffect(s, false)
 		},
@@ -1218,14 +1218,14 @@ func getAllRules() []Rule {
 		staticGas: 700,
 		pops:      4,
 		pushes:    0,
-		conditions: []Condition{
-			IsRevision(tosca.R07_Istanbul),
+		conditions: []rlz.Condition{
+			rlz.IsRevision(tosca.R07_Istanbul),
 		},
-		parameters: []Parameter{
-			AddressParameter{},
-			MemoryOffsetParameter{},
-			DataOffsetParameter{},
-			SizeParameter{}},
+		parameters: []rlz.Parameter{
+			rlz.AddressParameter{},
+			rlz.MemoryOffsetParameter{},
+			rlz.DataOffsetParameter{},
+			rlz.SizeParameter{}},
 		effect: func(s *st.State) {
 			extCodeCopyEffect(s, false)
 		},
@@ -1240,7 +1240,7 @@ func getAllRules() []Rule {
 		pops:      0,
 		pushes:    1,
 		effect: func(s *st.State) {
-			s.Stack.Push(NewU256(s.BlockContext.TimeStamp))
+			s.Stack.Push(common.NewU256(s.BlockContext.TimeStamp))
 		},
 	})...)
 
@@ -1251,20 +1251,20 @@ func getAllRules() []Rule {
 		staticGas:  2,
 		pops:       0,
 		pushes:     1,
-		conditions: []Condition{RevisionBounds(tosca.R10_London, NewestSupportedRevision)},
+		conditions: []rlz.Condition{rlz.RevisionBounds(tosca.R10_London, common.NewestSupportedRevision)},
 		effect: func(s *st.State) {
 			s.Stack.Push(s.BlockContext.BaseFee)
 		},
 	})...)
-	rules = append(rules, []Rule{
+	rules = append(rules, []rlz.Rule{
 		{
 			Name: "basefee_invalid_revision",
-			Condition: And(
-				RevisionBounds(tosca.R07_Istanbul, tosca.R09_Berlin),
-				Eq(Status(), st.Running),
-				Eq(Op(Pc()), vm.BASEFEE),
+			Condition: rlz.And(
+				rlz.RevisionBounds(tosca.R07_Istanbul, tosca.R09_Berlin),
+				rlz.Eq(rlz.Status(), st.Running),
+				rlz.Eq(rlz.Op(rlz.Pc()), vm.BASEFEE),
 			),
-			Effect: FailEffect(),
+			Effect: rlz.FailEffect(),
 		},
 	}...)
 
@@ -1275,14 +1275,14 @@ func getAllRules() []Rule {
 		staticGas: 3,
 		pops:      1,
 		pushes:    1,
-		conditions: []Condition{
-			RevisionBounds(tosca.R13_Cancun, NewestSupportedRevision),
-			HasBlobHash(Param(0)),
+		conditions: []rlz.Condition{
+			rlz.RevisionBounds(tosca.R13_Cancun, common.NewestSupportedRevision),
+			rlz.HasBlobHash(rlz.Param(0)),
 		},
-		parameters: []Parameter{NumericParameter{}},
+		parameters: []rlz.Parameter{rlz.NumericParameter{}},
 		effect: func(s *st.State) {
 			indexU256 := s.Stack.Pop()
-			s.Stack.Push(NewU256FromBytes(s.TransactionContext.BlobHashes[indexU256.Uint64()][:]...))
+			s.Stack.Push(common.NewU256FromBytes(s.TransactionContext.BlobHashes[indexU256.Uint64()][:]...))
 		},
 	})...)
 
@@ -1292,26 +1292,26 @@ func getAllRules() []Rule {
 		staticGas: 3,
 		pops:      1,
 		pushes:    1,
-		conditions: []Condition{
-			RevisionBounds(tosca.R13_Cancun, NewestSupportedRevision),
-			HasNoBlobHash(Param(0)),
+		conditions: []rlz.Condition{
+			rlz.RevisionBounds(tosca.R13_Cancun, common.NewestSupportedRevision),
+			rlz.HasNoBlobHash(rlz.Param(0)),
 		},
-		parameters: []Parameter{NumericParameter{}},
+		parameters: []rlz.Parameter{rlz.NumericParameter{}},
 		effect: func(s *st.State) {
 			s.Stack.Pop()
-			s.Stack.Push(NewU256(0))
+			s.Stack.Push(common.NewU256(0))
 		},
 	})...)
 
-	rules = append(rules, []Rule{
+	rules = append(rules, []rlz.Rule{
 		{
 			Name: "blobhash_invalid_revision",
-			Condition: And(
-				RevisionBounds(tosca.R07_Istanbul, tosca.R12_Shanghai),
-				Eq(Status(), st.Running),
-				Eq(Op(Pc()), vm.BLOBHASH),
+			Condition: rlz.And(
+				rlz.RevisionBounds(tosca.R07_Istanbul, tosca.R12_Shanghai),
+				rlz.Eq(rlz.Status(), st.Running),
+				rlz.Eq(rlz.Op(rlz.Pc()), vm.BLOBHASH),
 			),
-			Effect: FailEffect(),
+			Effect: rlz.FailEffect(),
 		},
 	}...)
 
@@ -1322,21 +1322,21 @@ func getAllRules() []Rule {
 		staticGas:  2,
 		pops:       0,
 		pushes:     1,
-		conditions: []Condition{RevisionBounds(tosca.R13_Cancun, NewestSupportedRevision)},
+		conditions: []rlz.Condition{rlz.RevisionBounds(tosca.R13_Cancun, common.NewestSupportedRevision)},
 		effect: func(s *st.State) {
 			s.Stack.Push(s.BlockContext.BlobBaseFee)
 		},
 	})...)
 
-	rules = append(rules, []Rule{
+	rules = append(rules, []rlz.Rule{
 		{
 			Name: "blobbasefee_invalid_revision",
-			Condition: And(
-				RevisionBounds(tosca.R07_Istanbul, tosca.R12_Shanghai),
-				Eq(Status(), st.Running),
-				Eq(Op(Pc()), vm.BLOBBASEFEE),
+			Condition: rlz.And(
+				rlz.RevisionBounds(tosca.R07_Istanbul, tosca.R12_Shanghai),
+				rlz.Eq(rlz.Status(), st.Running),
+				rlz.Eq(rlz.Op(rlz.Pc()), vm.BLOBBASEFEE),
 			),
-			Effect: FailEffect(),
+			Effect: rlz.FailEffect(),
 		},
 	}...)
 
@@ -1347,15 +1347,15 @@ func getAllRules() []Rule {
 			for _, isEmpty := range []bool{true, false} {
 				name := "_" + revision.String()
 				staticGas := tosca.Gas(100) // warm access
-				conditions := []Condition{IsRevision(revision)}
+				conditions := []rlz.Condition{rlz.IsRevision(revision)}
 
 				if warm {
 					name += "_warm"
-					conditions = append(conditions, IsAddressWarm(Param(0)))
+					conditions = append(conditions, rlz.IsAddressWarm(rlz.Param(0)))
 				} else {
 					name += "_cold"
 					staticGas = 2600
-					conditions = append(conditions, IsAddressCold(Param(0)))
+					conditions = append(conditions, rlz.IsAddressCold(rlz.Param(0)))
 				}
 
 				if revision < tosca.R09_Berlin {
@@ -1364,10 +1364,10 @@ func getAllRules() []Rule {
 
 				if isEmpty {
 					name += "_empty"
-					conditions = append(conditions, AccountIsEmpty(Param(0)))
+					conditions = append(conditions, rlz.AccountIsEmpty(rlz.Param(0)))
 				} else {
 					name += "_not_empty"
-					conditions = append(conditions, AccountIsNotEmpty(Param(0)))
+					conditions = append(conditions, rlz.AccountIsNotEmpty(rlz.Param(0)))
 				}
 
 				rules = append(rules, rulesFor(instruction{
@@ -1377,16 +1377,16 @@ func getAllRules() []Rule {
 					pops:       1,
 					pushes:     1,
 					conditions: conditions,
-					parameters: []Parameter{
-						AddressParameter{},
+					parameters: []rlz.Parameter{
+						rlz.AddressParameter{},
 					},
 					effect: func(s *st.State) {
-						address := NewAddress(s.Stack.Pop())
+						address := common.NewAddress(s.Stack.Pop())
 						if s.Accounts.IsEmpty(address) {
-							s.Stack.Push(NewU256(0))
+							s.Stack.Push(common.NewU256(0))
 						} else {
 							hash := s.Accounts.GetCodeHash(address)
-							s.Stack.Push(NewU256FromBytes(hash[:]...))
+							s.Stack.Push(common.NewU256FromBytes(hash[:]...))
 						}
 						if revision >= tosca.R09_Berlin && !warm {
 							s.Accounts.MarkWarm(address)
@@ -1417,7 +1417,7 @@ func getAllRules() []Rule {
 		pops:      0,
 		pushes:    1,
 		effect: func(s *st.State) {
-			s.Stack.Push(NewU256(uint64(s.Code.Length())))
+			s.Stack.Push(common.NewU256(uint64(s.Code.Length())))
 		},
 	})...)
 
@@ -1428,10 +1428,10 @@ func getAllRules() []Rule {
 		staticGas: 3,
 		pops:      3,
 		pushes:    0,
-		parameters: []Parameter{
-			MemoryOffsetParameter{},
-			DataOffsetParameter{},
-			SizeParameter{}},
+		parameters: []rlz.Parameter{
+			rlz.MemoryOffsetParameter{},
+			rlz.DataOffsetParameter{},
+			rlz.SizeParameter{}},
 		effect: func(s *st.State) {
 			destOffsetU256 := s.Stack.Pop()
 			offsetU256 := s.Stack.Pop()
@@ -1446,7 +1446,7 @@ func getAllRules() []Rule {
 			s.Gas -= cost
 
 			start := offsetU256.Uint64()
-			if offsetU256.Gt(NewU256(uint64(s.Code.Length()))) {
+			if offsetU256.Gt(common.NewU256(uint64(s.Code.Length()))) {
 				start = uint64(s.Code.Length())
 			}
 			end := min(start+size, uint64(s.Code.Length()))
@@ -1466,7 +1466,7 @@ func getAllRules() []Rule {
 		pops:      0,
 		pushes:    1,
 		effect: func(s *st.State) {
-			s.Stack.Push(NewU256(uint64(s.CallData.Length())))
+			s.Stack.Push(common.NewU256(uint64(s.CallData.Length())))
 		},
 	})...)
 
@@ -1477,10 +1477,10 @@ func getAllRules() []Rule {
 		staticGas:  3,
 		pops:       1,
 		pushes:     1,
-		parameters: []Parameter{MemoryOffsetParameter{}},
+		parameters: []rlz.Parameter{rlz.MemoryOffsetParameter{}},
 		effect: func(s *st.State) {
 			offsetU256 := s.Stack.Pop()
-			pushData := NewU256(0)
+			pushData := common.NewU256(0)
 
 			len := s.CallData.Length()
 			if offsetU256.IsUint64() {
@@ -1489,8 +1489,8 @@ func getAllRules() []Rule {
 					start = uint64(len)
 				}
 				end := min(start+32, uint64(len))
-				data := RightPadSlice(s.CallData.Get(start, end), 32)
-				pushData = NewU256FromBytes(data...)
+				data := common.RightPadSlice(s.CallData.Get(start, end), 32)
+				pushData = common.NewU256FromBytes(data...)
 			}
 
 			s.Stack.Push(pushData)
@@ -1504,10 +1504,10 @@ func getAllRules() []Rule {
 		staticGas: 3,
 		pops:      3,
 		pushes:    0,
-		parameters: []Parameter{
-			MemoryOffsetParameter{},
-			DataOffsetParameter{},
-			SizeParameter{}},
+		parameters: []rlz.Parameter{
+			rlz.MemoryOffsetParameter{},
+			rlz.DataOffsetParameter{},
+			rlz.SizeParameter{}},
 		effect: func(s *st.State) {
 			destOffsetU256 := s.Stack.Pop()
 			offsetU256 := s.Stack.Pop()
@@ -1523,11 +1523,11 @@ func getAllRules() []Rule {
 
 			start := offsetU256.Uint64()
 			len := s.CallData.Length()
-			if offsetU256.Gt(NewU256(uint64(len))) {
+			if offsetU256.Gt(common.NewU256(uint64(len))) {
 				start = uint64(len)
 			}
 			end := min(start+size, uint64(len))
-			dataBuffer := RightPadSlice(s.CallData.Get(start, end), int(size))
+			dataBuffer := common.RightPadSlice(s.CallData.Get(start, end), int(size))
 			s.Memory.Write(dataBuffer, destOffset)
 		},
 	})...)
@@ -1554,7 +1554,7 @@ func getAllRules() []Rule {
 		pops:      0,
 		pushes:    1,
 		effect: func(s *st.State) {
-			s.Stack.Push(NewU256(uint64(s.LastCallReturnData.Length())))
+			s.Stack.Push(common.NewU256(uint64(s.LastCallReturnData.Length())))
 		},
 	})...)
 
@@ -1565,10 +1565,10 @@ func getAllRules() []Rule {
 		staticGas: 3,
 		pops:      3,
 		pushes:    0,
-		parameters: []Parameter{
-			MemoryOffsetParameter{},
-			DataOffsetParameter{},
-			SizeParameter{}},
+		parameters: []rlz.Parameter{
+			rlz.MemoryOffsetParameter{},
+			rlz.DataOffsetParameter{},
+			rlz.SizeParameter{}},
 		effect: func(s *st.State) {
 			memOffsetU256 := s.Stack.Pop()
 			dataOffsetU256 := s.Stack.Pop()
@@ -1602,9 +1602,9 @@ func getAllRules() []Rule {
 		staticGas: 0,
 		pops:      2,
 		pushes:    0,
-		parameters: []Parameter{
-			MemoryOffsetParameter{},
-			SizeParameter{}},
+		parameters: []rlz.Parameter{
+			rlz.MemoryOffsetParameter{},
+			rlz.SizeParameter{}},
 		effect: func(s *st.State) {
 			offsetU256 := s.Stack.Pop()
 			sizeU256 := s.Stack.Pop()
@@ -1616,7 +1616,7 @@ func getAllRules() []Rule {
 			}
 			s.Gas -= expansionCost
 
-			s.ReturnData = NewBytes(s.Memory.Read(offset, size))
+			s.ReturnData = common.NewBytes(s.Memory.Read(offset, size))
 			s.Status = st.Stopped
 		},
 	})...)
@@ -1628,9 +1628,9 @@ func getAllRules() []Rule {
 		staticGas: 0,
 		pops:      2,
 		pushes:    0,
-		parameters: []Parameter{
-			MemoryOffsetParameter{},
-			SizeParameter{}},
+		parameters: []rlz.Parameter{
+			rlz.MemoryOffsetParameter{},
+			rlz.SizeParameter{}},
 		effect: func(s *st.State) {
 			offsetU256 := s.Stack.Pop()
 			sizeU256 := s.Stack.Pop()
@@ -1642,7 +1642,7 @@ func getAllRules() []Rule {
 			}
 			s.Gas -= expansionCost
 
-			s.ReturnData = NewBytes(s.Memory.Read(offset, size))
+			s.ReturnData = common.NewBytes(s.Memory.Read(offset, size))
 			s.Status = st.Reverted
 		},
 	})...)
@@ -1653,7 +1653,7 @@ func getAllRules() []Rule {
 
 	// --- SELFDESTRUCT ---
 
-	for revision := tosca.R07_Istanbul; revision <= NewestSupportedRevision; revision++ {
+	for revision := tosca.R07_Istanbul; revision <= common.NewestSupportedRevision; revision++ {
 		for _, originatorHasFunds := range []bool{true, false} {
 			for _, beneficiaryAccountEmpty := range []bool{true, false} {
 				for _, beneficiaryAccountIsWarm := range []bool{true, false} {
@@ -1676,11 +1676,11 @@ func getAllRules() []Rule {
 		name:      "_staticcall",
 		staticGas: 5000,
 		pops:      1,
-		conditions: []Condition{
-			Eq(ReadOnly(), true),
-			AnyKnownRevision(),
+		conditions: []rlz.Condition{
+			rlz.Eq(rlz.ReadOnly(), true),
+			rlz.AnyKnownRevision(),
 		},
-		effect: FailEffect().Apply,
+		effect: rlz.FailEffect().Apply,
 	})...)
 
 	// --- CREATE ---
@@ -1691,15 +1691,15 @@ func getAllRules() []Rule {
 		staticGas: 32000,
 		pops:      3,
 		pushes:    1,
-		conditions: []Condition{
-			Eq(ReadOnly(), true),
+		conditions: []rlz.Condition{
+			rlz.Eq(rlz.ReadOnly(), true),
 		},
-		parameters: []Parameter{
-			ValueParameter{},
-			MemoryOffsetParameter{},
-			SizeParameter{},
+		parameters: []rlz.Parameter{
+			rlz.ValueParameter{},
+			rlz.MemoryOffsetParameter{},
+			rlz.SizeParameter{},
 		},
-		effect: FailEffect().Apply,
+		effect: rlz.FailEffect().Apply,
 	})...)
 
 	rules = append(rules, rulesFor(instruction{
@@ -1707,13 +1707,13 @@ func getAllRules() []Rule {
 		staticGas: 32000,
 		pops:      3,
 		pushes:    1,
-		conditions: []Condition{
-			Eq(ReadOnly(), false),
+		conditions: []rlz.Condition{
+			rlz.Eq(rlz.ReadOnly(), false),
 		},
-		parameters: []Parameter{
-			ValueParameter{},
-			MemoryOffsetParameter{},
-			SizeParameter{},
+		parameters: []rlz.Parameter{
+			rlz.ValueParameter{},
+			rlz.MemoryOffsetParameter{},
+			rlz.SizeParameter{},
 		},
 		effect: func(s *st.State) {
 			createEffect(s, tosca.Create)
@@ -1728,16 +1728,16 @@ func getAllRules() []Rule {
 		staticGas: 32000,
 		pops:      3,
 		pushes:    1,
-		conditions: []Condition{
-			Eq(ReadOnly(), true),
+		conditions: []rlz.Condition{
+			rlz.Eq(rlz.ReadOnly(), true),
 		},
-		parameters: []Parameter{
-			ValueParameter{},
-			MemoryOffsetParameter{},
-			SizeParameter{},
-			NumericParameter{},
+		parameters: []rlz.Parameter{
+			rlz.ValueParameter{},
+			rlz.MemoryOffsetParameter{},
+			rlz.SizeParameter{},
+			rlz.NumericParameter{},
 		},
-		effect: FailEffect().Apply,
+		effect: rlz.FailEffect().Apply,
 	})...)
 
 	rules = append(rules, rulesFor(instruction{
@@ -1745,14 +1745,14 @@ func getAllRules() []Rule {
 		staticGas: 32000,
 		pops:      4,
 		pushes:    1,
-		conditions: []Condition{
-			Eq(ReadOnly(), false),
+		conditions: []rlz.Condition{
+			rlz.Eq(rlz.ReadOnly(), false),
 		},
-		parameters: []Parameter{
-			ValueParameter{},
-			MemoryOffsetParameter{},
-			SizeParameter{},
-			NumericParameter{},
+		parameters: []rlz.Parameter{
+			rlz.ValueParameter{},
+			rlz.MemoryOffsetParameter{},
+			rlz.SizeParameter{},
+			rlz.NumericParameter{},
 		},
 		effect: func(s *st.State) {
 			createEffect(s, tosca.Create2)
@@ -1768,7 +1768,7 @@ func createEffect(s *st.State, callKind tosca.CallKind) {
 	valueU256 := s.Stack.Pop()
 	offsetU256 := s.Stack.Pop()
 	sizeU256 := s.Stack.Pop()
-	var saltU256 U256
+	var saltU256 common.U256
 
 	memExpCost, offset, size := s.Memory.ExpansionCosts(offsetU256, sizeU256)
 	dynamicGas := memExpCost
@@ -1812,8 +1812,8 @@ func createEffect(s *st.State, callKind tosca.CallKind) {
 	if !valueU256.IsZero() {
 		balance := s.Accounts.GetBalance(s.CallContext.AccountAddress)
 		if balance.Lt(valueU256) {
-			s.Stack.Push(AddressToU256(tosca.Address{}))
-			s.LastCallReturnData = Bytes{}
+			s.Stack.Push(common.AddressToU256(tosca.Address{}))
+			s.LastCallReturnData = common.Bytes{}
 			return
 		}
 	}
@@ -1832,28 +1832,28 @@ func createEffect(s *st.State, callKind tosca.CallKind) {
 	s.GasRefund += res.GasRefund
 
 	if !res.Success {
-		s.Stack.Push(AddressToU256(tosca.Address{}))
-		s.LastCallReturnData = NewBytes(res.Output)
+		s.Stack.Push(common.AddressToU256(tosca.Address{}))
+		s.LastCallReturnData = common.NewBytes(res.Output)
 		return
 	}
-	s.LastCallReturnData = Bytes{}
-	s.Stack.Push(AddressToU256(res.CreatedAddress))
+	s.LastCallReturnData = common.Bytes{}
+	s.Stack.Push(common.AddressToU256(res.CreatedAddress))
 }
 
 func binaryOpWithDynamicCost(
 	op vm.OpCode,
 	costs tosca.Gas,
-	effect func(a, b U256) U256,
-	dynamicCost func(a, b U256) tosca.Gas,
-) []Rule {
+	effect func(a, b common.U256) common.U256,
+	dynamicCost func(a, b common.U256) tosca.Gas,
+) []rlz.Rule {
 	return rulesFor(instruction{
 		op:        op,
 		staticGas: costs,
 		pops:      2,
 		pushes:    1,
-		parameters: []Parameter{
-			NumericParameter{},
-			NumericParameter{},
+		parameters: []rlz.Parameter{
+			rlz.NumericParameter{},
+			rlz.NumericParameter{},
 		},
 		effect: func(s *st.State) {
 			a := s.Stack.Pop()
@@ -1873,25 +1873,25 @@ func binaryOpWithDynamicCost(
 func binaryOp(
 	op vm.OpCode,
 	costs tosca.Gas,
-	effect func(a, b U256) U256,
-) []Rule {
-	return binaryOpWithDynamicCost(op, costs, effect, func(_, _ U256) tosca.Gas { return 0 })
+	effect func(a, b common.U256) common.U256,
+) []rlz.Rule {
+	return binaryOpWithDynamicCost(op, costs, effect, func(_, _ common.U256) tosca.Gas { return 0 })
 }
 
 func trinaryOp(
 	op vm.OpCode,
 	costs tosca.Gas,
-	effect func(a, b, c U256) U256,
-) []Rule {
+	effect func(a, b, c common.U256) common.U256,
+) []rlz.Rule {
 	return rulesFor(instruction{
 		op:        op,
 		staticGas: costs,
 		pops:      3,
 		pushes:    1,
-		parameters: []Parameter{
-			NumericParameter{},
-			NumericParameter{},
-			NumericParameter{},
+		parameters: []rlz.Parameter{
+			rlz.NumericParameter{},
+			rlz.NumericParameter{},
+			rlz.NumericParameter{},
 		},
 		effect: func(s *st.State) {
 			a := s.Stack.Pop()
@@ -1905,15 +1905,15 @@ func trinaryOp(
 func unaryOp(
 	op vm.OpCode,
 	costs tosca.Gas,
-	effect func(a U256) U256,
-) []Rule {
+	effect func(a common.U256) common.U256,
+) []rlz.Rule {
 	return rulesFor(instruction{
 		op:        op,
 		staticGas: costs,
 		pops:      1,
 		pushes:    1,
-		parameters: []Parameter{
-			NumericParameter{},
+		parameters: []rlz.Parameter{
+			rlz.NumericParameter{},
 		},
 		effect: func(s *st.State) {
 			a := s.Stack.Pop()
@@ -1922,7 +1922,7 @@ func unaryOp(
 	})
 }
 
-func pushOp(n int) []Rule {
+func pushOp(n int) []rlz.Rule {
 	op := vm.OpCode(int(vm.PUSH1) + n - 1)
 	return rulesFor(instruction{
 		op:        op,
@@ -1940,7 +1940,7 @@ func pushOp(n int) []Rule {
 				}
 				data[i] = b
 			}
-			s.Stack.Push(NewU256FromBytes(data...))
+			s.Stack.Push(common.NewU256FromBytes(data...))
 			s.Pc += uint16(n)
 		},
 	})
@@ -1948,7 +1948,7 @@ func pushOp(n int) []Rule {
 
 // An implementation does not necessarily do `n` pops and `n+1` pushes, since arbitrary stack positions could be accessed directly.
 // However, the result is as if `n` pops and `n+1` pushes were performed.
-func dupOp(n int) []Rule {
+func dupOp(n int) []rlz.Rule {
 	op := vm.OpCode(int(vm.DUP1) + n - 1)
 	return rulesFor(instruction{
 		op:        op,
@@ -1963,7 +1963,7 @@ func dupOp(n int) []Rule {
 
 // An implementation does not necessarily do `n` pops and `n+1` pushes, since arbitrary stack positions could be accessed directly.
 // However, the result is as if `n` pops and `n+1` pushes were performed.
-func swapOp(n int) []Rule {
+func swapOp(n int) []rlz.Rule {
 	op := vm.OpCode(int(vm.SWAP1) + n - 1)
 	return rulesFor(instruction{
 		op:        op,
@@ -1980,7 +1980,7 @@ func swapOp(n int) []Rule {
 }
 
 func extCodeCopyEffect(s *st.State, markWarm bool) {
-	address := NewAddress(s.Stack.Pop())
+	address := common.NewAddress(s.Stack.Pop())
 	destOffsetU256 := s.Stack.Pop()
 	offsetU256 := s.Stack.Pop()
 	sizeU256 := s.Stack.Pop()
@@ -1995,12 +1995,12 @@ func extCodeCopyEffect(s *st.State, markWarm bool) {
 
 	start := offsetU256.Uint64()
 	codeSize := uint64(s.Accounts.GetCode(address).Length())
-	if offsetU256.Gt(NewU256(codeSize)) {
+	if offsetU256.Gt(common.NewU256(codeSize)) {
 		start = codeSize
 	}
 	end := min(start+size, codeSize)
 
-	codeCopy := RightPadSlice(s.Accounts.GetCode(address).ToBytes()[start:end], int(size))
+	codeCopy := common.RightPadSlice(s.Accounts.GetCode(address).ToBytes()[start:end], int(size))
 
 	s.Memory.Write(codeCopy, destOffset)
 	if markWarm {
@@ -2016,7 +2016,7 @@ type sstoreOpParams struct {
 	gasRefund tosca.Gas
 }
 
-func sstoreOpRegular(params sstoreOpParams) Rule {
+func sstoreOpRegular(params sstoreOpParams) rlz.Rule {
 	name := fmt.Sprintf("sstore_regular_%v_%v", params.revision, params.config)
 
 	gasLimit := tosca.Gas(2301) // EIP2200
@@ -2024,34 +2024,34 @@ func sstoreOpRegular(params sstoreOpParams) Rule {
 		gasLimit = params.gasCost
 	}
 
-	conditions := []Condition{
-		IsRevision(params.revision),
-		Eq(Status(), st.Running),
-		Eq(Op(Pc()), vm.SSTORE),
-		Ge(Gas(), gasLimit),
-		Eq(ReadOnly(), false),
-		Ge(StackSize(), 2),
-		StorageConfiguration(params.config, Param(0), Param(1)),
+	conditions := []rlz.Condition{
+		rlz.IsRevision(params.revision),
+		rlz.Eq(rlz.Status(), st.Running),
+		rlz.Eq(rlz.Op(rlz.Pc()), vm.SSTORE),
+		rlz.Ge(rlz.Gas(), gasLimit),
+		rlz.Eq(rlz.ReadOnly(), false),
+		rlz.Ge(rlz.StackSize(), 2),
+		rlz.StorageConfiguration(params.config, rlz.Param(0), rlz.Param(1)),
 	}
 
 	if params.revision >= tosca.R09_Berlin {
 		if params.warm {
 			name += "_warm"
-			conditions = append(conditions, IsStorageWarm(Param(0)))
+			conditions = append(conditions, rlz.IsStorageWarm(rlz.Param(0)))
 		} else {
 			name += "_cold"
-			conditions = append(conditions, IsStorageCold(Param(0)))
+			conditions = append(conditions, rlz.IsStorageCold(rlz.Param(0)))
 		}
 	}
 
-	return Rule{
+	return rlz.Rule{
 		Name:      name,
-		Condition: And(conditions...),
-		Parameter: []Parameter{
-			NumericParameter{},
-			NumericParameter{},
+		Condition: rlz.And(conditions...),
+		Parameter: []rlz.Parameter{
+			rlz.NumericParameter{},
+			rlz.NumericParameter{},
 		},
-		Effect: Change(func(s *st.State) {
+		Effect: rlz.Change(func(s *st.State) {
 			s.GasRefund += params.gasRefund
 			s.Gas -= params.gasCost
 			s.Pc++
@@ -2065,41 +2065,41 @@ func sstoreOpRegular(params sstoreOpParams) Rule {
 	}
 }
 
-func sstoreOpTooLittleGas(params sstoreOpParams) Rule {
+func sstoreOpTooLittleGas(params sstoreOpParams) rlz.Rule {
 	name := fmt.Sprintf("sstore_with_too_little_gas_%v_%v", params.revision, params.config)
 
-	conditions := []Condition{
-		IsRevision(params.revision),
-		Eq(Status(), st.Running),
-		Eq(Op(Pc()), vm.SSTORE),
-		Lt(Gas(), params.gasCost),
-		Eq(ReadOnly(), false),
-		Ge(StackSize(), 2),
-		StorageConfiguration(params.config, Param(0), Param(1)),
+	conditions := []rlz.Condition{
+		rlz.IsRevision(params.revision),
+		rlz.Eq(rlz.Status(), st.Running),
+		rlz.Eq(rlz.Op(rlz.Pc()), vm.SSTORE),
+		rlz.Lt(rlz.Gas(), params.gasCost),
+		rlz.Eq(rlz.ReadOnly(), false),
+		rlz.Ge(rlz.StackSize(), 2),
+		rlz.StorageConfiguration(params.config, rlz.Param(0), rlz.Param(1)),
 	}
 
 	if params.revision >= tosca.R09_Berlin {
 		if params.warm {
 			name += "_warm"
-			conditions = append(conditions, IsStorageWarm(Param(0)))
+			conditions = append(conditions, rlz.IsStorageWarm(rlz.Param(0)))
 		} else {
 			name += "_cold"
-			conditions = append(conditions, IsStorageCold(Param(0)))
+			conditions = append(conditions, rlz.IsStorageCold(rlz.Param(0)))
 		}
 	}
 
-	return Rule{
+	return rlz.Rule{
 		Name:      name,
-		Condition: And(conditions...),
-		Parameter: []Parameter{
-			NumericParameter{},
-			NumericParameter{},
+		Condition: rlz.And(conditions...),
+		Parameter: []rlz.Parameter{
+			rlz.NumericParameter{},
+			rlz.NumericParameter{},
 		},
-		Effect: FailEffect(),
+		Effect: rlz.FailEffect(),
 	}
 }
 
-func sstoreOpReadOnlyMode(params sstoreOpParams) Rule {
+func sstoreOpReadOnlyMode(params sstoreOpParams) rlz.Rule {
 	name := fmt.Sprintf("sstore_in_read_only_mode_%v_%v", params.revision, params.config)
 
 	gasLimit := tosca.Gas(2301) // EIP2200
@@ -2107,40 +2107,40 @@ func sstoreOpReadOnlyMode(params sstoreOpParams) Rule {
 		gasLimit = params.gasCost
 	}
 
-	conditions := []Condition{
-		IsRevision(params.revision),
-		Eq(Status(), st.Running),
-		Eq(Op(Pc()), vm.SSTORE),
-		Ge(Gas(), gasLimit),
-		Eq(ReadOnly(), true),
-		Ge(StackSize(), 2),
-		StorageConfiguration(params.config, Param(0), Param(1)),
+	conditions := []rlz.Condition{
+		rlz.IsRevision(params.revision),
+		rlz.Eq(rlz.Status(), st.Running),
+		rlz.Eq(rlz.Op(rlz.Pc()), vm.SSTORE),
+		rlz.Ge(rlz.Gas(), gasLimit),
+		rlz.Eq(rlz.ReadOnly(), true),
+		rlz.Ge(rlz.StackSize(), 2),
+		rlz.StorageConfiguration(params.config, rlz.Param(0), rlz.Param(1)),
 	}
 
-	return Rule{
+	return rlz.Rule{
 		Name:      name,
-		Condition: And(conditions...),
-		Parameter: []Parameter{
-			NumericParameter{},
-			NumericParameter{},
+		Condition: rlz.And(conditions...),
+		Parameter: []rlz.Parameter{
+			rlz.NumericParameter{},
+			rlz.NumericParameter{},
 		},
-		Effect: FailEffect(),
+		Effect: rlz.FailEffect(),
 	}
 }
 
-func logOp(n int) []Rule {
+func logOp(n int) []rlz.Rule {
 	op := vm.OpCode(int(vm.LOG0) + n)
 	minGas := tosca.Gas(375 + 375*n)
-	conditions := []Condition{
-		Eq(ReadOnly(), false),
+	conditions := []rlz.Condition{
+		rlz.Eq(rlz.ReadOnly(), false),
 	}
 
-	parameter := []Parameter{
-		MemoryOffsetParameter{},
-		SizeParameter{},
+	parameter := []rlz.Parameter{
+		rlz.MemoryOffsetParameter{},
+		rlz.SizeParameter{},
 	}
 	for i := 0; i < n; i++ {
-		parameter = append(parameter, TopicParameter{})
+		parameter = append(parameter, rlz.TopicParameter{})
 	}
 
 	rules := rulesFor(instruction{
@@ -2154,7 +2154,7 @@ func logOp(n int) []Rule {
 			offsetU256 := s.Stack.Pop()
 			sizeU256 := s.Stack.Pop()
 
-			topics := []U256{}
+			topics := []common.U256{}
 			for i := 0; i < n; i++ {
 				topics = append(topics, s.Stack.Pop())
 			}
@@ -2177,19 +2177,19 @@ func logOp(n int) []Rule {
 	})
 
 	// Read only mode
-	conditions = []Condition{
-		AnyKnownRevision(),
-		Eq(Status(), st.Running),
-		Eq(Op(Pc()), op),
-		Ge(Gas(), minGas),
-		Eq(ReadOnly(), true),
-		Ge(StackSize(), 2+n),
+	conditions = []rlz.Condition{
+		rlz.AnyKnownRevision(),
+		rlz.Eq(rlz.Status(), st.Running),
+		rlz.Eq(rlz.Op(rlz.Pc()), op),
+		rlz.Ge(rlz.Gas(), minGas),
+		rlz.Eq(rlz.ReadOnly(), true),
+		rlz.Ge(rlz.StackSize(), 2+n),
 	}
 
-	rules = append(rules, []Rule{{
+	rules = append(rules, []rlz.Rule{{
 		Name:      fmt.Sprintf("%v_in_read_only_mode", strings.ToLower(op.String())),
-		Condition: And(conditions...),
-		Effect:    FailEffect(),
+		Condition: rlz.And(conditions...),
+		Effect:    rlz.FailEffect(),
 	}}...)
 
 	return rules
@@ -2201,43 +2201,43 @@ func makeSelfDestructRules(
 	originatorHasSelfDestructedBefore bool,
 	beneficiaryAccountIsEmpty bool,
 	beneficiaryAccountIsWarm bool,
-) []Rule {
+) []rlz.Rule {
 
 	name := "_" + revision.String()
 
-	var originatorHasFundsCondition Condition
+	var originatorHasFundsCondition rlz.Condition
 	if originatorHasFunds {
-		originatorHasFundsCondition = Gt(Balance(SelfAddress()), NewU256(0))
+		originatorHasFundsCondition = rlz.Gt(rlz.Balance(rlz.SelfAddress()), common.NewU256(0))
 		name += "_originator_has_funds"
 	} else {
-		originatorHasFundsCondition = Eq(Balance(SelfAddress()), NewU256(0))
+		originatorHasFundsCondition = rlz.Eq(rlz.Balance(rlz.SelfAddress()), common.NewU256(0))
 		name += "_originator_has_no_funds"
 	}
 
-	var beneficiaryIsEmpty Condition
+	var beneficiaryIsEmpty rlz.Condition
 	if beneficiaryAccountIsEmpty {
-		beneficiaryIsEmpty = AccountIsEmpty(Param(0))
+		beneficiaryIsEmpty = rlz.AccountIsEmpty(rlz.Param(0))
 		name += "_beneficiary_is_empty"
 	} else {
-		beneficiaryIsEmpty = AccountIsNotEmpty(Param(0))
+		beneficiaryIsEmpty = rlz.AccountIsNotEmpty(rlz.Param(0))
 		name += "_beneficiary_is_not_empty"
 	}
 
-	var beneficiaryWarm Condition
+	var beneficiaryWarm rlz.Condition
 	if beneficiaryAccountIsWarm {
-		beneficiaryWarm = IsAddressWarm(Param(0))
+		beneficiaryWarm = rlz.IsAddressWarm(rlz.Param(0))
 		name += "_beneficiary_warm"
 	} else {
-		beneficiaryWarm = IsAddressCold(Param(0))
+		beneficiaryWarm = rlz.IsAddressCold(rlz.Param(0))
 		name += "_beneficiary_cold"
 	}
 
-	var hasSelfDestructedCondition Condition
+	var hasSelfDestructedCondition rlz.Condition
 	if originatorHasSelfDestructedBefore {
-		hasSelfDestructedCondition = HasSelfDestructed()
+		hasSelfDestructedCondition = rlz.HasSelfDestructed()
 		name += "_originator_has_self_destructed"
 	} else {
-		hasSelfDestructedCondition = HasNotSelfDestructed()
+		hasSelfDestructedCondition = rlz.HasNotSelfDestructed()
 		name += "_originator_has_not_self_destructed"
 	}
 
@@ -2246,15 +2246,15 @@ func makeSelfDestructRules(
 		name:      name,
 		staticGas: 5000,
 		pops:      1,
-		conditions: []Condition{
-			Eq(ReadOnly(), false),
-			IsRevision(revision),
+		conditions: []rlz.Condition{
+			rlz.Eq(rlz.ReadOnly(), false),
+			rlz.IsRevision(revision),
 			originatorHasFundsCondition,
 			hasSelfDestructedCondition,
 			beneficiaryIsEmpty,
 			beneficiaryWarm,
 		},
-		parameters: []Parameter{AddressParameter{}},
+		parameters: []rlz.Parameter{rlz.AddressParameter{}},
 		effect:     selfDestructEffect,
 	}
 
@@ -2317,42 +2317,42 @@ func selfDestructEffect(s *st.State) {
 	s.Status = st.Stopped
 }
 
-func tooLittleGas(i instruction) []Rule {
+func tooLittleGas(i instruction) []rlz.Rule {
 	localConditions := append(i.conditions,
-		AnyKnownRevision(),
-		Eq(Status(), st.Running),
-		Eq(Op(Pc()), i.op),
-		Lt(Gas(), i.staticGas))
-	return []Rule{{
+		rlz.AnyKnownRevision(),
+		rlz.Eq(rlz.Status(), st.Running),
+		rlz.Eq(rlz.Op(rlz.Pc()), i.op),
+		rlz.Lt(rlz.Gas(), i.staticGas))
+	return []rlz.Rule{{
 		Name:      fmt.Sprintf("%v_with_too_little_gas%v", strings.ToLower(i.op.String()), i.name),
-		Condition: And(localConditions...),
-		Effect:    FailEffect(),
+		Condition: rlz.And(localConditions...),
+		Effect:    rlz.FailEffect(),
 	}}
 }
 
-func notEnoughSpace(i instruction) []Rule {
+func notEnoughSpace(i instruction) []rlz.Rule {
 	localConditions := append(i.conditions,
-		AnyKnownRevision(),
-		Eq(Status(), st.Running),
-		Eq(Op(Pc()), i.op),
-		Ge(StackSize(), st.MaxStackSize))
-	return []Rule{{
+		rlz.AnyKnownRevision(),
+		rlz.Eq(rlz.Status(), st.Running),
+		rlz.Eq(rlz.Op(rlz.Pc()), i.op),
+		rlz.Ge(rlz.StackSize(), st.MaxStackSize))
+	return []rlz.Rule{{
 		Name:      fmt.Sprintf("%v_with_not_enough_space%v", strings.ToLower(i.op.String()), i.name),
-		Condition: And(localConditions...),
-		Effect:    FailEffect(),
+		Condition: rlz.And(localConditions...),
+		Effect:    rlz.FailEffect(),
 	}}
 }
 
-func tooFewElements(i instruction) []Rule {
-	localConditions := append([]Condition{},
-		AnyKnownRevision(),
-		Eq(Status(), st.Running),
-		Eq(Op(Pc()), i.op),
-		Lt(StackSize(), i.pops))
-	return []Rule{{
+func tooFewElements(i instruction) []rlz.Rule {
+	localConditions := append([]rlz.Condition{},
+		rlz.AnyKnownRevision(),
+		rlz.Eq(rlz.Status(), st.Running),
+		rlz.Eq(rlz.Op(rlz.Pc()), i.op),
+		rlz.Lt(rlz.StackSize(), i.pops))
+	return []rlz.Rule{{
 		Name:      fmt.Sprintf("%v_with_too_few_elements%v", strings.ToLower(i.op.String()), i.name),
-		Condition: And(localConditions...),
-		Effect:    FailEffect(),
+		Condition: rlz.And(localConditions...),
+		Effect:    rlz.FailEffect(),
 	}}
 }
 
@@ -2361,8 +2361,8 @@ func tooFewElements(i instruction) []Rule {
 // This function subtracts i.staticGas from state.Gas and increases state.Pc by one,
 // these two are always done before calling i.effect. This should be kept
 // in mind when implementing the effects of new rules.
-func rulesFor(i instruction) []Rule {
-	res := []Rule{}
+func rulesFor(i instruction) []rlz.Rule {
+	res := []rlz.Rule{}
 	if i.staticGas > 0 {
 		res = append(res, tooLittleGas(i)...)
 	}
@@ -2373,22 +2373,22 @@ func rulesFor(i instruction) []Rule {
 		res = append(res, notEnoughSpace(i)...)
 	}
 	localConditions := append(i.conditions,
-		Eq(Status(), st.Running),
-		Eq(Op(Pc()), i.op),
-		Ge(Gas(), i.staticGas),
-		Ge(StackSize(), i.pops),
-		Le(StackSize(), st.MaxStackSize-(max(i.pushes-i.pops, 0))),
+		rlz.Eq(rlz.Status(), st.Running),
+		rlz.Eq(rlz.Op(rlz.Pc()), i.op),
+		rlz.Ge(rlz.Gas(), i.staticGas),
+		rlz.Ge(rlz.StackSize(), i.pops),
+		rlz.Le(rlz.StackSize(), st.MaxStackSize-(max(i.pushes-i.pops, 0))),
 	)
 
-	if !slices.ContainsFunc(i.conditions, IsRevisionCondition) {
-		localConditions = append(localConditions, AnyKnownRevision())
+	if !slices.ContainsFunc(i.conditions, rlz.IsRevisionCondition) {
+		localConditions = append(localConditions, rlz.AnyKnownRevision())
 	}
 
-	res = append(res, Rule{
+	res = append(res, rlz.Rule{
 		Name:      fmt.Sprintf("%s_regular%v", strings.ToLower(i.op.String()), i.name),
-		Condition: And(localConditions...),
+		Condition: rlz.And(localConditions...),
 		Parameter: i.parameters,
-		Effect: Change(func(s *st.State) {
+		Effect: rlz.Change(func(s *st.State) {
 			s.Gas -= i.staticGas
 			s.Pc++
 			i.effect(s)
@@ -2398,17 +2398,17 @@ func rulesFor(i instruction) []Rule {
 }
 
 // getRulesForAllCallTypes returns rules for CALL, CALLCODE, STATICCALL and DELEGATECALL
-func getRulesForAllCallTypes() []Rule {
+func getRulesForAllCallTypes() []rlz.Rule {
 	// NOTE: this rule only covers Istanbul, Berlin and London cases in a coarse-grained way.
 	// Follow-work is required to cover other revisions and situations,
 	// as well as special cases currently covered in the effect function.
 	callFailEffect := func(s *st.State, addrAccessCost tosca.Gas, op vm.OpCode) {
-		FailEffect().Apply(s)
+		rlz.FailEffect().Apply(s)
 	}
 
-	res := []Rule{}
+	res := []rlz.Rule{}
 	for _, op := range []vm.OpCode{vm.CALL, vm.CALLCODE, vm.STATICCALL, vm.DELEGATECALL} {
-		for rev := tosca.R07_Istanbul; rev <= NewestSupportedRevision; rev++ {
+		for rev := tosca.R07_Istanbul; rev <= common.NewestSupportedRevision; rev++ {
 			for _, warm := range []bool{true, false} {
 				for _, static := range []bool{true, false} {
 					for _, zeroValue := range []bool{true, false} {
@@ -2426,7 +2426,7 @@ func getRulesForAllCallTypes() []Rule {
 	return res
 }
 
-func getRulesForCall(op vm.OpCode, revision tosca.Revision, warm, zeroValue bool, opEffect func(s *st.State, addrAccessCost tosca.Gas, op vm.OpCode), static bool) []Rule {
+func getRulesForCall(op vm.OpCode, revision tosca.Revision, warm, zeroValue bool, opEffect func(s *st.State, addrAccessCost tosca.Gas, op vm.OpCode), static bool) []rlz.Rule {
 
 	var staticGas tosca.Gas
 	if revision == tosca.R07_Istanbul {
@@ -2444,52 +2444,52 @@ func getRulesForCall(op vm.OpCode, revision tosca.Revision, warm, zeroValue bool
 		addressAccessCost = 2600
 	}
 
-	var targetWarm Condition
+	var targetWarm rlz.Condition
 	var warmColdString string
 	if warm {
 		warmColdString = "warm"
-		targetWarm = IsAddressWarm(Param(1))
+		targetWarm = rlz.IsAddressWarm(rlz.Param(1))
 	} else {
 		warmColdString = "cold"
-		targetWarm = IsAddressCold(Param(1))
+		targetWarm = rlz.IsAddressCold(rlz.Param(1))
 	}
 
-	var staticCondition Condition
+	var staticCondition rlz.Condition
 	var staticConditionName string
 	if static {
 		staticConditionName = "static"
-		staticCondition = Eq(ReadOnly(), true)
+		staticCondition = rlz.Eq(rlz.ReadOnly(), true)
 	} else {
 		staticConditionName = "not_static"
-		staticCondition = Eq(ReadOnly(), false)
+		staticCondition = rlz.Eq(rlz.ReadOnly(), false)
 	}
 
 	// default parameters, conditions and pops are for STATICCALL
-	parameters := []Parameter{
-		GasParameter{},
-		AddressParameter{},
+	parameters := []rlz.Parameter{
+		rlz.GasParameter{},
+		rlz.AddressParameter{},
 	}
 
-	callConditions := []Condition{
-		IsRevision(revision),
+	callConditions := []rlz.Condition{
+		rlz.IsRevision(revision),
 		targetWarm,
 		staticCondition,
 	}
 
-	var valueZeroCondition Condition
+	var valueZeroCondition rlz.Condition
 	var valueZeroConditionName string
 	var name string
 	pops := 6
 
 	if op == vm.CALL || op == vm.CALLCODE {
-		parameters = append(parameters, ValueParameter{})
+		parameters = append(parameters, rlz.ValueParameter{})
 
 		if zeroValue {
 			valueZeroConditionName = "_no_value"
-			valueZeroCondition = Eq(ValueParam(2), NewU256(0))
+			valueZeroCondition = rlz.Eq(rlz.ValueParam(2), common.NewU256(0))
 		} else {
 			valueZeroConditionName = "_with_value"
-			valueZeroCondition = Ne(ValueParam(2), NewU256(0))
+			valueZeroCondition = rlz.Ne(rlz.ValueParam(2), common.NewU256(0))
 		}
 
 		callConditions = append(callConditions, valueZeroCondition)
@@ -2498,10 +2498,10 @@ func getRulesForCall(op vm.OpCode, revision tosca.Revision, warm, zeroValue bool
 	}
 
 	parameters = append(parameters,
-		MemoryOffsetParameter{},
-		SizeParameter{},
-		MemoryOffsetParameter{},
-		SizeParameter{},
+		rlz.MemoryOffsetParameter{},
+		rlz.SizeParameter{},
+		rlz.MemoryOffsetParameter{},
+		rlz.SizeParameter{},
 	)
 
 	name = fmt.Sprintf("_%v_%v_%v%v", strings.ToLower(revision.String()), warmColdString,
@@ -2525,7 +2525,7 @@ func callEffect(s *st.State, addrAccessCost tosca.Gas, op vm.OpCode) {
 
 	gas := s.Stack.Pop()
 	target := s.Stack.Pop()
-	var value U256
+	var value common.U256
 	if op == vm.CALL || op == vm.CALLCODE {
 		value = s.Stack.Pop()
 	}
@@ -2598,8 +2598,8 @@ func callEffect(s *st.State, addrAccessCost tosca.Gas, op vm.OpCode) {
 	if !isValueZero {
 		balance := s.Accounts.GetBalance(s.CallContext.AccountAddress)
 		if balance.Lt(value) {
-			s.Stack.Push(NewU256(0))
-			s.LastCallReturnData = Bytes{}
+			s.Stack.Push(common.NewU256(0))
+			s.LastCallReturnData = common.Bytes{}
 			return
 		}
 	}
@@ -2645,11 +2645,11 @@ func callEffect(s *st.State, addrAccessCost tosca.Gas, op vm.OpCode) {
 
 	s.Gas -= endowment + stipend - res.GasLeft // < the costs for the code execution
 	s.GasRefund += res.GasRefund
-	s.LastCallReturnData = NewBytes(res.Output)
+	s.LastCallReturnData = common.NewBytes(res.Output)
 	if res.Success {
-		s.Stack.Push(NewU256(1))
+		s.Stack.Push(common.NewU256(1))
 	} else {
-		s.Stack.Push(NewU256(0))
+		s.Stack.Push(common.NewU256(0))
 	}
 }
 

@@ -16,7 +16,7 @@ import (
 	"sort"
 	"strings"
 
-	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
 	"github.com/0xsoniclabs/Tosca/go/ct/st"
 	"github.com/0xsoniclabs/Tosca/go/tosca"
 	"golang.org/x/exp/maps"
@@ -67,14 +67,14 @@ func (g *AccountsGenerator) BindToAddressOfNonEmptyAccount(address Variable) {
 	}
 }
 
-func (g *AccountsGenerator) AddBalanceLowerBound(address Variable, value U256) {
+func (g *AccountsGenerator) AddBalanceLowerBound(address Variable, value common.U256) {
 	c := balanceConstraint{address, value}
 	if !slices.Contains(g.minBalance, c) {
 		g.minBalance = append(g.minBalance, c)
 	}
 }
 
-func (g *AccountsGenerator) AddBalanceUpperBound(address Variable, value U256) {
+func (g *AccountsGenerator) AddBalanceUpperBound(address Variable, value common.U256) {
 	c := balanceConstraint{address, value}
 	if !slices.Contains(g.maxBalance, c) {
 		g.maxBalance = append(g.maxBalance, c)
@@ -162,12 +162,12 @@ func (g *AccountsGenerator) Generate(assignment Assignment, rnd *rand.Rand, acco
 	addressesInUse[accountAddress] = true
 	for _, con := range g.warmCold {
 		if pos, isBound := assignment[con.key]; isBound {
-			addressesInUse[NewAddress(pos)] = true
+			addressesInUse[common.NewAddress(pos)] = true
 		}
 	}
 	getUnusedAddress := func() tosca.Address {
 		for {
-			address := RandomAddress(rnd)
+			address := common.RandomAddress(rnd)
 
 			if _, isPresent := addressesInUse[address]; !isPresent {
 				addressesInUse[address] = true
@@ -178,10 +178,10 @@ func (g *AccountsGenerator) Generate(assignment Assignment, rnd *rand.Rand, acco
 
 	getBoundOrBindNewAddress := func(v Variable) tosca.Address {
 		value, isBound := assignment[v]
-		address := NewAddress(value)
+		address := common.NewAddress(value)
 		if !isBound {
 			address = getUnusedAddress()
-			assignment[v] = AddressToU256(address)
+			assignment[v] = common.AddressToU256(address)
 		}
 
 		return address
@@ -207,18 +207,18 @@ func (g *AccountsGenerator) Generate(assignment Assignment, rnd *rand.Rand, acco
 		}
 	}
 	for address := range emptyAccounts {
-		accountsBuilder.SetBalance(address, NewU256(0))
-		accountsBuilder.SetCode(address, Bytes{})
+		accountsBuilder.SetBalance(address, common.NewU256(0))
+		accountsBuilder.SetCode(address, common.Bytes{})
 	}
 	for address := range nonEmptyAccounts {
 		switch rand.Intn(3) {
 		case 0:
-			accountsBuilder.SetBalance(address, NewU256(1))
+			accountsBuilder.SetBalance(address, common.NewU256(1))
 		case 1:
-			accountsBuilder.SetCode(address, NewBytes([]byte{1}))
+			accountsBuilder.SetCode(address, common.NewBytes([]byte{1}))
 		case 2:
-			accountsBuilder.SetBalance(address, NewU256(1))
-			accountsBuilder.SetCode(address, NewBytes([]byte{1}))
+			accountsBuilder.SetBalance(address, common.NewU256(1))
+			accountsBuilder.SetCode(address, common.NewBytes([]byte{1}))
 		}
 	}
 
@@ -243,9 +243,9 @@ func (g *AccountsGenerator) Generate(assignment Assignment, rnd *rand.Rand, acco
 	// Some random entries.
 	for i, max := 0, rnd.Intn(5); i < max; i++ {
 		address := getUnusedAddress()
-		accountsBuilder.SetBalance(address, RandU256(rnd))
+		accountsBuilder.SetBalance(address, common.RandU256(rnd))
 		if rnd.Intn(2) == 1 {
-			accountsBuilder.SetCode(address, RandomBytesOfSize(rnd, 42))
+			accountsBuilder.SetCode(address, common.RandomBytesOfSize(rnd, 42))
 		}
 		if rnd.Intn(2) == 1 {
 			accountsBuilder.SetWarm(address)
@@ -254,9 +254,9 @@ func (g *AccountsGenerator) Generate(assignment Assignment, rnd *rand.Rand, acco
 
 	// Add balance and code for the account executing the code.
 	if !accountsBuilder.Exists(accountAddress) {
-		accountsBuilder.SetBalance(accountAddress, RandU256(rnd))
+		accountsBuilder.SetBalance(accountAddress, common.RandU256(rnd))
 	}
-	accountsBuilder.SetCode(accountAddress, RandomBytesOfSize(rnd, 42))
+	accountsBuilder.SetCode(accountAddress, common.RandomBytesOfSize(rnd, 42))
 
 	return accountsBuilder.Build(), nil
 }
@@ -270,7 +270,7 @@ func (g *AccountsGenerator) processBalanceConstraints(
 
 	// Convert variable based constraints into lower and upper bounds for
 	// concrete addresses by fetching variable bindings or assigning new addresses.
-	lowerBounds := map[tosca.Address]U256{}
+	lowerBounds := map[tosca.Address]common.U256{}
 	for _, con := range g.minBalance {
 		address := getBoundOrBindNewAddress(con.address)
 		current := lowerBounds[address]
@@ -279,7 +279,7 @@ func (g *AccountsGenerator) processBalanceConstraints(
 		}
 	}
 
-	upperBounds := map[tosca.Address]U256{}
+	upperBounds := map[tosca.Address]common.U256{}
 	for _, con := range g.maxBalance {
 		address := getBoundOrBindNewAddress(con.address)
 		current, found := upperBounds[address]
@@ -288,7 +288,7 @@ func (g *AccountsGenerator) processBalanceConstraints(
 		}
 	}
 	for address := range mustBeEmptyAccounts {
-		upperBounds[address] = NewU256(0)
+		upperBounds[address] = common.NewU256(0)
 	}
 
 	// Get list of all accounts to be resolved.
@@ -305,17 +305,17 @@ func (g *AccountsGenerator) processBalanceConstraints(
 		upper, hasUpper := upperBounds[address]
 
 		if !hasLower {
-			lower = NewU256()
+			lower = common.NewU256()
 		}
 		if !hasUpper {
-			upper = MaxU256()
+			upper = common.MaxU256()
 		}
 
 		if lower.Gt(upper) {
 			return fmt.Errorf("%w, conflicting balance constraints", ErrUnsatisfiable)
 		}
 
-		result.SetBalance(address, RandU256Between(rnd, lower, upper))
+		result.SetBalance(address, common.RandU256Between(rnd, lower, upper))
 	}
 
 	return nil
@@ -335,7 +335,7 @@ func (a *emptyConstraint) Less(b *emptyConstraint) bool {
 
 type balanceConstraint struct {
 	address Variable
-	value   U256
+	value   common.U256
 }
 
 func (a *balanceConstraint) Less(b *balanceConstraint) bool {

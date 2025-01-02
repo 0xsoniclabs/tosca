@@ -17,7 +17,7 @@ import (
 	"os"
 	"slices"
 
-	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
 	"github.com/0xsoniclabs/Tosca/go/tosca"
 )
 
@@ -62,41 +62,41 @@ type stateSerializable struct {
 	Pc                    uint16
 	Gas                   tosca.Gas
 	GasRefund             tosca.Gas
-	Code                  Bytes
-	Stack                 []U256
-	Memory                Bytes
+	Code                  common.Bytes
+	Stack                 []common.U256
+	Memory                common.Bytes
 	Storage               *storageSerializable
 	TransientStorage      *transientSerializable
 	Accounts              *accountsSerializable
 	Logs                  *logsSerializable
 	CallContext           CallContext
 	BlockContext          BlockContext
-	CallData              Bytes
-	LastCallReturnData    Bytes
-	ReturnData            Bytes
+	CallData              common.Bytes
+	LastCallReturnData    common.Bytes
+	ReturnData            common.Bytes
 	CallJournal           *CallJournal
 	HasSelfDestructed     bool
 	SelfDestructedJournal []serializableSelfDestructEntry
-	RecentBlockHashes     ImmutableHashArray
+	RecentBlockHashes     common.ImmutableHashArray
 	TransactionContext    *TransactionContext
 }
 
 // storageSerializable is a serializable representation of the Storage struct.
 type storageSerializable struct {
-	Current  map[U256]U256
-	Original map[U256]U256
-	Warm     map[U256]bool
+	Current  map[common.U256]common.U256
+	Original map[common.U256]common.U256
+	Warm     map[common.U256]bool
 }
 
 // transientSerializable is a serializable representation of the Transient struct.
 type transientSerializable struct {
-	Storage map[U256]U256
+	Storage map[common.U256]common.U256
 }
 
 // accountsSerializable is a serializable representation of the Accounts struct.
 type accountsSerializable struct {
-	Balance map[tosca.Address]U256
-	Code    map[tosca.Address]Bytes
+	Balance map[tosca.Address]common.U256
+	Code    map[tosca.Address]common.Bytes
 	Warm    map[tosca.Address]bool
 }
 
@@ -106,19 +106,19 @@ type logsSerializable struct {
 }
 
 type logEntrySerializable struct {
-	Topics []U256
-	Data   Bytes
+	Topics []common.U256
+	Data   common.Bytes
 }
 
 func newLogsSerializable(logs *Logs) *logsSerializable {
 	serializable := &logsSerializable{}
 	for _, entry := range logs.Entries {
-		serializable.addLog(NewBytes(entry.Data), entry.Topics...)
+		serializable.addLog(common.NewBytes(entry.Data), entry.Topics...)
 	}
 	return serializable
 }
 
-func (l *logsSerializable) addLog(data Bytes, topics ...U256) {
+func (l *logsSerializable) addLog(data common.Bytes, topics ...common.U256) {
 	l.Entries = append(l.Entries, logEntrySerializable{
 		slices.Clone(topics),
 		data,
@@ -148,9 +148,9 @@ func newStateSerializableFromState(state *State) *stateSerializable {
 		Pc:                    state.Pc,
 		Gas:                   state.Gas,
 		GasRefund:             state.GasRefund,
-		Code:                  NewBytes(state.Code.code),
+		Code:                  common.NewBytes(state.Code.code),
 		Stack:                 slices.Clone(state.Stack.stack),
-		Memory:                NewBytes(state.Memory.mem),
+		Memory:                common.NewBytes(state.Memory.mem),
 		Storage:               newStorageSerializable(state.Storage),
 		TransientStorage:      newTransientSerializable(state.TransientStorage),
 		Accounts:              newAccountsSerializable(state.Accounts),
@@ -285,8 +285,8 @@ func newAccountsSerializable(accounts *Accounts) *accountsSerializable {
 		warm[key] = true
 	}
 
-	balances := make(map[tosca.Address]U256)
-	codes := make(map[tosca.Address]Bytes)
+	balances := make(map[tosca.Address]common.U256)
+	codes := make(map[tosca.Address]common.Bytes)
 	for address, account := range accounts.accounts {
 		codes[address] = account.Code
 		balances[address] = account.Balance

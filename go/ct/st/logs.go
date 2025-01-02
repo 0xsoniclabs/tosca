@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"slices"
 
-	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
 )
 
 type Logs struct {
@@ -22,7 +22,7 @@ type Logs struct {
 }
 
 type LogEntry struct {
-	Topics []U256
+	Topics []common.U256
 	Data   []byte
 }
 
@@ -38,7 +38,7 @@ func (l *Logs) Clone() *Logs {
 	return clone
 }
 
-func (l *Logs) AddLog(data []byte, topics ...U256) {
+func (l *Logs) AddLog(data []byte, topics ...common.U256) {
 	l.Entries = append(l.Entries, LogEntry{
 		slices.Clone(topics),
 		slices.Clone(data),

@@ -16,7 +16,7 @@ import (
 	"sort"
 	"strings"
 
-	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
 	"github.com/0xsoniclabs/Tosca/go/tosca"
 	"golang.org/x/crypto/sha3"
 	"golang.org/x/exp/maps"
@@ -26,8 +26,8 @@ import (
 // and codes are stored, as these are the properties that can be accessed by
 // transactions. Nonces can not be accessed, and are thus not modeled here.
 type Account struct {
-	Balance U256
-	Code    Bytes
+	Balance common.U256
+	Code    common.Bytes
 }
 
 // Accounts models the account state of the block chain. It retains information
@@ -62,17 +62,17 @@ func (a *Accounts) GetAccount(address tosca.Address) Account {
 	return a.accounts[address]
 }
 
-func (a *Accounts) GetBalance(address tosca.Address) U256 {
+func (a *Accounts) GetBalance(address tosca.Address) common.U256 {
 	return a.accounts[address].Balance
 }
 
-func (a *Accounts) SetBalance(address tosca.Address, val U256) {
+func (a *Accounts) SetBalance(address tosca.Address, val common.U256) {
 	a.modifyAccount(address, func(account *Account) {
 		account.Balance = val
 	})
 }
 
-func (a *Accounts) GetCode(address tosca.Address) Bytes {
+func (a *Accounts) GetCode(address tosca.Address) common.Bytes {
 	return a.accounts[address].Code
 }
 
@@ -205,14 +205,14 @@ func (ab *AccountsBuilder) Build() *Accounts {
 	return &acc
 }
 
-func (ab *AccountsBuilder) SetBalance(addr tosca.Address, value U256) *AccountsBuilder {
+func (ab *AccountsBuilder) SetBalance(addr tosca.Address, value common.U256) *AccountsBuilder {
 	ab.modifyAccount(addr, func(account *Account) {
 		account.Balance = value
 	})
 	return ab
 }
 
-func (ab *AccountsBuilder) SetCode(addr tosca.Address, code Bytes) *AccountsBuilder {
+func (ab *AccountsBuilder) SetCode(addr tosca.Address, code common.Bytes) *AccountsBuilder {
 	ab.modifyAccount(addr, func(account *Account) {
 		account.Code = code
 	})

@@ -19,7 +19,7 @@ import (
 
 	"golang.org/x/crypto/sha3"
 
-	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
 	"github.com/0xsoniclabs/Tosca/go/tosca/vm"
 )
 
@@ -39,7 +39,7 @@ type Code struct {
 
 // ErrInvalidPosition is an error produced by observer functions on the Code if
 // specified positions are invalid.
-const ErrInvalidPosition = ConstErr("invalid position")
+const ErrInvalidPosition = common.ConstErr("invalid position")
 
 // NewCode creates an immutable code representation based on the given raw
 // code representation. The resulting code contains a copy of the provided code

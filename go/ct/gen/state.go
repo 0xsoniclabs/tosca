@@ -19,7 +19,7 @@ import (
 
 	"pgregory.net/rand"
 
-	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
 	"github.com/0xsoniclabs/Tosca/go/ct/st"
 	"github.com/0xsoniclabs/Tosca/go/tosca"
 	"github.com/0xsoniclabs/Tosca/go/tosca/vm"
@@ -89,7 +89,7 @@ func NewStateGenerator() *StateGenerator {
 // variableBinding binds a constant value to a variable.
 type variableBinding struct {
 	variable Variable
-	value    U256
+	value    common.U256
 }
 
 func (a *variableBinding) Less(b *variableBinding) bool {
@@ -97,7 +97,7 @@ func (a *variableBinding) Less(b *variableBinding) bool {
 }
 
 // BindValue binds a U256 value to a variable.
-func (g *StateGenerator) BindValue(variable Variable, value U256) {
+func (g *StateGenerator) BindValue(variable Variable, value common.U256) {
 	binding := variableBinding{variable, value}
 	if !slices.Contains(g.variableBindings, binding) {
 		g.variableBindings = append(g.variableBindings, binding)
@@ -225,7 +225,7 @@ func (g *StateGenerator) SetStackSize(size int) {
 }
 
 // SetStackValue wraps StackGenerator.SetValue.
-func (g *StateGenerator) SetStackValue(pos int, value U256) {
+func (g *StateGenerator) SetStackValue(pos int, value common.U256) {
 	g.stackGen.SetValue(pos, value)
 }
 
@@ -273,13 +273,13 @@ func (g *StateGenerator) BindToAddressOfNonEmptyAccount(address Variable) {
 
 // AddMinimumBalance adds a constraint restricting the balance of the account
 // identified by the given variable to be at least the given value.
-func (g *StateGenerator) AddBalanceLowerBound(address Variable, value U256) {
+func (g *StateGenerator) AddBalanceLowerBound(address Variable, value common.U256) {
 	g.accountsGen.AddBalanceLowerBound(address, value)
 }
 
 // AddMinimumBalance adds a constraint restricting the balance of the account
 // identified by the given variable to be at most the given value.
-func (g *StateGenerator) AddBalanceUpperBound(address Variable, value U256) {
+func (g *StateGenerator) AddBalanceUpperBound(address Variable, value common.U256) {
 	g.accountsGen.AddBalanceUpperBound(address, value)
 }
 
@@ -429,7 +429,7 @@ func (g *StateGenerator) generateWith(rnd *rand.Rand, assignment Assignment) (*s
 		if !found {
 			continue
 		}
-		should := NewAddress(value)
+		should := common.NewAddress(value)
 		if address == nil {
 			address = &should
 			continue
@@ -442,14 +442,14 @@ func (g *StateGenerator) generateWith(rnd *rand.Rand, assignment Assignment) (*s
 	// If there are no constraints, generate a random address.
 	if address == nil {
 		// Generate a random address.
-		accountAddress := RandomAddress(rnd)
+		accountAddress := common.RandomAddress(rnd)
 		address = &accountAddress
 	}
 
 	// Update all variables to be bound to the self address to match that value.
 	accountAddress := *address
 	for _, v := range g.selfAddressBindings {
-		assignment[v] = NewU256FromBytes(accountAddress[:]...)
+		assignment[v] = common.NewU256FromBytes(accountAddress[:]...)
 	}
 
 	// --- Call Context ---
@@ -466,15 +466,15 @@ func (g *StateGenerator) generateWith(rnd *rand.Rand, assignment Assignment) (*s
 	}
 
 	// Pick a random calldata
-	resultCallData := RandomBytes(rnd, st.MaxDataSize)
+	resultCallData := common.RandomBytes(rnd, st.MaxDataSize)
 
 	// Generate return data of last call
-	resultLastCallReturnData := RandomBytes(rnd, st.MaxDataSize)
+	resultLastCallReturnData := common.RandomBytes(rnd, st.MaxDataSize)
 
 	// Generate return data for terminal states.
-	var resultReturnData Bytes
+	var resultReturnData common.Bytes
 	if resultStatus == st.Stopped || resultStatus == st.Reverted {
-		resultReturnData = RandomBytes(rnd, st.MaxDataSize)
+		resultReturnData = common.RandomBytes(rnd, st.MaxDataSize)
 	}
 
 	// Invoke SelfDestructedGenerator
@@ -484,7 +484,7 @@ func (g *StateGenerator) generateWith(rnd *rand.Rand, assignment Assignment) (*s
 	}
 
 	// generate recent block hashes
-	resultRecentBlockHashes := NewRandomImmutableHashArray(rnd)
+	resultRecentBlockHashes := common.NewRandomImmutableHashArray(rnd)
 
 	// Sub-generators can modify the assignment when unassigned variables are
 	// encountered. The order in which sub-generators are invoked influences
@@ -532,7 +532,7 @@ func (g *StateGenerator) generateWith(rnd *rand.Rand, assignment Assignment) (*s
 		return nil, err
 	}
 
-	resultRevision := GetRevisionForBlock(resultBlockContext.BlockNumber)
+	resultRevision := common.GetRevisionForBlock(resultBlockContext.BlockNumber)
 
 	result := st.NewState(resultCode)
 	result.Status = resultStatus

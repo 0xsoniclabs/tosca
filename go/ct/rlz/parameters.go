@@ -13,7 +13,7 @@ package rlz
 import (
 	"math"
 
-	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
 	"github.com/0xsoniclabs/Tosca/go/ct/st"
 )
 
@@ -22,41 +22,41 @@ type Parameter interface {
 	// For efficiency reasons, the resulting slice may be shared among
 	// multiple calls. Thus, neither the slice itself nor its elements must
 	// be modified by users of this function.
-	Samples() []U256
+	Samples() []common.U256
 }
 
 type NumericParameter struct{}
 
-var numericParameterSamples = []U256{
-	NewU256(0),
-	NewU256(1),
-	NewU256(1 << 8),
-	NewU256(1 << 16),
-	NewU256(1 << 32),
-	NewU256(1 << 48),
-	NewU256(1).Shl(NewU256(64)),
-	NewU256(1).Shl(NewU256(128)),
-	NewU256(1).Shl(NewU256(192)),
-	NewU256(1).Shl(NewU256(255)),
-	NewU256(0).Not(),
-	NewU256(1, 1),
+var numericParameterSamples = []common.U256{
+	common.NewU256(0),
+	common.NewU256(1),
+	common.NewU256(1 << 8),
+	common.NewU256(1 << 16),
+	common.NewU256(1 << 32),
+	common.NewU256(1 << 48),
+	common.NewU256(1).Shl(common.NewU256(64)),
+	common.NewU256(1).Shl(common.NewU256(128)),
+	common.NewU256(1).Shl(common.NewU256(192)),
+	common.NewU256(1).Shl(common.NewU256(255)),
+	common.NewU256(0).Not(),
+	common.NewU256(1, 1),
 }
 
-func (NumericParameter) Samples() []U256 {
+func (NumericParameter) Samples() []common.U256 {
 	return numericParameterSamples
 }
 
 type JumpTargetParameter struct{}
 
-var jumpTargetParameterSamples = []U256{
-	NewU256(0),
-	NewU256(1),
-	NewU256(1 << 8),
-	NewU256(math.MaxInt32 + 1),
-	NewU256(1, 1),
+var jumpTargetParameterSamples = []common.U256{
+	common.NewU256(0),
+	common.NewU256(1),
+	common.NewU256(1 << 8),
+	common.NewU256(math.MaxInt32 + 1),
+	common.NewU256(1, 1),
 }
 
-func (JumpTargetParameter) Samples() []U256 {
+func (JumpTargetParameter) Samples() []common.U256 {
 	return jumpTargetParameterSamples
 }
 
@@ -65,16 +65,16 @@ type StorageAccessKeyParameter = NumericParameter
 // MemoryOffsetParameter is a parameter for offsets used when accessing memory.
 type MemoryOffsetParameter struct{}
 
-var memoryOffsetParameterSamples = []U256{
-	NewU256(0),
-	NewU256(1),
-	NewU256(32),
-	NewU256(st.MaxMemoryExpansionSize),
-	NewU256(st.MaxMemoryExpansionSize + 1),
-	NewU256(1, 0),
+var memoryOffsetParameterSamples = []common.U256{
+	common.NewU256(0),
+	common.NewU256(1),
+	common.NewU256(32),
+	common.NewU256(st.MaxMemoryExpansionSize),
+	common.NewU256(st.MaxMemoryExpansionSize + 1),
+	common.NewU256(1, 0),
 }
 
-func (MemoryOffsetParameter) Samples() []U256 {
+func (MemoryOffsetParameter) Samples() []common.U256 {
 	return memoryOffsetParameterSamples
 }
 
@@ -83,15 +83,15 @@ func (MemoryOffsetParameter) Samples() []U256 {
 // Because these buffers are not expanding memory, much larger offsets are valid.
 type DataOffsetParameter struct{}
 
-var dataOffsetParameterSamples = []U256{
-	NewU256(0),
-	NewU256(1),
-	NewU256(32),
-	NewU256(math.MaxUint64),
-	MaxU256(),
+var dataOffsetParameterSamples = []common.U256{
+	common.NewU256(0),
+	common.NewU256(1),
+	common.NewU256(32),
+	common.NewU256(math.MaxUint64),
+	common.MaxU256(),
 }
 
-func (DataOffsetParameter) Samples() []U256 {
+func (DataOffsetParameter) Samples() []common.U256 {
 	return dataOffsetParameterSamples
 }
 
@@ -99,75 +99,75 @@ func (DataOffsetParameter) Samples() []U256 {
 // Ops involving both memory and a second buffer use one single size parameter.
 type SizeParameter struct{}
 
-var sizeParameterSamples = []U256{
-	NewU256(0),
-	NewU256(1),
-	NewU256(32),
-	NewU256(1, 0),
+var sizeParameterSamples = []common.U256{
+	common.NewU256(0),
+	common.NewU256(1),
+	common.NewU256(32),
+	common.NewU256(1, 0),
 
 	// Samples stressing the max init code size introduced with Shanghai
-	NewU256(2*24576 - 1),
-	NewU256(2 * 24576),
-	NewU256(2*24576 + 1),
+	common.NewU256(2*24576 - 1),
+	common.NewU256(2 * 24576),
+	common.NewU256(2*24576 + 1),
 
-	NewU256(st.MaxMemoryExpansionSize),
-	NewU256(st.MaxMemoryExpansionSize + 1),
+	common.NewU256(st.MaxMemoryExpansionSize),
+	common.NewU256(st.MaxMemoryExpansionSize + 1),
 }
 
-func (SizeParameter) Samples() []U256 {
+func (SizeParameter) Samples() []common.U256 {
 	return sizeParameterSamples
 }
 
 type TopicParameter struct{}
 
-var topicParameterSamples = []U256{
+var topicParameterSamples = []common.U256{
 	// Two samples to ensure topic order is correct. Adding more samples
 	// here will create significant more test cases for LOG instructions.
-	NewU256(101),
-	NewU256(102),
+	common.NewU256(101),
+	common.NewU256(102),
 }
 
-func (TopicParameter) Samples() []U256 {
+func (TopicParameter) Samples() []common.U256 {
 	return topicParameterSamples
 }
 
 type AddressParameter struct{}
 
-var addressParameterSamples = []U256{
+var addressParameterSamples = []common.U256{
 	// Adding more samples here will create significantly more test cases for EXTCODECOPY.
 	// TODO: evaluate code coverage
-	NewU256(0),
+	common.NewU256(0),
 	//NewU256(1),
 	//NewU256(1).Shl(NewU256(20*8 - 1)), // < first bit of 20-byte address set
 	//NewU256(3).Shl(NewU256(20*8 - 1)), // < first bit beyond 20-byte address set as well (should be the same address as above)
-	NewU256(0).Not(),
+	common.NewU256(0).Not(),
 }
 
-func (AddressParameter) Samples() []U256 {
+func (AddressParameter) Samples() []common.U256 {
 	return addressParameterSamples
 }
 
 type GasParameter struct{}
 
-var gasParameterSamples = []U256{
-	NewU256(0),
-	NewU256(1),
-	NewU256(math.MaxInt64),
-	NewU256(math.MaxInt64 + 1),
+var gasParameterSamples = []common.U256{
+	common.NewU256(0),
+	common.NewU256(1),
+	common.NewU256(math.MaxInt64),
+	common.NewU256(math.MaxInt64 + 1),
 }
 
-func (GasParameter) Samples() []U256 {
+func (GasParameter) Samples() []common.U256 {
 	return gasParameterSamples
 }
 
 type ValueParameter struct{}
 
-var valueParameterSamples = []U256{
-	NewU256(0),
-	NewU256(1),
-	MaxU256(),
+var valueParameterSamples = []common.U256{
+	common.NewU256(0),
+	common.NewU256(1),
+	common.MaxU256(),
 }
 
-func (ValueParameter) Samples() []U256 {
+func (ValueParameter) Samples() []common.U256 {
 	return valueParameterSamples
 }

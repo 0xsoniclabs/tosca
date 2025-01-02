@@ -18,7 +18,7 @@ import (
 
 	"pgregory.net/rand"
 
-	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
 	"github.com/0xsoniclabs/Tosca/go/ct/st"
 	"github.com/0xsoniclabs/Tosca/go/tosca/vm"
 )
@@ -392,7 +392,7 @@ func (s *varCodeConstraintSolver) largestFit(pos int) int {
 
 func (s *varCodeConstraintSolver) assign(v Variable, pos int) {
 	if s.assignment != nil {
-		s.assignment[v] = NewU256(uint64(pos))
+		s.assignment[v] = common.NewU256(uint64(pos))
 	}
 }
 
@@ -434,7 +434,7 @@ func (solver *varCodeConstraintSolver) solveIsCode(varIsCodeConstraints []varIsC
 		// Check if the variable is already assigned and points to a slot marked
 		// as code.
 		if pos, isAssigned := solver.assignment[cur.variable]; isAssigned {
-			if !pos.Lt(NewU256(uint64(solver.codeSize))) {
+			if !pos.Lt(common.NewU256(uint64(solver.codeSize))) {
 				return fmt.Errorf("%w, unable to satisfy isCode[%v], out-of-bounds", ErrUnsatisfiable, cur.variable)
 			}
 			if solver.usedPositions[int(pos.Uint64())] == isCode {
@@ -475,7 +475,7 @@ func (solver *varCodeConstraintSolver) solveIsData(varIsDataConstraints []varIsD
 		// Check if the variable is already assigned and points to a slot marked
 		// as code. If so, we cannot satisfy this constraint!
 		if pos, isAssigned := solver.assignment[cur.variable]; isAssigned {
-			if pos.Lt(NewU256(uint64(solver.codeSize))) && solver.usedPositions[int(pos.Uint64())] == isCode {
+			if pos.Lt(common.NewU256(uint64(solver.codeSize))) && solver.usedPositions[int(pos.Uint64())] == isCode {
 				return fmt.Errorf("%w, unable to satisfy isData[%v]", ErrUnsatisfiable, cur.variable)
 			}
 		}
