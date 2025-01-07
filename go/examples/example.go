@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/Fantom-foundation/Tosca/go/tosca"
+	"github.com/0xsoniclabs/Tosca/go/tosca"
 	"golang.org/x/crypto/sha3"
 )
 

@@ -13,11 +13,11 @@ package evmzero
 import (
 	"fmt"
 
-	"github.com/Fantom-foundation/Tosca/go/ct"
-	"github.com/Fantom-foundation/Tosca/go/ct/st"
-	"github.com/Fantom-foundation/Tosca/go/ct/utils"
-	"github.com/Fantom-foundation/Tosca/go/interpreter/evmc"
-	"github.com/Fantom-foundation/Tosca/go/tosca"
+	"github.com/0xsoniclabs/Tosca/go/ct"
+	"github.com/0xsoniclabs/Tosca/go/ct/st"
+	"github.com/0xsoniclabs/Tosca/go/ct/utils"
+	"github.com/0xsoniclabs/Tosca/go/interpreter/evmc"
+	"github.com/0xsoniclabs/Tosca/go/tosca"
 )
 
 var evmzeroSteppable *evmc.SteppableEvmcInterpreter

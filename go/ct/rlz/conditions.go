@@ -15,10 +15,10 @@ import (
 	"math"
 	"strings"
 
-	. "github.com/Fantom-foundation/Tosca/go/ct/common"
-	"github.com/Fantom-foundation/Tosca/go/ct/gen"
-	"github.com/Fantom-foundation/Tosca/go/ct/st"
-	"github.com/Fantom-foundation/Tosca/go/tosca"
+	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/gen"
+	"github.com/0xsoniclabs/Tosca/go/ct/st"
+	"github.com/0xsoniclabs/Tosca/go/tosca"
 )
 
 // Condition represents a state property.

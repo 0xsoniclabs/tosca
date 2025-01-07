@@ -11,9 +11,9 @@
 package utils
 
 import (
-	cc "github.com/Fantom-foundation/Tosca/go/ct/common"
-	"github.com/Fantom-foundation/Tosca/go/ct/st"
-	"github.com/Fantom-foundation/Tosca/go/tosca"
+	cc "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/st"
+	"github.com/0xsoniclabs/Tosca/go/tosca"
 )
 
 // ToVmParameters converts the given state into a set of interpreter Parameters.

@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Fantom-foundation/Tosca/go/tosca"
+	"github.com/0xsoniclabs/Tosca/go/tosca"
 )
 
 // Config provides a set of user-definable options for the LFVM interpreter.

@@ -13,7 +13,7 @@ package gen
 import (
 	"testing"
 
-	"github.com/Fantom-foundation/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
 	"pgregory.net/rand"
 )
 

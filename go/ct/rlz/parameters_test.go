@@ -14,7 +14,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Fantom-foundation/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
 )
 
 func TestNumericParameter_Samples(t *testing.T) {

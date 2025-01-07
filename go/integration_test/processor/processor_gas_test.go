@@ -15,8 +15,8 @@ import (
 	"maps"
 	"testing"
 
-	"github.com/Fantom-foundation/Tosca/go/processor/floria"
-	"github.com/Fantom-foundation/Tosca/go/tosca"
+	"github.com/0xsoniclabs/Tosca/go/processor/floria"
+	"github.com/0xsoniclabs/Tosca/go/tosca"
 	op "github.com/ethereum/go-ethereum/core/vm"
 )
 

@@ -13,8 +13,8 @@ package st
 import (
 	"fmt"
 
-	. "github.com/Fantom-foundation/Tosca/go/ct/common"
-	"github.com/Fantom-foundation/Tosca/go/tosca"
+	. "github.com/0xsoniclabs/Tosca/go/ct/common"
+	"github.com/0xsoniclabs/Tosca/go/tosca"
 )
 
 // CallContext holds all data needed for the call-group of instructions

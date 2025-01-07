@@ -22,8 +22,8 @@ package spc
 import (
 	reflect "reflect"
 
-	. "github.com/Fantom-foundation/Tosca/go/ct/rlz"
-	st "github.com/Fantom-foundation/Tosca/go/ct/st"
+	. "github.com/0xsoniclabs/Tosca/go/ct/rlz"
+	st "github.com/0xsoniclabs/Tosca/go/ct/st"
 	gomock "go.uber.org/mock/gomock"
 )
 

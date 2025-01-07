@@ -14,7 +14,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/Fantom-foundation/Tosca/go/tosca"
+	"github.com/0xsoniclabs/Tosca/go/tosca"
 	"github.com/ethereum/evmc/v11/bindings/go/evmc"
 )
 

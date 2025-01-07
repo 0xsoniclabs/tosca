@@ -10,7 +10,7 @@
 
 package lfvm
 
-import "github.com/Fantom-foundation/Tosca/go/tosca"
+import "github.com/0xsoniclabs/Tosca/go/tosca"
 
 const (
 	errOverflow               = tosca.ConstError("overflow")

@@ -14,9 +14,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/Fantom-foundation/Tosca/go/ct/common"
-	. "github.com/Fantom-foundation/Tosca/go/ct/rlz"
-	"github.com/Fantom-foundation/Tosca/go/ct/st"
+	"github.com/0xsoniclabs/Tosca/go/ct/common"
+	. "github.com/0xsoniclabs/Tosca/go/ct/rlz"
+	"github.com/0xsoniclabs/Tosca/go/ct/st"
 )
 
 type specificationMap struct {

@@ -13,7 +13,7 @@ package rlz
 import (
 	"fmt"
 
-	"github.com/Fantom-foundation/Tosca/go/ct/st"
+	"github.com/0xsoniclabs/Tosca/go/ct/st"
 )
 
 type Effect interface {

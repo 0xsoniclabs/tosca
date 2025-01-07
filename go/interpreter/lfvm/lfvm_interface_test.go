@@ -13,8 +13,8 @@ package lfvm_test
 import (
 	"testing"
 
-	"github.com/Fantom-foundation/Tosca/go/interpreter/lfvm"
-	"github.com/Fantom-foundation/Tosca/go/tosca"
+	"github.com/0xsoniclabs/Tosca/go/interpreter/lfvm"
+	"github.com/0xsoniclabs/Tosca/go/tosca"
 )
 
 // TestLfvm_RegisterExperimentalConfigurations tests the registration of
