@@ -19,9 +19,9 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/0xsoniclabs/Tosca/go/ct/common"
-	"github.com/0xsoniclabs/Tosca/go/tosca"
-	"github.com/0xsoniclabs/Tosca/go/tosca/vm"
+	"github.com/0xsoniclabs/tosca/go/ct/common"
+	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/tosca/vm"
 	"github.com/holiman/uint256"
 	"go.uber.org/mock/gomock"
 

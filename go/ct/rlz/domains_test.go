@@ -15,10 +15,10 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/0xsoniclabs/Tosca/go/ct/common"
-	"github.com/0xsoniclabs/Tosca/go/ct/st"
-	"github.com/0xsoniclabs/Tosca/go/tosca"
-	"github.com/0xsoniclabs/Tosca/go/tosca/vm"
+	"github.com/0xsoniclabs/tosca/go/ct/common"
+	"github.com/0xsoniclabs/tosca/go/ct/st"
+	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/tosca/vm"
 )
 
 func TestRemoveDuplicatesGeneric(t *testing.T) {

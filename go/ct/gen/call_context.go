@@ -13,9 +13,9 @@ package gen
 import (
 	"pgregory.net/rand"
 
-	"github.com/0xsoniclabs/Tosca/go/ct/common"
-	"github.com/0xsoniclabs/Tosca/go/ct/st"
-	"github.com/0xsoniclabs/Tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/ct/common"
+	"github.com/0xsoniclabs/tosca/go/ct/st"
+	"github.com/0xsoniclabs/tosca/go/tosca"
 )
 
 type CallContextGenerator struct {

@@ -14,9 +14,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/0xsoniclabs/Tosca/go/examples"
-	"github.com/0xsoniclabs/Tosca/go/lib/rust"
-	"github.com/0xsoniclabs/Tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/examples"
+	"github.com/0xsoniclabs/tosca/go/lib/rust"
+	"github.com/0xsoniclabs/tosca/go/tosca"
 	"go.uber.org/mock/gomock"
 	// Enable this import to see C/C++ symbols in CPU profile data.
 	// This import is commented out because it would affect all binaries this

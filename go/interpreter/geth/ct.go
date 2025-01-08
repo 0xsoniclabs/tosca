@@ -13,11 +13,11 @@ package geth
 import (
 	"fmt"
 
-	"github.com/0xsoniclabs/Tosca/go/ct"
-	"github.com/0xsoniclabs/Tosca/go/ct/common"
-	"github.com/0xsoniclabs/Tosca/go/ct/st"
-	"github.com/0xsoniclabs/Tosca/go/ct/utils"
-	"github.com/0xsoniclabs/Tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/ct"
+	"github.com/0xsoniclabs/tosca/go/ct/common"
+	"github.com/0xsoniclabs/tosca/go/ct/st"
+	"github.com/0xsoniclabs/tosca/go/ct/utils"
+	"github.com/0xsoniclabs/tosca/go/tosca"
 	geth_common "github.com/ethereum/go-ethereum/common"
 	geth_vm "github.com/ethereum/go-ethereum/core/vm"
 	"github.com/holiman/uint256"

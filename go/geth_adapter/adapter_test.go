@@ -19,7 +19,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/0xsoniclabs/Tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/tosca"
 	gc "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	geth "github.com/ethereum/go-ethereum/core/vm"
@@ -27,7 +27,7 @@ import (
 	"github.com/holiman/uint256"
 	"go.uber.org/mock/gomock"
 
-	_ "github.com/0xsoniclabs/Tosca/go/interpreter/geth"
+	_ "github.com/0xsoniclabs/tosca/go/interpreter/geth"
 )
 
 //go:generate mockgen -source adapter_test.go -destination adapter_test_mocks.go -package geth_adapter

@@ -13,7 +13,7 @@ package lfvm
 import (
 	"sync"
 
-	"github.com/0xsoniclabs/Tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/tosca"
 )
 
 // sha3HashCache is an LRU governed fixed-capacity cache for SHA3 hashes.

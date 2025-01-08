@@ -13,8 +13,8 @@ package evmone
 import (
 	"testing"
 
-	"github.com/0xsoniclabs/Tosca/go/examples"
-	"github.com/0xsoniclabs/Tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/examples"
+	"github.com/0xsoniclabs/tosca/go/tosca"
 )
 
 var variants = []string{

@@ -13,8 +13,8 @@ package interpreter_test
 import (
 	"fmt"
 
-	"github.com/0xsoniclabs/Tosca/go/tosca"
-	"github.com/0xsoniclabs/Tosca/go/tosca/vm"
+	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/tosca/vm"
 )
 
 // Revision references a vm specification version.

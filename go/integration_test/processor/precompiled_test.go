@@ -18,10 +18,10 @@ import (
 	"strings"
 	"testing"
 
-	test_utils "github.com/0xsoniclabs/Tosca/go/processor"
-	"github.com/0xsoniclabs/Tosca/go/processor/floria"
-	"github.com/0xsoniclabs/Tosca/go/tosca"
-	"github.com/0xsoniclabs/Tosca/go/tosca/vm"
+	test_utils "github.com/0xsoniclabs/tosca/go/processor"
+	"github.com/0xsoniclabs/tosca/go/processor/floria"
+	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/tosca/vm"
 )
 
 func TestProcessor_PreCompiledContractsCanBeProcessed(t *testing.T) {

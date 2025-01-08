@@ -15,8 +15,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/0xsoniclabs/Tosca/go/tosca"
-	"github.com/0xsoniclabs/Tosca/go/tosca/vm"
+	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/tosca/vm"
 )
 
 func TestProcessor_AccessListIsHandledCorrectly(t *testing.T) {

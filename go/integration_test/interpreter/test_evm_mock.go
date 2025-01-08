@@ -22,7 +22,7 @@ package interpreter_test
 import (
 	reflect "reflect"
 
-	"github.com/0xsoniclabs/Tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/tosca"
 	gomock "go.uber.org/mock/gomock"
 )
 

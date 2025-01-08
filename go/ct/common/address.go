@@ -11,7 +11,7 @@
 package common
 
 import (
-	"github.com/0xsoniclabs/Tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/tosca"
 	"pgregory.net/rand"
 )
 

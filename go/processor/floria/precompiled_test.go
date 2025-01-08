@@ -14,8 +14,8 @@ import (
 	"strings"
 	"testing"
 
-	test_utils "github.com/0xsoniclabs/Tosca/go/processor"
-	"github.com/0xsoniclabs/Tosca/go/tosca"
+	test_utils "github.com/0xsoniclabs/tosca/go/processor"
+	"github.com/0xsoniclabs/tosca/go/tosca"
 )
 
 func TestPrecompiled_RightNumberOfContractsDependingOnRevision(t *testing.T) {

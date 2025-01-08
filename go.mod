@@ -8,7 +8,7 @@
 // On the date above, in accordance with the Business Source License, use of
 // this software will be governed by the GNU Lesser General Public License v3.
 
-module github.com/0xsoniclabs/Tosca
+module github.com/0xsoniclabs/tosca
 
 go 1.22.0
 

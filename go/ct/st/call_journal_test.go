@@ -15,8 +15,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/0xsoniclabs/Tosca/go/ct/common"
-	"github.com/0xsoniclabs/Tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/ct/common"
+	"github.com/0xsoniclabs/tosca/go/tosca"
 )
 
 func TestCallJournal_CallMovesFutureToPastCall(t *testing.T) {

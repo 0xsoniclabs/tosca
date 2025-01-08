@@ -19,8 +19,8 @@ import (
 	"golang.org/x/exp/maps"
 	"pgregory.net/rand"
 
-	"github.com/0xsoniclabs/Tosca/go/ct/gen"
-	"github.com/0xsoniclabs/Tosca/go/ct/st"
+	"github.com/0xsoniclabs/tosca/go/ct/gen"
+	"github.com/0xsoniclabs/tosca/go/ct/st"
 )
 
 type Rule struct {

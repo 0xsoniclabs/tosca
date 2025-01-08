@@ -63,7 +63,7 @@ ct-coverage-go:
 	echo "Coverage report generated in coverage.html"
 
 ct-coverage-lfvm: TOSCA_GO_COVERAGE_EVM=lfvm
-ct-coverage-lfvm: EXTRA_PACKAGES=github.com/0xsoniclabs/Tosca/go/interpreter/lfvm
+ct-coverage-lfvm: EXTRA_PACKAGES=github.com/0xsoniclabs/tosca/go/interpreter/lfvm
 ct-coverage-lfvm: ct-coverage-go
 
 ct-coverage-geth: TOSCA_GO_COVERAGE_EVM=geth

@@ -18,8 +18,8 @@ import (
 
 	"pgregory.net/rand"
 
-	. "github.com/0xsoniclabs/Tosca/go/ct/common"
-	"github.com/0xsoniclabs/Tosca/go/ct/st"
+	. "github.com/0xsoniclabs/tosca/go/ct/common"
+	"github.com/0xsoniclabs/tosca/go/ct/st"
 )
 
 type StackGenerator struct {

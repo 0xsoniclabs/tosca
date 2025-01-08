@@ -10,7 +10,7 @@
 
 package gen
 
-import "github.com/0xsoniclabs/Tosca/go/ct/common"
+import "github.com/0xsoniclabs/tosca/go/ct/common"
 
 // ErrUnsatisfiable is an error returned by generators if constraints
 // are not satisfiable.

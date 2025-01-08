@@ -14,7 +14,7 @@ import (
 	"bytes"
 	"math"
 
-	"github.com/0xsoniclabs/Tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/tosca"
 	"github.com/holiman/uint256"
 )
 

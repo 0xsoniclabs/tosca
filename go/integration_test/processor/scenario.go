@@ -16,8 +16,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/0xsoniclabs/Tosca/go/integration_test"
-	"github.com/0xsoniclabs/Tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/integration_test"
+	"github.com/0xsoniclabs/tosca/go/tosca"
 )
 
 // Scenario represents a test scenario for a transaction processor. A scenario

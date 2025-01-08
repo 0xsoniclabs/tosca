@@ -11,10 +11,10 @@
 package interpreter_test
 
 import (
-	_ "github.com/0xsoniclabs/Tosca/go/interpreter/evmone"
-	_ "github.com/0xsoniclabs/Tosca/go/interpreter/evmzero"
-	_ "github.com/0xsoniclabs/Tosca/go/interpreter/lfvm"
-	"github.com/0xsoniclabs/Tosca/go/tosca"
+	_ "github.com/0xsoniclabs/tosca/go/interpreter/evmone"
+	_ "github.com/0xsoniclabs/tosca/go/interpreter/evmzero"
+	_ "github.com/0xsoniclabs/tosca/go/interpreter/lfvm"
+	"github.com/0xsoniclabs/tosca/go/tosca"
 )
 
 //go:generate mockgen -source test_evm.go -destination test_evm_mock.go -package interpreter_test

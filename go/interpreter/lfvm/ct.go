@@ -11,11 +11,11 @@
 package lfvm
 
 import (
-	"github.com/0xsoniclabs/Tosca/go/ct"
-	"github.com/0xsoniclabs/Tosca/go/ct/common"
-	"github.com/0xsoniclabs/Tosca/go/ct/st"
-	"github.com/0xsoniclabs/Tosca/go/ct/utils"
-	"github.com/0xsoniclabs/Tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/ct"
+	"github.com/0xsoniclabs/tosca/go/ct/common"
+	"github.com/0xsoniclabs/tosca/go/ct/st"
+	"github.com/0xsoniclabs/tosca/go/ct/utils"
+	"github.com/0xsoniclabs/tosca/go/tosca"
 	lru "github.com/hashicorp/golang-lru/v2"
 )
 

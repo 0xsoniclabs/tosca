@@ -13,8 +13,8 @@ package st
 import (
 	"fmt"
 
-	. "github.com/0xsoniclabs/Tosca/go/ct/common"
-	"github.com/0xsoniclabs/Tosca/go/tosca"
+	. "github.com/0xsoniclabs/tosca/go/ct/common"
+	"github.com/0xsoniclabs/tosca/go/tosca"
 )
 
 // BlockContext holds the block environment information

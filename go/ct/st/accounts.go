@@ -16,8 +16,8 @@ import (
 	"sort"
 	"strings"
 
-	. "github.com/0xsoniclabs/Tosca/go/ct/common"
-	"github.com/0xsoniclabs/Tosca/go/tosca"
+	. "github.com/0xsoniclabs/tosca/go/ct/common"
+	"github.com/0xsoniclabs/tosca/go/tosca"
 	"golang.org/x/crypto/sha3"
 	"golang.org/x/exp/maps"
 )
