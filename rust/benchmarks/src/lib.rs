@@ -346,7 +346,7 @@ impl RunArgs {
 
         const LONG_CODE_LEN: usize =
             RunArgs::analysis_code_len(RunArgs::LONG_MAX_LEN, FILLER.len());
-        const LONG_CODE: [u8; LONG_CODE_LEN] = RunArgs::build_analysis_code(&FILLER);
+        static LONG_CODE: [u8; LONG_CODE_LEN] = RunArgs::build_analysis_code(&FILLER);
 
         const SHORT_CODE_LEN: usize =
             RunArgs::analysis_code_len(RunArgs::SHORT_MAX_LEN, FILLER.len());
@@ -360,7 +360,7 @@ impl RunArgs {
 
         const LONG_CODE_LEN: usize =
             RunArgs::analysis_code_len(RunArgs::LONG_MAX_LEN, FILLER.len());
-        const LONG_CODE: [u8; LONG_CODE_LEN] = RunArgs::build_analysis_code(&FILLER);
+        static LONG_CODE: [u8; LONG_CODE_LEN] = RunArgs::build_analysis_code(&FILLER);
 
         const SHORT_CODE_LEN: usize =
             RunArgs::analysis_code_len(RunArgs::SHORT_MAX_LEN, FILLER.len());
@@ -374,7 +374,7 @@ impl RunArgs {
 
         const LONG_CODE_LEN: usize =
             RunArgs::analysis_code_len(RunArgs::LONG_MAX_LEN, FILLER.len());
-        const LONG_CODE: [u8; LONG_CODE_LEN] = RunArgs::build_analysis_code(&FILLER);
+        static LONG_CODE: [u8; LONG_CODE_LEN] = RunArgs::build_analysis_code(&FILLER);
 
         const SHORT_CODE_LEN: usize =
             RunArgs::analysis_code_len(RunArgs::SHORT_MAX_LEN, FILLER.len());
@@ -392,7 +392,7 @@ impl RunArgs {
 
         const LONG_CODE_LEN: usize =
             RunArgs::analysis_code_len(RunArgs::LONG_MAX_LEN, FILLER.len());
-        const LONG_CODE: [u8; LONG_CODE_LEN] = RunArgs::build_analysis_code(&FILLER);
+        static LONG_CODE: [u8; LONG_CODE_LEN] = RunArgs::build_analysis_code(&FILLER);
 
         const SHORT_CODE_LEN: usize =
             RunArgs::analysis_code_len(RunArgs::SHORT_MAX_LEN, FILLER.len());
