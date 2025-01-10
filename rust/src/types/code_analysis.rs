@@ -49,8 +49,15 @@ pub type AnalysisItem<const STEPPABLE: bool> = CodeByteType;
 #[cfg(feature = "needs-fn-ptr-conversion")]
 pub type AnalysisItem<const STEPPABLE: bool> = OpFnData<STEPPABLE>;
 
-#[cfg(feature = "code-analysis-cache")]
+#[cfg(all(
+    feature = "code-analysis-cache",
+    not(feature = "needs-fn-ptr-conversion")
+))]
 const CACHE_SIZE: usize = 1 << 16; // value taken from evmzero
+#[cfg(all(feature = "code-analysis-cache", feature = "needs-fn-ptr-conversion"))]
+// 48B for OpFnData + 2*8B for entries in PcMap = 64B -> reduce size from 2^16 to 2^16 / 64 = 2^10
+// to keep roughly the same memory size
+const CACHE_SIZE: usize = 1 << 10;
 
 #[cfg(feature = "code-analysis-cache")]
 type CodeAnalysisCache<const STEPPABLE: bool> =
