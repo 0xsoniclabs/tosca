@@ -1419,7 +1419,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
         let destructed = self.context.selfdestruct(self.message.recipient(), &addr);
         if self.revision <= Revision::EVMC_BERLIN && destructed {
-            self.gas_refund.add(24_000)?;
+            self.gas_refund.add(24_000);
         }
 
         self.exec_status = ExecStatus::Stopped;
@@ -1472,7 +1472,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             dyn_gas += 2_100;
         }
         self.gas_left.consume(dyn_gas)?;
-        self.gas_refund.add(gas_refund_change)?;
+        self.gas_refund.add(gas_refund_change);
         self.code_reader.next();
         self.return_from_op()
     }
@@ -1595,7 +1595,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let result = self.context.call(&message);
 
         self.gas_left.add(result.gas_left())?;
-        self.gas_refund.add(result.gas_refund())?;
+        self.gas_refund.add(result.gas_refund());
 
         if result.status_code() == StatusCode::EVMC_SUCCESS {
             let Some(addr) = result.create_address() else {
@@ -1710,7 +1710,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.gas_left.add(result.gas_left())?;
         self.gas_left.consume(endowment)?;
         self.gas_left.consume(stipend)?;
-        self.gas_refund.add(result.gas_refund())?;
+        self.gas_refund.add(result.gas_refund());
 
         self.stack
             .push(result.status_code() == StatusCode::EVMC_SUCCESS)?;
@@ -1796,7 +1796,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
         self.gas_left.add(result.gas_left())?;
         self.gas_left.consume(endowment)?;
-        self.gas_refund.add(result.gas_refund())?;
+        self.gas_refund.add(result.gas_refund());
 
         self.stack
             .push(result.status_code() == StatusCode::EVMC_SUCCESS)?;

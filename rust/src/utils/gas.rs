@@ -18,13 +18,8 @@ impl GasRefund {
     }
 
     #[inline(always)]
-    pub fn add(&mut self, gas: i64) -> Result<(), FailStatus> {
-        let (gas, overflow) = self.0.overflowing_add(gas);
-        if overflow {
-            return Err(FailStatus::OutOfGas);
-        }
-        self.0 = gas;
-        Ok(())
+    pub fn add(&mut self, gas: i64) {
+        self.0 = self.0.wrapping_add(gas);
     }
 }
 
