@@ -12,9 +12,9 @@ impl<const N: usize> NonZero<N> {
 
 /// Wrapper around [`&mut u256`] that ensures that the only possible operation is to write once to
 /// this memory location.
-pub struct PushGuard<'p>(&'p mut u256);
+pub struct PushLocation<'p>(&'p mut u256);
 
-impl PushGuard<'_> {
+impl PushLocation<'_> {
     pub fn push(self, value: impl Into<u256>) {
         *self.0 = value.into();
     }
@@ -124,7 +124,9 @@ impl Stack {
         Ok(array)
     }
 
-    pub fn pop_with_guard<const N: usize>(&mut self) -> Result<(PushGuard, [u256; N]), FailStatus> {
+    pub fn pop_with_location<const N: usize>(
+        &mut self,
+    ) -> Result<(PushLocation, [u256; N]), FailStatus> {
         self.check_underflow(N)?;
 
         self.0.truncate(self.len() - (N - 1));
@@ -138,7 +140,7 @@ impl Stack {
         // starting at index `self.len - 1` as an array of length N and type u256.
         let pop_data = unsafe { *(pop_start as *const [u256; N]) };
         let len = self.len();
-        let push_guard = PushGuard(&mut self.0[len - 1]);
+        let push_guard = PushLocation(&mut self.0[len - 1]);
         Ok((push_guard, pop_data))
     }
 
