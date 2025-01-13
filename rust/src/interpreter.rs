@@ -658,214 +658,214 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
     fn add(&mut self) -> OpResult {
         self.gas_left.consume(3)?;
-        let (push_guard, [value2, value1]) = self.stack.pop_with_location()?;
-        push_guard.push(value1 + value2);
+        let (push_location, [value2, value1]) = self.stack.pop_with_location()?;
+        push_location.push(value1 + value2);
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn mul(&mut self) -> OpResult {
         self.gas_left.consume(5)?;
-        let (push_guard, [fac2, fac1]) = self.stack.pop_with_location()?;
-        push_guard.push(fac1 * fac2);
+        let (push_location, [fac2, fac1]) = self.stack.pop_with_location()?;
+        push_location.push(fac1 * fac2);
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn sub(&mut self) -> OpResult {
         self.gas_left.consume(3)?;
-        let (push_guard, [value2, value1]) = self.stack.pop_with_location()?;
-        push_guard.push(value1 - value2);
+        let (push_location, [value2, value1]) = self.stack.pop_with_location()?;
+        push_location.push(value1 - value2);
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn div(&mut self) -> OpResult {
         self.gas_left.consume(5)?;
-        let (push_guard, [denominator, value]) = self.stack.pop_with_location()?;
-        push_guard.push(value / denominator);
+        let (push_location, [denominator, value]) = self.stack.pop_with_location()?;
+        push_location.push(value / denominator);
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn s_div(&mut self) -> OpResult {
         self.gas_left.consume(5)?;
-        let (push_guard, [denominator, value]) = self.stack.pop_with_location()?;
-        push_guard.push(value.sdiv(denominator));
+        let (push_location, [denominator, value]) = self.stack.pop_with_location()?;
+        push_location.push(value.sdiv(denominator));
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn mod_(&mut self) -> OpResult {
         self.gas_left.consume(5)?;
-        let (push_guard, [denominator, value]) = self.stack.pop_with_location()?;
-        push_guard.push(value % denominator);
+        let (push_location, [denominator, value]) = self.stack.pop_with_location()?;
+        push_location.push(value % denominator);
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn s_mod(&mut self) -> OpResult {
         self.gas_left.consume(5)?;
-        let (push_guard, [denominator, value]) = self.stack.pop_with_location()?;
-        push_guard.push(value.srem(denominator));
+        let (push_location, [denominator, value]) = self.stack.pop_with_location()?;
+        push_location.push(value.srem(denominator));
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn add_mod(&mut self) -> OpResult {
         self.gas_left.consume(8)?;
-        let (push_guard, [denominator, value2, value1]) = self.stack.pop_with_location()?;
-        push_guard.push(u256::addmod(value1, value2, denominator));
+        let (push_location, [denominator, value2, value1]) = self.stack.pop_with_location()?;
+        push_location.push(u256::addmod(value1, value2, denominator));
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn mul_mod(&mut self) -> OpResult {
         self.gas_left.consume(8)?;
-        let (push_guard, [denominator, fac2, fac1]) = self.stack.pop_with_location()?;
-        push_guard.push(u256::mulmod(fac1, fac2, denominator));
+        let (push_location, [denominator, fac2, fac1]) = self.stack.pop_with_location()?;
+        push_location.push(u256::mulmod(fac1, fac2, denominator));
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn exp(&mut self) -> OpResult {
         self.gas_left.consume(10)?;
-        let (push_guard, [exp, value]) = self.stack.pop_with_location()?;
+        let (push_location, [exp, value]) = self.stack.pop_with_location()?;
         self.gas_left.consume(exp.bits().div_ceil(8) as u64 * 50)?; // * does not overflow
-        push_guard.push(value.pow(exp));
+        push_location.push(value.pow(exp));
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn sign_extend(&mut self) -> OpResult {
         self.gas_left.consume(5)?;
-        let (push_guard, [value, size]) = self.stack.pop_with_location()?;
-        push_guard.push(u256::signextend(size, value));
+        let (push_location, [value, size]) = self.stack.pop_with_location()?;
+        push_location.push(u256::signextend(size, value));
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn lt(&mut self) -> OpResult {
         self.gas_left.consume(3)?;
-        let (push_guard, [rhs, lhs]) = self.stack.pop_with_location()?;
-        push_guard.push(lhs < rhs);
+        let (push_location, [rhs, lhs]) = self.stack.pop_with_location()?;
+        push_location.push(lhs < rhs);
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn gt(&mut self) -> OpResult {
         self.gas_left.consume(3)?;
-        let (push_guard, [rhs, lhs]) = self.stack.pop_with_location()?;
-        push_guard.push(lhs > rhs);
+        let (push_location, [rhs, lhs]) = self.stack.pop_with_location()?;
+        push_location.push(lhs > rhs);
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn s_lt(&mut self) -> OpResult {
         self.gas_left.consume(3)?;
-        let (push_guard, [rhs, lhs]) = self.stack.pop_with_location()?;
-        push_guard.push(lhs.slt(&rhs));
+        let (push_location, [rhs, lhs]) = self.stack.pop_with_location()?;
+        push_location.push(lhs.slt(&rhs));
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn s_gt(&mut self) -> OpResult {
         self.gas_left.consume(3)?;
-        let (push_guard, [rhs, lhs]) = self.stack.pop_with_location()?;
-        push_guard.push(lhs.sgt(&rhs));
+        let (push_location, [rhs, lhs]) = self.stack.pop_with_location()?;
+        push_location.push(lhs.sgt(&rhs));
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn eq(&mut self) -> OpResult {
         self.gas_left.consume(3)?;
-        let (push_guard, [rhs, lhs]) = self.stack.pop_with_location()?;
-        push_guard.push(lhs == rhs);
+        let (push_location, [rhs, lhs]) = self.stack.pop_with_location()?;
+        push_location.push(lhs == rhs);
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn is_zero(&mut self) -> OpResult {
         self.gas_left.consume(3)?;
-        let (push_guard, [value]) = self.stack.pop_with_location()?;
-        push_guard.push(value == u256::ZERO);
+        let (push_location, [value]) = self.stack.pop_with_location()?;
+        push_location.push(value == u256::ZERO);
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn and(&mut self) -> OpResult {
         self.gas_left.consume(3)?;
-        let (push_guard, [rhs, lhs]) = self.stack.pop_with_location()?;
-        push_guard.push(lhs & rhs);
+        let (push_location, [rhs, lhs]) = self.stack.pop_with_location()?;
+        push_location.push(lhs & rhs);
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn or(&mut self) -> OpResult {
         self.gas_left.consume(3)?;
-        let (push_guard, [rhs, lhs]) = self.stack.pop_with_location()?;
-        push_guard.push(lhs | rhs);
+        let (push_location, [rhs, lhs]) = self.stack.pop_with_location()?;
+        push_location.push(lhs | rhs);
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn xor(&mut self) -> OpResult {
         self.gas_left.consume(3)?;
-        let (push_guard, [rhs, lhs]) = self.stack.pop_with_location()?;
-        push_guard.push(lhs ^ rhs);
+        let (push_location, [rhs, lhs]) = self.stack.pop_with_location()?;
+        push_location.push(lhs ^ rhs);
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn not(&mut self) -> OpResult {
         self.gas_left.consume(3)?;
-        let (push_guard, [value]) = self.stack.pop_with_location()?;
-        push_guard.push(!value);
+        let (push_location, [value]) = self.stack.pop_with_location()?;
+        push_location.push(!value);
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn byte(&mut self) -> OpResult {
         self.gas_left.consume(3)?;
-        let (push_guard, [value, offset]) = self.stack.pop_with_location()?;
-        push_guard.push(value.byte(offset));
+        let (push_location, [value, offset]) = self.stack.pop_with_location()?;
+        push_location.push(value.byte(offset));
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn shl(&mut self) -> OpResult {
         self.gas_left.consume(3)?;
-        let (push_guard, [value, shift]) = self.stack.pop_with_location()?;
-        push_guard.push(value << shift);
+        let (push_location, [value, shift]) = self.stack.pop_with_location()?;
+        push_location.push(value << shift);
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn shr(&mut self) -> OpResult {
         self.gas_left.consume(3)?;
-        let (push_guard, [value, shift]) = self.stack.pop_with_location()?;
-        push_guard.push(value >> shift);
+        let (push_location, [value, shift]) = self.stack.pop_with_location()?;
+        push_location.push(value >> shift);
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn sar(&mut self) -> OpResult {
         self.gas_left.consume(3)?;
-        let (push_guard, [value, shift]) = self.stack.pop_with_location()?;
-        push_guard.push(value.sar(shift));
+        let (push_location, [value, shift]) = self.stack.pop_with_location()?;
+        push_location.push(value.sar(shift));
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn sha3(&mut self) -> OpResult {
         self.gas_left.consume(30)?;
-        let (push_guard, [len, offset]) = self.stack.pop_with_location()?;
+        let (push_location, [len, offset]) = self.stack.pop_with_location()?;
 
         let len = u64::try_from(len).map_err(|_| FailStatus::OutOfGas)?;
         self.gas_left.consume(6 * word_size(len)?)?; // * does not overflow
 
         let data = self.memory.get_mut_slice(offset, len, &mut self.gas_left)?;
-        push_guard.push(hash_cache::hash(data));
+        push_location.push(hash_cache::hash(data));
         self.code_reader.next();
         self.return_from_op()
     }
@@ -881,11 +881,11 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         if self.revision < Revision::EVMC_BERLIN {
             self.gas_left.consume(700)?;
         }
-        let (push_guard, [addr]) = self.stack.pop_with_location()?;
+        let (push_location, [addr]) = self.stack.pop_with_location()?;
         let addr = addr.into();
         self.gas_left
             .consume_address_access_cost(&addr, self.revision, self.context)?;
-        push_guard.push(self.context.get_balance(&addr));
+        push_location.push(self.context.get_balance(&addr));
         self.code_reader.next();
         self.return_from_op()
     }
@@ -913,7 +913,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
     fn call_data_load(&mut self) -> OpResult {
         self.gas_left.consume(3)?;
-        let (push_guard, [offset]) = self.stack.pop_with_location()?;
+        let (push_location, [offset]) = self.stack.pop_with_location()?;
         let (offset, overflow) = offset.into_u64_with_overflow();
         let offset = offset as usize;
         #[allow(clippy::map_identity)]
@@ -928,12 +928,12 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             )
             .unwrap_or_default();
         if overflow || offset >= call_data.len() {
-            push_guard.push(u256::ZERO);
+            push_location.push(u256::ZERO);
         } else {
             let end = min(call_data.len(), offset + 32);
             let mut bytes = [0; 32];
             bytes[..end - offset].copy_from_slice(&call_data[offset..end]);
-            push_guard.push(u256::from_be_bytes(bytes));
+            push_location.push(u256::from_be_bytes(bytes));
         }
         self.code_reader.next();
         self.return_from_op()
@@ -1026,11 +1026,11 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         if self.revision < Revision::EVMC_BERLIN {
             self.gas_left.consume(700)?;
         }
-        let (push_guard, [addr]) = self.stack.pop_with_location()?;
+        let (push_location, [addr]) = self.stack.pop_with_location()?;
         let addr = addr.into();
         self.gas_left
             .consume_address_access_cost(&addr, self.revision, self.context)?;
-        push_guard.push(self.context.get_code_size(&addr));
+        push_location.push(self.context.get_code_size(&addr));
         self.code_reader.next();
         self.return_from_op()
     }
@@ -1102,19 +1102,19 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         if self.revision < Revision::EVMC_BERLIN {
             self.gas_left.consume(700)?;
         }
-        let (push_guard, [addr]) = self.stack.pop_with_location()?;
+        let (push_location, [addr]) = self.stack.pop_with_location()?;
         let addr = addr.into();
         self.gas_left
             .consume_address_access_cost(&addr, self.revision, self.context)?;
-        push_guard.push(self.context.get_code_hash(&addr));
+        push_location.push(self.context.get_code_hash(&addr));
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn block_hash(&mut self) -> OpResult {
         self.gas_left.consume(20)?;
-        let (push_guard, [block_number]) = self.stack.pop_with_location()?;
-        push_guard.push(
+        let (push_location, [block_number]) = self.stack.pop_with_location()?;
+        push_location.push(
             u64::try_from(block_number)
                 .map(|idx| self.context.get_block_hash(idx as i64).into())
                 .unwrap_or(u256::ZERO),
@@ -1195,14 +1195,14 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     fn blob_hash(&mut self) -> OpResult {
         check_min_revision(Revision::EVMC_CANCUN, self.revision)?;
         self.gas_left.consume(3)?;
-        let (push_guard, [idx]) = self.stack.pop_with_location()?;
+        let (push_location, [idx]) = self.stack.pop_with_location()?;
         let (idx, idx_overflow) = idx.into_u64_with_overflow();
         let idx = idx as usize;
         let hashes = ExecutionTxContext::from(self.context.get_tx_context()).blob_hashes;
         if !idx_overflow && idx < hashes.len() {
-            push_guard.push(hashes[idx]);
+            push_location.push(hashes[idx]);
         } else {
-            push_guard.push(u256::ZERO);
+            push_location.push(u256::ZERO);
         }
         self.code_reader.next();
         self.return_from_op()
@@ -1226,9 +1226,9 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
     fn m_load(&mut self) -> OpResult {
         self.gas_left.consume(3)?;
-        let (push_guard, [offset]) = self.stack.pop_with_location()?;
+        let (push_location, [offset]) = self.stack.pop_with_location()?;
 
-        push_guard.push(self.memory.get_word(offset, &mut self.gas_left)?);
+        push_location.push(self.memory.get_word(offset, &mut self.gas_left)?);
         self.code_reader.next();
         self.return_from_op()
     }
@@ -1258,7 +1258,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         if self.revision < Revision::EVMC_BERLIN {
             self.gas_left.consume(800)?;
         }
-        let (push_guard, [key]) = self.stack.pop_with_location()?;
+        let (push_location, [key]) = self.stack.pop_with_location()?;
         let key = key.into();
         let addr = self.message.recipient();
         if self.revision >= Revision::EVMC_BERLIN {
@@ -1269,7 +1269,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             }
         }
         let value = self.context.get_storage(addr, &key);
-        push_guard.push(value);
+        push_location.push(value);
         self.code_reader.next();
         self.return_from_op()
     }
@@ -1329,10 +1329,10 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     fn t_load(&mut self) -> OpResult {
         check_min_revision(Revision::EVMC_CANCUN, self.revision)?;
         self.gas_left.consume(100)?;
-        let (push_guard, [key]) = self.stack.pop_with_location()?;
+        let (push_location, [key]) = self.stack.pop_with_location()?;
         let addr = self.message.recipient();
         let value = self.context.get_transient_storage(addr, &key.into());
-        push_guard.push(value);
+        push_location.push(value);
         self.code_reader.next();
         self.return_from_op()
     }
