@@ -98,8 +98,13 @@ impl Memory {
 
         let offset = offset as usize;
         let end = end as usize;
+        #[cfg(feature = "unsafe-hints")]
+        // SAFETY:
+        // end = offset + len, so offset <= end
+        // end will always be in bounds because expand takes care of expanding the memory
+        // accordingly.
         unsafe {
-            std::hint::assert_unchecked(offset < end && end <= self.0.len());
+            std::hint::assert_unchecked(offset <= end && end <= self.0.len());
         }
         Ok(&mut self.0[offset..end])
     }

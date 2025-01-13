@@ -123,6 +123,7 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
         // program counter, is through one of the functions of CodeReader that take it by mutable
         // reference. Those are next, try_jump, jump_to and get_push_data itself.
         // Calling those and then calling get_push_data makes semantically no sense.
+        #[cfg(feature = "unsafe-hints")]
         unsafe {
             std::hint::assert_unchecked(self.pc < self.code_analysis.analysis.len());
         }

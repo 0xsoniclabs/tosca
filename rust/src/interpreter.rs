@@ -1238,11 +1238,15 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let [value, offset] = self.stack.pop()?;
 
         let dest = self.memory.get_mut_slice(offset, 32, &mut self.gas_left)?;
+        let mut value_be_bytes = value.to_le_bytes();
+        value_be_bytes.reverse();
         // SAFETY:
-        // dest is 32 bytes long and can be cast to a &mut [u8; 32].
-        let dest = unsafe { &mut *(dest.as_mut_ptr() as *mut [u8; 32]) };
-        *dest = value.to_le_bytes();
-        dest.reverse();
+        // dest was requested to be 32 bytes long.
+        #[cfg(feature = "unsafe-hints")]
+        unsafe {
+            std::hint::assert_unchecked(dest.len() == 32);
+        }
+        dest.copy_from_slice(&value_be_bytes);
         self.code_reader.next();
         self.return_from_op()
     }
