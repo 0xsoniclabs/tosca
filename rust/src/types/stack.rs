@@ -150,8 +150,8 @@ impl Stack {
         // starting at index `self.len - 1` as an array of length N and type u256.
         let pop_data = unsafe { *(pop_start as *const [u256; N]) };
         let len = self.len();
-        let push_guard = PushLocation(&mut self.0[len - 1]);
-        Ok((push_guard, pop_data))
+        let push_location = PushLocation(&mut self.0[len - 1]);
+        Ok((push_location, pop_data))
     }
 
     pub fn peek(&self) -> Option<&u256> {
@@ -221,9 +221,9 @@ mod tests {
     #[test]
     fn pop_with_location() {
         let mut stack = Stack::new(&[u256::MAX]);
-        let (guard, data) = stack.pop_with_location::<1>().unwrap();
+        let (push_location, data) = stack.pop_with_location::<1>().unwrap();
         assert_eq!(data, [u256::MAX]);
-        guard.push(u256::ONE);
+        push_location.push(u256::ONE);
         assert_eq!(stack.as_slice(), [u256::ONE]);
 
         let mut stack = Stack::new(&[]);
@@ -233,9 +233,9 @@ mod tests {
         );
 
         let mut stack = Stack::new(&[u256::ONE, u256::MAX]);
-        let (guard, data) = stack.pop_with_location::<2>().unwrap();
+        let (push_location, data) = stack.pop_with_location::<2>().unwrap();
         assert_eq!(data, [u256::ONE, u256::MAX]);
-        guard.push(u256::ZERO);
+        push_location.push(u256::ZERO);
         assert_eq!(stack.as_slice(), [u256::ZERO]);
 
         let mut stack = Stack::new(&[u256::MAX]);

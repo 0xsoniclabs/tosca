@@ -1483,7 +1483,6 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.return_from_op()
     }
 
-    #[allow(unused_variables)]
     fn push<const N: usize>(&mut self) -> OpResult {
         self.gas_left.consume(3)?;
         #[cfg(not(feature = "fn-ptr-conversion-expanded-dispatch"))]

@@ -19,7 +19,7 @@ default = []
 # feature mock enables code generation for test mocking. This allows generating mocks for other build configuration but "test". 
 mock = ["dep:mockall"]
 fuzzing = ["dep:arbitrary"]
-# partial features (enabled by other features to simplyfy conditional compilation attributes. Not intended to be used on their own)
+# partial features (enabled by other features to simplify conditional compilation attributes. Not intended to be used on their own)
 needs-jumptable = []
 needs-fn-ptr-conversion = ["needs-jumptable"]
 needs-cache = ["dep:lru"]
@@ -32,7 +32,6 @@ performance = [
     "hash-cache",
     "code-analysis-cache",
     "alloc-reuse",
-    "jumptable-dispatch",
     "fn-ptr-conversion-expanded-dispatch",
 ]
 mimalloc = ["dep:mimalloc"]
@@ -44,11 +43,11 @@ code-analysis-cache = ["dep:nohash-hasher", "needs-cache"]
 thread-local-cache = []
 alloc-reuse = []
 tail-call = []
+# function/ opcode dispatch:
+# feature precedence: switch-dispatch (default) < jumptable-dispatch < fn-ptr-conversion-inline-dispatch < fn-ptr-conversion-expanded-dispatch
 jumptable-dispatch = ["needs-jumptable"]
-# fn-ptr-conversion takes precedence over jumptable, switch (default) and fn-ptr-conversion-inline
-fn-ptr-conversion-expanded-dispatch = ["needs-fn-ptr-conversion"]
-# fn-ptr-conversion-inline takes precedence over jumptable and switch (default)
 fn-ptr-conversion-inline-dispatch = ["needs-fn-ptr-conversion"]
+fn-ptr-conversion-expanded-dispatch = ["needs-fn-ptr-conversion"]
 
 [dependencies]
 bnum = "0.12.0"
