@@ -12,6 +12,7 @@ impl<const N: usize> NonZero<N> {
 
 /// Wrapper around [`&mut u256`] that ensures that the only possible operation is to write once to
 /// this memory location.
+#[derive(Debug)]
 pub struct PushLocation<'p>(&'p mut u256);
 
 impl PushLocation<'_> {
@@ -127,6 +128,8 @@ impl Stack {
     pub fn pop_with_location<const N: usize>(
         &mut self,
     ) -> Result<(PushLocation, [u256; N]), FailStatus> {
+        let () = const { NonZero::<N>::VALID };
+
         self.check_underflow(N)?;
 
         self.0.truncate(self.len() - (N - 1));
@@ -206,6 +209,33 @@ mod tests {
 
         let mut stack = Stack::new(&[u256::MAX]);
         assert_eq!(stack.pop::<2>(), Err(FailStatus::StackUnderflow));
+    }
+
+    #[test]
+    fn pop_with_location() {
+        let mut stack = Stack::new(&[u256::MAX]);
+        let (guard, data) = stack.pop_with_location::<1>().unwrap();
+        assert_eq!(data, [u256::MAX]);
+        guard.push(u256::ONE);
+        assert_eq!(stack.as_slice(), [u256::ONE]);
+
+        let mut stack = Stack::new(&[]);
+        assert_eq!(
+            stack.pop_with_location::<1>().unwrap_err(),
+            FailStatus::StackUnderflow
+        );
+
+        let mut stack = Stack::new(&[u256::ONE, u256::MAX]);
+        let (guard, data) = stack.pop_with_location::<2>().unwrap();
+        assert_eq!(data, [u256::ONE, u256::MAX]);
+        guard.push(u256::ZERO);
+        assert_eq!(stack.as_slice(), [u256::ZERO]);
+
+        let mut stack = Stack::new(&[u256::MAX]);
+        assert_eq!(
+            stack.pop_with_location::<2>().unwrap_err(),
+            FailStatus::StackUnderflow
+        );
     }
 
     #[test]
