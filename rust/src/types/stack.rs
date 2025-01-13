@@ -10,9 +10,16 @@ impl<const N: usize> NonZero<N> {
     const VALID: () = assert!(N > 0);
 }
 
-/// Wrapper around [`&mut u256`] that ensures that the only possible operation is to write once to
-/// this memory location.
+/// This type is created by calling [`Stack::pop_with_location`] and is intended to replace pushing
+/// to the stack directly. It and avoids the stack overflow check when pushing because it is no
+/// longer needed. [`PushLocation`] has to be consumed by pushing to it.
+/// If this does not happen, the program is still memory safe, however there will be one item so
+/// much on the stack.
+///
+/// Internally it is a wrapper around [`&mut u256`] that ensures that the only possible operation is
+/// to write once to this memory location.
 #[derive(Debug)]
+#[must_use = "PushLocation has to be pushed to."]
 pub struct PushLocation<'p>(&'p mut u256);
 
 impl PushLocation<'_> {
