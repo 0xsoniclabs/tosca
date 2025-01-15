@@ -17,34 +17,33 @@ pub struct RunArgs {
 }
 
 impl RunArgs {
-    /// Create arguments for the interpreter that outline the FFI overhead.
-    /// In particular those arguments try to trigger all possible allocations that happen because
-    /// pointers get passed via the FFI interface and then the data is copied into a fresh
-    /// allocation on the other side.
-    /// - `ExecutionMessage` contains non-empty input
-    /// - `code` is non-empty so that `CodeReader` must allocate memory to store the code analysis
-    ///   results
-    /// - `code` contains `Opcode::MStore` so that `memory` is non-empty
-    /// - `code` returns a single word so that `output` is non-empty
-    pub fn ffi_overhead(size: u32) -> (Self, u32) {
-        fn ffi_overhead_ref(input: u32) -> u32 {
+    /// Create arguments for the interpreter that outline the worst case when calling the
+    /// interpreter with short running contracts. In particular those arguments try to trigger
+    /// all possible allocations that happen when using an evmc interpreter which needs to copy data
+    /// into new allocations.
+    /// - the execution message contains non-empty input
+    /// - the code is not empty so a new allocation is necessary for the code analysis result
+    /// - MStore makes sure memory is not empty
+    /// - Return makes sure output is non-empty
+    pub fn static_overhead(size: u32) -> (Self, u32) {
+        fn static_overhead_ref(input: u32) -> u32 {
             input
         }
         const CODE: [u8; 11] = [
             Opcode::Push1 as u8,
-            4, // offset
-            Opcode::CallDataLoad as u8,
+            4,                          // offset
+            Opcode::CallDataLoad as u8, // load value from call data at offset 4
             Opcode::Push1 as u8,
-            0, // offset
-            Opcode::MStore as u8,
+            0,                    // offset
+            Opcode::MStore as u8, // store loaded call data value at offset 0
             Opcode::Push1 as u8,
             32, // len
             Opcode::Push1 as u8,
-            0, // offset
-            Opcode::Return as u8,
+            0,                    // offset
+            Opcode::Return as u8, // return 32 bytes at offset 0
         ];
 
-        (Self::new(&CODE, size, None), ffi_overhead_ref(size))
+        (Self::new(&CODE, size, None), static_overhead_ref(size))
     }
 
     // See go/examples/inc.go
