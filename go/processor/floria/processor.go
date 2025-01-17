@@ -86,7 +86,7 @@ func (p *processor) Run(
 	}
 
 	runContext := runContext{
-		context,
+		floriaContext{context},
 		p.interpreter,
 		blockParameters,
 		transactionParameters,
