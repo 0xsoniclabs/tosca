@@ -19,7 +19,9 @@ import (
 	op "github.com/ethereum/go-ethereum/core/vm"
 	"go.uber.org/mock/gomock"
 
-	_ "github.com/0xsoniclabs/tosca/go/processor/opera" // < registers opera processor for testing
+	_ "github.com/0xsoniclabs/tosca/go/processor/floria" // < registers floria processor for testing
+	_ "github.com/0xsoniclabs/tosca/go/processor/geth"   // < registers geth processor for testing
+	_ "github.com/0xsoniclabs/tosca/go/processor/opera"  // < registers opera processor for testing
 )
 
 func TestProcessor_GasBillingEndToEnd(t *testing.T) {

@@ -23,6 +23,7 @@ import (
 	"golang.org/x/exp/maps"
 
 	_ "github.com/0xsoniclabs/tosca/go/processor/floria" // < registers floria processor for testing
+	_ "github.com/0xsoniclabs/tosca/go/processor/geth"   // < registers geth processor for testing
 	_ "github.com/0xsoniclabs/tosca/go/processor/opera"  // < registers opera processor for testing
 
 	_ "github.com/0xsoniclabs/tosca/go/interpreter/evmzero" // < registers evmzero interpreter for testing
@@ -221,6 +222,7 @@ func TestGetProcessors_ContainsMainConfigurations(t *testing.T) {
 	wanted := []string{
 		"opera/geth", "opera/lfvm", "opera/evmzero",
 		"floria/geth", "floria/lfvm", "floria/evmzero",
+		"geth-ftm/geth", "geth-ftm/lfvm", "geth-ftm/evmzero",
 	}
 	for _, n := range wanted {
 		if !slices.Contains(all, n) {

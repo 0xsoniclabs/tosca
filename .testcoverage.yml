@@ -92,6 +92,8 @@ override:
   - threshold: 0
     path: go/processor/floria
   - threshold: 0
+    path: go/processor/geth
+  - threshold: 0
     path: go/processor/opera
   - threshold: 0
     path: go/tosca
