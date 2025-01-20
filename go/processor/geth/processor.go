@@ -57,7 +57,7 @@ func (p *Processor) Run(
 	}
 	stateDB := &stateDB{context: context}
 	chainConfig := blockParametersToChainConfig(blockParameters)
-	config := evmConfig(p.interpreter, p.ethereumCompatible)
+	config := newEVMConfig(p.interpreter, p.ethereumCompatible)
 	evm := vm.NewEVM(blockContext, txContext, stateDB, chainConfig, config)
 
 	msg := transactionToMessage(transaction, blockParameters.BaseFee)
@@ -98,6 +98,8 @@ func newBlockContext(blockParameters tosca.BlockParameters, context tosca.Transa
 		return common.Hash(context.GetBlockHash(int64(num)))
 	}
 
+	ftmDifficulty := big.NewInt(1)
+
 	return vm.BlockContext{
 		CanTransfer: canTransfer,
 		Transfer:    transfer,
@@ -106,7 +108,7 @@ func newBlockContext(blockParameters tosca.BlockParameters, context tosca.Transa
 		GasLimit:    uint64(blockParameters.GasLimit),
 		BlockNumber: new(big.Int).SetInt64(blockParameters.BlockNumber),
 		Time:        uint64(blockParameters.Timestamp),
-		Difficulty:  big.NewInt(1),
+		Difficulty:  ftmDifficulty,
 		BaseFee:     blockParameters.BaseFee.ToBig(),
 		BlobBaseFee: blockParameters.BlobBaseFee.ToBig(),
 		Random:      (*common.Hash)(&blockParameters.PrevRandao),
@@ -125,30 +127,28 @@ func blockParametersToChainConfig(blockParams tosca.BlockParameters) *params.Cha
 	chainConfig.ShanghaiTime = &zeroTime
 	chainConfig.CancunTime = &zeroTime
 
+	greaterBlockTime := uint64(blockParams.Timestamp + 1)
+	greaterBlockNumber := big.NewInt(blockParams.BlockNumber + 1)
+
 	if blockParams.Revision < tosca.R13_Cancun {
-		time := uint64(blockParams.Timestamp + 1)
-		chainConfig.CancunTime = &time
+		chainConfig.CancunTime = &greaterBlockTime
 	}
 	if blockParams.Revision < tosca.R12_Shanghai {
-		time := uint64(blockParams.Timestamp + 1)
-		chainConfig.ShanghaiTime = &time
+		chainConfig.ShanghaiTime = &greaterBlockTime
 	}
 	if blockParams.Revision < tosca.R11_Paris {
-		chainConfig.MergeNetsplitBlock = big.NewInt(blockParams.BlockNumber + 1)
+		chainConfig.MergeNetsplitBlock = greaterBlockNumber
 	}
 	if blockParams.Revision < tosca.R10_London {
-		chainConfig.LondonBlock = big.NewInt(blockParams.BlockNumber + 1)
+		chainConfig.LondonBlock = greaterBlockNumber
 	}
 	if blockParams.Revision < tosca.R09_Berlin {
-		chainConfig.BerlinBlock = big.NewInt(blockParams.BlockNumber + 1)
-	}
-	if blockParams.Revision < tosca.R07_Istanbul {
-		chainConfig.IstanbulBlock = big.NewInt(blockParams.BlockNumber + 1)
+		chainConfig.BerlinBlock = greaterBlockNumber
 	}
 	return &chainConfig
 }
 
-func evmConfig(interpreter tosca.Interpreter, ethereumCompatible bool) vm.Config {
+func newEVMConfig(interpreter tosca.Interpreter, ethereumCompatible bool) vm.Config {
 	config := vm.Config{
 		StatePrecompiles: map[common.Address]vm.PrecompiledStateContract{
 			stateContractAddress: PreCompiledContract{},
@@ -185,10 +185,12 @@ func transactionToMessage(transaction tosca.Transaction, baseFee tosca.Value) *c
 		GasLimit: uint64(transaction.GasLimit),
 		GasPrice: transaction.GasPrice.ToBig(),
 		// gas price computation and enforcement of cap is currently performed outside of processor
-		GasFeeCap:         big.NewInt(0).Add(baseFee.ToBig(), big.NewInt(1)),
-		GasTipCap:         big.NewInt(0),
-		Data:              transaction.Input,
-		AccessList:        accessList,
+		// TODO: extend the tosca.Transaction to include GasFeeCap and GasTipCap
+		GasFeeCap:  big.NewInt(0).Add(baseFee.ToBig(), big.NewInt(1)),
+		GasTipCap:  big.NewInt(0),
+		Data:       transaction.Input,
+		AccessList: accessList,
+		// TODO: add support for blobs in the tosca.Transaction
 		BlobGasFeeCap:     big.NewInt(0),
 		BlobHashes:        nil,
 		SkipAccountChecks: false,
@@ -196,6 +198,7 @@ func transactionToMessage(transaction tosca.Transaction, baseFee tosca.Value) *c
 }
 
 // stateDB is a wrapper around the tosca.TransactionContext to implement the vm.StateDB interface.
+// TODO: merge with tosca/go/interpreter/geth/geth.go stateDbAdapter
 type stateDB struct {
 	context         tosca.TransactionContext
 	refund          uint64
@@ -225,7 +228,8 @@ func (s *stateDB) AddBalance(address common.Address, value *uint256.Int, tracing
 	balance := s.context.GetBalance(toscaAddress)
 	s.context.SetBalance(toscaAddress, tosca.Add(balance, tosca.ValueFromUint256(value)))
 
-	// we save this address to be used as the beneficiary in a selfdestruct case.
+	// In the case of a seldestruct the balance is transferred to the beneficiary,
+	// we save this address for the context-selfdestruct call
 	s.beneficiary = address
 }
 
@@ -318,13 +322,13 @@ func (s *stateDB) Empty(address common.Address) bool {
 }
 
 func (s *stateDB) AddressInAccessList(address common.Address) bool {
-	//lint:ignore SA1019 deprecated functions to be migrated
-	return s.context.IsAddressInAccessList(tosca.Address(address))
+	return bool(s.context.AccessAccount(tosca.Address(address)))
 }
 
 func (s *stateDB) SlotInAccessList(address common.Address, slot common.Hash) (addressOk bool, slotOk bool) {
-	//lint:ignore SA1019 deprecated functions to be migrated
-	return s.context.IsSlotInAccessList(tosca.Address(address), tosca.Key(slot))
+	addressOk = bool(s.context.AccessAccount(tosca.Address(address)))
+	slotOk = bool(s.context.AccessStorage(tosca.Address(address), tosca.Key(slot)))
+	return addressOk, slotOk
 }
 
 func (s *stateDB) AddAddressToAccessList(address common.Address) {

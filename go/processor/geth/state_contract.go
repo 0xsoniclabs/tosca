@@ -23,6 +23,9 @@ import (
 	"github.com/holiman/uint256"
 )
 
+// This file is copied from https://github.com/Fantom-foundation/Sonic/blob/main/opera/contracts/evmwriter/evm_writer.go
+// and unchanged to ensure compatibility with the code running in production.
+
 var (
 	// driverAddress is the NodeDriver contract address
 	driverAddress = common.HexToAddress("0xd100a01e00000000000000000000000000000000")
