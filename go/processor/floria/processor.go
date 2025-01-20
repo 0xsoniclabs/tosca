@@ -86,7 +86,7 @@ func (p *processor) Run(
 	}
 
 	runContext := runContext{
-		floriaContext{context},
+		floriaContext{context, context.SelfDestruct},
 		p.interpreter,
 		blockParameters,
 		transactionParameters,
@@ -127,6 +127,19 @@ func (p *processor) Run(
 		Output:          result.Output,
 		Logs:            logs,
 	}, nil
+}
+
+// floriaContext is a wrapper around the tosca.TransactionContext
+// that adds the balance transfer to the selfdestruct function
+type floriaContext struct {
+	tosca.TransactionContext
+	// the original selfdestruct function is saved here, as it still needs to be called
+	selfdestruct func(addr, beneficiary tosca.Address) bool
+}
+
+func (c floriaContext) SelfDestruct(addr tosca.Address, beneficiary tosca.Address) bool {
+	c.SetBalance(beneficiary, tosca.Add(c.GetBalance(beneficiary), c.GetBalance(addr)))
+	return c.selfdestruct(addr, beneficiary)
 }
 
 func nonceCheck(transactionNonce uint64, stateNonce uint64) error {
