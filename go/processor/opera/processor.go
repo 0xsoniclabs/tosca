@@ -26,10 +26,10 @@ import (
 	"github.com/0xsoniclabs/tosca/go/geth_adapter"
 	geth_interpreter "github.com/0xsoniclabs/tosca/go/interpreter/geth"
 	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/tosca_adapter"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/tracing"
-	"github.com/ethereum/go-ethereum/core/types"
 	geth "github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
@@ -153,7 +153,7 @@ func (p *processor) Run(
 		chainConfig.IstanbulBlock = big.NewInt(blockParams.BlockNumber + 1)
 	}
 
-	stateDb := geth_interpreter.NewStateDbAdapter(context)
+	stateDb := tosca_adapter.NewStateDB(context)
 	evm := geth.NewEVM(blockCtx, txCtx, stateDb, &chainConfig, config)
 
 	// -- start of execution --
@@ -204,24 +204,21 @@ func (p *processor) Run(
 		// London uses the same list as Berlin, Cancun extends it.
 		precompiledContracts := geth.PrecompiledAddressesBerlin
 
-		var accessList types.AccessList
-		for _, tuple := range transaction.AccessList {
-			keys := make([]common.Hash, len(tuple.Keys))
-			for i, key := range tuple.Keys {
-				keys[i] = common.Hash(key)
-			}
-			accessList = append(accessList, types.AccessTuple{
-				Address:     common.Address(tuple.Address),
-				StorageKeys: keys,
-			})
+		stateDb.AddAddressToAccessList(common.Address(transaction.Sender))
+		if dest != nil {
+			stateDb.AddAddressToAccessList(common.Address(*dest))
 		}
 
-		stateDb.PrepareAccessList(
-			common.Address(transaction.Sender),
-			dest,
-			precompiledContracts,
-			accessList,
-		)
+		for _, addr := range precompiledContracts {
+			stateDb.AddAddressToAccessList(common.Address(addr))
+		}
+
+		for _, tuple := range transaction.AccessList {
+			stateDb.AddAddressToAccessList(common.Address(tuple.Address))
+			for _, key := range tuple.Keys {
+				stateDb.AddSlotToAccessList(common.Address(tuple.Address), common.Hash(key))
+			}
+		}
 	}
 
 	var (

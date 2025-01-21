@@ -16,23 +16,22 @@ import (
 
 	"github.com/0xsoniclabs/tosca/go/geth_adapter"
 	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/tosca_adapter"
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/stateless"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/trie/utils"
 )
 
 func init() {
-	tosca.RegisterProcessorFactory("geth-sonic", fantomProcessor)
+	tosca.RegisterProcessorFactory("geth-sonic", sonicProcessor)
 }
 
-func fantomProcessor(interpreter tosca.Interpreter) tosca.Processor {
+func sonicProcessor(interpreter tosca.Interpreter) tosca.Processor {
 	return &Processor{
 		interpreter:        interpreter,
 		ethereumCompatible: false,
@@ -55,7 +54,7 @@ func (p *Processor) Run(
 		GasPrice:   transaction.GasPrice.ToBig(),
 		BlobFeeCap: blockParameters.BlobBaseFee.ToBig(),
 	}
-	stateDB := &stateDB{context: context}
+	stateDB := tosca_adapter.NewStateDB(context)
 	chainConfig := blockParametersToChainConfig(blockParameters)
 	config := newEVMConfig(p.interpreter, p.ethereumCompatible)
 	evm := vm.NewEVM(blockContext, txContext, stateDB, chainConfig, config)
@@ -70,9 +69,22 @@ func (p *Processor) Run(
 		return tosca.Receipt{GasUsed: transaction.GasLimit}, err
 	}
 
-	createdAddress := (*tosca.Address)(&stateDB.createdContract)
+	createdAddress := (*tosca.Address)(stateDB.GetCreatedContract())
 	if transaction.Recipient != nil || result.Failed() {
 		createdAddress = nil
+	}
+
+	logs := make([]tosca.Log, 0)
+	for _, log := range stateDB.GetLogs() {
+		topics := make([]tosca.Hash, len(log.Topics))
+		for i, topic := range log.Topics {
+			topics[i] = tosca.Hash(topic)
+		}
+		logs = append(logs, tosca.Log{
+			Address: tosca.Address(log.Address),
+			Topics:  topics,
+			Data:    log.Data,
+		})
 	}
 
 	return tosca.Receipt{
@@ -80,7 +92,7 @@ func (p *Processor) Run(
 		Output:          result.ReturnData,
 		ContractAddress: createdAddress,
 		GasUsed:         tosca.Gas(result.UsedGas),
-		Logs:            stateDB.context.GetLogs(),
+		Logs:            logs,
 	}, nil
 }
 
@@ -195,211 +207,4 @@ func transactionToMessage(transaction tosca.Transaction, baseFee tosca.Value) *c
 		BlobHashes:        nil,
 		SkipAccountChecks: false,
 	}
-}
-
-// stateDB is a wrapper around the tosca.TransactionContext to implement the vm.StateDB interface.
-// TODO: merge with tosca/go/interpreter/geth/geth.go stateDbAdapter
-type stateDB struct {
-	context         tosca.TransactionContext
-	refund          uint64
-	createdContract common.Address
-	refundBackups   map[tosca.Snapshot]uint64
-	beneficiary     common.Address
-}
-
-// vm.StateDB interface implementation
-
-func (s *stateDB) CreateAccount(common.Address) {
-	// not implemented
-}
-
-func (s *stateDB) CreateContract(address common.Address) {
-	s.createdContract = address
-}
-
-func (s *stateDB) SubBalance(address common.Address, value *uint256.Int, tracing tracing.BalanceChangeReason) {
-	toscaAddress := tosca.Address(address)
-	balance := s.context.GetBalance(toscaAddress)
-	s.context.SetBalance(toscaAddress, tosca.Sub(balance, tosca.ValueFromUint256(value)))
-}
-
-func (s *stateDB) AddBalance(address common.Address, value *uint256.Int, tracing tracing.BalanceChangeReason) {
-	toscaAddress := tosca.Address(address)
-	balance := s.context.GetBalance(toscaAddress)
-	s.context.SetBalance(toscaAddress, tosca.Add(balance, tosca.ValueFromUint256(value)))
-
-	// In the case of a seldestruct the balance is transferred to the beneficiary,
-	// we save this address for the context-selfdestruct call.
-	// this only works if the balance transfer is performed before the selfdestruct call,
-	// as it is the performed in geth and the geth adapter.
-	s.beneficiary = address
-}
-
-func (s *stateDB) GetBalance(address common.Address) *uint256.Int {
-	return s.context.GetBalance(tosca.Address(address)).ToUint256()
-}
-
-func (s *stateDB) GetNonce(address common.Address) uint64 {
-	return s.context.GetNonce(tosca.Address(address))
-}
-
-func (s *stateDB) SetNonce(address common.Address, nonce uint64) {
-	s.context.SetNonce(tosca.Address(address), nonce)
-}
-
-func (s *stateDB) GetCodeHash(address common.Address) common.Hash {
-	return common.Hash(s.context.GetCodeHash(tosca.Address(address)))
-}
-
-func (s *stateDB) GetCode(address common.Address) []byte {
-	return s.context.GetCode(tosca.Address(address))
-}
-
-func (s *stateDB) SetCode(address common.Address, code []byte) {
-	s.context.SetCode(tosca.Address(address), code)
-}
-
-func (s *stateDB) GetCodeSize(address common.Address) int {
-	return len(s.GetCode(address))
-}
-
-func (s *stateDB) AddRefund(refund uint64) {
-	s.refund += refund
-}
-
-func (s *stateDB) SubRefund(refund uint64) {
-	s.refund -= refund
-}
-
-func (s *stateDB) GetRefund() uint64 {
-	return s.refund
-}
-
-func (s *stateDB) GetCommittedState(address common.Address, key common.Hash) common.Hash {
-	//lint:ignore SA1019 deprecated functions to be migrated
-	return common.Hash(s.context.GetCommittedStorage(tosca.Address(address), tosca.Key(key)))
-}
-
-func (s *stateDB) GetState(address common.Address, key common.Hash) common.Hash {
-	return common.Hash(s.context.GetStorage(tosca.Address(address), tosca.Key(key)))
-}
-
-func (s *stateDB) SetState(address common.Address, key common.Hash, value common.Hash) {
-	s.context.SetStorage(tosca.Address(address), tosca.Key(key), tosca.Word(value))
-}
-
-func (s *stateDB) GetStorageRoot(address common.Address) common.Hash {
-	return common.Hash{} // not implemented
-}
-
-func (s *stateDB) GetTransientState(address common.Address, key common.Hash) common.Hash {
-	return common.Hash(s.context.GetTransientStorage(tosca.Address(address), tosca.Key(key)))
-}
-
-func (s *stateDB) SetTransientState(address common.Address, key, value common.Hash) {
-	s.context.SetTransientStorage(tosca.Address(address), tosca.Key(key), tosca.Word(value))
-}
-
-func (s *stateDB) SelfDestruct(address common.Address) {
-	s.context.SelfDestruct(tosca.Address(address), tosca.Address(s.beneficiary))
-}
-
-func (s *stateDB) HasSelfDestructed(address common.Address) bool {
-	//lint:ignore SA1019 deprecated functions to be migrated
-	return s.context.HasSelfDestructed(tosca.Address(address))
-}
-
-func (s *stateDB) Selfdestruct6780(address common.Address) {
-	s.context.SelfDestruct(tosca.Address(address), tosca.Address(s.beneficiary))
-}
-
-func (s *stateDB) Exist(address common.Address) bool {
-	return s.context.AccountExists(tosca.Address(address))
-}
-
-func (s *stateDB) Empty(address common.Address) bool {
-	return s.context.GetBalance(tosca.Address(address)) == tosca.NewValue(0) &&
-		s.context.GetNonce(tosca.Address(address)) == 0 &&
-		len(s.context.GetCode(tosca.Address(address))) == 0
-}
-
-func (s *stateDB) AddressInAccessList(address common.Address) bool {
-	// using the non-deprecated function has a side effect of adding the address to the access list
-	return bool(s.context.AccessAccount(tosca.Address(address)))
-}
-
-func (s *stateDB) SlotInAccessList(address common.Address, slot common.Hash) (addressOk bool, slotOk bool) {
-	// using the non-deprecated functions has a side effect of adding the address and slot to the access list
-	addressOk = bool(s.context.AccessAccount(tosca.Address(address)))
-	slotOk = bool(s.context.AccessStorage(tosca.Address(address), tosca.Key(slot)))
-	return addressOk, slotOk
-}
-
-func (s *stateDB) AddAddressToAccessList(address common.Address) {
-	s.context.AccessAccount(tosca.Address(address))
-}
-
-func (s *stateDB) AddSlotToAccessList(address common.Address, slot common.Hash) {
-	s.context.AccessStorage(tosca.Address(address), tosca.Key(slot))
-}
-
-func (s *stateDB) PointCache() *utils.PointCache {
-	panic("not implemented")
-}
-
-func (s *stateDB) Prepare(rules params.Rules, sender, coinbase common.Address, dest *common.Address, precompiles []common.Address, txAccesses types.AccessList) {
-	if rules.IsBerlin {
-		s.context.AccessAccount(tosca.Address(sender))
-		if dest != nil {
-			s.context.AccessAccount(tosca.Address(*dest))
-		}
-		for _, addr := range precompiles {
-			s.context.AccessAccount(tosca.Address(addr))
-		}
-		for _, el := range txAccesses {
-			s.context.AccessAccount(tosca.Address(el.Address))
-			for _, key := range el.StorageKeys {
-				s.context.AccessStorage(tosca.Address(el.Address), tosca.Key(key))
-			}
-		}
-
-		if rules.IsShanghai {
-			s.context.AccessAccount(tosca.Address(coinbase))
-		}
-	}
-}
-
-func (s *stateDB) RevertToSnapshot(snapshot int) {
-	s.context.RestoreSnapshot(tosca.Snapshot(snapshot))
-	s.refund = s.refundBackups[tosca.Snapshot(snapshot)]
-}
-
-func (s *stateDB) Snapshot() int {
-	id := s.context.CreateSnapshot()
-	if s.refundBackups == nil {
-		s.refundBackups = make(map[tosca.Snapshot]uint64)
-	}
-	s.refundBackups[id] = s.refund
-	return int(id)
-}
-
-func (s *stateDB) AddLog(log *types.Log) {
-	topics := make([]tosca.Hash, len(log.Topics))
-	for i, topic := range log.Topics {
-		topics[i] = tosca.Hash(topic)
-	}
-	toscaLog := tosca.Log{
-		Address: tosca.Address(log.Address),
-		Topics:  topics,
-		Data:    log.Data,
-	}
-	s.context.EmitLog(tosca.Log(toscaLog))
-}
-
-func (s *stateDB) AddPreimage(common.Hash, []byte) {
-	panic("not implemented")
-}
-
-func (s *stateDB) Witness() *stateless.Witness {
-	return nil
 }
