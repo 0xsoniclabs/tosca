@@ -29,7 +29,7 @@ import (
 )
 
 func init() {
-	tosca.RegisterProcessorFactory("geth-ftm", fantomProcessor)
+	tosca.RegisterProcessorFactory("geth-sonic", fantomProcessor)
 }
 
 func fantomProcessor(interpreter tosca.Interpreter) tosca.Processor {
@@ -98,7 +98,7 @@ func newBlockContext(blockParameters tosca.BlockParameters, context tosca.Transa
 		return common.Hash(context.GetBlockHash(int64(num)))
 	}
 
-	ftmDifficulty := big.NewInt(1)
+	sonicDifficulty := big.NewInt(1)
 
 	return vm.BlockContext{
 		CanTransfer: canTransfer,
@@ -108,7 +108,7 @@ func newBlockContext(blockParameters tosca.BlockParameters, context tosca.Transa
 		GasLimit:    uint64(blockParameters.GasLimit),
 		BlockNumber: new(big.Int).SetInt64(blockParameters.BlockNumber),
 		Time:        uint64(blockParameters.Timestamp),
-		Difficulty:  ftmDifficulty,
+		Difficulty:  sonicDifficulty,
 		BaseFee:     blockParameters.BaseFee.ToBig(),
 		BlobBaseFee: blockParameters.BlobBaseFee.ToBig(),
 		Random:      (*common.Hash)(&blockParameters.PrevRandao),
@@ -229,7 +229,9 @@ func (s *stateDB) AddBalance(address common.Address, value *uint256.Int, tracing
 	s.context.SetBalance(toscaAddress, tosca.Add(balance, tosca.ValueFromUint256(value)))
 
 	// In the case of a seldestruct the balance is transferred to the beneficiary,
-	// we save this address for the context-selfdestruct call
+	// we save this address for the context-selfdestruct call.
+	// this only works if the balance transfer is performed before the selfdestruct call,
+	// as it is the performed in geth and the geth adapter.
 	s.beneficiary = address
 }
 
@@ -322,10 +324,12 @@ func (s *stateDB) Empty(address common.Address) bool {
 }
 
 func (s *stateDB) AddressInAccessList(address common.Address) bool {
+	// using the non-deprecated function has a side effect of adding the address to the access list
 	return bool(s.context.AccessAccount(tosca.Address(address)))
 }
 
 func (s *stateDB) SlotInAccessList(address common.Address, slot common.Hash) (addressOk bool, slotOk bool) {
+	// using the non-deprecated functions has a side effect of adding the address and slot to the access list
 	addressOk = bool(s.context.AccessAccount(tosca.Address(address)))
 	slotOk = bool(s.context.AccessStorage(tosca.Address(address), tosca.Key(slot)))
 	return addressOk, slotOk

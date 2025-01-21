@@ -222,7 +222,7 @@ func TestGetProcessors_ContainsMainConfigurations(t *testing.T) {
 	wanted := []string{
 		"opera/geth", "opera/lfvm", "opera/evmzero",
 		"floria/geth", "floria/lfvm", "floria/evmzero",
-		"geth-ftm/geth", "geth-ftm/lfvm", "geth-ftm/evmzero",
+		"geth-sonic/geth", "geth-sonic/lfvm", "geth-sonic/evmzero",
 	}
 	for _, n := range wanted {
 		if !slices.Contains(all, n) {
