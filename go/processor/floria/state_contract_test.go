@@ -61,7 +61,7 @@ func TestStateContract_executeStateSetBalance(t *testing.T) {
 	for testName, test := range tests {
 		t.Run(testName, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			state := tosca.NewMockWorldState(ctrl)
+			state := tosca.NewMockProcessorContext(ctrl)
 
 			wantGas := tosca.Gas(0)
 			if test.expectedError == nil {
@@ -112,7 +112,7 @@ func TestStateContract_executeStateCopyCode(t *testing.T) {
 	for testName, test := range tests {
 		t.Run(testName, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			state := tosca.NewMockWorldState(ctrl)
+			state := tosca.NewMockProcessorContext(ctrl)
 			state.EXPECT().GetCode(tosca.Address{}).Return(make([]byte, codeSize)).AnyTimes()
 
 			wantGas := tosca.Gas(0)
@@ -164,7 +164,7 @@ func TestStateContract_executeStateSwapCode(t *testing.T) {
 	for testName, test := range tests {
 		t.Run(testName, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			state := tosca.NewMockWorldState(ctrl)
+			state := tosca.NewMockProcessorContext(ctrl)
 			state.EXPECT().GetCode(address0x00).Return(make([]byte, codeSize)).AnyTimes()
 			state.EXPECT().GetCode(address0x01).Return(make([]byte, codeSize)).AnyTimes()
 
@@ -213,7 +213,7 @@ func TestStateContract_executeStateSetStorage(t *testing.T) {
 	for testName, test := range tests {
 		t.Run(testName, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			state := tosca.NewMockWorldState(ctrl)
+			state := tosca.NewMockProcessorContext(ctrl)
 
 			wantGas := tosca.Gas(0)
 			if test.expectedError == nil {
@@ -275,7 +275,7 @@ func TestStateContract_executeStateIncNonce(t *testing.T) {
 	for testName, test := range tests {
 		t.Run(testName, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			state := tosca.NewMockWorldState(ctrl)
+			state := tosca.NewMockProcessorContext(ctrl)
 
 			wantGas := tosca.Gas(0)
 			if test.expectedError == nil {
@@ -305,21 +305,21 @@ func TestStateContract_HandleStatePrecompiled(t *testing.T) {
 		inputPrefix        []byte
 		input              []byte
 		isStatePrecompiled bool
-		mockSetUp          func(*tosca.MockWorldState)
+		mockSetUp          func(*tosca.MockProcessorContext)
 	}{
 		"nonPrecompiled": {
 			tosca.Address{0x20},
 			[]byte{0x01, 0x02, 0x03, 0x04},
 			make([]byte, 64),
 			false,
-			func(mock *tosca.MockWorldState) {},
+			func(mock *tosca.MockProcessorContext) {},
 		},
 		"setBalance": {
 			StateContractAddress(),
 			[]byte{0xe3, 0x4, 0x43, 0xbc},
 			make([]byte, 64),
 			true,
-			func(mock *tosca.MockWorldState) {
+			func(mock *tosca.MockProcessorContext) {
 				mock.EXPECT().SetBalance(tosca.Address{}, tosca.Value{})
 			},
 		},
@@ -328,7 +328,7 @@ func TestStateContract_HandleStatePrecompiled(t *testing.T) {
 			[]byte{0xd6, 0xa0, 0xc7, 0xaf},
 			append(append(make([]byte, 12), address0x01[:]...), make([]byte, 32)...),
 			true,
-			func(mock *tosca.MockWorldState) {
+			func(mock *tosca.MockProcessorContext) {
 				mock.EXPECT().GetCode(tosca.Address{}).Return(make([]byte, codeSize))
 				mock.EXPECT().SetCode(address0x01, tosca.Code(make([]byte, codeSize)))
 			},
@@ -338,7 +338,7 @@ func TestStateContract_HandleStatePrecompiled(t *testing.T) {
 			[]byte{0x7, 0x69, 0xb, 0x2a},
 			append(append(make([]byte, 12), address0x01[:]...), make([]byte, 32)...),
 			true,
-			func(mock *tosca.MockWorldState) {
+			func(mock *tosca.MockProcessorContext) {
 				mock.EXPECT().GetCode(address0x00).Return(make([]byte, codeSize))
 				mock.EXPECT().GetCode(address0x01).Return(make([]byte, codeSize))
 				mock.EXPECT().SetCode(address0x00, tosca.Code(make([]byte, codeSize)))
@@ -350,7 +350,7 @@ func TestStateContract_HandleStatePrecompiled(t *testing.T) {
 			[]byte{0x39, 0xe5, 0x3, 0xab},
 			make([]byte, 96),
 			true,
-			func(mock *tosca.MockWorldState) {
+			func(mock *tosca.MockProcessorContext) {
 				mock.EXPECT().SetStorage(tosca.Address{}, tosca.Key{}, tosca.Word{})
 			},
 		},
@@ -359,7 +359,7 @@ func TestStateContract_HandleStatePrecompiled(t *testing.T) {
 			[]byte{0x79, 0xbe, 0xad, 0x38},
 			append(make([]byte, 63), increment),
 			true,
-			func(mock *tosca.MockWorldState) {
+			func(mock *tosca.MockProcessorContext) {
 				mock.EXPECT().GetNonce(tosca.Address{}).Return(uint64(5))
 				mock.EXPECT().SetNonce(tosca.Address{}, uint64(5+increment))
 			},
@@ -368,7 +368,7 @@ func TestStateContract_HandleStatePrecompiled(t *testing.T) {
 	for testName, test := range tests {
 		t.Run(testName, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			state := tosca.NewMockWorldState(ctrl)
+			state := tosca.NewMockProcessorContext(ctrl)
 			test.mockSetUp(state)
 
 			sender := DriverAddress()
@@ -388,16 +388,16 @@ func TestStateContract_HandleStatePrecompiled(t *testing.T) {
 
 func TestStateContract_CodeOperationsWorkWithNil(t *testing.T) {
 	tests := map[string]struct {
-		operation func(tosca.WorldState, []byte, tosca.Gas) (tosca.Gas, error)
-		mockSetUp func(*tosca.MockWorldState)
+		operation func(tosca.ProcessorContext, []byte, tosca.Gas) (tosca.Gas, error)
+		mockSetUp func(*tosca.MockProcessorContext)
 	}{
 		"copyCode": {
 			executeStateContractCopyCode,
-			func(state *tosca.MockWorldState) {},
+			func(state *tosca.MockProcessorContext) {},
 		},
 		"swapCode": {
 			executeStateContractSwapCode,
-			func(state *tosca.MockWorldState) {
+			func(state *tosca.MockProcessorContext) {
 				state.EXPECT().GetCode(address0x01).Return(nil)
 				state.EXPECT().SetCode(address0x00, tosca.Code(nil))
 			},
@@ -409,7 +409,7 @@ func TestStateContract_CodeOperationsWorkWithNil(t *testing.T) {
 	for testName, test := range tests {
 		t.Run(testName, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			state := tosca.NewMockWorldState(ctrl)
+			state := tosca.NewMockProcessorContext(ctrl)
 			state.EXPECT().GetCode(address0x00).Return(nil)
 			state.EXPECT().SetCode(address0x01, tosca.Code(nil))
 			test.mockSetUp(state)
@@ -443,7 +443,7 @@ func TestStateContract_InvalidCallReportsFailure(t *testing.T) {
 	for testName, test := range tests {
 		t.Run(testName, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			state := tosca.NewMockWorldState(ctrl)
+			state := tosca.NewMockProcessorContext(ctrl)
 
 			result, isStatePrecompiled := handleStateContract(state, test.sender, StateContractAddress(), test.input, 1000000)
 			if isStatePrecompiled != true {

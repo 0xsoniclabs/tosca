@@ -49,7 +49,7 @@ func (m *MockProcessor) EXPECT() *MockProcessorMockRecorder {
 }
 
 // Run mocks base method.
-func (m *MockProcessor) Run(arg0 BlockParameters, arg1 Transaction, arg2 TransactionContext) (Receipt, error) {
+func (m *MockProcessor) Run(arg0 BlockParameters, arg1 Transaction, arg2 ProcessorContext) (Receipt, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Run", arg0, arg1, arg2)
 	ret0, _ := ret[0].(Receipt)

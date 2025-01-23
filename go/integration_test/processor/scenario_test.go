@@ -22,14 +22,14 @@ import (
 
 func TestScenarioContext_AccountsAreImplictilyCreated(t *testing.T) {
 	addr := tosca.Address{1}
-	tests := map[string]func(tosca.WorldState){
-		"balance": func(s tosca.WorldState) {
+	tests := map[string]func(tosca.ProcessorContext){
+		"balance": func(s tosca.ProcessorContext) {
 			s.SetBalance(addr, tosca.NewValue(100))
 		},
-		"nonce": func(s tosca.WorldState) {
+		"nonce": func(s tosca.ProcessorContext) {
 			s.SetNonce(addr, 12)
 		},
-		"code": func(s tosca.WorldState) {
+		"code": func(s tosca.ProcessorContext) {
 			s.SetCode(addr, tosca.Code{1, 2, 3})
 		},
 	}

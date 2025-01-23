@@ -23,7 +23,7 @@ import (
 var emptyCodeHash = tosca.Hash(crypto.Keccak256(nil))
 
 type runContext struct {
-	tosca.TransactionContext
+	tosca.ProcessorContext
 	interpreter           tosca.Interpreter
 	blockParameters       tosca.BlockParameters
 	transactionParameters tosca.TransactionParameters
@@ -259,7 +259,7 @@ func createAddress(
 }
 
 func canTransferValue(
-	context tosca.TransactionContext,
+	context tosca.ProcessorContext,
 	value tosca.Value,
 	sender tosca.Address,
 	recipient *tosca.Address,
@@ -286,7 +286,7 @@ func canTransferValue(
 	return true
 }
 
-func incrementNonce(context tosca.TransactionContext, address tosca.Address) error {
+func incrementNonce(context tosca.ProcessorContext, address tosca.Address) error {
 	nonce := context.GetNonce(address)
 	if nonce+1 < nonce {
 		return fmt.Errorf("nonce overflow")
@@ -297,7 +297,7 @@ func incrementNonce(context tosca.TransactionContext, address tosca.Address) err
 
 // Only to be called after canTransferValue
 func transferValue(
-	context tosca.TransactionContext,
+	context tosca.ProcessorContext,
 	value tosca.Value,
 	sender tosca.Address,
 	recipient tosca.Address,

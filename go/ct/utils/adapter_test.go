@@ -155,41 +155,39 @@ func TestAdapter_ParameterConversion(t *testing.T) {
 				return val2, ctxt.GetStorage(tosca.Address{}, key1)
 			},
 		},
-		"storage-original-unspecified": {
-			func(s *st.State) {
-				s.Storage = st.NewStorageBuilder().
-					SetCurrent(cc.NewU256(1), cc.NewU256(2)).
-					Build()
-			},
-			func(p tosca.Parameters) (any, any) {
-				ctxt := p.Context
-				//lint:ignore SA1019 deprecated functions to be migrated in #616
-				return tosca.Word{}, ctxt.GetCommittedStorage(tosca.Address{}, tosca.Key{})
-			},
-		},
-		"storage-original-specified": {
-			func(s *st.State) {
-				s.Storage = st.NewStorageBuilder().
-					SetOriginal(cc.NewU256(1), cc.NewU256(2)).
-					Build()
-			},
-			func(p tosca.Parameters) (any, any) {
-				ctxt := p.Context
-				key1 := tosca.Key(cc.NewU256(1).Bytes32be())
-				val2 := tosca.Word(cc.NewU256(2).Bytes32be())
-				//lint:ignore SA1019 deprecated functions to be migrated in #616
-				return val2, ctxt.GetCommittedStorage(tosca.Address{}, key1)
-			},
-		},
+		// "storage-original-unspecified": {
+		// 	func(s *st.State) {
+		// 		s.Storage = st.NewStorageBuilder().
+		// 			SetCurrent(cc.NewU256(1), cc.NewU256(2)).
+		// 			Build()
+		// 	},
+		// 	func(p tosca.Parameters) (any, any) {
+		// 		ctxt := p.Context
+		// 		//lint:ignore SA1019 deprecated functions to be migrated in #616
+		// 		return tosca.Word{}, ctxt.GetCommittedStorage(tosca.Address{}, tosca.Key{})
+		// 	},
+		// },
+		// "storage-original-specified": {
+		// 	func(s *st.State) {
+		// 		s.Storage = st.NewStorageBuilder().
+		// 			SetOriginal(cc.NewU256(1), cc.NewU256(2)).
+		// 			Build()
+		// 	},
+		// 	func(p tosca.Parameters) (any, any) {
+		// 		ctxt := p.Context
+		// 		key1 := tosca.Key(cc.NewU256(1).Bytes32be())
+		// 		val2 := tosca.Word(cc.NewU256(2).Bytes32be())
+		// 		//lint:ignore SA1019 deprecated functions to be migrated in #616
+		// 		return val2, ctxt.GetCommittedStorage(tosca.Address{}, key1)
+		// 	},
+		// },
 		"cold-slot": {
 			func(s *st.State) {
 				s.Storage = st.NewStorageBuilder().Build()
 			},
 			func(p tosca.Parameters) (any, any) {
 				ctxt := p.Context
-				//lint:ignore SA1019 deprecated functions to be migrated in #616
-				_, res := ctxt.IsSlotInAccessList(tosca.Address{}, tosca.Key{})
-				return false, res
+				return false, bool(ctxt.AccessStorage(tosca.Address{}, tosca.Key{}))
 			},
 		},
 		"warm-slot": {
@@ -200,9 +198,7 @@ func TestAdapter_ParameterConversion(t *testing.T) {
 			},
 			func(p tosca.Parameters) (any, any) {
 				ctxt := p.Context
-				//lint:ignore SA1019 deprecated functions to be migrated in #616
-				_, res := ctxt.IsSlotInAccessList(tosca.Address{}, tosca.Key{})
-				return true, res
+				return true, bool(ctxt.AccessStorage(tosca.Address{}, tosca.Key{}))
 			},
 		},
 		"balance-unspecified": {
@@ -315,8 +311,7 @@ func TestAdapter_ParameterConversion(t *testing.T) {
 			},
 			func(p tosca.Parameters) (any, any) {
 				ctxt := p.Context
-				//lint:ignore SA1019 deprecated functions to be migrated in #616
-				return false, ctxt.IsAddressInAccessList(tosca.Address{})
+				return false, bool(ctxt.AccessAccount(tosca.Address{}))
 			},
 		},
 		"warm-account-legacy": {
@@ -326,8 +321,7 @@ func TestAdapter_ParameterConversion(t *testing.T) {
 			},
 			func(p tosca.Parameters) (any, any) {
 				ctxt := p.Context
-				//lint:ignore SA1019 deprecated functions to be migrated in #616
-				return true, ctxt.IsAddressInAccessList(tosca.Address{})
+				return true, bool(ctxt.AccessAccount(tosca.Address{}))
 			},
 		},
 	}

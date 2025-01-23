@@ -218,7 +218,7 @@ func canTransferFunc(stateDB geth.StateDB, callerAddress common.Address, value *
 // in test environment setups. The main purpose is to facilitate unit, integration, and
 // conformance testing for the geth interpreter.
 type stateDbAdapter struct {
-	context         tosca.TransactionContext
+	context         tosca.InterpreterContext
 	refund          uint64
 	lastBeneficiary tosca.Address
 	refundBackups   map[tosca.Snapshot]uint64

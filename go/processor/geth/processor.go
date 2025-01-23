@@ -47,7 +47,7 @@ type Processor struct {
 func (p *Processor) Run(
 	blockParameters tosca.BlockParameters,
 	transaction tosca.Transaction,
-	context tosca.TransactionContext,
+	context tosca.ProcessorContext,
 ) (tosca.Receipt, error) {
 	blockContext := newBlockContext(blockParameters, context)
 	txContext := vm.TxContext{
@@ -84,7 +84,7 @@ func (p *Processor) Run(
 	}, nil
 }
 
-func newBlockContext(blockParameters tosca.BlockParameters, context tosca.TransactionContext) vm.BlockContext {
+func newBlockContext(blockParameters tosca.BlockParameters, context tosca.ProcessorContext) vm.BlockContext {
 	canTransfer := func(stateDB vm.StateDB, address common.Address, value *uint256.Int) bool {
 		return stateDB.GetBalance(address).Cmp(value) >= 0
 	}
@@ -200,7 +200,7 @@ func transactionToMessage(transaction tosca.Transaction, baseFee tosca.Value) *c
 // stateDB is a wrapper around the tosca.TransactionContext to implement the vm.StateDB interface.
 // TODO: merge with tosca/go/interpreter/geth/geth.go stateDbAdapter
 type stateDB struct {
-	context         tosca.TransactionContext
+	context         tosca.ProcessorContext
 	refund          uint64
 	createdContract common.Address
 	refundBackups   map[tosca.Snapshot]uint64

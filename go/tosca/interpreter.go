@@ -72,7 +72,7 @@ type TransactionParameters struct {
 // RunContext provides an interface to access and manipulate state and transaction
 // properties as needed by individual EVM instructions.
 type RunContext interface {
-	TransactionContext
+	InterpreterContext
 
 	Call(kind CallKind, parameter CallParameters) (CallResult, error)
 }
@@ -100,6 +100,55 @@ type TransactionContext interface {
 
 	// GetBlockHash returns the hash of the block with the given number.
 	GetBlockHash(number int64) Hash
+
+	// -- legacy API needed by LFVM and Geth, to be removed in the future ---
+
+	// Deprecated: should not be needed when using result of SetStorage(..)
+	GetCommittedStorage(addr Address, key Key) Word
+	// Deprecated: should not be needed when using result of SetStorage(..)
+	IsAddressInAccessList(addr Address) bool
+	// Deprecated: should not be needed when using result of SetStorage(..)
+	IsSlotInAccessList(addr Address, key Key) (addressPresent, slotPresent bool)
+	// Deprecated: should not be needed
+	HasSelfDestructed(addr Address) bool
+}
+
+type InterpreterContext interface {
+	GetBalance(Address) Value
+
+	GetNonce(Address) uint64
+
+	GetCode(Address) Code
+	GetCodeHash(Address) Hash
+	GetCodeSize(Address) int
+
+	GetStorage(Address, Key) Word
+	SetStorage(Address, Key, Word) StorageStatus
+
+	GetTransientStorage(Address, Key) Word
+	SetTransientStorage(Address, Key, Word)
+
+	AccessAccount(Address) AccessStatus
+	AccessStorage(Address, Key) AccessStatus
+
+	SelfDestruct(addr Address, beneficiary Address) bool
+
+	EmitLog(Log)
+
+	GetBlockHash(number int64) Hash
+}
+
+type ProcessorContext interface {
+	InterpreterContext
+
+	AccountExists(Address) bool
+	SetBalance(Address, Value)
+	SetNonce(Address, uint64)
+	SetCode(Address, Code)
+
+	CreateSnapshot() Snapshot
+	RestoreSnapshot(Snapshot)
+	GetLogs() []Log
 
 	// -- legacy API needed by LFVM and Geth, to be removed in the future ---
 

@@ -76,7 +76,7 @@ func (e *Example) RunOn(interpreter tosca.Interpreter, argument int) (Result, er
 
 // RunOnProcessor runs this example on the given processor, using the given argument.
 func (e *Example) RunOnProcessor(processor tosca.Processor, argument int,
-	transaction tosca.Transaction, transactionContext tosca.TransactionContext) (Result, error) {
+	transaction tosca.Transaction, transactionContext tosca.ProcessorContext) (Result, error) {
 
 	blockParameters := tosca.BlockParameters{}
 	transaction.Input = encodeArgument(e.function, argument)

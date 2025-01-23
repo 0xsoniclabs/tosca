@@ -81,7 +81,7 @@ type processor struct {
 func (p *processor) Run(
 	blockParams tosca.BlockParameters,
 	transaction tosca.Transaction,
-	context tosca.TransactionContext,
+	context tosca.ProcessorContext,
 ) (tosca.Receipt, error) {
 
 	// --- setup ---
@@ -303,7 +303,7 @@ func keccak(data []byte) tosca.Hash {
 	return res
 }
 
-func preCheck(transaction tosca.Transaction, state tosca.WorldState) error {
+func preCheck(transaction tosca.Transaction, state tosca.ProcessorContext) error {
 	// Only check transactions that are not fake
 	// TODO: add support for non-checked transactions
 
@@ -328,7 +328,7 @@ func preCheck(transaction tosca.Transaction, state tosca.WorldState) error {
 	return buyGas(transaction, state)
 }
 
-func buyGas(tx tosca.Transaction, state tosca.WorldState) error {
+func buyGas(tx tosca.Transaction, state tosca.ProcessorContext) error {
 	// TODO: support arithmetic operations with Value type
 	gasPrice := tx.GasPrice.ToUint256()
 	mgval := uint256.NewInt(uint64(tx.GasLimit))

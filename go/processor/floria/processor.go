@@ -48,7 +48,7 @@ type processor struct {
 func (p *processor) Run(
 	blockParameters tosca.BlockParameters,
 	transaction tosca.Transaction,
-	context tosca.TransactionContext,
+	context tosca.ProcessorContext,
 ) (tosca.Receipt, error) {
 	errorReceipt := tosca.Receipt{
 		Success: false,
@@ -132,7 +132,7 @@ func (p *processor) Run(
 // floriaContext is a wrapper around the tosca.TransactionContext
 // that adds the balance transfer to the selfdestruct function
 type floriaContext struct {
-	tosca.TransactionContext
+	tosca.ProcessorContext
 	// the original selfdestruct function is saved here, as it still needs to be called
 	selfdestruct func(addr, beneficiary tosca.Address) bool
 }
@@ -153,7 +153,7 @@ func nonceCheck(transactionNonce uint64, stateNonce uint64) error {
 }
 
 // Only accept transactions from externally owned accounts (EOAs) and not from contracts
-func eoaCheck(sender tosca.Address, context tosca.TransactionContext) error {
+func eoaCheck(sender tosca.Address, context tosca.ProcessorContext) error {
 	codehash := context.GetCodeHash(sender)
 	if codehash != (tosca.Hash{}) && codehash != emptyCodeHash {
 		return fmt.Errorf("sender is not an EOA")
@@ -161,7 +161,7 @@ func eoaCheck(sender tosca.Address, context tosca.TransactionContext) error {
 	return nil
 }
 
-func setUpAccessList(transaction tosca.Transaction, context tosca.TransactionContext, revision tosca.Revision) {
+func setUpAccessList(transaction tosca.Transaction, context tosca.ProcessorContext, revision tosca.Revision) {
 	if transaction.AccessList == nil {
 		return
 	}
@@ -234,7 +234,7 @@ func calculateGasLeft(transaction tosca.Transaction, result tosca.CallResult, re
 	return gasLeft
 }
 
-func refundGas(transaction tosca.Transaction, context tosca.TransactionContext, gasLeft tosca.Gas) {
+func refundGas(transaction tosca.Transaction, context tosca.ProcessorContext, gasLeft tosca.Gas) {
 	refundValue := transaction.GasPrice.Scale(uint64(gasLeft))
 	senderBalance := context.GetBalance(transaction.Sender)
 	senderBalance = tosca.Add(senderBalance, refundValue)
@@ -277,7 +277,7 @@ func calculateSetupGas(transaction tosca.Transaction) tosca.Gas {
 	return tosca.Gas(gas)
 }
 
-func buyGas(transaction tosca.Transaction, context tosca.TransactionContext) error {
+func buyGas(transaction tosca.Transaction, context tosca.ProcessorContext) error {
 	gas := transaction.GasPrice.Scale(uint64(transaction.GasLimit))
 
 	// Buy gas
