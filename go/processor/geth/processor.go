@@ -16,7 +16,6 @@ import (
 
 	"github.com/0xsoniclabs/tosca/go/geth_adapter"
 	"github.com/0xsoniclabs/tosca/go/tosca"
-	"github.com/0xsoniclabs/tosca/go/tosca_adapter"
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -54,7 +53,7 @@ func (p *Processor) Run(
 		GasPrice:   transaction.GasPrice.ToBig(),
 		BlobFeeCap: blockParameters.BlobBaseFee.ToBig(),
 	}
-	stateDB := tosca_adapter.NewStateDB(context)
+	stateDB := geth_adapter.NewStateDB(context)
 	chainConfig := blockParametersToChainConfig(blockParameters)
 	config := newEVMConfig(p.interpreter, p.ethereumCompatible)
 	evm := vm.NewEVM(blockContext, txContext, stateDB, chainConfig, config)

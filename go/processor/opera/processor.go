@@ -26,7 +26,6 @@ import (
 	"github.com/0xsoniclabs/tosca/go/geth_adapter"
 	geth_interpreter "github.com/0xsoniclabs/tosca/go/interpreter/geth"
 	"github.com/0xsoniclabs/tosca/go/tosca"
-	"github.com/0xsoniclabs/tosca/go/tosca_adapter"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/tracing"
@@ -153,7 +152,7 @@ func (p *processor) Run(
 		chainConfig.IstanbulBlock = big.NewInt(blockParams.BlockNumber + 1)
 	}
 
-	stateDb := tosca_adapter.NewStateDB(context)
+	stateDb := geth_adapter.NewStateDB(context)
 	evm := geth.NewEVM(blockCtx, txCtx, stateDb, &chainConfig, config)
 
 	// -- start of execution --

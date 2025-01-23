@@ -26,8 +26,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 	"go.uber.org/mock/gomock"
-
-	_ "github.com/0xsoniclabs/tosca/go/interpreter/geth"
 )
 
 //go:generate mockgen -source adapter_test.go -destination adapter_test_mocks.go -package geth_adapter

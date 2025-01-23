@@ -16,8 +16,8 @@ import (
 	"math/big"
 
 	ct "github.com/0xsoniclabs/tosca/go/ct/common"
+	"github.com/0xsoniclabs/tosca/go/geth_adapter"
 	"github.com/0xsoniclabs/tosca/go/tosca"
-	"github.com/0xsoniclabs/tosca/go/tosca_adapter"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	geth "github.com/ethereum/go-ethereum/core/vm"
@@ -133,7 +133,7 @@ func currentBlock(revision tosca.Revision) *big.Int {
 	return big.NewInt(int64(block + 2))
 }
 
-func createGethInterpreterContext(parameters tosca.Parameters) (*geth.EVM, *geth.Contract, *tosca_adapter.StateDB) {
+func createGethInterpreterContext(parameters tosca.Parameters) (*geth.EVM, *geth.Contract, *geth_adapter.StateDB) {
 	// Set hard forks for chainconfig
 	chainConfig :=
 		MakeChainConfig(*params.AllEthashProtocolChanges,
@@ -177,7 +177,7 @@ func createGethInterpreterContext(parameters tosca.Parameters) (*geth.EVM, *geth
 	// Set interpreter variant for this VM
 	config := geth.Config{}
 
-	stateDb := tosca_adapter.NewStateDB(parameters.Context)
+	stateDb := geth_adapter.NewStateDB(parameters.Context)
 	evm := geth.NewEVM(blockCtx, txCtx, stateDb, &chainConfig, config)
 
 	evm.Origin = common.Address(parameters.Origin)

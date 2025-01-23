@@ -17,8 +17,8 @@ import (
 	"github.com/0xsoniclabs/tosca/go/ct/common"
 	"github.com/0xsoniclabs/tosca/go/ct/st"
 	"github.com/0xsoniclabs/tosca/go/ct/utils"
+	"github.com/0xsoniclabs/tosca/go/geth_adapter"
 	"github.com/0xsoniclabs/tosca/go/tosca"
-	"github.com/0xsoniclabs/tosca/go/tosca_adapter"
 	geth_common "github.com/ethereum/go-ethereum/common"
 	geth_vm "github.com/ethereum/go-ethereum/core/vm"
 	"github.com/holiman/uint256"
@@ -142,7 +142,7 @@ func convertGethStackToCtStack(state *geth_vm.InterpreterState, stack *st.Stack)
 
 type callInterceptor struct {
 	parameters tosca.Parameters
-	stateDb    *tosca_adapter.StateDB
+	stateDb    *geth_adapter.StateDB
 	static     bool
 }
 
