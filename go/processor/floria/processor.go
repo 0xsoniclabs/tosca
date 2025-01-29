@@ -54,6 +54,7 @@ func (p *processor) Run(
 		Success: false,
 		GasUsed: transaction.GasLimit,
 	}
+	gasPrice := calculateGasPrice(blockParameters.BaseFee, transaction.GasFeeCap, transaction.GasTipCap)
 	gas := transaction.GasLimit
 
 	if nonceCheck(transaction.Nonce, context.GetNonce(transaction.Sender)) != nil {
@@ -64,7 +65,7 @@ func (p *processor) Run(
 		return tosca.Receipt{}, nil
 	}
 
-	if err := buyGas(transaction, context); err != nil {
+	if err := buyGas(transaction, context, gasPrice); err != nil {
 		return tosca.Receipt{}, nil
 	}
 
@@ -81,7 +82,7 @@ func (p *processor) Run(
 
 	transactionParameters := tosca.TransactionParameters{
 		Origin:     transaction.Sender,
-		GasPrice:   transaction.GasPrice,
+		GasPrice:   gasPrice,
 		BlobHashes: []tosca.Hash{}, // ?
 	}
 
@@ -116,7 +117,7 @@ func (p *processor) Run(
 	}
 
 	gasLeft := calculateGasLeft(transaction, result, blockParameters.Revision)
-	refundGas(transaction, context, gasLeft)
+	refundGas(context, transaction.Sender, gasPrice, gasLeft)
 
 	logs := context.GetLogs()
 
@@ -127,6 +128,11 @@ func (p *processor) Run(
 		Output:          result.Output,
 		Logs:            logs,
 	}, nil
+}
+
+func calculateGasPrice(baseFee, gasFeeCap, gasTipCap tosca.Value) tosca.Value {
+	gasPrice := tosca.Add(baseFee, tosca.Min(gasTipCap, tosca.Sub(gasFeeCap, baseFee)))
+	return gasPrice
 }
 
 // floriaContext is a wrapper around the tosca.TransactionContext
@@ -234,11 +240,11 @@ func calculateGasLeft(transaction tosca.Transaction, result tosca.CallResult, re
 	return gasLeft
 }
 
-func refundGas(transaction tosca.Transaction, context tosca.TransactionContext, gasLeft tosca.Gas) {
-	refundValue := transaction.GasPrice.Scale(uint64(gasLeft))
-	senderBalance := context.GetBalance(transaction.Sender)
+func refundGas(context tosca.TransactionContext, sender tosca.Address, gasPrice tosca.Value, gasLeft tosca.Gas) {
+	refundValue := gasPrice.Scale(uint64(gasLeft))
+	senderBalance := context.GetBalance(sender)
 	senderBalance = tosca.Add(senderBalance, refundValue)
-	context.SetBalance(transaction.Sender, senderBalance)
+	context.SetBalance(sender, senderBalance)
 }
 
 func calculateSetupGas(transaction tosca.Transaction) tosca.Gas {
@@ -277,8 +283,8 @@ func calculateSetupGas(transaction tosca.Transaction) tosca.Gas {
 	return tosca.Gas(gas)
 }
 
-func buyGas(transaction tosca.Transaction, context tosca.TransactionContext) error {
-	gas := transaction.GasPrice.Scale(uint64(transaction.GasLimit))
+func buyGas(transaction tosca.Transaction, context tosca.TransactionContext, gasPrice tosca.Value) error {
+	gas := gasPrice.Scale(uint64(transaction.GasLimit))
 
 	// Buy gas
 	senderBalance := context.GetBalance(transaction.Sender)

@@ -130,7 +130,8 @@ func TestProcessor_CreateAndCallContract(t *testing.T) {
 					Recipient: &receiver0,
 					GasLimit:  gasLimit,
 					Input:     append(bytes.Repeat([]byte{0}, 31), input),
-					GasPrice:  tosca.NewValue(gasPrice),
+					GasFeeCap: tosca.NewValue(gasPrice),
+					GasTipCap: tosca.NewValue(gasPrice),
 				}
 
 				transactionContext := newScenarioContext(state)

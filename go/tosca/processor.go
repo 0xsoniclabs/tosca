@@ -30,7 +30,8 @@ type Transaction struct {
 	Input         Data          // the input data for the transaction
 	Value         Value         // the amount of network currency to transfer to the recipient
 	GasLimit      Gas           // the maximum amount of gas that can be used by the transaction
-	GasPrice      Value         // the effective price of a unit of gas for this transaction
+	GasFeeCap     Value         // the amount of network currency the sender is willing to pay for gas
+	GasTipCap     Value         // the amount of network currency the sender is willing to pay as a tip
 	BlobGasFeeCap Value         // the amount of network currency the sender is willing to pay for blob gas
 	BlobHashes    []Hash        // the hashes of the blobs for this transaction
 	AccessList    []AccessTuple // the list of accounts and storage slots expected to be accessed

@@ -262,7 +262,8 @@ func gasPricingTestCases() map[string]Scenario {
 		Sender:    sender,
 		Recipient: &tosca.Address{2},
 		GasLimit:  floria.TxGas,
-		GasPrice:  tosca.NewValue(gasPrice),
+		GasFeeCap: tosca.NewValue(gasPrice),
+		GasTipCap: tosca.NewValue(gasPrice),
 		Nonce:     4,
 	}
 

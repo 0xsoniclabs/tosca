@@ -84,6 +84,13 @@ func ValueFromUint256(value *uint256.Int) (result Value) {
 	return value.Bytes32()
 }
 
+func Min(a, b Value) Value {
+	if a.Cmp(b) < 0 {
+		return a
+	}
+	return b
+}
+
 func Add(a, b Value) (z Value) {
 	res, carry := bits.Add64(a.getInternalUint64(0), b.getInternalUint64(0), 0)
 	binary.BigEndian.PutUint64(z[24:32], res)

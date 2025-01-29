@@ -76,7 +76,8 @@ func TestProcessor_GasBillingEndToEnd(t *testing.T) {
 		Sender:    sender,
 		Recipient: &recipient,
 		GasLimit:  gasLimit,
-		GasPrice:  gasPrice,
+		GasFeeCap: gasPrice,
+		GasTipCap: gasPrice,
 		Nonce:     4,
 	}
 

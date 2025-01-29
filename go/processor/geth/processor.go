@@ -47,6 +47,12 @@ func (p *Processor) Run(
 	transaction tosca.Transaction,
 	context tosca.TransactionContext,
 ) (tosca.Receipt, error) {
+	noBaseFee := transaction.GasFeeCap == tosca.NewValue(0) && transaction.GasTipCap == tosca.NewValue(0)
+	if noBaseFee {
+		blockParameters.BaseFee = tosca.NewValue(0)
+	}
+	gasPrice := calculateGasPrice(blockParameters.BaseFee, transaction.GasFeeCap, transaction.GasTipCap)
+
 	blockContext := newBlockContext(blockParameters, context)
 
 	var blobHashes []common.Hash
@@ -59,17 +65,17 @@ func (p *Processor) Run(
 
 	txContext := vm.TxContext{
 		Origin:     common.Address(transaction.Sender),
-		GasPrice:   transaction.GasPrice.ToBig(),
+		GasPrice:   gasPrice.ToBig(),
 		BlobHashes: blobHashes,
 		BlobFeeCap: transaction.BlobGasFeeCap.ToBig(),
 	}
 	stateDB := geth_adapter.NewStateDB(context)
 	chainConfig := blockParametersToChainConfig(blockParameters)
-	config := newEVMConfig(p.interpreter, p.ethereumCompatible)
+	config := newEVMConfig(p.interpreter, noBaseFee, p.ethereumCompatible)
 	evm := vm.NewEVM(blockContext, txContext, stateDB, chainConfig, config)
 
-	msg := transactionToMessage(transaction, blockParameters.BaseFee, blobHashes)
-	gasPool := new(core.GasPool).AddGas(uint64(transaction.GasLimit))
+	msg := transactionToMessage(transaction, gasPrice, blobHashes)
+	gasPool := new(core.GasPool).AddGas(uint64(blockParameters.GasLimit))
 	result, err := core.ApplyMessage(evm, msg, gasPool)
 	if err != nil {
 		if !p.ethereumCompatible && errors.Is(err, core.ErrInsufficientFunds) {
@@ -103,6 +109,11 @@ func (p *Processor) Run(
 		GasUsed:         tosca.Gas(result.UsedGas),
 		Logs:            logs,
 	}, nil
+}
+
+func calculateGasPrice(baseFee, gasFeeCap, gasTipCap tosca.Value) tosca.Value {
+	gasPrice := tosca.Add(baseFee, tosca.Min(gasTipCap, tosca.Sub(gasFeeCap, baseFee)))
+	return gasPrice
 }
 
 func newBlockContext(blockParameters tosca.BlockParameters, context tosca.TransactionContext) vm.BlockContext {
@@ -169,12 +180,13 @@ func blockParametersToChainConfig(blockParams tosca.BlockParameters) *params.Cha
 	return &chainConfig
 }
 
-func newEVMConfig(interpreter tosca.Interpreter, ethereumCompatible bool) vm.Config {
+func newEVMConfig(interpreter tosca.Interpreter, noBaseFee bool, ethereumCompatible bool) vm.Config {
 	config := vm.Config{
 		StatePrecompiles: map[common.Address]vm.PrecompiledStateContract{
 			stateContractAddress: PreCompiledContract{},
 		},
 		Interpreter: geth_adapter.NewGethInterpreterFactory(interpreter),
+		NoBaseFee:   noBaseFee,
 	}
 	if !ethereumCompatible {
 		config.ChargeExcessGas = true
@@ -185,7 +197,7 @@ func newEVMConfig(interpreter tosca.Interpreter, ethereumCompatible bool) vm.Con
 	return config
 }
 
-func transactionToMessage(transaction tosca.Transaction, baseFee tosca.Value, blobHashes []common.Hash) *core.Message {
+func transactionToMessage(transaction tosca.Transaction, gasPrice tosca.Value, blobHashes []common.Hash) *core.Message {
 	accessList := types.AccessList{}
 	for _, tuple := range transaction.AccessList {
 		storageKeys := make([]common.Hash, len(tuple.Keys))
@@ -199,16 +211,14 @@ func transactionToMessage(transaction tosca.Transaction, baseFee tosca.Value, bl
 	}
 
 	return &core.Message{
-		From:     common.Address(transaction.Sender),
-		To:       (*common.Address)(transaction.Recipient),
-		Nonce:    transaction.Nonce,
-		Value:    transaction.Value.ToBig(),
-		GasLimit: uint64(transaction.GasLimit),
-		GasPrice: transaction.GasPrice.ToBig(),
-		// gas price computation and enforcement of cap is currently performed outside of processor
-		// TODO: extend the tosca.Transaction to include GasFeeCap and GasTipCap
-		GasFeeCap:         big.NewInt(0).Add(baseFee.ToBig(), big.NewInt(1)),
-		GasTipCap:         big.NewInt(0),
+		From:              common.Address(transaction.Sender),
+		To:                (*common.Address)(transaction.Recipient),
+		Nonce:             transaction.Nonce,
+		Value:             transaction.Value.ToBig(),
+		GasLimit:          uint64(transaction.GasLimit),
+		GasPrice:          gasPrice.ToBig(),
+		GasFeeCap:         transaction.GasFeeCap.ToBig(),
+		GasTipCap:         transaction.GasTipCap.ToBig(),
 		Data:              transaction.Input,
 		AccessList:        accessList,
 		BlobGasFeeCap:     transaction.BlobGasFeeCap.ToBig(),
