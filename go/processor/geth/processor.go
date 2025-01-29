@@ -48,17 +48,27 @@ func (p *Processor) Run(
 	context tosca.TransactionContext,
 ) (tosca.Receipt, error) {
 	blockContext := newBlockContext(blockParameters, context)
+
+	var blobHashes []common.Hash
+	if transaction.BlobHashes != nil {
+		blobHashes = make([]common.Hash, len(transaction.BlobHashes))
+		for i, hash := range transaction.BlobHashes {
+			blobHashes[i] = common.Hash(hash)
+		}
+	}
+
 	txContext := vm.TxContext{
 		Origin:     common.Address(transaction.Sender),
 		GasPrice:   transaction.GasPrice.ToBig(),
-		BlobFeeCap: blockParameters.BlobBaseFee.ToBig(),
+		BlobHashes: blobHashes,
+		BlobFeeCap: transaction.BlobGasFeeCap.ToBig(),
 	}
 	stateDB := geth_adapter.NewStateDB(context)
 	chainConfig := blockParametersToChainConfig(blockParameters)
 	config := newEVMConfig(p.interpreter, p.ethereumCompatible)
 	evm := vm.NewEVM(blockContext, txContext, stateDB, chainConfig, config)
 
-	msg := transactionToMessage(transaction, blockParameters.BaseFee)
+	msg := transactionToMessage(transaction, blockParameters.BaseFee, blobHashes)
 	gasPool := new(core.GasPool).AddGas(uint64(transaction.GasLimit))
 	result, err := core.ApplyMessage(evm, msg, gasPool)
 	if err != nil {
@@ -175,7 +185,7 @@ func newEVMConfig(interpreter tosca.Interpreter, ethereumCompatible bool) vm.Con
 	return config
 }
 
-func transactionToMessage(transaction tosca.Transaction, baseFee tosca.Value) *core.Message {
+func transactionToMessage(transaction tosca.Transaction, baseFee tosca.Value, blobHashes []common.Hash) *core.Message {
 	accessList := types.AccessList{}
 	for _, tuple := range transaction.AccessList {
 		storageKeys := make([]common.Hash, len(tuple.Keys))
@@ -197,13 +207,12 @@ func transactionToMessage(transaction tosca.Transaction, baseFee tosca.Value) *c
 		GasPrice: transaction.GasPrice.ToBig(),
 		// gas price computation and enforcement of cap is currently performed outside of processor
 		// TODO: extend the tosca.Transaction to include GasFeeCap and GasTipCap
-		GasFeeCap:  big.NewInt(0).Add(baseFee.ToBig(), big.NewInt(1)),
-		GasTipCap:  big.NewInt(0),
-		Data:       transaction.Input,
-		AccessList: accessList,
-		// TODO: add support for blobs in the tosca.Transaction
-		BlobGasFeeCap:     big.NewInt(0),
-		BlobHashes:        nil,
+		GasFeeCap:         big.NewInt(0).Add(baseFee.ToBig(), big.NewInt(1)),
+		GasTipCap:         big.NewInt(0),
+		Data:              transaction.Input,
+		AccessList:        accessList,
+		BlobGasFeeCap:     transaction.BlobGasFeeCap.ToBig(),
+		BlobHashes:        blobHashes,
 		SkipAccountChecks: false,
 	}
 }
