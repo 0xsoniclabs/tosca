@@ -35,6 +35,10 @@ type Scenario struct {
 func (s *Scenario) Run(t *testing.T, processor tosca.Processor) {
 
 	context := newScenarioContext(s.Before)
+	if s.Parameters.GasLimit == 0 {
+		// Provide a sufficient gas limit for the block
+		s.Parameters.GasLimit = 1000000
+	}
 	receipt, err := processor.Run(s.Parameters, s.Transaction, context)
 	if err != nil && s.OperaError == nil {
 		t.Fatalf("failed to run transaction: %v", err)

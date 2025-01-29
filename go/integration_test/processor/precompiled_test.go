@@ -91,7 +91,7 @@ func TestProcessor_PreCompiledContractsCanBeProcessed(t *testing.T) {
 				}
 
 				transactionContext := newScenarioContext(state)
-				blockParameters := tosca.BlockParameters{Revision: tosca.R13_Cancun}
+				blockParameters := tosca.BlockParameters{GasLimit: sufficientGas, Revision: tosca.R13_Cancun}
 
 				// Run the processor
 				result, err := processor.Run(blockParameters, transaction, transactionContext)
@@ -175,7 +175,7 @@ func TestPrecompiled_StatePrecompiledContractSetBalance(t *testing.T) {
 			}
 
 			transactionContext := newScenarioContext(state)
-			blockParameters := tosca.BlockParameters{Revision: tosca.R13_Cancun}
+			blockParameters := tosca.BlockParameters{GasLimit: sufficientGas, Revision: tosca.R13_Cancun}
 
 			// Run the processor
 			result, err := processor.Run(blockParameters, transaction, transactionContext)

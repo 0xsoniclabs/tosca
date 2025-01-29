@@ -78,7 +78,7 @@ func (e *Example) RunOn(interpreter tosca.Interpreter, argument int) (Result, er
 func (e *Example) RunOnProcessor(processor tosca.Processor, argument int,
 	transaction tosca.Transaction, transactionContext tosca.TransactionContext) (Result, error) {
 
-	blockParameters := tosca.BlockParameters{}
+	blockParameters := tosca.BlockParameters{GasLimit: tosca.Gas(100000000)}
 	transaction.Input = encodeArgument(e.function, argument)
 
 	receipt, err := processor.Run(blockParameters, transaction, transactionContext)

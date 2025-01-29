@@ -78,7 +78,7 @@ func TestProcessor_AccessListIsHandledCorrectly(t *testing.T) {
 					byte(vm.RETURN),
 				}...)
 
-				blockParams := tosca.BlockParameters{Revision: tosca.R09_Berlin}
+				blockParams := tosca.BlockParameters{GasLimit: sufficientGas, Revision: tosca.R09_Berlin}
 
 				transaction := tosca.Transaction{
 					Sender:     sender,

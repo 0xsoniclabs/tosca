@@ -62,7 +62,7 @@ func TestProcessor_CallValueTransfersAreHandledCorrectly(t *testing.T) {
 				transactionContext := newScenarioContext(state)
 
 				// Run the processor
-				result, err := processor.Run(tosca.BlockParameters{}, transaction, transactionContext)
+				result, err := processor.Run(tosca.BlockParameters{GasLimit: sufficientGas}, transaction, transactionContext)
 				if err != nil || !result.Success {
 					t.Fatalf("execution was not successful or failed with error %v", err)
 				}
@@ -137,7 +137,7 @@ func TestProcessor_CallsWithInsufficientBalanceAreHandledCorrectly(t *testing.T)
 				transactionContext := newScenarioContext(state)
 
 				// Run the processor
-				result, err := processor.Run(tosca.BlockParameters{}, transaction, transactionContext)
+				result, err := processor.Run(tosca.BlockParameters{GasLimit: sufficientGas}, transaction, transactionContext)
 				if err != nil || !result.Success {
 					t.Fatalf("execution was not successful or failed with error %v", err)
 				}
@@ -202,7 +202,7 @@ func TestProcessor_TransferToSelf(t *testing.T) {
 				transactionContext := newScenarioContext(state)
 
 				// Run the processor
-				result, err := processor.Run(tosca.BlockParameters{}, transaction, transactionContext)
+				result, err := processor.Run(tosca.BlockParameters{GasLimit: sufficientGas}, transaction, transactionContext)
 				if err != nil {
 					t.Fatalf("execution failed with error %v", err)
 				}

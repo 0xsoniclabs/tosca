@@ -110,6 +110,27 @@ func TestValue_NewValue(t *testing.T) {
 	}
 }
 
+func TestValue_Min(t *testing.T) {
+	tests := []struct {
+		a    Value
+		b    Value
+		want Value
+	}{
+		{NewValue(1), NewValue(2), NewValue(1)},
+		{NewValue(2), NewValue(1), NewValue(1)},
+		{NewValue(1), NewValue(1), NewValue(1)},
+		{NewValue(0), NewValue(0), NewValue(0)},
+	}
+
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("%v, %v", test.a, test.b), func(t *testing.T) {
+			if want, got := test.want, Min(test.a, test.b); want != got {
+				t.Errorf("unexpected minimum value, wanted %v, got %v", want, got)
+			}
+		})
+	}
+}
+
 func TestValue_getInternalUint64ProducesExpectedUint64Value(t *testing.T) {
 
 	tests := []struct {
