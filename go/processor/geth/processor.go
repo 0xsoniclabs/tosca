@@ -48,8 +48,7 @@ func (p *Processor) Run(
 	transaction tosca.Transaction,
 	context tosca.TransactionContext,
 ) (tosca.Receipt, error) {
-	noBaseFee := transaction.GasFeeCap == tosca.NewValue(0) && transaction.GasTipCap == tosca.NewValue(0)
-	if noBaseFee {
+	if blockParameters.Revision >= tosca.R10_London {
 		blockParameters.BaseFee = tosca.NewValue(0)
 	}
 	gasPrice, err := calculateGasPrice(blockParameters.BaseFee, transaction.GasFeeCap, transaction.GasTipCap)
@@ -75,7 +74,7 @@ func (p *Processor) Run(
 	}
 	stateDB := geth_adapter.NewStateDB(context)
 	chainConfig := blockParametersToChainConfig(blockParameters)
-	config := newEVMConfig(p.interpreter, noBaseFee, p.ethereumCompatible)
+	config := newEVMConfig(p.interpreter, p.ethereumCompatible)
 	evm := vm.NewEVM(blockContext, txContext, stateDB, chainConfig, config)
 
 	msg := transactionToMessage(transaction, gasPrice, blobHashes)
@@ -186,13 +185,12 @@ func blockParametersToChainConfig(blockParams tosca.BlockParameters) *params.Cha
 	return &chainConfig
 }
 
-func newEVMConfig(interpreter tosca.Interpreter, noBaseFee bool, ethereumCompatible bool) vm.Config {
+func newEVMConfig(interpreter tosca.Interpreter, ethereumCompatible bool) vm.Config {
 	config := vm.Config{
 		StatePrecompiles: map[common.Address]vm.PrecompiledStateContract{
 			stateContractAddress: PreCompiledContract{},
 		},
 		Interpreter: geth_adapter.NewGethInterpreterFactory(interpreter),
-		NoBaseFee:   noBaseFee,
 	}
 	if !ethereumCompatible {
 		config.ChargeExcessGas = true

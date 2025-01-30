@@ -82,7 +82,7 @@ func TestGethProcessor_RevisionConversion(t *testing.T) {
 func TestGethProcessor_ConfigAddsStateContract(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	interpreter := tosca.NewMockInterpreter(ctrl)
-	config := newEVMConfig(interpreter, false, false)
+	config := newEVMConfig(interpreter, false)
 	_, ok := config.StatePrecompiles[stateContractAddress]
 	if !ok {
 		t.Errorf("state contract not added to config")
