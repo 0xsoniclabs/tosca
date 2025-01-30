@@ -626,7 +626,7 @@ func TestProcessor_CodeStartingWith0xEFCanNotBeCreated(t *testing.T) {
 					Input:     initCode,
 				}
 
-				blockParameters := tosca.BlockParameters{GasLimit: sufficientGas, Revision: test.revision}
+				blockParameters := tosca.BlockParameters{Revision: test.revision}
 				transactionContext := newScenarioContext(state)
 
 				// Run the processor

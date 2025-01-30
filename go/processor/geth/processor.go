@@ -48,7 +48,7 @@ func (p *Processor) Run(
 	transaction tosca.Transaction,
 	context tosca.TransactionContext,
 ) (tosca.Receipt, error) {
-	if blockParameters.Revision >= tosca.R10_London {
+	if blockParameters.Revision < tosca.R10_London {
 		blockParameters.BaseFee = tosca.NewValue(0)
 	}
 	gasPrice, err := calculateGasPrice(blockParameters.BaseFee, transaction.GasFeeCap, transaction.GasTipCap)
