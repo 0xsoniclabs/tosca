@@ -12,6 +12,7 @@ package geth_processor
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/0xsoniclabs/tosca/go/geth_adapter"
@@ -51,7 +52,10 @@ func (p *Processor) Run(
 	if noBaseFee {
 		blockParameters.BaseFee = tosca.NewValue(0)
 	}
-	gasPrice := calculateGasPrice(blockParameters.BaseFee, transaction.GasFeeCap, transaction.GasTipCap)
+	gasPrice, err := calculateGasPrice(blockParameters.BaseFee, transaction.GasFeeCap, transaction.GasTipCap)
+	if err != nil {
+		return tosca.Receipt{}, err
+	}
 
 	blockContext := newBlockContext(blockParameters, context)
 
@@ -75,7 +79,7 @@ func (p *Processor) Run(
 	evm := vm.NewEVM(blockContext, txContext, stateDB, chainConfig, config)
 
 	msg := transactionToMessage(transaction, gasPrice, blobHashes)
-	gasPool := new(core.GasPool).AddGas(uint64(blockParameters.GasLimit))
+	gasPool := new(core.GasPool).AddGas(uint64(transaction.GasLimit))
 	result, err := core.ApplyMessage(evm, msg, gasPool)
 	if err != nil {
 		if !p.ethereumCompatible && errors.Is(err, core.ErrInsufficientFunds) {
@@ -111,9 +115,11 @@ func (p *Processor) Run(
 	}, nil
 }
 
-func calculateGasPrice(baseFee, gasFeeCap, gasTipCap tosca.Value) tosca.Value {
-	gasPrice := tosca.Add(baseFee, tosca.Min(gasTipCap, tosca.Sub(gasFeeCap, baseFee)))
-	return gasPrice
+func calculateGasPrice(baseFee, gasFeeCap, gasTipCap tosca.Value) (tosca.Value, error) {
+	if gasFeeCap.Cmp(baseFee) < 0 {
+		return tosca.Value{}, fmt.Errorf("gasFeeCap %v is lower than baseFee %v", gasFeeCap, baseFee)
+	}
+	return tosca.Add(baseFee, tosca.Min(gasTipCap, tosca.Sub(gasFeeCap, baseFee))), nil
 }
 
 func newBlockContext(blockParameters tosca.BlockParameters, context tosca.TransactionContext) vm.BlockContext {

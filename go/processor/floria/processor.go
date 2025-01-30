@@ -54,7 +54,10 @@ func (p *processor) Run(
 		Success: false,
 		GasUsed: transaction.GasLimit,
 	}
-	gasPrice := calculateGasPrice(blockParameters.BaseFee, transaction.GasFeeCap, transaction.GasTipCap)
+	gasPrice, err := calculateGasPrice(blockParameters.BaseFee, transaction.GasFeeCap, transaction.GasTipCap)
+	if err != nil {
+		return errorReceipt, err
+	}
 	gas := transaction.GasLimit
 
 	if nonceCheck(transaction.Nonce, context.GetNonce(transaction.Sender)) != nil {
@@ -130,9 +133,11 @@ func (p *processor) Run(
 	}, nil
 }
 
-func calculateGasPrice(baseFee, gasFeeCap, gasTipCap tosca.Value) tosca.Value {
-	gasPrice := tosca.Add(baseFee, tosca.Min(gasTipCap, tosca.Sub(gasFeeCap, baseFee)))
-	return gasPrice
+func calculateGasPrice(baseFee, gasFeeCap, gasTipCap tosca.Value) (tosca.Value, error) {
+	if gasFeeCap.Cmp(baseFee) < 0 {
+		return tosca.Value{}, fmt.Errorf("gasFeeCap %v is lower than baseFee %v", gasFeeCap, baseFee)
+	}
+	return tosca.Add(baseFee, tosca.Min(gasTipCap, tosca.Sub(gasFeeCap, baseFee))), nil
 }
 
 // floriaContext is a wrapper around the tosca.TransactionContext

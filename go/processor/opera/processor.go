@@ -117,7 +117,10 @@ func (p *processor) Run(
 		CanTransfer: canTransferFunc,
 	}
 
-	gasPrice := calculateGasPrice(blockParams.BaseFee, transaction.GasFeeCap, transaction.GasTipCap)
+	gasPrice, err := calculateGasPrice(blockParams.BaseFee, transaction.GasFeeCap, transaction.GasTipCap)
+	if err != nil {
+		return tosca.Receipt{}, err
+	}
 
 	// Create empty tx context
 	txCtx := geth.TxContext{
@@ -291,9 +294,11 @@ func (p *processor) Run(
 	}, nil
 }
 
-func calculateGasPrice(baseFee, gasFeeCap, gasTipCap tosca.Value) tosca.Value {
-	gasPrice := tosca.Add(baseFee, tosca.Min(gasTipCap, tosca.Sub(gasFeeCap, baseFee)))
-	return gasPrice
+func calculateGasPrice(baseFee, gasFeeCap, gasTipCap tosca.Value) (tosca.Value, error) {
+	if gasFeeCap.Cmp(baseFee) < 0 {
+		return tosca.Value{}, fmt.Errorf("gasFeeCap %v is lower than baseFee %v", gasFeeCap, baseFee)
+	}
+	return tosca.Add(baseFee, tosca.Min(gasTipCap, tosca.Sub(gasFeeCap, baseFee))), nil
 }
 
 var emptyCodeHash = keccak(nil)

@@ -72,49 +72,65 @@ func TestProcessor_NonceMissMatch(t *testing.T) {
 
 func TestProcessor_GasPriceCalculation(t *testing.T) {
 	tests := map[string]struct {
-		baseFee   tosca.Value
-		gasFeeCap tosca.Value
-		gasTipCap tosca.Value
-		expected  tosca.Value
+		baseFee   uint64
+		gasFeeCap uint64
+		gasTipCap uint64
+		expected  uint64
 	}{
 		"zero": {
-			tosca.NewValue(0),
-			tosca.NewValue(0),
-			tosca.NewValue(0),
-			tosca.NewValue(0),
+			baseFee:   0,
+			gasFeeCap: 0,
+			gasTipCap: 0,
+			expected:  0,
 		},
 		"highCapNoTip": {
-			tosca.NewValue(10),
-			tosca.NewValue(100),
-			tosca.NewValue(0),
-			tosca.NewValue(10),
+			baseFee:   10,
+			gasFeeCap: 100,
+			gasTipCap: 0,
+			expected:  10,
 		},
 		"lowCapHighTip": {
-			tosca.NewValue(10),
-			tosca.NewValue(10),
-			tosca.NewValue(100),
-			tosca.NewValue(10),
+			baseFee:   10,
+			gasFeeCap: 10,
+			gasTipCap: 100,
+			expected:  10,
 		},
 		"capTipEqual": {
-			tosca.NewValue(10),
-			tosca.NewValue(10),
-			tosca.NewValue(10),
-			tosca.NewValue(10),
+			baseFee:   10,
+			gasFeeCap: 10,
+			gasTipCap: 10,
+			expected:  10,
 		},
 		"capHigherThanFee": {
-			tosca.NewValue(10),
-			tosca.NewValue(20),
-			tosca.NewValue(5),
-			tosca.NewValue(15),
+			baseFee:   10,
+			gasFeeCap: 20,
+			gasTipCap: 5,
+			expected:  15,
+		},
+		"partOfTip": {
+			baseFee:   10,
+			gasFeeCap: 12,
+			gasTipCap: 5,
+			expected:  12,
 		},
 	}
 	for testName, test := range tests {
 		t.Run(testName, func(t *testing.T) {
-			gasPrice := calculateGasPrice(test.baseFee, test.gasFeeCap, test.gasTipCap)
-			if gasPrice.Cmp(test.expected) != 0 {
+			gasPrice, err := calculateGasPrice(tosca.NewValue(test.baseFee), tosca.NewValue(test.gasFeeCap), tosca.NewValue(test.gasTipCap))
+			if err != nil {
+				t.Fatalf("calculateGasPrice returned an error: %v", err)
+			}
+			if gasPrice.Cmp(tosca.NewValue(test.expected)) != 0 {
 				t.Errorf("calculateGasPrice returned wrong result, want: %v, got: %v", test.expected, gasPrice)
 			}
 		})
+	}
+}
+
+func TestProcessor_GasPriceCalculationError(t *testing.T) {
+	_, err := calculateGasPrice(tosca.NewValue(10), tosca.NewValue(5), tosca.NewValue(10))
+	if err == nil {
+		t.Errorf("calculateGasPrice did not return an error")
 	}
 }
 
