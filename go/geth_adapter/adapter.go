@@ -427,13 +427,9 @@ func (a *runContextAdapter) CreateAccount(addr tosca.Address) {
 	a.evm.StateDB.CreateContract(gc.Address(addr))
 }
 
-func (a *runContextAdapter) HasEmptyStateRoot(addr tosca.Address) bool {
-	codeHash := a.evm.StateDB.GetCodeHash(gc.Address(addr))
+func (a *runContextAdapter) HasEmptyStorage(addr tosca.Address) bool {
 	rootHash := a.evm.StateDB.GetStorageRoot(gc.Address(addr))
-
-	return a.evm.StateDB.GetNonce(gc.Address(addr)) == 0 &&
-		(codeHash == gc.Hash{} || codeHash == types.EmptyCodeHash) &&
-		(rootHash == gc.Hash{} || rootHash == types.EmptyRootHash)
+	return rootHash == gc.Hash{} || rootHash == types.EmptyRootHash
 }
 
 func (a *runContextAdapter) AccountExists(addr tosca.Address) bool {

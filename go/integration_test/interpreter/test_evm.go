@@ -227,7 +227,7 @@ func (a *runContextAdapter) CreateAccount(addr tosca.Address) {
 	// no effect required in interpreter tests
 }
 
-func (a *runContextAdapter) HasEmptyStateRoot(tosca.Address) bool {
+func (a *runContextAdapter) HasEmptyStorage(tosca.Address) bool {
 	// not relevant for interpreter tests
 	return true
 }

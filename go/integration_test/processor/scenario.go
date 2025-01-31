@@ -136,10 +136,8 @@ func (c *scenarioContext) CreateAccount(addr tosca.Address) {
 	c.current[addr] = Account{}
 }
 
-func (c *scenarioContext) HasEmptyStateRoot(addr tosca.Address) bool {
-	return c.current[addr].Nonce == 0 &&
-		c.current[addr].Code == nil &&
-		len(c.current[addr].Storage) == 0
+func (c *scenarioContext) HasEmptyStorage(addr tosca.Address) bool {
+	return len(c.current[addr].Storage) == 0
 }
 
 func (c *scenarioContext) AccountExists(addr tosca.Address) bool {

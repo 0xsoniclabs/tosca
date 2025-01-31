@@ -141,7 +141,7 @@ func (s *StateDB) SetState(address common.Address, key common.Hash, value common
 }
 
 func (s *StateDB) GetStorageRoot(address common.Address) common.Hash {
-	if s.context.HasEmptyStateRoot(tosca.Address(address)) {
+	if s.context.HasEmptyStorage(tosca.Address(address)) {
 		return common.Hash{}
 	}
 	return common.Hash{0x42} // non empty root hash

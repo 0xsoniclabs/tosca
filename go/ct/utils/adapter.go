@@ -216,7 +216,7 @@ func (c *ctRunContext) CreateAccount(tosca.Address) {
 	panic("should not be needed")
 }
 
-func (c *ctRunContext) HasEmptyStateRoot(tosca.Address) bool {
+func (c *ctRunContext) HasEmptyStorage(tosca.Address) bool {
 	panic("should not be needed")
 }
 

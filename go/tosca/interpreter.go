@@ -100,9 +100,8 @@ type TransactionContext interface {
 	EmitLog(Log)
 	GetLogs() []Log
 
-	// HasEmptyStateRoot returns whether the account has a 0 nonce,
-	// empty storage and empty code.
-	HasEmptyStateRoot(Address) bool
+	// HasEmptyStorage returns whether the account has an empty storage.
+	HasEmptyStorage(Address) bool
 
 	// GetBlockHash returns the hash of the block with the given number.
 	GetBlockHash(number int64) Hash
