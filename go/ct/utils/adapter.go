@@ -212,7 +212,11 @@ func (c *ctRunContext) GetNonce(tosca.Address) uint64 {
 
 // --- API only needed in the context of a full transaction, which is not covered by CT ---
 
-func (c *ctRunContext) CreateAccount(tosca.Address, tosca.Code) bool {
+func (c *ctRunContext) CreateAccount(tosca.Address) {
+	panic("should not be needed")
+}
+
+func (c *ctRunContext) HasEmptyStateRoot(tosca.Address) bool {
 	panic("should not be needed")
 }
 

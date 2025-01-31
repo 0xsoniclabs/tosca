@@ -223,8 +223,13 @@ func (a *runContextAdapter) SelfDestruct(address tosca.Address, beneficiary tosc
 	return balance != (tosca.Value{})
 }
 
-func (a *runContextAdapter) CreateAccount(tosca.Address, tosca.Code) bool {
-	panic("should not be needed for interpreter tests")
+func (a *runContextAdapter) CreateAccount(addr tosca.Address) {
+	// no effect required in interpreter tests
+}
+
+func (a *runContextAdapter) HasEmptyStateRoot(tosca.Address) bool {
+	// not relevant for interpreter tests
+	return true
 }
 
 func (a *runContextAdapter) CreateSnapshot() tosca.Snapshot {

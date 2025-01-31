@@ -66,6 +66,7 @@ func (s *StateDB) CreateAccount(common.Address) {
 
 func (s *StateDB) CreateContract(address common.Address) {
 	s.createdContract = &address
+	s.context.CreateAccount(tosca.Address(address))
 }
 
 func (s *StateDB) SubBalance(address common.Address, value *uint256.Int, tracing tracing.BalanceChangeReason) {
@@ -140,7 +141,10 @@ func (s *StateDB) SetState(address common.Address, key common.Hash, value common
 }
 
 func (s *StateDB) GetStorageRoot(address common.Address) common.Hash {
-	return common.Hash{} // not implemented
+	if s.context.HasEmptyStateRoot(tosca.Address(address)) {
+		return common.Hash{}
+	}
+	return common.Hash{0x42} // non empty root hash
 }
 
 func (s *StateDB) GetTransientState(address common.Address, key common.Hash) common.Hash {

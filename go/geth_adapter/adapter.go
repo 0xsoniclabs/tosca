@@ -420,17 +420,24 @@ func debugCallEnd(result tosca.CallResult, reserr error) {
 	}
 }
 
-func (a *runContextAdapter) AccountExists(addr tosca.Address) bool {
-	return a.evm.StateDB.Exist(gc.Address(addr))
+func (a *runContextAdapter) CreateAccount(addr tosca.Address) {
+	if !a.evm.StateDB.Exist(gc.Address(addr)) {
+		a.evm.StateDB.CreateAccount(gc.Address(addr))
+	}
+	a.evm.StateDB.CreateContract(gc.Address(addr))
 }
 
-func (a *runContextAdapter) CreateAccount(addr tosca.Address, code tosca.Code) bool {
-	if a.AccountExists(addr) {
-		return false
-	}
-	a.evm.StateDB.CreateAccount(gc.Address(addr))
-	a.evm.StateDB.SetCode(gc.Address(addr), code)
-	return true
+func (a *runContextAdapter) HasEmptyStateRoot(addr tosca.Address) bool {
+	codeHash := a.evm.StateDB.GetCodeHash(gc.Address(addr))
+	rootHash := a.evm.StateDB.GetStorageRoot(gc.Address(addr))
+
+	return a.evm.StateDB.GetNonce(gc.Address(addr)) == 0 &&
+		(codeHash == gc.Hash{} || codeHash == types.EmptyCodeHash) &&
+		(rootHash == gc.Hash{} || rootHash == types.EmptyRootHash)
+}
+
+func (a *runContextAdapter) AccountExists(addr tosca.Address) bool {
+	return a.evm.StateDB.Exist(gc.Address(addr))
 }
 
 func (a *runContextAdapter) GetNonce(addr tosca.Address) uint64 {

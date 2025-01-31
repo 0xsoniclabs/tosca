@@ -29,6 +29,7 @@ import (
 type MockInterpreter struct {
 	ctrl     *gomock.Controller
 	recorder *MockInterpreterMockRecorder
+	isgomock struct{}
 }
 
 // MockInterpreterMockRecorder is the mock recorder for MockInterpreter.
@@ -67,6 +68,7 @@ func (mr *MockInterpreterMockRecorder) Run(arg0 any) *gomock.Call {
 type MockRunContext struct {
 	ctrl     *gomock.Controller
 	recorder *MockRunContextMockRecorder
+	isgomock struct{}
 }
 
 // MockRunContextMockRecorder is the mock recorder for MockRunContext.
@@ -141,6 +143,18 @@ func (m *MockRunContext) Call(kind CallKind, parameter CallParameters) (CallResu
 func (mr *MockRunContextMockRecorder) Call(kind, parameter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Call", reflect.TypeOf((*MockRunContext)(nil).Call), kind, parameter)
+}
+
+// CreateAccount mocks base method.
+func (m *MockRunContext) CreateAccount(arg0 Address) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "CreateAccount", arg0)
+}
+
+// CreateAccount indicates an expected call of CreateAccount.
+func (mr *MockRunContextMockRecorder) CreateAccount(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAccount", reflect.TypeOf((*MockRunContext)(nil).CreateAccount), arg0)
 }
 
 // CreateSnapshot mocks base method.
@@ -309,6 +323,20 @@ func (mr *MockRunContextMockRecorder) GetTransientStorage(arg0, arg1 any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTransientStorage", reflect.TypeOf((*MockRunContext)(nil).GetTransientStorage), arg0, arg1)
 }
 
+// HasEmptyStateRoot mocks base method.
+func (m *MockRunContext) HasEmptyStateRoot(arg0 Address) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasEmptyStateRoot", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// HasEmptyStateRoot indicates an expected call of HasEmptyStateRoot.
+func (mr *MockRunContextMockRecorder) HasEmptyStateRoot(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasEmptyStateRoot", reflect.TypeOf((*MockRunContext)(nil).HasEmptyStateRoot), arg0)
+}
+
 // HasSelfDestructed mocks base method.
 func (m *MockRunContext) HasSelfDestructed(addr Address) bool {
 	m.ctrl.T.Helper()
@@ -444,6 +472,7 @@ func (mr *MockRunContextMockRecorder) SetTransientStorage(arg0, arg1, arg2 any) 
 type MockTransactionContext struct {
 	ctrl     *gomock.Controller
 	recorder *MockTransactionContextMockRecorder
+	isgomock struct{}
 }
 
 // MockTransactionContextMockRecorder is the mock recorder for MockTransactionContext.
@@ -503,6 +532,18 @@ func (m *MockTransactionContext) AccountExists(arg0 Address) bool {
 func (mr *MockTransactionContextMockRecorder) AccountExists(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AccountExists", reflect.TypeOf((*MockTransactionContext)(nil).AccountExists), arg0)
+}
+
+// CreateAccount mocks base method.
+func (m *MockTransactionContext) CreateAccount(arg0 Address) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "CreateAccount", arg0)
+}
+
+// CreateAccount indicates an expected call of CreateAccount.
+func (mr *MockTransactionContextMockRecorder) CreateAccount(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAccount", reflect.TypeOf((*MockTransactionContext)(nil).CreateAccount), arg0)
 }
 
 // CreateSnapshot mocks base method.
@@ -671,6 +712,20 @@ func (mr *MockTransactionContextMockRecorder) GetTransientStorage(arg0, arg1 any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTransientStorage", reflect.TypeOf((*MockTransactionContext)(nil).GetTransientStorage), arg0, arg1)
 }
 
+// HasEmptyStateRoot mocks base method.
+func (m *MockTransactionContext) HasEmptyStateRoot(arg0 Address) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasEmptyStateRoot", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// HasEmptyStateRoot indicates an expected call of HasEmptyStateRoot.
+func (mr *MockTransactionContextMockRecorder) HasEmptyStateRoot(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasEmptyStateRoot", reflect.TypeOf((*MockTransactionContext)(nil).HasEmptyStateRoot), arg0)
+}
+
 // HasSelfDestructed mocks base method.
 func (m *MockTransactionContext) HasSelfDestructed(addr Address) bool {
 	m.ctrl.T.Helper()
@@ -806,6 +861,7 @@ func (mr *MockTransactionContextMockRecorder) SetTransientStorage(arg0, arg1, ar
 type MockProfilingInterpreter struct {
 	ctrl     *gomock.Controller
 	recorder *MockProfilingInterpreterMockRecorder
+	isgomock struct{}
 }
 
 // MockProfilingInterpreterMockRecorder is the mock recorder for MockProfilingInterpreter.
