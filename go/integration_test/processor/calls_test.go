@@ -99,7 +99,6 @@ func TestProcessor_MaximalCallDepthIsEnforced(t *testing.T) {
 				byte(vm.RETURN),
 			}...)
 
-			blockParams := tosca.BlockParameters{}
 			transaction := tosca.Transaction{
 				Sender:    sender,
 				Recipient: receiver,
@@ -107,6 +106,8 @@ func TestProcessor_MaximalCallDepthIsEnforced(t *testing.T) {
 				Nonce:     0,
 				Input:     tosca.Data{},
 			}
+
+			blockParams := tosca.BlockParameters{GasLimit: transaction.GasLimit}
 			scenario := getScenarioContext(sender, *receiver, code, sufficientGas)
 			transactionContext := newScenarioContext(scenario.Before)
 
@@ -176,7 +177,7 @@ func TestProcessor_DifferentCallTypesAccessStorage(t *testing.T) {
 				transactionContext := newScenarioContext(state)
 
 				// Run the processor
-				result, err := processor.Run(tosca.BlockParameters{}, transaction, transactionContext)
+				result, err := processor.Run(tosca.BlockParameters{GasLimit: transaction.GasLimit}, transaction, transactionContext)
 				if err != nil || !result.Success {
 					t.Errorf("execution was not successful or failed with error %v", err)
 				}
@@ -239,7 +240,7 @@ func TestProcessor_DifferentCallTypesHandleValueCorrectly(t *testing.T) {
 				transactionContext := newScenarioContext(state)
 
 				// Run the processor
-				result, err := processor.Run(tosca.BlockParameters{}, transaction, transactionContext)
+				result, err := processor.Run(tosca.BlockParameters{GasLimit: transaction.GasLimit}, transaction, transactionContext)
 				if err != nil || !result.Success {
 					t.Errorf("execution was not successful or failed with error %v", err)
 				}
@@ -303,7 +304,7 @@ func TestProcessor_DifferentCallTypesSetTheCorrectSender(t *testing.T) {
 				transactionContext := newScenarioContext(state)
 
 				// Run the processor
-				result, err := processor.Run(tosca.BlockParameters{}, transaction, transactionContext)
+				result, err := processor.Run(tosca.BlockParameters{GasLimit: transaction.GasLimit}, transaction, transactionContext)
 				if err != nil || !result.Success {
 					t.Errorf("execution was not successful or failed with error %v", err)
 				}
@@ -384,7 +385,7 @@ func TestProcessor_RecursiveCallsAfterAStaticCallAreStatic(t *testing.T) {
 				transactionContext := newScenarioContext(state)
 
 				// Run the processor
-				result, err := processor.Run(tosca.BlockParameters{}, transaction, transactionContext)
+				result, err := processor.Run(tosca.BlockParameters{GasLimit: transaction.GasLimit}, transaction, transactionContext)
 				if err != nil || !result.Success {
 					t.Errorf("execution was not successful or failed with error %v", err)
 				}
@@ -438,7 +439,7 @@ func TestProcessor_CallingNonExistentAccountIsHandledCorrectly(t *testing.T) {
 				transactionContext := newScenarioContext(state)
 
 				// Run the processor
-				result, err := processor.Run(tosca.BlockParameters{}, transaction, transactionContext)
+				result, err := processor.Run(tosca.BlockParameters{GasLimit: transaction.GasLimit}, transaction, transactionContext)
 				if err != nil {
 					t.Errorf("execution failed with error %v", err)
 				}

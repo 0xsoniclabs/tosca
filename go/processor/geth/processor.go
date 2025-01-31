@@ -76,7 +76,7 @@ func (p *Processor) Run(
 	evm := vm.NewEVM(blockContext, txContext, stateDB, chainConfig, config)
 
 	msg := transactionToMessage(transaction, gasPrice, blobHashes)
-	gasPool := new(core.GasPool).AddGas(uint64(transaction.GasLimit))
+	gasPool := new(core.GasPool).AddGas(uint64(blockParameters.GasLimit))
 
 	snapshot := context.CreateSnapshot()
 	result, err := core.ApplyMessage(evm, msg, gasPool)

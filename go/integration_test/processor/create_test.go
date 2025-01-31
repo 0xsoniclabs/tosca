@@ -137,7 +137,7 @@ func TestProcessor_CreateAndCallContract(t *testing.T) {
 				transactionContext := newScenarioContext(state)
 
 				// Run the processor
-				result, err := processor.Run(tosca.BlockParameters{}, transaction, transactionContext)
+				result, err := processor.Run(tosca.BlockParameters{GasLimit: transaction.GasLimit}, transaction, transactionContext)
 				if err != nil || !result.Success {
 					t.Errorf("execution was not successful or failed with error %v", err)
 				}
@@ -287,7 +287,7 @@ func TestProcessor_CreateInitCodeIsExecutedInRightContext(t *testing.T) {
 				transactionContext := newScenarioContext(state)
 
 				// Run the processor
-				result, err := processor.Run(tosca.BlockParameters{}, transaction, transactionContext)
+				result, err := processor.Run(tosca.BlockParameters{GasLimit: transaction.GasLimit}, transaction, transactionContext)
 				if err != nil || !result.Success {
 					t.Errorf("execution was not successful or failed with error %v", err)
 				}
@@ -328,7 +328,7 @@ func TestProcessor_EmptyReceiverCreatesAccount(t *testing.T) {
 		transactionContext := newScenarioContext(state)
 
 		// Run the processor
-		result, err := processor.Run(tosca.BlockParameters{}, transaction, transactionContext)
+		result, err := processor.Run(tosca.BlockParameters{GasLimit: transaction.GasLimit}, transaction, transactionContext)
 		if err != nil || !result.Success {
 			t.Errorf("execution was not successful or failed with error %v", err)
 		}
@@ -451,7 +451,7 @@ func TestProcessor_CorrectAddressIsCreated(t *testing.T) {
 				}
 
 				// Run the processor
-				result, err := processor.Run(tosca.BlockParameters{}, transaction, transactionContext)
+				result, err := processor.Run(tosca.BlockParameters{GasLimit: transaction.GasLimit}, transaction, transactionContext)
 				if err != nil || !result.Success {
 					t.Errorf("execution was not successful or failed with error %v", err)
 				}
@@ -531,7 +531,7 @@ func TestProcessor_CreateExistingAccountFails(t *testing.T) {
 				transactionContext := newScenarioContext(state)
 
 				// Run the processor
-				result, err := processor.Run(tosca.BlockParameters{}, transaction, transactionContext)
+				result, err := processor.Run(tosca.BlockParameters{GasLimit: transaction.GasLimit}, transaction, transactionContext)
 				if err != nil {
 					t.Errorf("execution failed with error %v", err)
 				}
@@ -626,7 +626,7 @@ func TestProcessor_CodeStartingWith0xEFCanNotBeCreated(t *testing.T) {
 					Input:     initCode,
 				}
 
-				blockParameters := tosca.BlockParameters{Revision: test.revision}
+				blockParameters := tosca.BlockParameters{GasLimit: transaction.GasLimit, Revision: test.revision}
 				transactionContext := newScenarioContext(state)
 
 				// Run the processor
@@ -692,7 +692,7 @@ func TestProcessor_CodeSizeIsLimited(t *testing.T) {
 					Input:     initCode,
 				}
 
-				blockParameters := tosca.BlockParameters{}
+				blockParameters := tosca.BlockParameters{GasLimit: transaction.GasLimit}
 				transactionContext := newScenarioContext(state)
 
 				// Run the processor

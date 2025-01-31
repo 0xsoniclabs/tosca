@@ -78,8 +78,6 @@ func TestProcessor_AccessListIsHandledCorrectly(t *testing.T) {
 					byte(vm.RETURN),
 				}...)
 
-				blockParams := tosca.BlockParameters{Revision: tosca.R09_Berlin}
-
 				transaction := tosca.Transaction{
 					Sender:     sender,
 					Recipient:  receiver,
@@ -87,6 +85,8 @@ func TestProcessor_AccessListIsHandledCorrectly(t *testing.T) {
 					Nonce:      0,
 					AccessList: test.accessList,
 				}
+
+				blockParams := tosca.BlockParameters{GasLimit: transaction.GasLimit, Revision: tosca.R09_Berlin}
 				scenario := getScenarioContext(sender, *receiver, code, gas)
 				transactionContext := newScenarioContext(scenario.Before)
 

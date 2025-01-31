@@ -11,8 +11,11 @@
 package geth_processor
 
 import (
+	"errors"
 	"math/big"
 	"testing"
+
+	"github.com/ethereum/go-ethereum/core"
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"go.uber.org/mock/gomock"
@@ -86,5 +89,27 @@ func TestGethProcessor_ConfigAddsStateContract(t *testing.T) {
 	_, ok := config.StatePrecompiles[stateContractAddress]
 	if !ok {
 		t.Errorf("state contract not added to config")
+	}
+}
+
+func TestGethProcessor_BlockGasLimitIsEnforces(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	interpreter := tosca.NewMockInterpreter(ctrl)
+	context := tosca.NewMockTransactionContext(ctrl)
+	context.EXPECT().GetNonce(gomock.Any()).Return(uint64(0))
+	context.EXPECT().GetCodeHash(gomock.Any()).Return(tosca.Hash{})
+	context.EXPECT().GetBalance(gomock.Any()).Return(tosca.NewValue(1000))
+
+	transaction := tosca.Transaction{
+		GasLimit: 1000,
+	}
+	blockParams := tosca.BlockParameters{
+		GasLimit: 100,
+	}
+
+	processor := sonicProcessor(interpreter)
+	_, err := processor.Run(blockParams, transaction, context)
+	if !errors.Is(err, core.ErrGasLimitReached) {
+		t.Errorf("test should have failed with gas limit error")
 	}
 }
