@@ -1,26 +1,18 @@
 use std::{borrow::Cow, io::Write};
 
-use crate::interpreter::Interpreter;
-#[cfg(feature = "needs-fn-ptr-conversion")]
-use crate::Opcode;
+use crate::{interpreter::Interpreter, Opcode};
 
 pub trait Observer<const STEPPABLE: bool> {
-    fn pre_op(&mut self, interpreter: &Interpreter<STEPPABLE>);
-
-    fn post_op(&mut self, interpreter: &Interpreter<STEPPABLE>);
-
-    fn log(&mut self, message: Cow<str>);
-}
-
-pub struct NoOpObserver();
-
-impl<const STEPPABLE: bool> Observer<STEPPABLE> for NoOpObserver {
     fn pre_op(&mut self, _interpreter: &Interpreter<STEPPABLE>) {}
 
     fn post_op(&mut self, _interpreter: &Interpreter<STEPPABLE>) {}
 
     fn log(&mut self, _message: Cow<str>) {}
 }
+
+pub struct NoOpObserver();
+
+impl<const STEPPABLE: bool> Observer<STEPPABLE> for NoOpObserver {}
 
 pub struct LoggingObserver<W: Write> {
     writer: W,
@@ -56,11 +48,36 @@ impl<W: Write, const STEPPABLE: bool> Observer<STEPPABLE> for LoggingObserver<W>
         self.writer.flush().unwrap();
     }
 
-    fn post_op(&mut self, _interpreter: &Interpreter<STEPPABLE>) {}
-
     fn log(&mut self, message: Cow<str>) {
         writeln!(self.writer, "{message}").unwrap();
         self.writer.flush().unwrap();
+    }
+}
+
+pub struct CountObserver<W: Write> {
+    writer: W,
+    op_count: u64,
+}
+
+impl<W: Write> CountObserver<W> {
+    pub fn new(writer: W) -> Self {
+        Self {
+            writer,
+            op_count: 0,
+        }
+    }
+}
+
+impl<W: Write> Drop for CountObserver<W> {
+    fn drop(&mut self) {
+        writeln!(self.writer, "{}", self.op_count).unwrap();
+        self.writer.flush().unwrap();
+    }
+}
+
+impl<W: Write, const STEPPABLE: bool> Observer<STEPPABLE> for CountObserver<W> {
+    fn pre_op(&mut self, _interpreter: &Interpreter<STEPPABLE>) {
+        self.op_count += 1;
     }
 }
 
@@ -68,4 +85,5 @@ impl<W: Write, const STEPPABLE: bool> Observer<STEPPABLE> for LoggingObserver<W>
 pub enum ObserverType {
     NoOp,
     Logging,
+    Counts,
 }
