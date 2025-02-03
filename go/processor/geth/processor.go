@@ -32,15 +32,19 @@ func init() {
 }
 
 func sonicProcessor(interpreter tosca.Interpreter) tosca.Processor {
-	return &Processor{
-		interpreter:        interpreter,
-		ethereumCompatible: false,
-	}
+	return NewGethProcessor(interpreter, false)
 }
 
 type Processor struct {
 	interpreter        tosca.Interpreter
 	ethereumCompatible bool
+}
+
+func NewGethProcessor(interpreter tosca.Interpreter, ethereumCompatible bool) *Processor {
+	return &Processor{
+		interpreter:        interpreter,
+		ethereumCompatible: ethereumCompatible,
+	}
 }
 
 func (p *Processor) Run(
@@ -53,7 +57,7 @@ func (p *Processor) Run(
 		return tosca.Receipt{}, err
 	}
 
-	blockContext := newBlockContext(blockParameters, context)
+	blockContext := newBlockContext(blockParameters, context, p.ethereumCompatible)
 
 	var blobHashes []common.Hash
 	if transaction.BlobHashes != nil {
@@ -76,8 +80,11 @@ func (p *Processor) Run(
 
 	msg := transactionToMessage(transaction, gasPrice, blobHashes)
 	gasPool := new(core.GasPool).AddGas(uint64(transaction.GasLimit))
+
+	snapshot := context.CreateSnapshot()
 	result, err := core.ApplyMessage(evm, msg, gasPool)
 	if err != nil {
+		context.RestoreSnapshot(snapshot)
 		if !p.ethereumCompatible && errors.Is(err, core.ErrInsufficientFunds) {
 			return tosca.Receipt{}, err
 		}
@@ -118,7 +125,7 @@ func calculateGasPrice(baseFee, gasFeeCap, gasTipCap tosca.Value) (tosca.Value, 
 	return tosca.Add(baseFee, tosca.Min(gasTipCap, tosca.Sub(gasFeeCap, baseFee))), nil
 }
 
-func newBlockContext(blockParameters tosca.BlockParameters, context tosca.TransactionContext) vm.BlockContext {
+func newBlockContext(blockParameters tosca.BlockParameters, context tosca.TransactionContext, ethereumCompatible bool) vm.BlockContext {
 	canTransfer := func(stateDB vm.StateDB, address common.Address, value *uint256.Int) bool {
 		return stateDB.GetBalance(address).Cmp(value) >= 0
 	}
@@ -132,7 +139,17 @@ func newBlockContext(blockParameters tosca.BlockParameters, context tosca.Transa
 		return common.Hash(context.GetBlockHash(int64(num)))
 	}
 
-	sonicDifficulty := big.NewInt(1)
+	difficulty := blockParameters.PrevRandao
+	if !ethereumCompatible {
+		// Fantom's difficulty is set to 1
+		difficulty = tosca.Hash(tosca.NewValue(1))
+	}
+
+	var randao *common.Hash
+	if blockParameters.Revision >= tosca.R11_Paris {
+		difficulty = tosca.Hash{}
+		randao = (*common.Hash)(&blockParameters.PrevRandao)
+	}
 
 	return vm.BlockContext{
 		CanTransfer: canTransfer,
@@ -142,10 +159,10 @@ func newBlockContext(blockParameters tosca.BlockParameters, context tosca.Transa
 		GasLimit:    uint64(blockParameters.GasLimit),
 		BlockNumber: new(big.Int).SetInt64(blockParameters.BlockNumber),
 		Time:        uint64(blockParameters.Timestamp),
-		Difficulty:  sonicDifficulty,
+		Difficulty:  big.NewInt(0).SetBytes(difficulty[:]),
 		BaseFee:     blockParameters.BaseFee.ToBig(),
 		BlobBaseFee: blockParameters.BlobBaseFee.ToBig(),
-		Random:      (*common.Hash)(&blockParameters.PrevRandao),
+		Random:      randao,
 	}
 }
 
