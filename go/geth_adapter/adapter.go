@@ -428,6 +428,7 @@ func (a *runContextAdapter) CreateAccount(addr tosca.Address) {
 }
 
 func (a *runContextAdapter) HasEmptyStorage(addr tosca.Address) bool {
+	// The storage is empty if the root is the empty or zero hash.
 	rootHash := a.evm.StateDB.GetStorageRoot(gc.Address(addr))
 	return rootHash == gc.Hash{} || rootHash == types.EmptyRootHash
 }
