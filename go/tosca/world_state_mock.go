@@ -29,6 +29,7 @@ import (
 type MockWorldState struct {
 	ctrl     *gomock.Controller
 	recorder *MockWorldStateMockRecorder
+	isgomock struct{}
 }
 
 // MockWorldStateMockRecorder is the mock recorder for MockWorldState.
@@ -60,6 +61,18 @@ func (m *MockWorldState) AccountExists(arg0 Address) bool {
 func (mr *MockWorldStateMockRecorder) AccountExists(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AccountExists", reflect.TypeOf((*MockWorldState)(nil).AccountExists), arg0)
+}
+
+// CreateAccount mocks base method.
+func (m *MockWorldState) CreateAccount(arg0 Address) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "CreateAccount", arg0)
+}
+
+// CreateAccount indicates an expected call of CreateAccount.
+func (mr *MockWorldStateMockRecorder) CreateAccount(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAccount", reflect.TypeOf((*MockWorldState)(nil).CreateAccount), arg0)
 }
 
 // GetBalance mocks base method.
@@ -144,6 +157,20 @@ func (m *MockWorldState) GetStorage(arg0 Address, arg1 Key) Word {
 func (mr *MockWorldStateMockRecorder) GetStorage(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStorage", reflect.TypeOf((*MockWorldState)(nil).GetStorage), arg0, arg1)
+}
+
+// HasEmptyStorage mocks base method.
+func (m *MockWorldState) HasEmptyStorage(arg0 Address) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasEmptyStorage", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// HasEmptyStorage indicates an expected call of HasEmptyStorage.
+func (mr *MockWorldStateMockRecorder) HasEmptyStorage(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasEmptyStorage", reflect.TypeOf((*MockWorldState)(nil).HasEmptyStorage), arg0)
 }
 
 // SelfDestruct mocks base method.

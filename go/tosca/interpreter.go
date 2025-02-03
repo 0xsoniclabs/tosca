@@ -86,8 +86,6 @@ type RunContext interface {
 type TransactionContext interface {
 	WorldState
 
-	CreateAccount(Address)
-
 	CreateSnapshot() Snapshot
 	RestoreSnapshot(Snapshot)
 
@@ -99,9 +97,6 @@ type TransactionContext interface {
 
 	EmitLog(Log)
 	GetLogs() []Log
-
-	// HasEmptyStorage returns whether the account has an empty storage.
-	HasEmptyStorage(Address) bool
 
 	// GetBlockHash returns the hash of the block with the given number.
 	GetBlockHash(number int64) Hash
