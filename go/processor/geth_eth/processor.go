@@ -16,9 +16,13 @@ import (
 )
 
 func init() {
+	// Register an ethereum compatible version of the geth processor.
 	tosca.RegisterProcessorFactory("geth-eth", ethereumProcessor)
 }
 
 func ethereumProcessor(interpreter tosca.Interpreter) tosca.Processor {
-	return geth_processor.NewGethProcessor(interpreter, true)
+	return &geth_processor.Processor{
+		Interpreter:        interpreter,
+		EthereumCompatible: true,
+	}
 }

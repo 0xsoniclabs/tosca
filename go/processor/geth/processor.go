@@ -28,23 +28,20 @@ import (
 )
 
 func init() {
+	// Register a sonic/fantom compatible version of the geth processor.
 	tosca.RegisterProcessorFactory("geth-sonic", sonicProcessor)
 }
 
 func sonicProcessor(interpreter tosca.Interpreter) tosca.Processor {
-	return NewGethProcessor(interpreter, false)
+	return &Processor{
+		Interpreter:        interpreter,
+		EthereumCompatible: false,
+	}
 }
 
 type Processor struct {
-	interpreter        tosca.Interpreter
-	ethereumCompatible bool
-}
-
-func NewGethProcessor(interpreter tosca.Interpreter, ethereumCompatible bool) *Processor {
-	return &Processor{
-		interpreter:        interpreter,
-		ethereumCompatible: ethereumCompatible,
-	}
+	Interpreter        tosca.Interpreter
+	EthereumCompatible bool
 }
 
 func (p *Processor) Run(
@@ -57,7 +54,7 @@ func (p *Processor) Run(
 		return tosca.Receipt{}, err
 	}
 
-	blockContext := newBlockContext(blockParameters, context, p.ethereumCompatible)
+	blockContext := newBlockContext(blockParameters, context, p.EthereumCompatible)
 
 	var blobHashes []common.Hash
 	if transaction.BlobHashes != nil {
@@ -75,7 +72,7 @@ func (p *Processor) Run(
 	}
 	stateDB := geth_adapter.NewStateDB(context)
 	chainConfig := blockParametersToChainConfig(blockParameters)
-	config := newEVMConfig(p.interpreter, p.ethereumCompatible)
+	config := newEVMConfig(p.Interpreter, p.EthereumCompatible)
 	evm := vm.NewEVM(blockContext, txContext, stateDB, chainConfig, config)
 
 	msg := transactionToMessage(transaction, gasPrice, blobHashes)
@@ -85,7 +82,7 @@ func (p *Processor) Run(
 	result, err := core.ApplyMessage(evm, msg, gasPool)
 	if err != nil {
 		context.RestoreSnapshot(snapshot)
-		if !p.ethereumCompatible && errors.Is(err, core.ErrInsufficientFunds) {
+		if !p.EthereumCompatible && errors.Is(err, core.ErrInsufficientFunds) {
 			return tosca.Receipt{}, err
 		}
 		return tosca.Receipt{GasUsed: transaction.GasLimit}, err
