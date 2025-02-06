@@ -92,13 +92,15 @@ func TestGethProcessor_ConfigAddsStateContract(t *testing.T) {
 	}
 }
 
-func TestGethProcessor_BlockGasLimitIsEnforces(t *testing.T) {
+func TestGethProcessor_BlockGasLimitIsEnforced(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	interpreter := tosca.NewMockInterpreter(ctrl)
 	context := tosca.NewMockTransactionContext(ctrl)
+	context.EXPECT().CreateSnapshot().Return(tosca.Snapshot(0))
 	context.EXPECT().GetNonce(gomock.Any()).Return(uint64(0))
 	context.EXPECT().GetCodeHash(gomock.Any()).Return(tosca.Hash{})
 	context.EXPECT().GetBalance(gomock.Any()).Return(tosca.NewValue(1000))
+	context.EXPECT().RestoreSnapshot(gomock.Any())
 
 	transaction := tosca.Transaction{
 		GasLimit: 1000,
