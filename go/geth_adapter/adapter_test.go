@@ -95,7 +95,7 @@ func TestRunContextAdapter_SetAndGetNonce(t *testing.T) {
 	address := tosca.Address{0x42}
 	nonce := uint64(123)
 
-	stateDb.EXPECT().SetNonce(gc.Address(address), nonce)
+	stateDb.EXPECT().SetNonce(gc.Address(address), nonce, tracing.NonceChangeUnspecified)
 	adapter.SetNonce(address, nonce)
 
 	stateDb.EXPECT().GetNonce(gc.Address(address)).Return(nonce)
@@ -212,7 +212,6 @@ func TestRunContextAdapter_SelfDestruct(t *testing.T) {
 				ChainID:     big.NewInt(42),
 			}
 			evm := geth.NewEVM(blockContext,
-				geth.TxContext{},
 				stateDb,
 				chainConfig,
 				geth.Config{},
@@ -227,7 +226,7 @@ func TestRunContextAdapter_SelfDestruct(t *testing.T) {
 				stateDb.EXPECT().SelfDestruct(gc.Address(address))
 			} else {
 				stateDb.EXPECT().SubBalance(gc.Address(address), uint256.NewInt(42), tracing.BalanceDecreaseSelfdestruct)
-				stateDb.EXPECT().Selfdestruct6780(gc.Address(address))
+				stateDb.EXPECT().SelfDestruct6780(gc.Address(address))
 			}
 
 			got := adapter.SelfDestruct(address, beneficiary)
@@ -305,7 +304,6 @@ func TestRunContextAdapter_Call(t *testing.T) {
 	stateDb.EXPECT().Snapshot().Return(1)
 	stateDb.EXPECT().Exist(address).Return(true)
 	stateDb.EXPECT().GetCode(address).Return([]byte{})
-	stateDb.EXPECT().Witness()
 
 	contractRef := testContractRef{address: address}
 
@@ -410,7 +408,7 @@ func TestRunContextAdapter_Run(t *testing.T) {
 
 			blockParameters := geth.BlockContext{BlockNumber: big.NewInt(blockNumber)}
 			chainConfig := &params.ChainConfig{ChainID: big.NewInt(chainId), IstanbulBlock: big.NewInt(23)}
-			evm := geth.NewEVM(blockParameters, geth.TxContext{}, stateDb, chainConfig, geth.Config{})
+			evm := geth.NewEVM(blockParameters, stateDb, chainConfig, geth.Config{})
 			adapter := &gethInterpreterAdapter{
 				evm:         evm,
 				interpreter: interpreter,
@@ -615,7 +613,7 @@ func TestRunContextAdapter_ConvertRevision(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			evm := geth.NewEVM(geth.BlockContext{Random: test.random}, geth.TxContext{}, nil, chainConfig, geth.Config{})
+			evm := geth.NewEVM(geth.BlockContext{Random: test.random}, nil, chainConfig, geth.Config{})
 			rules := evm.ChainConfig().Rules(test.block, evm.Context.Random != nil, test.time)
 			got, err := convertRevision(rules)
 			if err != nil {

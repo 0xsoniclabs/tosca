@@ -23,6 +23,7 @@ import (
 	reflect "reflect"
 
 	common "github.com/ethereum/go-ethereum/common"
+	state "github.com/ethereum/go-ethereum/core/state"
 	stateless "github.com/ethereum/go-ethereum/core/stateless"
 	tracing "github.com/ethereum/go-ethereum/core/tracing"
 	types "github.com/ethereum/go-ethereum/core/types"
@@ -36,6 +37,7 @@ import (
 type MockStateDb struct {
 	ctrl     *gomock.Controller
 	recorder *MockStateDbMockRecorder
+	isgomock struct{}
 }
 
 // MockStateDbMockRecorder is the mock recorder for MockStateDb.
@@ -55,6 +57,20 @@ func (m *MockStateDb) EXPECT() *MockStateDbMockRecorder {
 	return m.recorder
 }
 
+// AccessEvents mocks base method.
+func (m *MockStateDb) AccessEvents() *state.AccessEvents {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AccessEvents")
+	ret0, _ := ret[0].(*state.AccessEvents)
+	return ret0
+}
+
+// AccessEvents indicates an expected call of AccessEvents.
+func (mr *MockStateDbMockRecorder) AccessEvents() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AccessEvents", reflect.TypeOf((*MockStateDb)(nil).AccessEvents))
+}
+
 // AddAddressToAccessList mocks base method.
 func (m *MockStateDb) AddAddressToAccessList(addr common.Address) {
 	m.ctrl.T.Helper()
@@ -68,9 +84,11 @@ func (mr *MockStateDbMockRecorder) AddAddressToAccessList(addr any) *gomock.Call
 }
 
 // AddBalance mocks base method.
-func (m *MockStateDb) AddBalance(arg0 common.Address, arg1 *uint256.Int, arg2 tracing.BalanceChangeReason) {
+func (m *MockStateDb) AddBalance(arg0 common.Address, arg1 *uint256.Int, arg2 tracing.BalanceChangeReason) uint256.Int {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddBalance", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "AddBalance", arg0, arg1, arg2)
+	ret0, _ := ret[0].(uint256.Int)
+	return ret0
 }
 
 // AddBalance indicates an expected call of AddBalance.
@@ -191,6 +209,18 @@ func (m *MockStateDb) Exist(arg0 common.Address) bool {
 func (mr *MockStateDbMockRecorder) Exist(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Exist", reflect.TypeOf((*MockStateDb)(nil).Exist), arg0)
+}
+
+// Finalise mocks base method.
+func (m *MockStateDb) Finalise(arg0 bool) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Finalise", arg0)
+}
+
+// Finalise indicates an expected call of Finalise.
+func (mr *MockStateDbMockRecorder) Finalise(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalise", reflect.TypeOf((*MockStateDb)(nil).Finalise), arg0)
 }
 
 // GetBalance mocks base method.
@@ -386,9 +416,11 @@ func (mr *MockStateDbMockRecorder) RevertToSnapshot(arg0 any) *gomock.Call {
 }
 
 // SelfDestruct mocks base method.
-func (m *MockStateDb) SelfDestruct(arg0 common.Address) {
+func (m *MockStateDb) SelfDestruct(arg0 common.Address) uint256.Int {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SelfDestruct", arg0)
+	ret := m.ctrl.Call(m, "SelfDestruct", arg0)
+	ret0, _ := ret[0].(uint256.Int)
+	return ret0
 }
 
 // SelfDestruct indicates an expected call of SelfDestruct.
@@ -397,22 +429,27 @@ func (mr *MockStateDbMockRecorder) SelfDestruct(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelfDestruct", reflect.TypeOf((*MockStateDb)(nil).SelfDestruct), arg0)
 }
 
-// Selfdestruct6780 mocks base method.
-func (m *MockStateDb) Selfdestruct6780(arg0 common.Address) {
+// SelfDestruct6780 mocks base method.
+func (m *MockStateDb) SelfDestruct6780(arg0 common.Address) (uint256.Int, bool) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Selfdestruct6780", arg0)
+	ret := m.ctrl.Call(m, "SelfDestruct6780", arg0)
+	ret0, _ := ret[0].(uint256.Int)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
 }
 
-// Selfdestruct6780 indicates an expected call of Selfdestruct6780.
-func (mr *MockStateDbMockRecorder) Selfdestruct6780(arg0 any) *gomock.Call {
+// SelfDestruct6780 indicates an expected call of SelfDestruct6780.
+func (mr *MockStateDbMockRecorder) SelfDestruct6780(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Selfdestruct6780", reflect.TypeOf((*MockStateDb)(nil).Selfdestruct6780), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelfDestruct6780", reflect.TypeOf((*MockStateDb)(nil).SelfDestruct6780), arg0)
 }
 
 // SetCode mocks base method.
-func (m *MockStateDb) SetCode(arg0 common.Address, arg1 []byte) {
+func (m *MockStateDb) SetCode(arg0 common.Address, arg1 []byte) []byte {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetCode", arg0, arg1)
+	ret := m.ctrl.Call(m, "SetCode", arg0, arg1)
+	ret0, _ := ret[0].([]byte)
+	return ret0
 }
 
 // SetCode indicates an expected call of SetCode.
@@ -422,21 +459,23 @@ func (mr *MockStateDbMockRecorder) SetCode(arg0, arg1 any) *gomock.Call {
 }
 
 // SetNonce mocks base method.
-func (m *MockStateDb) SetNonce(arg0 common.Address, arg1 uint64) {
+func (m *MockStateDb) SetNonce(arg0 common.Address, arg1 uint64, arg2 tracing.NonceChangeReason) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetNonce", arg0, arg1)
+	m.ctrl.Call(m, "SetNonce", arg0, arg1, arg2)
 }
 
 // SetNonce indicates an expected call of SetNonce.
-func (mr *MockStateDbMockRecorder) SetNonce(arg0, arg1 any) *gomock.Call {
+func (mr *MockStateDbMockRecorder) SetNonce(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNonce", reflect.TypeOf((*MockStateDb)(nil).SetNonce), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNonce", reflect.TypeOf((*MockStateDb)(nil).SetNonce), arg0, arg1, arg2)
 }
 
 // SetState mocks base method.
-func (m *MockStateDb) SetState(arg0 common.Address, arg1, arg2 common.Hash) {
+func (m *MockStateDb) SetState(arg0 common.Address, arg1, arg2 common.Hash) common.Hash {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetState", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "SetState", arg0, arg1, arg2)
+	ret0, _ := ret[0].(common.Hash)
+	return ret0
 }
 
 // SetState indicates an expected call of SetState.
@@ -487,9 +526,11 @@ func (mr *MockStateDbMockRecorder) Snapshot() *gomock.Call {
 }
 
 // SubBalance mocks base method.
-func (m *MockStateDb) SubBalance(arg0 common.Address, arg1 *uint256.Int, arg2 tracing.BalanceChangeReason) {
+func (m *MockStateDb) SubBalance(arg0 common.Address, arg1 *uint256.Int, arg2 tracing.BalanceChangeReason) uint256.Int {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SubBalance", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "SubBalance", arg0, arg1, arg2)
+	ret0, _ := ret[0].(uint256.Int)
+	return ret0
 }
 
 // SubBalance indicates an expected call of SubBalance.

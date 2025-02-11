@@ -178,7 +178,8 @@ func createGethInterpreterContext(parameters tosca.Parameters) (*geth.EVM, *geth
 	config := geth.Config{}
 
 	stateDb := geth_adapter.NewStateDB(parameters.Context)
-	evm := geth.NewEVM(blockCtx, txCtx, stateDb, &chainConfig, config)
+	evm := geth.NewEVM(blockCtx, stateDb, &chainConfig, config)
+	evm.TxContext = txCtx
 
 	evm.Origin = common.Address(parameters.Origin)
 	evm.Context.BlockNumber = big.NewInt(parameters.BlockNumber)

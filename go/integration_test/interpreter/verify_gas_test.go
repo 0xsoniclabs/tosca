@@ -126,6 +126,7 @@ func TestDynamicGas(t *testing.T) {
 							mockStateDB.EXPECT().GetCodeSize(gomock.Any()).AnyTimes()
 							// Also, they may create the account.
 							mockStateDB.EXPECT().SetNonce(gomock.Any(), uint64(1)).AnyTimes()
+							mockStateDB.EXPECT().GetCode(gomock.Any()).AnyTimes()
 							mockStateDB.EXPECT().SetCode(gomock.Any(), gomock.Any()).AnyTimes()
 						}
 

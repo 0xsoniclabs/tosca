@@ -510,7 +510,7 @@ func gasDynamicLog4(revision Revision) []*DynGasTest {
 	return gasDynamicLog(revision, 4)
 }
 
-func gasDynamicLog(revision Revision, size int) []*DynGasTest {
+func gasDynamicLog(_ Revision, size int) []*DynGasTest {
 
 	testCases := []*DynGasTest{}
 	for i := 0; i < 100; i++ {
@@ -708,7 +708,7 @@ func gasDynamicCreate2(revision Revision) []*DynGasTest {
 	return gasDynCreate(revision, true)
 }
 
-func gasDynCreate(revision Revision, isCreate2 bool) []*DynGasTest {
+func gasDynCreate(_ Revision, isCreate2 bool) []*DynGasTest {
 	testCases := []*DynGasTest{}
 	for i := 0; i < 3; i++ {
 

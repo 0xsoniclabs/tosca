@@ -158,7 +158,8 @@ func (p *processor) Run(
 	}
 
 	stateDb := geth_adapter.NewStateDB(context)
-	evm := geth.NewEVM(blockCtx, txCtx, stateDb, &chainConfig, config)
+	evm := geth.NewEVM(blockCtx, stateDb, &chainConfig, config)
+	evm.TxContext = txCtx
 
 	// -- start of execution --
 
@@ -238,7 +239,7 @@ func (p *processor) Run(
 		*createdContract = tosca.Address(created)
 	} else {
 		// Increment the nonce to avoid double execution
-		stateDb.SetNonce(common.Address(transaction.Sender), stateDb.GetNonce(common.Address(transaction.Sender))+1)
+		stateDb.SetNonce(common.Address(transaction.Sender), stateDb.GetNonce(common.Address(transaction.Sender))+1, tracing.NonceChangeUnspecified)
 		output, gasLeft, vmError = evm.Call(sender, common.Address(*transaction.Recipient), transaction.Input, uint64(gas), transaction.Value.ToUint256())
 	}
 
@@ -620,7 +621,7 @@ func (preCompiledStateContract) Run(
 			return nil, 0, geth.ErrExecutionReverted
 		}
 
-		stateDB.SetNonce(acc, stateDB.GetNonce(acc)+value.Uint64())
+		stateDB.SetNonce(acc, stateDB.GetNonce(acc)+value.Uint64(), tracing.NonceChangeUnspecified)
 	} else {
 		return nil, 0, geth.ErrExecutionReverted
 	}

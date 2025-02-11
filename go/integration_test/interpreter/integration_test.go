@@ -1079,7 +1079,7 @@ func setDefaultCallStateDBMock(mockStateDB *MockStateDB, account tosca.Address, 
 	mockStateDB.EXPECT().GetNonce(gomock.Any()).AnyTimes().Return(uint64(123))
 	mockStateDB.EXPECT().SetNonce(gomock.Any(), gomock.Any()).AnyTimes()
 	mockStateDB.EXPECT().GetCodeHash(gomock.Any()).AnyTimes().Return(tosca.Hash{})
-	mockStateDB.EXPECT().GetCode(account).AnyTimes().Return(code)
+	mockStateDB.EXPECT().GetCode(gomock.Any()).AnyTimes().Return(code)
 	mockStateDB.EXPECT().IsAddressInAccessList(account).AnyTimes().Return(true)
 	mockStateDB.EXPECT().EmitLog(gomock.Any()).AnyTimes()
 	mockStateDB.EXPECT().GetStorage(gomock.Any(), gomock.Any()).AnyTimes().Return(tosca.Word{})
