@@ -42,8 +42,10 @@ func GetForkBlock(revision tosca.Revision) uint64 {
 		return 4000
 	case tosca.R13_Cancun:
 		return 5000
-	default: // R99_UnknownNextRevision:
+	case tosca.R14_Prague:
 		return 6000
+	default: // R99_UnknownNextRevision:
+		return 7000
 	}
 }
 
@@ -66,8 +68,10 @@ func GetForkTime(revision tosca.Revision) uint64 {
 		return 4000
 	case tosca.R13_Cancun:
 		return 5000
-	default:
+	case tosca.R14_Prague:
 		return 6000
+	default:
+		return 7000
 	}
 }
 

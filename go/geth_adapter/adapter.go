@@ -241,7 +241,9 @@ func undoRefundShift(stateDB geth.StateDB, err error, refundShift uint64) {
 }
 
 func convertRevision(rules params.Rules) (tosca.Revision, error) {
-	if rules.IsCancun {
+	if rules.IsPrague {
+		return tosca.R14_Prague, nil
+	} else if rules.IsCancun {
 		return tosca.R13_Cancun, nil
 	} else if rules.IsShanghai {
 		return tosca.R12_Shanghai, nil
