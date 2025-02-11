@@ -19,6 +19,7 @@ import (
 	"github.com/0xsoniclabs/tosca/go/ct"
 	. "github.com/0xsoniclabs/tosca/go/ct/common"
 	"github.com/0xsoniclabs/tosca/go/ct/st"
+	"github.com/0xsoniclabs/tosca/go/interpreter/evmzero"
 	"github.com/0xsoniclabs/tosca/go/interpreter/geth"
 	"github.com/0xsoniclabs/tosca/go/interpreter/lfvm"
 	"github.com/0xsoniclabs/tosca/go/tosca"
@@ -37,10 +38,10 @@ func FuzzLfvm(f *testing.F) {
 	fuzzVm(lfvm.NewConformanceTestingTarget(), f)
 }
 
-// FuzzLfvm is a fuzzing test for evmzero, (issue #549 )
-// func FuzzEvmzero(f *testing.F) {
-// 	fuzzVm(evmzero.NewConformanceTestingTarget(), f)
-// }
+// FuzzLfvm is a fuzzing test for evmzero
+func FuzzEvmzero(f *testing.F) {
+	fuzzVm(evmzero.NewConformanceTestingTarget(), f)
+}
 
 // FuzzDifferentialLfvmVsGeth compares state output between lfvm and geth
 func FuzzDifferentialLfvmVsGeth(f *testing.F) {
@@ -50,16 +51,13 @@ func FuzzDifferentialLfvmVsGeth(f *testing.F) {
 	)
 }
 
-// TODO: This test makes sense but cannot be enabled yet:
-// - The evmzero fails the differential test against geth. (issue #549)
-// - Any other invocation of fuzzing tests in this file seem to
-// invoke the all other tests in the file, and they will fail.
-// func FuzzDifferentialEvmzeroVsGeth(f *testing.F) {
-// 	differentialFuzz(f,
-// 		evmzero.NewConformanceTestingTarget(),
-// 		geth.NewConformanceTestingTarget(),
-// 	)
-// }
+// FuzzDifferentialLfvmVsGeth compares state output between evmzero and geth
+func FuzzDifferentialEvmzeroVsGeth(f *testing.F) {
+	differentialFuzz(f,
+		evmzero.NewConformanceTestingTarget(),
+		geth.NewConformanceTestingTarget(),
+	)
+}
 
 //////////////////////////////////////////////////////////////////////////////
 // Fuzzing helpers

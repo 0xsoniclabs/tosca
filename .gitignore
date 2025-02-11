@@ -20,3 +20,6 @@ build/
 
 # Jenkinsfile linter config
 .groovylintrc.json
+
+# vscode c++ engine cache
+.cache
