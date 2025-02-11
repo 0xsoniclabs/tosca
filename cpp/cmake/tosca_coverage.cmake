@@ -17,6 +17,9 @@ if(TOSCA_COVERAGE)
   add_link_options(--coverage)
   add_definitions(-DTOSCA_COVERAGE=1)
 
+  find_program(LCOV lcov REQUIRED)
+  find_program(GENHTML genhtml REQUIRED)
+
   add_custom_target(coverage
     COMMENT "Generating coverage report."
 
