@@ -73,7 +73,8 @@ func (p *Processor) Run(
 	stateDB := geth_adapter.NewStateDB(context)
 	chainConfig := blockParametersToChainConfig(blockParameters)
 	config := newEVMConfig(p.Interpreter, p.EthereumCompatible)
-	evm := vm.NewEVM(blockContext, txContext, stateDB, chainConfig, config)
+	evm := vm.NewEVM(blockContext, stateDB, chainConfig, config)
+	evm.TxContext = txContext
 
 	msg := transactionToMessage(transaction, gasPrice, blobHashes)
 	gasPool := new(core.GasPool).AddGas(uint64(transaction.GasLimit))
@@ -226,18 +227,17 @@ func transactionToMessage(transaction tosca.Transaction, gasPrice tosca.Value, b
 	}
 
 	return &core.Message{
-		From:              common.Address(transaction.Sender),
-		To:                (*common.Address)(transaction.Recipient),
-		Nonce:             transaction.Nonce,
-		Value:             transaction.Value.ToBig(),
-		GasLimit:          uint64(transaction.GasLimit),
-		GasPrice:          gasPrice.ToBig(),
-		GasFeeCap:         transaction.GasFeeCap.ToBig(),
-		GasTipCap:         transaction.GasTipCap.ToBig(),
-		Data:              transaction.Input,
-		AccessList:        accessList,
-		BlobGasFeeCap:     transaction.BlobGasFeeCap.ToBig(),
-		BlobHashes:        blobHashes,
-		SkipAccountChecks: false,
+		From:          common.Address(transaction.Sender),
+		To:            (*common.Address)(transaction.Recipient),
+		Nonce:         transaction.Nonce,
+		Value:         transaction.Value.ToBig(),
+		GasLimit:      uint64(transaction.GasLimit),
+		GasPrice:      gasPrice.ToBig(),
+		GasFeeCap:     transaction.GasFeeCap.ToBig(),
+		GasTipCap:     transaction.GasTipCap.ToBig(),
+		Data:          transaction.Input,
+		AccessList:    accessList,
+		BlobGasFeeCap: transaction.BlobGasFeeCap.ToBig(),
+		BlobHashes:    blobHashes,
 	}
 }

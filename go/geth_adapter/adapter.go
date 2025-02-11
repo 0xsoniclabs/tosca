@@ -442,7 +442,7 @@ func (a *runContextAdapter) GetNonce(addr tosca.Address) uint64 {
 }
 
 func (a *runContextAdapter) SetNonce(addr tosca.Address, nonce uint64) {
-	a.evm.StateDB.SetNonce(gc.Address(addr), nonce)
+	a.evm.StateDB.SetNonce(gc.Address(addr), nonce, tracing.NonceChangeUnspecified)
 }
 
 func (a *runContextAdapter) GetStorage(addr tosca.Address, key tosca.Key) tosca.Word {
@@ -540,7 +540,7 @@ func (a *runContextAdapter) SelfDestruct(addr tosca.Address, beneficiary tosca.A
 
 	if a.evm.ChainConfig().IsCancun(a.evm.Context.BlockNumber, a.evm.Context.Time) {
 		stateDb.SubBalance(a.contract.Address(), balance, tracing.BalanceDecreaseSelfdestruct)
-		stateDb.Selfdestruct6780(gc.Address(addr))
+		stateDb.SelfDestruct6780(gc.Address(addr))
 	} else {
 		stateDb.SelfDestruct(gc.Address(addr))
 	}

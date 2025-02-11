@@ -13,6 +13,7 @@ package geth_adapter
 import (
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"github.com/ethereum/go-ethereum/common"
+	state "github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/stateless"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -69,13 +70,14 @@ func (s *StateDB) CreateContract(address common.Address) {
 	s.context.CreateAccount(tosca.Address(address))
 }
 
-func (s *StateDB) SubBalance(address common.Address, value *uint256.Int, tracing tracing.BalanceChangeReason) {
+func (s *StateDB) SubBalance(address common.Address, value *uint256.Int, tracing tracing.BalanceChangeReason) uint256.Int {
 	toscaAddress := tosca.Address(address)
 	balance := s.context.GetBalance(toscaAddress)
 	s.context.SetBalance(toscaAddress, tosca.Sub(balance, tosca.ValueFromUint256(value)))
+	return *balance.ToUint256()
 }
 
-func (s *StateDB) AddBalance(address common.Address, value *uint256.Int, tracing tracing.BalanceChangeReason) {
+func (s *StateDB) AddBalance(address common.Address, value *uint256.Int, tracing tracing.BalanceChangeReason) uint256.Int {
 	toscaAddress := tosca.Address(address)
 	balance := s.context.GetBalance(toscaAddress)
 	s.context.SetBalance(toscaAddress, tosca.Add(balance, tosca.ValueFromUint256(value)))
@@ -85,6 +87,7 @@ func (s *StateDB) AddBalance(address common.Address, value *uint256.Int, tracing
 	// this only works if the balance transfer is performed before the selfdestruct call,
 	// as it is the performed in geth and the geth adapter.
 	s.beneficiary = address
+	return *balance.ToUint256()
 }
 
 func (s *StateDB) GetBalance(address common.Address) *uint256.Int {
@@ -95,7 +98,7 @@ func (s *StateDB) GetNonce(address common.Address) uint64 {
 	return s.context.GetNonce(tosca.Address(address))
 }
 
-func (s *StateDB) SetNonce(address common.Address, nonce uint64) {
+func (s *StateDB) SetNonce(address common.Address, nonce uint64, _ tracing.NonceChangeReason) {
 	s.context.SetNonce(tosca.Address(address), nonce)
 }
 
@@ -107,8 +110,10 @@ func (s *StateDB) GetCode(address common.Address) []byte {
 	return s.context.GetCode(tosca.Address(address))
 }
 
-func (s *StateDB) SetCode(address common.Address, code []byte) {
+func (s *StateDB) SetCode(address common.Address, code []byte) []byte {
+	oldCode := s.context.GetCode(tosca.Address(address))
 	s.context.SetCode(tosca.Address(address), code)
+	return oldCode
 }
 
 func (s *StateDB) GetCodeSize(address common.Address) int {
@@ -136,8 +141,10 @@ func (s *StateDB) GetState(address common.Address, key common.Hash) common.Hash 
 	return common.Hash(s.context.GetStorage(tosca.Address(address), tosca.Key(key)))
 }
 
-func (s *StateDB) SetState(address common.Address, key common.Hash, value common.Hash) {
+func (s *StateDB) SetState(address common.Address, key common.Hash, value common.Hash) common.Hash {
+	state := s.context.GetStorage(tosca.Address(address), tosca.Key(key))
 	s.context.SetStorage(tosca.Address(address), tosca.Key(key), tosca.Word(value))
+	return common.Hash(state)
 }
 
 func (s *StateDB) GetStorageRoot(address common.Address) common.Hash {
@@ -155,8 +162,10 @@ func (s *StateDB) SetTransientState(address common.Address, key, value common.Ha
 	s.context.SetTransientStorage(tosca.Address(address), tosca.Key(key), tosca.Word(value))
 }
 
-func (s *StateDB) SelfDestruct(address common.Address) {
+func (s *StateDB) SelfDestruct(address common.Address) uint256.Int {
+	balance := s.context.GetBalance(tosca.Address(address))
 	s.context.SelfDestruct(tosca.Address(address), tosca.Address(s.beneficiary))
+	return *balance.ToUint256()
 }
 
 func (s *StateDB) HasSelfDestructed(address common.Address) bool {
@@ -164,8 +173,10 @@ func (s *StateDB) HasSelfDestructed(address common.Address) bool {
 	return s.context.HasSelfDestructed(tosca.Address(address))
 }
 
-func (s *StateDB) Selfdestruct6780(address common.Address) {
-	s.context.SelfDestruct(tosca.Address(address), tosca.Address(s.beneficiary))
+func (s *StateDB) SelfDestruct6780(address common.Address) (uint256.Int, bool) {
+	balance := s.context.GetBalance(tosca.Address(address))
+	hasSelfDestructed := s.context.SelfDestruct(tosca.Address(address), tosca.Address(s.beneficiary))
+	return *balance.ToUint256(), hasSelfDestructed
 }
 
 func (s *StateDB) Exist(address common.Address) bool {
@@ -255,4 +266,12 @@ func (s *StateDB) AddPreimage(common.Hash, []byte) {
 
 func (s *StateDB) Witness() *stateless.Witness {
 	return nil
+}
+
+func (s *StateDB) AccessEvents() *state.AccessEvents {
+	panic("not implemented")
+}
+
+func (s *StateDB) Finalise(bool) {
+	panic("not implemented")
 }
