@@ -11,10 +11,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	cliUtils "github.com/0xsoniclabs/tosca/go/ct/driver/cli"
 	"github.com/0xsoniclabs/tosca/go/ct/spc"
@@ -94,25 +94,25 @@ func doRegressionTests(context *cli.Context) error {
 		return err
 	}
 
+	var issues []error
 	for _, input := range inputs {
+		fmt.Printf("Running regression tests for %v\n", input)
 		state, err := st.ImportStateJSON(input)
 		if err != nil {
-			fmt.Printf("Failed to import state from %v: %v\n", input, err)
+			issues = append(issues, fmt.Errorf("failed to import state from %v: %w", input, err))
 			continue
 		}
 
 		rules := spc.Spec.GetRulesFor(state)
 
 		if len(rules) == 0 {
-			fmt.Printf("No rules apply for input %v\n", input)
+			issues = append(issues, fmt.Errorf("no rules apply for input %v", input))
 			continue
 		}
 
 		evaluationCount := 0
 
 		for _, rule := range rules {
-			tstart := time.Now()
-
 			input := state.Clone()
 			expected := state.Clone()
 			rule.Effect.Apply(expected)
@@ -125,20 +125,19 @@ func doRegressionTests(context *cli.Context) error {
 
 			result, err := evm.StepN(input.Clone(), 1)
 			if err != nil {
-				fmt.Printf("Failed to evaluate rule %v: %v\n", rule, err)
+				issues = append(issues, fmt.Errorf("failed to evaluate rule %v, %w", rule.Name, err))
 				continue
 			}
 
 			if !result.Eq(expected) {
-				fmt.Printf("Failed to evaluate rule %v: %v\n", rule, formatDiffForUser(input, result, expected, rule.Name))
+				issues = append(issues, fmt.Errorf("unexpected result for rule %v, diff %v", rule.Name, formatDiffForUser(input, result, expected, rule.Name)))
 				continue
 			}
 
 			evaluationCount++
-
-			fmt.Printf("OK: (rules evaluated: %v) %v (%v)\n", evaluationCount, rule, time.Since(tstart).Round(10*time.Millisecond))
 		}
+		fmt.Printf("OK: (rules evaluated: %d)\n", evaluationCount)
 	}
 
-	return nil
+	return errors.Join(issues...)
 }
