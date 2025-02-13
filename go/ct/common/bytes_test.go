@@ -149,3 +149,54 @@ func TestBytes_Get(t *testing.T) {
 		t.Errorf("unexpected slice, got %v", got)
 	}
 }
+
+func TestBytes_EqHandlesEmptyAndNilTheSameWay(t *testing.T) {
+	tests := map[string]struct {
+		first  Bytes
+		second Bytes
+		equal  bool
+	}{
+		"both empty": {
+			first:  NewBytes([]byte{}),
+			second: NewBytes([]byte{}),
+			equal:  true,
+		},
+		"first empty": {
+			first:  NewBytes([]byte{}),
+			second: NewBytes([]byte{1}),
+			equal:  false,
+		},
+		"second empty": {
+			first:  NewBytes([]byte{1}),
+			second: NewBytes([]byte{}),
+			equal:  false,
+		},
+		"both nil": {
+			first:  Bytes{},
+			second: Bytes{},
+			equal:  true,
+		},
+		"first nil": {
+			first:  Bytes{},
+			second: NewBytes([]byte{}),
+			equal:  true,
+		},
+		"second nil": {
+			first:  NewBytes([]byte{}),
+			second: Bytes{},
+			equal:  true,
+		},
+		"nil and non empty": {
+			first:  Bytes{},
+			second: NewBytes([]byte{1}),
+			equal:  false,
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			if got := test.first.Eq(test.second); got != test.equal {
+				t.Errorf("unexpected equality, got %v", got)
+			}
+		})
+	}
+}

@@ -43,6 +43,13 @@ func RandomBytesOfSize(rnd *rand.Rand, size int) Bytes {
 	return NewBytes(data)
 }
 
+func (b Bytes) Eq(other Bytes) bool {
+	if (b.data == "" || b.data == "0x") && (other.data == "" || other.data == "0x") {
+		return true
+	}
+	return b.data == other.data
+}
+
 func (b Bytes) ToBytes() []byte {
 	return []byte(b.data)
 }

@@ -240,7 +240,7 @@ func (s *State) Eq(other *State) bool {
 		s.CallContext == other.CallContext &&
 		s.CallJournal.Equal(other.CallJournal) &&
 		s.BlockContext == other.BlockContext &&
-		s.CallData == other.CallData &&
+		s.CallData.Eq(other.CallData) &&
 		s.Storage.Eq(other.Storage) &&
 		s.TransientStorage.Eq(other.TransientStorage) &&
 		s.Accounts.Eq(other.Accounts) &&
@@ -253,7 +253,7 @@ func (s *State) Eq(other *State) bool {
 	// For terminal states, internal state can be ignored, but the result is important.
 	if s.Status != Running {
 		return equivalent &&
-			s.ReturnData == other.ReturnData
+			s.ReturnData.Eq(other.ReturnData)
 	}
 
 	// All PC beyond the end of the code are equal, as all PCs in this range
@@ -266,7 +266,7 @@ func (s *State) Eq(other *State) bool {
 		equivalentPc &&
 		s.Stack.Eq(other.Stack) &&
 		s.Memory.Eq(other.Memory) &&
-		s.LastCallReturnData == other.LastCallReturnData
+		s.LastCallReturnData.Eq(other.LastCallReturnData)
 }
 
 const dataCutoffLength = 20
@@ -467,11 +467,11 @@ func (s *State) Diff(o *State) []string {
 		res = append(res, s.TransactionContext.Diff(o.TransactionContext)...)
 	}
 
-	if s.CallData != o.CallData {
+	if !s.CallData.Eq(o.CallData) {
 		res = append(res, fmt.Sprintf("Different call data: %x vs %x", s.CallData, o.CallData))
 	}
 
-	if s.LastCallReturnData != o.LastCallReturnData {
+	if !s.LastCallReturnData.Eq(o.LastCallReturnData) {
 		res = append(res, fmt.Sprintf("Different last call return data: %x vs %x.", s.LastCallReturnData, o.LastCallReturnData))
 	}
 

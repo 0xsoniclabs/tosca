@@ -1,0 +1,20 @@
+{
+    "Status": "running",
+    "Revision": "Paris",
+    "ReadOnly": false,
+    "Pc": 0,
+    "Gas": 102879607652,
+    "GasRefund": 173544765271,
+    "Code": "",
+    "Stack": [
+        "6cdc7fb5398d465c a434dfd544911699 7329d5cddb336bdc 4556f2f7f27e8668",
+        "fdb3ae278d9d379e 69f27280f570334d ffd3f34b71109167 957f5ff5c0508f25",
+        "bea391978dacce93 40b88a6c4c0c5e5f f8dd98532b8ff077 50f800737d405bc8",
+        "ee34236780c7da9b badff3c484f7be58 19a755c7585eae7b 0e892a9105a7da3f",
+        "5d3be04d4cbf9de7 e84426507b4d17ce 8f420a6c85347168 1b9368da77027959"
+    ],
+    	"CallData": "348939920e94fcbfa91818837629c539d234df03",
+    	"LastCallReturnData": "b87add9ca4cf959a617270a5d4a31567a47004d2",
+    	"ReturnData": "3078",
+    	"HasSelfDestructed": false
+    }
