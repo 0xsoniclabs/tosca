@@ -1343,6 +1343,9 @@ func getAllRules() []Rule {
 	// --- EXTCODEHASH ---
 
 	for _, revision := range tosca.GetAllKnownRevisions() {
+		if revision > NewestSupportedRevision {
+			continue
+		}
 		for _, warm := range []bool{true, false} {
 			for _, isEmpty := range []bool{true, false} {
 				name := "_" + revision.String()
