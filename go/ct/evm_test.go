@@ -35,15 +35,8 @@ var evms = map[string]ct.Evm{
 }
 
 func TestCt_ExplicitCases(t *testing.T) {
-
-	revisions := []tosca.Revision{}
-
-	for i := tosca.R07_Istanbul; i <= NewestSupportedRevision; i++ {
-		revisions = append(revisions, i)
-	}
-
 	tests := map[string]Condition{}
-	for _, revision := range revisions {
+	for _, revision := range AllSupportedRevisions() {
 		tests["jump_to_2^32_"+revision.String()] =
 			And(
 				IsRevision(revision),

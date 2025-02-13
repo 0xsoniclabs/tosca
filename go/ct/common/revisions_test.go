@@ -28,7 +28,7 @@ func TestRevisions_RangeLength(t *testing.T) {
 		"Paris":       {tosca.R11_Paris, 1000},
 		"Shanghai":    {tosca.R12_Shanghai, 1000},
 		"Cancun":      {tosca.R13_Cancun, 1000},
-		"Prague":      {tosca.R14_Prague, 18446744073709551615},
+		"Prague":      {tosca.R14_Prague, 1000},
 		"UnknownNext": {R99_UnknownNextRevision, math.MaxUint64},
 	}
 

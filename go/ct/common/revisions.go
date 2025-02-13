@@ -17,7 +17,7 @@ import (
 )
 
 // Newest tosca.Revision currently supported by the CT specification
-const NewestSupportedRevision = tosca.R13_Cancun
+const NewestSupportedRevision = tosca.R14_Prague
 const NewestFullySupportedRevision = tosca.R13_Cancun
 
 const R99_UnknownNextRevision = tosca.Revision(99)
@@ -102,4 +102,12 @@ func GetBlockRangeLengthFor(revision tosca.Revision) (uint64, error) {
 		revisionNumberRange = nextRevisionNumber - revisionNumber
 	}
 	return revisionNumberRange, nil
+}
+
+func AllSupportedRevisions() []tosca.Revision {
+	revisions := []tosca.Revision{}
+	for i := tosca.R07_Istanbul; i <= NewestFullySupportedRevision; i++ {
+		revisions = append(revisions, i)
+	}
+	return revisions
 }

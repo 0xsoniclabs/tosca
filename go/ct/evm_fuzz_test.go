@@ -150,7 +150,7 @@ func prepareFuzzingSeeds(f *testing.F) {
 	rnd := rand.New(0)
 
 	// every possible revision
-	for revision := MinRevision; revision <= NewestSupportedRevision; revision++ {
+	for _, revision := range AllSupportedRevisions() {
 		// every possible opCode, even if invalid
 		for op := 0x00; op <= 0xFF; op++ {
 			// Some gas values: this is a hand made sampling of interesting values,

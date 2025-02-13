@@ -59,12 +59,10 @@ func TestGas_getDynamicCostsForSstore_exhaustive(t *testing.T) {
 	specs[tosca.R11_Paris] = specs[tosca.R10_London]
 	specs[tosca.R12_Shanghai] = specs[tosca.R11_Paris]
 	specs[tosca.R13_Cancun] = specs[tosca.R12_Shanghai]
+	specs[tosca.R14_Prague] = specs[tosca.R13_Cancun]
 
 	// Check that gas prices are computed correctly.
 	for _, revision := range tosca.GetAllKnownRevisions() {
-		if revision > newestSupportedRevision {
-			continue
-		}
 		spec, found := specs[revision]
 		if !found {
 			t.Errorf("missing specification for revision %v", revision)
@@ -138,12 +136,10 @@ func TestGas_getRefundForSstore_exhaustive(t *testing.T) {
 	specs[tosca.R11_Paris] = specs[tosca.R10_London]
 	specs[tosca.R12_Shanghai] = specs[tosca.R11_Paris]
 	specs[tosca.R13_Cancun] = specs[tosca.R12_Shanghai]
+	specs[tosca.R14_Prague] = specs[tosca.R13_Cancun]
 
 	// Check that gas prices are computed correctly.
 	for _, revision := range tosca.GetAllKnownRevisions() {
-		if revision > newestSupportedRevision {
-			continue
-		}
 		spec, found := specs[revision]
 		if !found {
 			t.Errorf("missing specification for revision %v", revision)

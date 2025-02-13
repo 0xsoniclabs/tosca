@@ -35,7 +35,7 @@ func init() {
 type gethVm struct{}
 
 // Defines the newest supported revision for this interpreter implementation
-const newestSupportedRevision = tosca.R13_Cancun
+const newestSupportedRevision = tosca.R14_Prague
 
 func (m *gethVm) Run(parameters tosca.Parameters) (tosca.Result, error) {
 	if parameters.Revision > newestSupportedRevision {

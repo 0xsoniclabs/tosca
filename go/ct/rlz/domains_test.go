@@ -352,7 +352,7 @@ func TestDomain_SamplesBool(t *testing.T) {
 		// samples calls samples for all
 		"revision-samples": {got: revisionDomain{}.Samples(tosca.R09_Berlin),
 			want: []tosca.Revision{common.R99_UnknownNextRevision, tosca.R07_Istanbul, tosca.R09_Berlin, tosca.R10_London,
-				tosca.R11_Paris, tosca.R12_Shanghai, tosca.R13_Cancun}},
+				tosca.R11_Paris, tosca.R12_Shanghai, tosca.R13_Cancun, tosca.R14_Prague}},
 		"statusCode-samplesforall": {got: statusCodeDomain{}.SamplesForAll([]st.StatusCode{}),
 			want: []st.StatusCode{st.Running, st.Stopped, st.Reverted, st.Failed}},
 		"opcpode-samplesforall": {got: opCodeDomain{}.SamplesForAll([]vm.OpCode{}),
