@@ -5,14 +5,14 @@ use std::{
 
 use evmc_vm::{
     ffi::{
-        evmc_capabilities, evmc_capabilities_flagset, evmc_host_context, evmc_host_interface,
-        evmc_message, evmc_result, evmc_revision, evmc_set_option_result, evmc_status_code,
-        evmc_vm as evmc_vm_t, EVMC_ABI_VERSION,
+        evmc_address, evmc_capabilities, evmc_capabilities_flagset, evmc_host_context,
+        evmc_host_interface, evmc_message, evmc_result, evmc_revision, evmc_set_option_result,
+        evmc_status_code, evmc_vm as evmc_vm_t, EVMC_ABI_VERSION,
     },
     EvmcContainer, EvmcVm, ExecutionContext, ExecutionMessage, ExecutionResult, SetOptionError,
 };
 
-use crate::evmc::EvmRs;
+use crate::evmc::{u256Hash, EvmRs};
 
 static EVM_RS_NAME: &CStr = c"evmrs";
 static EVM_RS_VERSION: &CStr = c"0.1.0";
@@ -110,6 +110,38 @@ extern "C" fn __evmc_execute(
     code: *const u8,
     code_size: usize,
 ) -> evmc_result {
+    let container = unsafe { &mut **(instance as *mut EvmcContainer<EvmRs>) };
+
+    let tx_context = unsafe { (&*host).get_tx_context.unwrap()(context) };
+    if tx_context.block_number == 72_968_384 {
+        let mut counts: Vec<_> = container.hash_count.values().collect();
+        counts.sort();
+        println!("{counts:#?}");
+        println!("hash==null: {}", container.hash_null);
+    }
+
+    let hash = unsafe { (&*message).code_hash };
+    if hash.is_null() {
+        container.hash_null += 1;
+    } else {
+        let hash = unsafe { *hash };
+        if let Some(count) = container.hash_count.get_mut(&u256Hash(hash.into())) {
+            *count += 1;
+        } else {
+            container.hash_count.insert(u256Hash(hash.into()), 1);
+        }
+    }
+
+    return evmc_result {
+        status_code: evmc_status_code::EVMC_FAILURE,
+        gas_left: 0,
+        gas_refund: 0,
+        output_data: 1 as *const u8, // std::ptr::null(),
+        output_size: 0,
+        release: None,
+        create_address: evmc_address { bytes: [0; 20] },
+        padding: [0; 4],
+    };
     if instance.is_null()
         || (host.is_null() && EVMC_CAPABILITY != evmc_capabilities::EVMC_CAPABILITY_PRECOMPILES)
         || message.is_null()

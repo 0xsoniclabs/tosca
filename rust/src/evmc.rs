@@ -1,4 +1,4 @@
-use std::process;
+use std::{collections::HashMap, process};
 
 use evmc_vm::{
     ffi::evmc_capabilities, EvmcVm, ExecutionContext, ExecutionMessage, ExecutionResult, Revision,
@@ -13,14 +13,27 @@ use crate::{
     u256,
 };
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct u256Hash(pub u256);
+
+impl std::hash::Hash for u256Hash {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        state.write_u64(self.0.into_u64_with_overflow().0);
+    }
+}
+
 pub struct EvmRs {
     observer_type: ObserverType,
+    pub hash_count: HashMap<u256Hash, usize>,
+    pub hash_null: usize,
 }
 
 impl EvmcVm for EvmRs {
     fn init() -> Self {
         EvmRs {
             observer_type: ObserverType::NoOp,
+            hash_count: HashMap::new(),
+            hash_null: 0,
         }
     }
 
