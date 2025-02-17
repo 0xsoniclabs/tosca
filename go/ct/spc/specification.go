@@ -2412,11 +2412,13 @@ func getRulesForAllCallTypes() []Rule {
 			for _, warm := range []bool{true, false} {
 				for _, static := range []bool{true, false} {
 					for _, zeroValue := range []bool{true, false} {
-						effect := callEffect
-						if op == vm.CALL && static && !zeroValue {
-							effect = callFailEffect
+						for _, DelegationDesignator := range []DelegationDesignatorState{NoDelegationDesignation, WarnDelegationDesignation, ColdDelegationDesignation} {
+							effect := callEffect
+							if op == vm.CALL && static && !zeroValue {
+								effect = callFailEffect
+							}
+							res = append(res, getRulesForCall(op, rev, warm, zeroValue, DelegationDesignator, effect, static)...)
 						}
-						res = append(res, getRulesForCall(op, rev, warm, zeroValue, effect, static)...)
 					}
 				}
 			}
@@ -2426,7 +2428,7 @@ func getRulesForAllCallTypes() []Rule {
 	return res
 }
 
-func getRulesForCall(op vm.OpCode, revision tosca.Revision, warm, zeroValue bool, opEffect func(s *st.State, addrAccessCost tosca.Gas, op vm.OpCode), static bool) []Rule {
+func getRulesForCall(op vm.OpCode, revision tosca.Revision, warm, zeroValue bool, DelegationDesignator DelegationDesignatorState, opEffect func(s *st.State, addrAccessCost tosca.Gas, op vm.OpCode), static bool) []Rule {
 
 	var staticGas tosca.Gas
 	if revision == tosca.R07_Istanbul {
@@ -2474,6 +2476,7 @@ func getRulesForCall(op vm.OpCode, revision tosca.Revision, warm, zeroValue bool
 		IsRevision(revision),
 		targetWarm,
 		staticCondition,
+		ConstraintDelegationDesignator(Param(1), DelegationDesignator),
 	}
 
 	var valueZeroCondition Condition
@@ -2485,10 +2488,10 @@ func getRulesForCall(op vm.OpCode, revision tosca.Revision, warm, zeroValue bool
 		parameters = append(parameters, ValueParameter{})
 
 		if zeroValue {
-			valueZeroConditionName = "_no_value"
+			valueZeroConditionName = "no_value"
 			valueZeroCondition = Eq(ValueParam(2), NewU256(0))
 		} else {
-			valueZeroConditionName = "_with_value"
+			valueZeroConditionName = "with_value"
 			valueZeroCondition = Ne(ValueParam(2), NewU256(0))
 		}
 
@@ -2504,8 +2507,14 @@ func getRulesForCall(op vm.OpCode, revision tosca.Revision, warm, zeroValue bool
 		SizeParameter{},
 	)
 
-	name = fmt.Sprintf("_%v_%v_%v%v", strings.ToLower(revision.String()), warmColdString,
-		staticConditionName, valueZeroConditionName)
+	name = strings.Join([]string{
+		"", //<- start with _
+		strings.ToLower(revision.String()),
+		warmColdString,
+		staticConditionName,
+		valueZeroConditionName,
+		DelegationDesignatorName(DelegationDesignator),
+	}, "_")
 
 	return rulesFor(instruction{
 		op:         op,
@@ -2559,8 +2568,28 @@ func callEffect(s *st.State, addrAccessCost tosca.Gas, op vm.OpCode) {
 		valueToEmptyAccountCost = 25000
 	}
 
+	// Apply costs releated to delegate designator.
+	// see https://eips.ethereum.org/EIPS/eip-7702
+	DelegationDesignatorAccessCost := tosca.Gas(0)
+	targetCode := s.Accounts.GetCode(target.Bytes20be())
+	delegateAddress, isDelegate := ParseDelegationDesignator(targetCode)
+	if s.Revision >= tosca.R14_Prague && isDelegate {
+		if s.Accounts.IsWarm(delegateAddress) {
+			DelegationDesignatorAccessCost = 100
+		} else {
+			s.Accounts.MarkWarm(delegateAddress)
+			DelegationDesignatorAccessCost = 2600
+		}
+	}
+
 	// Deduct the gas costs for this call, except the costs for the recursive call.
-	dynamicGas, overflow := sumWithOverflow(memoryExpansionCost, positiveValueCost, valueToEmptyAccountCost, addrAccessCost)
+	dynamicGas, overflow := sumWithOverflow(
+		memoryExpansionCost,
+		positiveValueCost,
+		valueToEmptyAccountCost,
+		addrAccessCost,
+		DelegationDesignatorAccessCost,
+	)
 	if s.Gas < dynamicGas || overflow {
 		s.Status = st.Failed
 		return
