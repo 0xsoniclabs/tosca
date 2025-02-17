@@ -422,3 +422,69 @@ func removeDuplicatesGeneric[T comparable](slice []T) []T {
 
 	return result
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// Delegation designator domain
+
+// DelegationDesignatorState represents the state of a delegation designator in
+// the code of an account.
+// This type works together with ConstraintDelegationDesignator condition to model
+// EIP-7702 behavior.  see https://eips.ethereum.org/EIPS/eip-7702
+type DelegationDesignatorState = uint64
+
+const (
+	NoDelegationDesignation DelegationDesignatorState = iota
+	WarnDelegationDesignation
+	ColdDelegationDesignation
+)
+
+func DelegationDesignatorName(dd DelegationDesignatorState) string {
+	switch dd {
+	case NoDelegationDesignation:
+		return "no_delegate_designation"
+	case WarnDelegationDesignation:
+		return "warn_delegate_designation"
+	case ColdDelegationDesignation:
+		return "cold_delegate_designation"
+	}
+	return "unknown"
+}
+
+type DelegationDesignatorDomain struct{}
+
+func (DelegationDesignatorDomain) Equal(a DelegationDesignatorState, b DelegationDesignatorState) bool {
+	return a == b
+}
+
+func (DelegationDesignatorDomain) Less(a DelegationDesignatorState, b DelegationDesignatorState) bool {
+	return a < b
+}
+
+func (DelegationDesignatorDomain) Predecessor(a DelegationDesignatorState) DelegationDesignatorState {
+	// this domain cannot be used with Lt() nor Gt()
+	panic("not ordered")
+}
+
+func (DelegationDesignatorDomain) Successor(a DelegationDesignatorState) DelegationDesignatorState {
+	// this domain cannot be used with Lt() nor Gt()
+	panic("not ordered")
+}
+
+func (ddd DelegationDesignatorDomain) SomethingNotEqual(a DelegationDesignatorState) DelegationDesignatorState {
+	if a < ColdDelegationDesignation {
+		return a + 1
+	}
+	return NoDelegationDesignation
+}
+
+func (d DelegationDesignatorDomain) Samples(DelegationDesignatorState) []DelegationDesignatorState {
+	return d.SamplesForAll(nil)
+}
+
+func (DelegationDesignatorDomain) SamplesForAll([]DelegationDesignatorState) []DelegationDesignatorState {
+	return []DelegationDesignatorState{
+		NoDelegationDesignation,
+		WarnDelegationDesignation,
+		ColdDelegationDesignation,
+	}
+}

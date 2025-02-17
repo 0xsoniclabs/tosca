@@ -518,6 +518,14 @@ func TestDomain_SamplesKnownValues(t *testing.T) {
 				math.MinInt64, -1, 0, 1, 255, 256, 257, math.MaxInt64, 22, 23, 24,
 			},
 		},
+		"delegation-designator-samples": {
+			got:  DelegationDesignatorDomain{}.Samples(NoDelegationDesignation),
+			want: []DelegationDesignatorState{NoDelegationDesignation, WarnDelegationDesignation, ColdDelegationDesignation},
+		},
+		"delegation-designator-samplesforall": {
+			got:  DelegationDesignatorDomain{}.SamplesForAll(nil),
+			want: []DelegationDesignatorState{NoDelegationDesignation, WarnDelegationDesignation, ColdDelegationDesignation},
+		},
 	}
 
 	for name, tc := range tests {

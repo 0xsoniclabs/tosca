@@ -1053,4 +1053,72 @@ func (c *hasNoBlobHash) String() string {
 	return fmt.Sprintf("%v does not have BlobHash", c.index.String())
 }
 
-////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+// EIP 7702
+
+type containsDelegationDesignation struct {
+	address BindableExpression[U256]
+	state   DelegationDesignatorState
+}
+
+// DelegationDesignatorState is a condition where the Code of the account
+// at the given address has desigator to a warm delegate, a cold delegate or
+// no delegate at all.
+// see https://eips.ethereum.org/EIPS/eip-7702
+func ConstraintDelegationDesignator(address BindableExpression[U256], state DelegationDesignatorState) Condition {
+	return &containsDelegationDesignation{
+		address: address,
+		state:   state,
+	}
+}
+
+func (c *containsDelegationDesignation) Check(s *st.State) (bool, error) {
+	key, err := c.address.Eval(s)
+	if err != nil {
+		return false, err
+	}
+
+	account := s.Accounts.GetAccount(NewAddress(key))
+	delegateAddress, isDelegated := ParseDelegationDesignator(account.Code)
+	switch c.state {
+	case NoDelegationDesignation:
+		return !isDelegated, nil
+	case WarnDelegationDesignation:
+		return isDelegated && s.Accounts.IsWarm(delegateAddress), nil
+	case ColdDelegationDesignation:
+		return isDelegated && !s.Accounts.IsWarm(delegateAddress), nil
+	}
+	panic("unreachable")
+}
+
+func (c *containsDelegationDesignation) GetTestValues() []TestValue {
+	property := Property(fmt.Sprintf("DelegationDesignator(%v)", c.address))
+	domain := DelegationDesignatorDomain{}
+	restrict := func(generator *gen.StateGenerator, state DelegationDesignatorState) {
+		v := c.address.GetVariable()
+		c.address.BindTo(generator)
+
+		switch state {
+		case NoDelegationDesignation:
+			generator.BindNoDelegationDesignator(v)
+		case WarnDelegationDesignation:
+			generator.BindDelegationDesignator(v, tosca.WarmAccess)
+		case ColdDelegationDesignation:
+			generator.BindDelegationDesignator(v, tosca.ColdAccess)
+		}
+	}
+	testValues := []TestValue{
+		NewTestValue(property, domain, NoDelegationDesignation, restrict),
+		NewTestValue(property, domain, WarnDelegationDesignation, restrict),
+		NewTestValue(property, domain, ColdDelegationDesignation, restrict),
+	}
+	return testValues
+}
+
+func (c *containsDelegationDesignation) Restrict(*gen.StateGenerator) {
+	panic("not needed")
+}
+
+func (c *containsDelegationDesignation) String() string {
+	return fmt.Sprintf("%v containsDelegationDesignation", c.address)
+}

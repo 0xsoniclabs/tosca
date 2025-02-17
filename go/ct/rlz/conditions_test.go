@@ -532,6 +532,47 @@ func TestCondition_BlobHashesProducesGetTestValues(t *testing.T) {
 	}
 }
 
+func TestCondition_DelegationDesignator_CanSetAddressStatus(t *testing.T) {
+	tests := []DelegationDesignatorState{
+		NoDelegationDesignation,
+		WarnDelegationDesignation,
+		ColdDelegationDesignation,
+	}
+
+	for _, status := range tests {
+		t.Run(DelegationDesignatorName(status), func(t *testing.T) {
+
+			condition := ConstraintDelegationDesignator(Param(0), status)
+			var matchCovered, failCovered bool
+
+			for _, value := range condition.GetTestValues() {
+				gen := gen.NewStateGenerator()
+				value.Restrict(gen)
+
+				state, err := gen.Generate(rand.New(0))
+				if err != nil {
+					t.Fatalf("failed to build state: %v", err)
+				}
+
+				if matches, err := condition.Check(state); err != nil {
+					t.Errorf("failed to check condition: %v", err)
+				} else if matches {
+					matchCovered = true
+				} else {
+					failCovered = true
+				}
+			}
+
+			if !matchCovered {
+				t.Errorf("no test value matched the condition")
+			}
+			if !failCovered {
+				t.Errorf("no test value failed the condition")
+			}
+		})
+	}
+}
+
 func TestCondition_ConflictingAccountWarmConditionsAreUnsatisfiable(t *testing.T) {
 	isWarm := IsAddressWarm(Param(0))
 	isCold := IsAddressCold(Param(0))
