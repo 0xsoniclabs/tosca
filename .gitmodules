@@ -3,7 +3,7 @@
 	url = https://github.com/ethereum/evmone.git
 [submodule "third_party/evmc"]
 	path = third_party/evmc
-	url = https://github.com/Fantom-foundation/evmc.git
+	url = https://github.com/0xsoniclabs/evmc.git
 [submodule "third_party/intx"]
 	path = third_party/intx
 	url = https://github.com/chfast/intx.git
