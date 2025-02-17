@@ -321,6 +321,13 @@ func (g *StateGenerator) IsAbsentBlobHashIndex(variable Variable) {
 	g.transactionContextGen.IsAbsentBlobHashIndex(variable)
 }
 
+func (g *StateGenerator) BindDelegationDesignator(address Variable, access tosca.AccessStatus) {
+	g.accountsGen.BindDelegationDesignator(address, access)
+}
+func (g *StateGenerator) BindNoDelegationDesignator(address Variable) {
+	g.accountsGen.BindNoDelegationDesignator(address)
+}
+
 // Generate produces a State instance satisfying the constraints set on this
 // generator or returns ErrUnsatisfiable on conflicting constraints. Subsequent
 // generators are invoked automatically.
