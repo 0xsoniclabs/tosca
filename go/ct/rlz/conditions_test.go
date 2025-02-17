@@ -585,7 +585,16 @@ func TestCondition_GetTestValues(t *testing.T) {
 		want      []any
 	}{
 		{IsRevision(tosca.R10_London), []any{tosca.R10_London}},
-		{AnyKnownRevision(), []any{tosca.R07_Istanbul, tosca.R09_Berlin, tosca.R10_London, tosca.R11_Paris, tosca.R12_Shanghai, tosca.R13_Cancun, tosca.R14_Prague, R99_UnknownNextRevision}},
+		{AnyKnownRevision(), []any{
+			tosca.R07_Istanbul,
+			tosca.R09_Berlin,
+			tosca.R10_London,
+			tosca.R11_Paris,
+			tosca.R12_Shanghai,
+			tosca.R13_Cancun,
+			tosca.R14_Prague,
+			R99_UnknownNextRevision,
+		}},
 		{InRange256FromCurrentBlock(Param(0)), inOutofRangeTestValues},
 		{OutOfRange256FromCurrentBlock(Param(0)), inOutofRangeTestValues},
 		{IsCode(Param(0)), []any{true, false}},

@@ -107,6 +107,7 @@ func MakeChainConfig(baseline params.ChainConfig, chainId *big.Int, targetRevisi
 	parisBlock := ct.GetForkBlock(tosca.R11_Paris)
 	shanghaiTime := ct.GetForkTime(tosca.R12_Shanghai)
 	cancunTime := ct.GetForkTime(tosca.R13_Cancun)
+	pragueTime := ct.GetForkTime(tosca.R14_Prague)
 
 	chainConfig := baseline
 	chainConfig.ChainID = chainId
@@ -123,6 +124,9 @@ func MakeChainConfig(baseline params.ChainConfig, chainId *big.Int, targetRevisi
 	}
 	if targetRevision >= tosca.R13_Cancun {
 		chainConfig.CancunTime = &cancunTime
+	}
+	if targetRevision >= tosca.R14_Prague {
+		chainConfig.PragueTime = &pragueTime
 	}
 
 	return chainConfig
