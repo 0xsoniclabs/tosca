@@ -1107,12 +1107,10 @@ func (c *containsDelegationDesignation) GetTestValues() []TestValue {
 			generator.BindDelegationDesignator(v, tosca.ColdAccess)
 		}
 	}
-	testValues := []TestValue{
-		NewTestValue(property, domain, NoDelegationDesignation, restrict),
-		NewTestValue(property, domain, WarnDelegationDesignation, restrict),
-		NewTestValue(property, domain, ColdDelegationDesignation, restrict),
+	return []TestValue{
+		NewTestValue(property, domain, c.state, restrict),
+		NewTestValue(property, domain, domain.SomethingNotEqual(c.state), restrict),
 	}
-	return testValues
 }
 
 func (c *containsDelegationDesignation) Restrict(*gen.StateGenerator) {

@@ -441,11 +441,11 @@ const (
 func DelegationDesignatorName(dd DelegationDesignatorState) string {
 	switch dd {
 	case NoDelegationDesignation:
-		return "no_delegate_designation"
+		return "no_delegation_designation"
 	case WarnDelegationDesignation:
-		return "warn_delegate_designation"
+		return "warn_delegation_designation"
 	case ColdDelegationDesignation:
-		return "cold_delegate_designation"
+		return "cold_delegation_designation"
 	}
 	return "unknown"
 }
