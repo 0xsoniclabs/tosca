@@ -952,6 +952,16 @@ func genericCall(c *context, kind tosca.CallKind) error {
 		}
 	}
 
+	// EIP-7702 delegation designation warm/cold cost
+	if c.isAtLeast(tosca.R14_Prague) {
+		target, isDelegation := parseDelegationDesignation(c.context.GetCode(toAddr))
+		if isDelegation {
+			if err := c.useGas(getAccessCost(c.context.AccessAccount(target))); err != nil {
+				return err
+			}
+		}
+	}
+
 	// for static and delegate calls, the following value checks will always be zero.
 	// Charge for transferring value to a new address
 	if !value.IsZero() {
@@ -1053,6 +1063,14 @@ func opCall(c *context) error {
 		return errStaticContextViolation
 	}
 	return genericCall(c, tosca.Call)
+}
+
+func parseDelegationDesignation(code tosca.Code) (tosca.Address, bool) {
+	if len(code) == 23 && bytes.HasPrefix(code, []byte{0xef, 0x01, 0x00}) {
+		address := tosca.Address(code[3:23])
+		return address, true
+	}
+	return tosca.Address{}, false
 }
 
 func opCallCode(c *context) error {

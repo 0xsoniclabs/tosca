@@ -1582,6 +1582,75 @@ func TestGenericCall_ForwardsCallParamsDependingOnCallKind(t *testing.T) {
 	}
 }
 
+func TestGenericCall_DelegationDesignationIsBilledOnlyInPrague(t *testing.T) {
+	targetAddress := tosca.Address{0x42}
+	delegationCode := append(tosca.Code{0xef, 0x01, 0x00}, targetAddress[:]...)
+	noDelegationCode := append(tosca.Code{0x00, 0x00, 0x00}, targetAddress[:]...)
+	zero := *uint256.NewInt(0)
+	tests := map[string]struct {
+		revision         tosca.Revision
+		toAddressCode    tosca.Code
+		access           tosca.AccessStatus
+		gasForDelegation tosca.Gas
+	}{
+		"pre prague, no delegation": {
+			revision:         tosca.R13_Cancun,
+			toAddressCode:    noDelegationCode,
+			gasForDelegation: 0,
+		},
+		"pre prague, delegation": {
+			revision:         tosca.R13_Cancun,
+			toAddressCode:    delegationCode,
+			gasForDelegation: 0,
+		},
+		"prague, no delegation": {
+			revision:         tosca.R14_Prague,
+			toAddressCode:    noDelegationCode,
+			gasForDelegation: 0,
+		},
+		"prague, delegation warm": {
+			revision:         tosca.R14_Prague,
+			toAddressCode:    delegationCode,
+			access:           tosca.WarmAccess,
+			gasForDelegation: 100,
+		},
+		"prague, delegation cold": {
+			revision:         tosca.R14_Prague,
+			toAddressCode:    delegationCode,
+			access:           tosca.ColdAccess,
+			gasForDelegation: 2600,
+		},
+	}
+
+	for _, kind := range []tosca.CallKind{tosca.Call, tosca.StaticCall, tosca.DelegateCall, tosca.CallCode} {
+		for name, test := range tests {
+			t.Run(kind.String()+"/"+name, func(t *testing.T) {
+
+				runContext := tosca.NewMockRunContext(gomock.NewController(t))
+				// EIP-2929 call destination access cost
+				runContext.EXPECT().AccessAccount(tosca.Address{}).Return(tosca.WarmAccess)
+
+				runContext.EXPECT().GetCode(gomock.Any()).Return(test.toAddressCode).AnyTimes()
+				runContext.EXPECT().AccessAccount(targetAddress).Return(test.access).AnyTimes()
+				runContext.EXPECT().Call(kind, gomock.Any()).Return(tosca.CallResult{}, nil)
+
+				ctxt := getEmptyContext()
+				ctxt.context = runContext
+				ctxt.params.Revision = test.revision
+				ctxt.stack = fillStack(zero, zero, zero, zero, zero, zero, zero)
+				spareGas := tosca.Gas(100)
+				toAddressWarmAccessCost := tosca.Gas(100)
+				ctxt.gas = spareGas + toAddressWarmAccessCost + test.gasForDelegation
+
+				genericCall(&ctxt, kind)
+				if ctxt.gas != spareGas {
+					t.Errorf("Delegation designation gas was not billed correctly: want %d, got %d", spareGas, ctxt.gas)
+				}
+			})
+		}
+	}
+}
+
 func TestInstructions_ComparisonAndShiftOperations(t *testing.T) {
 
 	zero := *uint256.NewInt(0)
@@ -2188,6 +2257,47 @@ func TestInstructions_ReturnDataCopy_ReturnsOutOfGas(t *testing.T) {
 	err := opReturnDataCopy(&ctxt)
 	if err != errOutOfGas {
 		t.Fatalf("expected overflow error, got %v", err)
+	}
+}
+
+func TestInstructions_ParseDelegationDesignation(t *testing.T) {
+	exampleAddress := tosca.Address{0x42, 0x42, 0x42, 0x42, 0x42}
+	tests := map[string]struct {
+		code         tosca.Code
+		isDelegation bool
+		address      tosca.Address
+	}{
+		"delegation": {
+			code:         append(tosca.Code{0xef, 0x01, 0x00}, exampleAddress[:]...),
+			isDelegation: true,
+			address:      exampleAddress,
+		},
+		"no delegation": {
+			code:         append(tosca.Code{0xee, 0x01, 0x00}, exampleAddress[:]...),
+			isDelegation: false,
+			address:      tosca.Address{},
+		},
+		"long code": {
+			code:         append(tosca.Code{0xef, 0x01, 0x00, 0x42}, exampleAddress[:]...),
+			isDelegation: false,
+			address:      tosca.Address{},
+		},
+		"empty code": {
+			code:         tosca.Code{},
+			isDelegation: false,
+			address:      tosca.Address{},
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			address, isDelegation := parseDelegationDesignation(test.code)
+			if want, got := test.isDelegation, isDelegation; want != got {
+				t.Errorf("unexpected delegation flag, wanted %v, got %v", want, got)
+			}
+			if want, got := test.address, address; want != got {
+				t.Errorf("unexpected address, wanted %v, got %v", want, got)
+			}
+		})
 	}
 }
 
