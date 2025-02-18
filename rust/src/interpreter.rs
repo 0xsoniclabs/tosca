@@ -1646,6 +1646,8 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             self.gas_left
                 .consume_value_to_empty_account_cost(&value, &addr, self.context)?;
         }
+        self.gas_left
+            .consume_delegate_resolution_cost(&addr, self.revision, self.context)?;
         // access slice to consume potential memory expansion cost but drop it so that we can get
         // another mutable reference into memory for input
         let _dest = self
@@ -1743,6 +1745,8 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
         self.gas_left
             .consume_address_access_cost(&addr, self.revision, self.context)?;
+        self.gas_left
+            .consume_delegate_resolution_cost(&addr, self.revision, self.context)?;
         // access slice to consume potential memory expansion cost but drop it so that we can get
         // another mutable reference into memory for input
         let _dest = self

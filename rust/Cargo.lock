@@ -459,34 +459,34 @@ checksum = "b90ca2580b73ab6a1f724b76ca11ab632df820fd6040c336200d2c1df7b3c82c"
 
 [[package]]
 name = "evmc-sys"
-version = "12.0.0-alpha.0"
-source = "git+https://github.com/Fantom-foundation/evmc?branch=tosca-extensions#e37034770c59ebfc311b050dfbe8bc9c649929a9"
+version = "12.1.0"
+source = "git+https://github.com/0xsoniclabs/evmc?branch=tosca-extensions#4d038ac851204290937c70ac4fdeec724a3afabe"
 dependencies = [
  "bindgen",
 ]
 
 [[package]]
 name = "evmc-sys"
-version = "12.0.0-alpha.0"
-source = "git+https://github.com/LorenzSchueler/evmc?branch=tosca-extensions-optimized#fcebf5d7af6130a9260154e63a040785d978f93d"
+version = "12.1.0"
+source = "git+https://github.com/0xsoniclabs/evmc?branch=tosca-extensions-optimized#6a82a07a0381996ddb5fb5c2c5db81349ebf3502"
 dependencies = [
  "bindgen",
 ]
 
 [[package]]
 name = "evmc-vm"
-version = "12.0.0-alpha.0"
-source = "git+https://github.com/Fantom-foundation/evmc?branch=tosca-extensions#e37034770c59ebfc311b050dfbe8bc9c649929a9"
+version = "12.1.0"
+source = "git+https://github.com/0xsoniclabs/evmc?branch=tosca-extensions#4d038ac851204290937c70ac4fdeec724a3afabe"
 dependencies = [
- "evmc-sys 12.0.0-alpha.0 (git+https://github.com/Fantom-foundation/evmc?branch=tosca-extensions)",
+ "evmc-sys 12.1.0 (git+https://github.com/0xsoniclabs/evmc?branch=tosca-extensions)",
 ]
 
 [[package]]
 name = "evmc-vm"
-version = "12.0.0-alpha.0"
-source = "git+https://github.com/LorenzSchueler/evmc?branch=tosca-extensions-optimized#fcebf5d7af6130a9260154e63a040785d978f93d"
+version = "12.1.0"
+source = "git+https://github.com/0xsoniclabs/evmc?branch=tosca-extensions-optimized#6a82a07a0381996ddb5fb5c2c5db81349ebf3502"
 dependencies = [
- "evmc-sys 12.0.0-alpha.0 (git+https://github.com/LorenzSchueler/evmc?branch=tosca-extensions-optimized)",
+ "evmc-sys 12.1.0 (git+https://github.com/0xsoniclabs/evmc?branch=tosca-extensions-optimized)",
 ]
 
 [[package]]
@@ -497,8 +497,8 @@ dependencies = [
  "bnum",
  "driver",
  "ethnum",
- "evmc-vm 12.0.0-alpha.0 (git+https://github.com/Fantom-foundation/evmc?branch=tosca-extensions)",
- "evmc-vm 12.0.0-alpha.0 (git+https://github.com/LorenzSchueler/evmc?branch=tosca-extensions-optimized)",
+ "evmc-vm 12.1.0 (git+https://github.com/0xsoniclabs/evmc?branch=tosca-extensions)",
+ "evmc-vm 12.1.0 (git+https://github.com/0xsoniclabs/evmc?branch=tosca-extensions-optimized)",
  "evmrs",
  "llvm-profile-wrappers",
  "lru",

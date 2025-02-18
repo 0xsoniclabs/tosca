@@ -110,6 +110,28 @@ impl Gas {
     }
 
     #[inline(always)]
+    pub fn consume_delegate_resolution_cost(
+        &mut self,
+        addr: &Address,
+        revision: Revision,
+        context: &mut dyn ExecutionContextTrait,
+    ) -> Result<(), FailStatus> {
+        if revision < Revision::EVMC_PRAGUE {
+            return Ok(());
+        }
+        if context.get_code_size(addr) == 23 {
+            let mut code = [0; 23];
+            context.copy_code(addr, 0, &mut code);
+            if code.len() == 23 && code[..3] == [0xef, 0x01, 0x00] {
+                let mut delegation_addr = Address::default();
+                delegation_addr.bytes.copy_from_slice(&code[3..]);
+                self.consume_address_access_cost(&delegation_addr, revision, context)?;
+            }
+        }
+        Ok(())
+    }
+
+    #[inline(always)]
     pub fn consume_copy_cost(&mut self, len: u64) -> Result<(), FailStatus> {
         let cost = word_size(len)? * 3; // does not overflow because word_size divides by 32
         self.consume(cost)
