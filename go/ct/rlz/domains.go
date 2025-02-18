@@ -248,11 +248,11 @@ func (statusCodeDomain) SomethingNotEqual(a st.StatusCode) st.StatusCode {
 }
 
 func (statusCodeDomain) Samples(a st.StatusCode) []st.StatusCode {
-	return []st.StatusCode{st.Running, st.Stopped, st.Reverted, st.Failed}
+	return []st.StatusCode{a}
 }
 
 func (statusCodeDomain) SamplesForAll(a []st.StatusCode) []st.StatusCode {
-	return []st.StatusCode{st.Running, st.Stopped, st.Reverted, st.Failed}
+	return a
 }
 
 ////////////////////////////////////////////////////////////

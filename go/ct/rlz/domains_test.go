@@ -440,7 +440,7 @@ func TestDomain_SomethingNotEqual(t *testing.T) {
 	}
 }
 
-func TestDomain_SamplesBool(t *testing.T) {
+func TestDomain_SamplesKnownValues(t *testing.T) {
 
 	opcodesAllSamples := make([]vm.OpCode, 0, 256)
 	for i := 0; i < 256; i++ {
@@ -505,8 +505,8 @@ func TestDomain_SamplesBool(t *testing.T) {
 			},
 		},
 		"statusCode-samplesforall": {
-			got:  statusCodeDomain{}.SamplesForAll([]st.StatusCode{}),
-			want: []st.StatusCode{st.Running, st.Stopped, st.Reverted, st.Failed},
+			got:  statusCodeDomain{}.SamplesForAll([]st.StatusCode{st.Running}),
+			want: []st.StatusCode{st.Running},
 		},
 		"opcpode-samplesforall": {
 			got:  opCodeDomain{}.SamplesForAll([]vm.OpCode{}),
