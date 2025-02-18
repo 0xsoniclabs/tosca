@@ -13,6 +13,7 @@ package lfvm
 import (
 	"bytes"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -1642,12 +1643,38 @@ func TestGenericCall_DelegationDesignationIsBilledOnlyInPrague(t *testing.T) {
 				toAddressWarmAccessCost := tosca.Gas(100)
 				ctxt.gas = spareGas + toAddressWarmAccessCost + test.gasForDelegation
 
-				genericCall(&ctxt, kind)
+				err := genericCall(&ctxt, kind)
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
 				if ctxt.gas != spareGas {
 					t.Errorf("Delegation designation gas was not billed correctly: want %d, got %d", spareGas, ctxt.gas)
 				}
 			})
 		}
+	}
+}
+
+func TestGenericCall_DelegationDesignationInsufficientGas(t *testing.T) {
+	zero := *uint256.NewInt(0)
+	targetAddress := tosca.Address{0x42}
+	delegationCode := append(tosca.Code{0xef, 0x01, 0x00}, targetAddress[:]...)
+
+	runContext := tosca.NewMockRunContext(gomock.NewController(t))
+	// EIP-2929 call destination access cost
+	runContext.EXPECT().AccessAccount(tosca.Address{}).Return(tosca.WarmAccess)
+	runContext.EXPECT().GetCode(gomock.Any()).Return(delegationCode)
+	runContext.EXPECT().AccessAccount(targetAddress).Return(tosca.WarmAccess)
+
+	ctxt := getEmptyContext()
+	ctxt.context = runContext
+	ctxt.params.Revision = tosca.R14_Prague
+	ctxt.stack = fillStack(zero, zero, zero, zero, zero, zero, zero)
+	toAddressWarmAccessCost := tosca.Gas(100)
+	ctxt.gas = toAddressWarmAccessCost + 99
+
+	if err := genericCall(&ctxt, tosca.Call); !errors.Is(err, errOutOfGas) {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
