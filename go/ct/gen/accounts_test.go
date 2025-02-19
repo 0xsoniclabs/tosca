@@ -96,6 +96,57 @@ func TestAccountsGenerator_WarmColdConstraintsNoAssignment(t *testing.T) {
 	}
 }
 
+func TestAccountsGenerator_DelegationDesignatorCanBePrinted(t *testing.T) {
+
+	tests := map[string]struct {
+		setup    func(*AccountsGenerator, Variable)
+		expected string
+	}{
+		"no delegation designator": {
+			setup: func(gen *AccountsGenerator, v Variable) {
+				gen.BindNoDelegationDesignator(v)
+			},
+			expected: "{DelegationDesignator($v1) = none}",
+		},
+		"delegate is cold": {
+			setup: func(gen *AccountsGenerator, v Variable) {
+				gen.BindDelegationDesignator(v, tosca.ColdAccess)
+			},
+			expected: "{DelegationDesignator($v1) = cold}",
+		},
+		"delegate is warm": {
+			setup: func(gen *AccountsGenerator, v Variable) {
+				gen.BindDelegationDesignator(v, tosca.WarmAccess)
+			},
+			expected: "{DelegationDesignator($v1) = warm}",
+		},
+		"is sorted": {
+			setup: func(gen *AccountsGenerator, v Variable) {
+				v2 := Variable("v2")
+				gen.BindDelegationDesignator(v2, tosca.WarmAccess)
+				gen.BindNoDelegationDesignator(v)
+			},
+			expected: "{DelegationDesignator($v1) = none,DelegationDesignator($v2) = warm}",
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+
+			v1 := Variable("v1")
+
+			generator := NewAccountGenerator()
+			test.setup(generator, v1)
+
+			print := generator.String()
+			if print != test.expected {
+				t.Errorf("Expected %v but got %v", test.expected, print)
+			}
+
+		})
+	}
+}
+
 func TestAccountsGenerator_DelegationDesignatorConstraintsAreUsed(t *testing.T) {
 
 	tests := map[string]struct {

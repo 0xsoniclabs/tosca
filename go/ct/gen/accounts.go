@@ -149,8 +149,18 @@ func (g *AccountsGenerator) String() string {
 		parts = append(parts, fmt.Sprintf("balance(%v) ≤ %v", con.address, con.value.DecimalString()))
 	}
 
+	sort.Slice(g.DelegationDesignator, func(i, j int) bool {
+		return g.DelegationDesignator[i].Less(&g.DelegationDesignator[j])
+	})
 	for _, con := range g.DelegationDesignator {
-		parts = append(parts, fmt.Sprintf("DelegationDesignator(%v) = %v", con.addressVariable, con.accessKind))
+		access := "none"
+		if con.enabled {
+			access = "warm"
+			if con.accessKind == tosca.ColdAccess {
+				access = "cold"
+			}
+		}
+		parts = append(parts, fmt.Sprintf("DelegationDesignator(%v) = %v", con.addressVariable, access))
 	}
 
 	return "{" + strings.Join(parts, ",") + "}"
