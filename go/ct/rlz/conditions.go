@@ -1087,8 +1087,9 @@ func (c *containsDelegationDesignation) Check(s *st.State) (bool, error) {
 		return isDelegated && s.Accounts.IsWarm(delegateAddress), nil
 	case ColdDelegationDesignation:
 		return isDelegated && !s.Accounts.IsWarm(delegateAddress), nil
+	default:
+		panic("unknown DelegationDesignatorState")
 	}
-	panic("unreachable")
 }
 
 func (c *containsDelegationDesignation) GetTestValues() []TestValue {
