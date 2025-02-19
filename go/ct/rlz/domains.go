@@ -462,12 +462,12 @@ func (DelegationDesignatorDomain) Less(a DelegationDesignatorState, b Delegation
 
 func (DelegationDesignatorDomain) Predecessor(a DelegationDesignatorState) DelegationDesignatorState {
 	// this domain cannot be used with Lt() nor Gt()
-	panic("not ordered")
+	panic("not useful")
 }
 
 func (DelegationDesignatorDomain) Successor(a DelegationDesignatorState) DelegationDesignatorState {
 	// this domain cannot be used with Lt() nor Gt()
-	panic("not ordered")
+	panic("not useful")
 }
 
 func (ddd DelegationDesignatorDomain) SomethingNotEqual(a DelegationDesignatorState) DelegationDesignatorState {
