@@ -2304,6 +2304,11 @@ func TestInstructions_ParseDelegationDesignation(t *testing.T) {
 			isDelegation: false,
 			address:      tosca.Address{},
 		},
+		"short code": {
+			code:         append(tosca.Code{0xef, 0x01, 0x00}, exampleAddress[:len(exampleAddress)-1]...),
+			isDelegation: false,
+			address:      tosca.Address{},
+		},
 		"long code": {
 			code:         append(tosca.Code{0xef, 0x01, 0x00, 0x42}, exampleAddress[:]...),
 			isDelegation: false,
