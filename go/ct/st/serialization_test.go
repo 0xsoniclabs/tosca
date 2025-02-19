@@ -335,11 +335,11 @@ func TestSerialization_byteSliceMarshal(t *testing.T) {
 		slice    Bytes
 		expected string
 	}{
-		{NewBytes([]byte{byte(0x01)}), "\"01\""},
-		{NewBytes([]byte{byte(0xff)}), "\"ff\""},
-		{NewBytes([]byte{byte(0x01), byte(0x02), byte(0x03), byte(0x04), byte(0x05), byte(0x06)}), "\"010203040506\""},
-		{NewBytes([]byte{byte(0xfa), byte(0xfb), byte(0xfc), byte(0xfd), byte(0xfe), byte(0xff)}), "\"fafbfcfdfeff\""},
-		{NewBytes([]byte{byte(0x01), byte(0x23), byte(0x45), byte(0x67), byte(0x89), byte(0xab)}), "\"0123456789ab\""},
+		{NewBytes([]byte{byte(0x01)}), "\"0x01\""},
+		{NewBytes([]byte{byte(0xff)}), "\"0xff\""},
+		{NewBytes([]byte{byte(0x01), byte(0x02), byte(0x03), byte(0x04), byte(0x05), byte(0x06)}), "\"0x010203040506\""},
+		{NewBytes([]byte{byte(0xfa), byte(0xfb), byte(0xfc), byte(0xfd), byte(0xfe), byte(0xff)}), "\"0xfafbfcfdfeff\""},
+		{NewBytes([]byte{byte(0x01), byte(0x23), byte(0x45), byte(0x67), byte(0x89), byte(0xab)}), "\"0x0123456789ab\""},
 	}
 
 	for _, test := range tests {
@@ -358,11 +358,11 @@ func TestSerialization_byteSliceUnmarshal(t *testing.T) {
 		input    string
 		expected Bytes
 	}{
-		{"\"01\"", NewBytes([]byte{byte(0x01)})},
-		{"\"ff\"", NewBytes([]byte{byte(0xff)})},
-		{"\"010203040506\"", NewBytes([]byte{byte(0x01), byte(0x02), byte(0x03), byte(0x04), byte(0x05), byte(0x06)})},
-		{"\"fafbfcfdfeff\"", NewBytes([]byte{byte(0xfa), byte(0xfb), byte(0xfc), byte(0xfd), byte(0xfe), byte(0xff)})},
-		{"\"0123456789ab\"", NewBytes([]byte{byte(0x01), byte(0x23), byte(0x45), byte(0x67), byte(0x89), byte(0xab)})},
+		{"\"0x01\"", NewBytes([]byte{byte(0x01)})},
+		{"\"0xff\"", NewBytes([]byte{byte(0xff)})},
+		{"\"0x010203040506\"", NewBytes([]byte{byte(0x01), byte(0x02), byte(0x03), byte(0x04), byte(0x05), byte(0x06)})},
+		{"\"0xfafbfcfdfeff\"", NewBytes([]byte{byte(0xfa), byte(0xfb), byte(0xfc), byte(0xfd), byte(0xfe), byte(0xff)})},
+		{"\"0x0123456789ab\"", NewBytes([]byte{byte(0x01), byte(0x23), byte(0x45), byte(0x67), byte(0x89), byte(0xab)})},
 	}
 
 	for _, test := range tests {

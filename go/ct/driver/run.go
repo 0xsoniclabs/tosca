@@ -16,6 +16,7 @@ import (
 	"math"
 	"os"
 	"regexp"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -125,7 +126,7 @@ func doRun(context *cli.Context) error {
 				return rlz.ConsumeContinue
 			}
 
-			issuesCollector.AddIssue(state, fmt.Errorf("failed to process input state %v: %w", state, err))
+			issuesCollector.AddIssue(state, fmt.Errorf("failed to process state:\n %w", err))
 		}
 
 		return rlz.ConsumeContinue
@@ -192,13 +193,15 @@ func runTest(input *st.State, evm ct.Evm, filter *regexp.Regexp) error {
 }
 
 func formatDiffForUser(input, result, expected *st.State, ruleName string) string {
-	res := fmt.Sprintln("input state:", input)
-	res += fmt.Sprintln("result state:", result)
-	res += fmt.Sprintln("expected state:", expected)
-	res += fmt.Sprintln("expectation defined by rule: ", ruleName)
-	res += "Differences:\n"
+	var sb strings.Builder
+	sb.WriteString("input state:" + input.String() + "\n")
+	sb.WriteString("result state (Interpreter):" + result.String() + "\n")
+	sb.WriteString("expected state (CT):" + expected.String() + "\n")
+	sb.WriteString("expectation defined by rule: " + ruleName + "\n")
+	sb.WriteString("Differences: (Note: depending on status, not all are applicable)\n")
+	sb.WriteString("Interpreter vs. CT\n")
 	for _, diff := range result.Diff(expected) {
-		res += fmt.Sprintf("\t%s\n", diff)
+		sb.WriteString("\t" + diff + "\n")
 	}
-	return res
+	return sb.String()
 }

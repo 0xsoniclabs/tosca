@@ -52,6 +52,7 @@ func getNewFilledState() *State {
 	s.BlockContext = BlockContext{BlockNumber: 1}
 	s.TransactionContext = &TransactionContext{BlobHashes: []tosca.Hash{{4, 3, 2, 1}}}
 	s.CallData = NewBytes([]byte{1})
+	s.ReturnData = NewBytes([]byte{2})
 	s.LastCallReturnData = NewBytes([]byte{1})
 	s.HasSelfDestructed = true
 	s.SelfDestructedJournal = []SelfDestructEntry{{tosca.Address{1}, tosca.Address{2}}}

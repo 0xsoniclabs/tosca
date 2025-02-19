@@ -14,6 +14,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"pgregory.net/rand"
 )
@@ -48,11 +49,14 @@ func (b Bytes) ToBytes() []byte {
 }
 
 func (b Bytes) String() string {
-	return fmt.Sprintf("0x%x", b.data)
+	if len(b.data) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("0x%x", b.ToBytes())
 }
 
 func (b Bytes) MarshalJSON() ([]byte, error) {
-	return json.Marshal(fmt.Sprintf("%x", b.ToBytes()))
+	return json.Marshal(b.String())
 }
 
 func (b *Bytes) UnmarshalJSON(data []byte) error {
@@ -60,6 +64,7 @@ func (b *Bytes) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &s); err != nil {
 		return err
 	}
+	s = strings.TrimPrefix(s, "0x")
 	data, err := hex.DecodeString(s)
 	if err != nil {
 		return err

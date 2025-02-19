@@ -54,10 +54,10 @@ func TestBytes_CanBeJsonEncoded(t *testing.T) {
 			NewBytes(nil), "\"\"",
 		},
 		"single": {
-			NewBytes([]byte{1}), "\"01\"",
+			NewBytes([]byte{1}), "\"0x01\"",
 		},
 		"triple": {
-			NewBytes([]byte{1, 2, 3}), "\"010203\"",
+			NewBytes([]byte{1, 2, 3}), "\"0x010203\"",
 		},
 	}
 
@@ -122,7 +122,7 @@ func TestBytes_String(t *testing.T) {
 	if b.String() != "0x010203" {
 		t.Errorf("unexpected string representation, got %v", b.String())
 	}
-	if NewBytes([]byte{}).String() != "0x" {
+	if NewBytes([]byte{}).String() != "" {
 		t.Errorf("unexpected string representation, got %v", Bytes{}.String())
 	}
 }
