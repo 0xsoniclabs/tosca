@@ -1631,8 +1631,8 @@ func TestGenericCall_DelegationDesignationIsBilledOnlyInPrague(t *testing.T) {
 				// EIP-2929 call destination access cost
 				runContext.EXPECT().AccessAccount(tosca.Address{}).Return(tosca.WarmAccess)
 
-				runContext.EXPECT().GetCode(gomock.Any()).Return(test.toAddressCode).AnyTimes()
-				runContext.EXPECT().AccessAccount(targetAddress).Return(test.access).AnyTimes()
+				runContext.EXPECT().GetCode(gomock.Any()).Return(test.toAddressCode).MaxTimes(1)
+				runContext.EXPECT().AccessAccount(targetAddress).Return(test.access).MaxTimes(1)
 				runContext.EXPECT().Call(kind, gomock.Any()).Return(tosca.CallResult{}, nil)
 
 				ctxt := getEmptyContext()
