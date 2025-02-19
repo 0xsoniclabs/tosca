@@ -1054,7 +1054,7 @@ func (c *hasNoBlobHash) String() string {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// EIP 7702
+// callee account contains a delegation designator in code
 
 type containsDelegationDesignation struct {
 	address BindableExpression[U256]
@@ -1062,7 +1062,7 @@ type containsDelegationDesignation struct {
 }
 
 // DelegationDesignatorState is a condition where the Code of the account
-// at the given address has desigator to a warm delegate, a cold delegate or
+// at the given address has designator to a warm delegate, a cold delegate or
 // no delegate at all.
 // see https://eips.ethereum.org/EIPS/eip-7702
 func ConstraintDelegationDesignator(address BindableExpression[U256], state DelegationDesignatorState) Condition {
