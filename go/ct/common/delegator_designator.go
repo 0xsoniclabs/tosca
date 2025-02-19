@@ -24,7 +24,7 @@ import (
 func ParseDelegationDesignator(code Bytes) (tosca.Address, bool) {
 	raw := code.ToBytes()
 
-	if len(raw) < 23 {
+	if len(raw) != 23 {
 		return tosca.Address{}, false
 	}
 

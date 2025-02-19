@@ -28,13 +28,16 @@ func TestParseDelegationDesignator(t *testing.T) {
 		expectedResult tosca.Address
 	}{
 		"empty": {},
-		"wrong length": {
+		"too short": {
 			code: NewBytes([]byte{0xef, 0x01, 0x00, 0xab}),
 		},
 		"delegation designator": {
 			code:           NewBytes(append([]byte{0xef, 0x01, 0x00}, address[:]...)),
 			expectedParsed: true,
 			expectedResult: address,
+		},
+		"too long": {
+			code: NewBytes(append(append([]byte{0xef, 0x01, 0x00}, address[:]...), 0xab)),
 		},
 	}
 
