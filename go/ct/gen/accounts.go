@@ -160,13 +160,28 @@ func (g *AccountsGenerator) String() string {
 }
 
 func (g *AccountsGenerator) Generate(assignment Assignment, rnd *rand.Rand, accountAddress tosca.Address) (*st.Accounts, error) {
+
+	// This closure checks whenever to variables
+	// are the same variable or are already bound to the same value
+	areVariablesClashing := func(a, b Variable) bool {
+		if a == b {
+			return true
+		}
+		if aValue, isBoundA := assignment[a]; isBoundA {
+			if bValue, isBoundB := assignment[b]; isBoundB {
+				return aValue == bValue
+			}
+		}
+		return false
+	}
+
 	// Check for conflicts among empty constraints.
 	sort.Slice(g.emptyAccounts, func(i, j int) bool {
 		return g.emptyAccounts[i].Less(&g.emptyAccounts[j])
 	})
 	for i := 0; i < len(g.emptyAccounts)-1; i++ {
 		a, b := g.emptyAccounts[i], g.emptyAccounts[i+1]
-		if a.address == b.address && a.empty != b.empty {
+		if areVariablesClashing(a.address, b.address) && a.empty != b.empty {
 			return nil, fmt.Errorf("%w, address %v conflicting empty constraints", ErrUnsatisfiable, a.address)
 		}
 	}
@@ -179,7 +194,7 @@ func (g *AccountsGenerator) Generate(assignment Assignment, rnd *rand.Rand, acco
 		a, b := g.delegationDesignator[i], g.delegationDesignator[i+1]
 		// if a delegation designator constraint is conflicting with another one
 		// by having the same target address but different access kind or enabled
-		if a.addressVariable == b.addressVariable &&
+		if areVariablesClashing(a.addressVariable, b.addressVariable) &&
 			(a.isDelegated != b.isDelegated || a.delegateAccountStatus != b.delegateAccountStatus) {
 			return nil, fmt.Errorf("%w, address %v conflicting delegation designator constraints", ErrUnsatisfiable, a.addressVariable)
 		}
@@ -188,7 +203,7 @@ func (g *AccountsGenerator) Generate(assignment Assignment, rnd *rand.Rand, acco
 	// Check for conflicts among empty constraints and delegation designator constraints.
 	for _, ddCon := range g.delegationDesignator {
 		if slices.ContainsFunc(g.emptyAccounts, func(c emptyConstraint) bool {
-			return c.address == ddCon.addressVariable && c.empty
+			return areVariablesClashing(c.address, ddCon.addressVariable) && c.empty
 		}) {
 			return nil, fmt.Errorf("%w, address %v conflicting delegation designator - empty constraints", ErrUnsatisfiable, ddCon.addressVariable)
 		}
@@ -198,7 +213,7 @@ func (g *AccountsGenerator) Generate(assignment Assignment, rnd *rand.Rand, acco
 	sort.Slice(g.warmCold, func(i, j int) bool { return g.warmCold[i].Less(&g.warmCold[j]) })
 	for i := 0; i < len(g.warmCold)-1; i++ {
 		a, b := g.warmCold[i], g.warmCold[i+1]
-		if a.key == b.key && a.warm != b.warm {
+		if areVariablesClashing(a.key, b.key) && a.warm != b.warm {
 			return nil, fmt.Errorf("%w, address %v conflicting warm/cold constraints", ErrUnsatisfiable, a.key)
 		}
 	}
