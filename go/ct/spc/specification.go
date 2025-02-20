@@ -2520,7 +2520,7 @@ func getRulesForCall(op vm.OpCode, revision tosca.Revision, warm, zeroValue bool
 		warmColdString,
 		staticConditionName,
 		valueZeroConditionName,
-		DelegationDesignatorName(DelegationDesignator),
+		DelegationDesignator.String(),
 	}, "_")
 	name = strings.Replace(name, "__", "_", -1)
 

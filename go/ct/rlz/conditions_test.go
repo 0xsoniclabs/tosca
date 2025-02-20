@@ -540,7 +540,7 @@ func TestCondition_DelegationDesignator_CanSetAddressStatus(t *testing.T) {
 	}
 
 	for _, status := range tests {
-		t.Run(DelegationDesignatorName(status), func(t *testing.T) {
+		t.Run(status.String(), func(t *testing.T) {
 
 			condition := ConstraintDelegationDesignator(Param(0), status)
 			var matchCovered, failCovered bool

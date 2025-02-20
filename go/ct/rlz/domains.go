@@ -430,7 +430,7 @@ func removeDuplicatesGeneric[T comparable](slice []T) []T {
 // the code of an account.
 // This type works together with ConstraintDelegationDesignator condition to model
 // EIP-7702 behavior.  see https://eips.ethereum.org/EIPS/eip-7702
-type DelegationDesignatorState = uint64
+type DelegationDesignatorState uint64
 
 const (
 	NoDelegationDesignation DelegationDesignatorState = iota
@@ -438,7 +438,7 @@ const (
 	ColdDelegationDesignation
 )
 
-func DelegationDesignatorName(dd DelegationDesignatorState) string {
+func (dd DelegationDesignatorState) String() string {
 	switch dd {
 	case NoDelegationDesignation:
 		return "no_delegation_designation"
