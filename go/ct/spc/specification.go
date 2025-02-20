@@ -2578,15 +2578,18 @@ func callEffect(s *st.State, addrAccessCost tosca.Gas, op vm.OpCode) {
 
 	// Apply costs releated to delegate designator.
 	// see https://eips.ethereum.org/EIPS/eip-7702
-	DelegationDesignatorAccessCost := tosca.Gas(0)
-	targetCode := s.Accounts.GetCode(target.Bytes20be())
-	delegateAddress, isDelegate := ParseDelegationDesignator(targetCode)
-	if s.Revision >= tosca.R14_Prague && isDelegate {
-		if s.Accounts.IsWarm(delegateAddress) {
-			DelegationDesignatorAccessCost = 100
-		} else {
-			s.Accounts.MarkWarm(delegateAddress)
-			DelegationDesignatorAccessCost = 2600
+
+	delegationDesignatorAccessCost := tosca.Gas(0)
+	if s.Revision >= tosca.R14_Prague {
+		targetCode := s.Accounts.GetCode(target.Bytes20be())
+		delegateAddress, isDelegate := ParseDelegationDesignator(targetCode)
+		if isDelegate {
+			if s.Accounts.IsWarm(delegateAddress) {
+				delegationDesignatorAccessCost = 100
+			} else {
+				s.Accounts.MarkWarm(delegateAddress)
+				delegationDesignatorAccessCost = 2600
+			}
 		}
 	}
 
@@ -2596,7 +2599,7 @@ func callEffect(s *st.State, addrAccessCost tosca.Gas, op vm.OpCode) {
 		positiveValueCost,
 		valueToEmptyAccountCost,
 		addrAccessCost,
-		DelegationDesignatorAccessCost,
+		delegationDesignatorAccessCost,
 	)
 	if s.Gas < dynamicGas || overflow {
 		s.Status = st.Failed
