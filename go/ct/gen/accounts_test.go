@@ -106,19 +106,19 @@ func TestAccountsGenerator_DelegationDesignatorCanBePrinted(t *testing.T) {
 			setup: func(gen *AccountsGenerator, v Variable) {
 				gen.BindNoDelegationDesignator(v)
 			},
-			expected: "{DelegationDesignator($v1) = none}",
+			expected: "{!isDelegated($v1)}",
 		},
 		"delegate is cold": {
 			setup: func(gen *AccountsGenerator, v Variable) {
 				gen.BindDelegationDesignator(v, tosca.ColdAccess)
 			},
-			expected: "{DelegationDesignator($v1) = cold}",
+			expected: "{isDelegated($v1), cold(delegateOf($v1))}",
 		},
 		"delegate is warm": {
 			setup: func(gen *AccountsGenerator, v Variable) {
 				gen.BindDelegationDesignator(v, tosca.WarmAccess)
 			},
-			expected: "{DelegationDesignator($v1) = warm}",
+			expected: "{isDelegated($v1), warm(delegateOf($v1))}",
 		},
 		"is sorted": {
 			setup: func(gen *AccountsGenerator, v Variable) {
@@ -126,7 +126,7 @@ func TestAccountsGenerator_DelegationDesignatorCanBePrinted(t *testing.T) {
 				gen.BindDelegationDesignator(v2, tosca.WarmAccess)
 				gen.BindNoDelegationDesignator(v)
 			},
-			expected: "{DelegationDesignator($v1) = none,DelegationDesignator($v2) = warm}",
+			expected: "{!isDelegated($v1),isDelegated($v2), warm(delegateOf($v2))}",
 		},
 	}
 
@@ -142,7 +142,6 @@ func TestAccountsGenerator_DelegationDesignatorCanBePrinted(t *testing.T) {
 			if print != test.expected {
 				t.Errorf("Expected %v but got %v", test.expected, print)
 			}
-
 		})
 	}
 }
@@ -517,6 +516,63 @@ func TestAccountsGenerator_PreAssignedAddressesAreRespected(t *testing.T) {
 	addr := NewAddress(assignment[v1])
 	if got := state.GetBalance(addr); got.Ne(NewU256(25)) {
 		t.Errorf("Expected balance to be exactly 25 but got %v", got.DecimalString())
+	}
+}
+
+func TestAccountsGenerator_DelegationDesignatorConstraint_CanBeSorted(t *testing.T) {
+
+	testValues := []*delegationDesignatorConstraint{
+		{
+			addressVariable:       Variable("v1"),
+			isDelegated:           false,
+			delegateAccountStatus: tosca.ColdAccess,
+		},
+		{
+			addressVariable:       Variable("v2"),
+			isDelegated:           false,
+			delegateAccountStatus: tosca.ColdAccess,
+		},
+		{
+			addressVariable:       Variable("v1"),
+			isDelegated:           true,
+			delegateAccountStatus: tosca.ColdAccess,
+		},
+		{
+			addressVariable:       Variable("v2"),
+			isDelegated:           true,
+			delegateAccountStatus: tosca.ColdAccess,
+		},
+		{
+			addressVariable:       Variable("v1"),
+			isDelegated:           false,
+			delegateAccountStatus: tosca.WarmAccess,
+		},
+		{
+			addressVariable:       Variable("v2"),
+			isDelegated:           false,
+			delegateAccountStatus: tosca.WarmAccess,
+		},
+		{
+			addressVariable:       Variable("v1"),
+			isDelegated:           true,
+			delegateAccountStatus: tosca.WarmAccess,
+		},
+		{
+			addressVariable:       Variable("v2"),
+			isDelegated:           true,
+			delegateAccountStatus: tosca.WarmAccess,
+		},
+	}
+
+	for _, a := range testValues {
+		for _, b := range testValues {
+			if a.Less(b) && b.Less(a) {
+				t.Errorf("invalid comparison: a < b && b < a, a: %v, b %v", a, b)
+			}
+			if !a.Less(b) && !b.Less(a) && a != b {
+				t.Errorf("invalid comparison: a != b but a!<b && b!<a, a: %v, b %v", a, b)
+			}
+		}
 	}
 }
 

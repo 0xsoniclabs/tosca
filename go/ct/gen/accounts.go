@@ -149,18 +149,11 @@ func (g *AccountsGenerator) String() string {
 		parts = append(parts, fmt.Sprintf("balance(%v) ≤ %v", con.address, con.value.DecimalString()))
 	}
 
-	sort.Slice(g.DelegationDesignator, func(i, j int) bool {
-		return g.DelegationDesignator[i].Less(&g.DelegationDesignator[j])
+	sort.Slice(g.delegationDesignator, func(i, j int) bool {
+		return g.delegationDesignator[i].Less(&g.delegationDesignator[j])
 	})
-	for _, con := range g.DelegationDesignator {
-		access := "none"
-		if con.enabled {
-			access = "warm"
-			if con.accessKind == tosca.ColdAccess {
-				access = "cold"
-			}
-		}
-		parts = append(parts, fmt.Sprintf("DelegationDesignator(%v) = %v", con.addressVariable, access))
+	for _, con := range g.delegationDesignator {
+		parts = append(parts, con.String())
 	}
 
 	return "{" + strings.Join(parts, ",") + "}"
@@ -421,9 +414,22 @@ type delegationDesignatorConstraint struct {
 	delegateAccountStatus tosca.AccessStatus
 }
 
-func (a *DelegationDesignatorConstraint) Less(b *DelegationDesignatorConstraint) bool {
+func (a *delegationDesignatorConstraint) Less(b *delegationDesignatorConstraint) bool {
 	if a.addressVariable != b.addressVariable {
 		return a.addressVariable < b.addressVariable
 	}
-	return b.accessKind == tosca.ColdAccess && a.accessKind != b.accessKind
+	if a.isDelegated != b.isDelegated {
+		return !a.isDelegated && b.isDelegated
+	}
+	return bool(!a.delegateAccountStatus && b.delegateAccountStatus)
+}
+
+func (a *delegationDesignatorConstraint) String() string {
+	if !a.isDelegated {
+		return fmt.Sprintf("!isDelegated(%v)", a.addressVariable)
+	}
+	if a.delegateAccountStatus == tosca.WarmAccess {
+		return fmt.Sprintf("isDelegated(%v), warm(delegateOf(%v))", a.addressVariable, a.addressVariable)
+	}
+	return fmt.Sprintf("isDelegated(%v), cold(delegateOf(%v))", a.addressVariable, a.addressVariable)
 }
