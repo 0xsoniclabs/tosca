@@ -523,42 +523,42 @@ func TestAccountsGenerator_DelegationDesignatorConstraint_CanBeSorted(t *testing
 
 	testValues := []*delegationDesignatorConstraint{
 		{
-			addressVariable:       Variable("v1"),
+			address:               Variable("v1"),
 			isDelegated:           false,
 			delegateAccountStatus: tosca.ColdAccess,
 		},
 		{
-			addressVariable:       Variable("v2"),
+			address:               Variable("v2"),
 			isDelegated:           false,
 			delegateAccountStatus: tosca.ColdAccess,
 		},
 		{
-			addressVariable:       Variable("v1"),
+			address:               Variable("v1"),
 			isDelegated:           true,
 			delegateAccountStatus: tosca.ColdAccess,
 		},
 		{
-			addressVariable:       Variable("v2"),
+			address:               Variable("v2"),
 			isDelegated:           true,
 			delegateAccountStatus: tosca.ColdAccess,
 		},
 		{
-			addressVariable:       Variable("v1"),
+			address:               Variable("v1"),
 			isDelegated:           false,
 			delegateAccountStatus: tosca.WarmAccess,
 		},
 		{
-			addressVariable:       Variable("v2"),
+			address:               Variable("v2"),
 			isDelegated:           false,
 			delegateAccountStatus: tosca.WarmAccess,
 		},
 		{
-			addressVariable:       Variable("v1"),
+			address:               Variable("v1"),
 			isDelegated:           true,
 			delegateAccountStatus: tosca.WarmAccess,
 		},
 		{
-			addressVariable:       Variable("v2"),
+			address:               Variable("v2"),
 			isDelegated:           true,
 			delegateAccountStatus: tosca.WarmAccess,
 		},

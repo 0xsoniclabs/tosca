@@ -106,7 +106,7 @@ func (g *AccountsGenerator) BindToAddressOfDelegatedAccount(address Variable, de
 }
 
 func (g *AccountsGenerator) BindNoDelegationDesignator(address Variable) {
-	v := delegationDesignatorConstraint{addressVariable: address, isDelegated: false}
+	v := delegationDesignatorConstraint{address: address, isDelegated: false}
 	if !slices.Contains(g.delegationDesignator, v) {
 		g.delegationDesignator = append(g.delegationDesignator, v)
 	}
@@ -194,18 +194,18 @@ func (g *AccountsGenerator) Generate(assignment Assignment, rnd *rand.Rand, acco
 		a, b := g.delegationDesignator[i], g.delegationDesignator[i+1]
 		// if a delegation designator constraint is conflicting with another one
 		// by having the same target address but different access kind or enabled
-		if areVariablesClashing(a.addressVariable, b.addressVariable) &&
+		if areVariablesClashing(a.address, b.address) &&
 			(a.isDelegated != b.isDelegated || a.delegateAccountStatus != b.delegateAccountStatus) {
-			return nil, fmt.Errorf("%w, address %v conflicting delegation designator constraints", ErrUnsatisfiable, a.addressVariable)
+			return nil, fmt.Errorf("%w, address %v conflicting delegation designator constraints", ErrUnsatisfiable, a.address)
 		}
 	}
 
 	// Check for conflicts among empty constraints and delegation designator constraints.
 	for _, ddCon := range g.delegationDesignator {
 		if slices.ContainsFunc(g.emptyAccounts, func(c emptyConstraint) bool {
-			return areVariablesClashing(c.address, ddCon.addressVariable) && c.empty
+			return areVariablesClashing(c.address, ddCon.address) && c.empty
 		}) {
-			return nil, fmt.Errorf("%w, address %v conflicting delegation designator - empty constraints", ErrUnsatisfiable, ddCon.addressVariable)
+			return nil, fmt.Errorf("%w, address %v conflicting delegation designator - empty constraints", ErrUnsatisfiable, ddCon.address)
 		}
 	}
 
@@ -305,7 +305,7 @@ func (g *AccountsGenerator) Generate(assignment Assignment, rnd *rand.Rand, acco
 	// Add delegation designator constraints.
 	// see: https://eips.ethereum.org/EIPS/eip-7702
 	for _, con := range g.delegationDesignator {
-		calleeAddress := getBoundOrBindNewAddress(con.addressVariable)
+		calleeAddress := getBoundOrBindNewAddress(con.address)
 		if con.isDelegated {
 			addr := getUnusedAddress()
 			accountsBuilder.SetCode(calleeAddress, NewDelegationDesignator(addr))
@@ -424,14 +424,14 @@ func (a *balanceConstraint) Less(b *balanceConstraint) bool {
 }
 
 type delegationDesignatorConstraint struct {
-	addressVariable       Variable
+	address               Variable
 	isDelegated           bool
 	delegateAccountStatus tosca.AccessStatus
 }
 
 func (a *delegationDesignatorConstraint) Less(b *delegationDesignatorConstraint) bool {
-	if a.addressVariable != b.addressVariable {
-		return a.addressVariable < b.addressVariable
+	if a.address != b.address {
+		return a.address < b.address
 	}
 	if a.isDelegated != b.isDelegated {
 		return !a.isDelegated && b.isDelegated
@@ -441,10 +441,10 @@ func (a *delegationDesignatorConstraint) Less(b *delegationDesignatorConstraint)
 
 func (a *delegationDesignatorConstraint) String() string {
 	if !a.isDelegated {
-		return fmt.Sprintf("!isDelegated(%v)", a.addressVariable)
+		return fmt.Sprintf("!isDelegated(%v)", a.address)
 	}
 	if a.delegateAccountStatus == tosca.WarmAccess {
-		return fmt.Sprintf("isDelegated(%v), warm(delegateOf(%v))", a.addressVariable, a.addressVariable)
+		return fmt.Sprintf("isDelegated(%v), warm(delegateOf(%v))", a.address, a.address)
 	}
-	return fmt.Sprintf("isDelegated(%v), cold(delegateOf(%v))", a.addressVariable, a.addressVariable)
+	return fmt.Sprintf("isDelegated(%v), cold(delegateOf(%v))", a.address, a.address)
 }
