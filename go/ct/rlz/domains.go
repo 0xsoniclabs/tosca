@@ -434,7 +434,7 @@ type DelegationDesignatorState uint64
 
 const (
 	NoDelegationDesignation DelegationDesignatorState = iota
-	WarnDelegationDesignation
+	WarmDelegationDesignation
 	ColdDelegationDesignation
 )
 
@@ -442,8 +442,8 @@ func (dd DelegationDesignatorState) String() string {
 	switch dd {
 	case NoDelegationDesignation:
 		return "no_delegation_designation"
-	case WarnDelegationDesignation:
-		return "warn_delegation_designation"
+	case WarmDelegationDesignation:
+		return "warm_delegation_designation"
 	case ColdDelegationDesignation:
 		return "cold_delegation_designation"
 	}
@@ -484,7 +484,7 @@ func (d DelegationDesignatorDomain) Samples(DelegationDesignatorState) []Delegat
 func (DelegationDesignatorDomain) SamplesForAll([]DelegationDesignatorState) []DelegationDesignatorState {
 	return []DelegationDesignatorState{
 		NoDelegationDesignation,
-		WarnDelegationDesignation,
+		WarmDelegationDesignation,
 		ColdDelegationDesignation,
 	}
 }

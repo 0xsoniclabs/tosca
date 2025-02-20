@@ -520,11 +520,11 @@ func TestDomain_SamplesKnownValues(t *testing.T) {
 		},
 		"delegation-designator-samples": {
 			got:  DelegationDesignatorDomain{}.Samples(NoDelegationDesignation),
-			want: []DelegationDesignatorState{NoDelegationDesignation, WarnDelegationDesignation, ColdDelegationDesignation},
+			want: []DelegationDesignatorState{NoDelegationDesignation, WarmDelegationDesignation, ColdDelegationDesignation},
 		},
 		"delegation-designator-samplesforall": {
 			got:  DelegationDesignatorDomain{}.SamplesForAll([]DelegationDesignatorState{NoDelegationDesignation}),
-			want: []DelegationDesignatorState{NoDelegationDesignation, WarnDelegationDesignation, ColdDelegationDesignation},
+			want: []DelegationDesignatorState{NoDelegationDesignation, WarmDelegationDesignation, ColdDelegationDesignation},
 		},
 	}
 

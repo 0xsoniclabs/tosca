@@ -1083,7 +1083,7 @@ func (c *containsDelegationDesignation) Check(s *st.State) (bool, error) {
 	switch c.state {
 	case NoDelegationDesignation:
 		return !isDelegated, nil
-	case WarnDelegationDesignation:
+	case WarmDelegationDesignation:
 		return isDelegated && s.Accounts.IsWarm(delegateAddress), nil
 	case ColdDelegationDesignation:
 		return isDelegated && !s.Accounts.IsWarm(delegateAddress), nil
@@ -1102,7 +1102,7 @@ func (c *containsDelegationDesignation) GetTestValues() []TestValue {
 		switch state {
 		case NoDelegationDesignation:
 			generator.BindToAddressOfNotDelegatingAccount(v)
-		case WarnDelegationDesignation:
+		case WarmDelegationDesignation:
 			generator.BindToAddressOfDelegatingAccount(v, tosca.WarmAccess)
 		case ColdDelegationDesignation:
 			generator.BindToAddressOfDelegatingAccount(v, tosca.ColdAccess)

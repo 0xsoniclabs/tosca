@@ -535,7 +535,7 @@ func TestCondition_BlobHashesProducesGetTestValues(t *testing.T) {
 func TestCondition_DelegationDesignator_CanSetAddressStatus(t *testing.T) {
 	tests := []DelegationDesignatorState{
 		NoDelegationDesignation,
-		WarnDelegationDesignation,
+		WarmDelegationDesignation,
 		ColdDelegationDesignation,
 	}
 

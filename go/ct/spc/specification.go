@@ -2412,7 +2412,7 @@ func getRulesForAllCallTypes() []Rule {
 			for _, warm := range []bool{true, false} {
 				for _, static := range []bool{true, false} {
 					for _, zeroValue := range []bool{true, false} {
-						for _, DelegationDesignator := range []DelegationDesignatorState{NoDelegationDesignation, WarnDelegationDesignation, ColdDelegationDesignation} {
+						for _, DelegationDesignator := range []DelegationDesignatorState{NoDelegationDesignation, WarmDelegationDesignation, ColdDelegationDesignation} {
 
 							// delegationDesignator is introduced in Prague; for any revision before, cold and warm cases
 							// are analogogus and half of them can be pruned.
