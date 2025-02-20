@@ -14,9 +14,11 @@
 #include <gtest/gtest.h>
 
 #include <evmc/evmc.hpp>
+#include <iterator>
 
 #include "evmc/evmc.h"
 #include "vm/evmzero/opcodes.h"
+#include "vm/evmzero/uint256.h"
 
 namespace tosca::evmzero {
 namespace {
@@ -5318,6 +5320,72 @@ TEST(InterpreterTest, CALL_NoZeroPaddingForCallResult) {
           0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48,  //
       },
       .host = &host,
+  });
+}
+
+TEST(InterpreterTest, CALL_NoDelegationDesignationChargesPrePrague) {
+  const uint256_t destination = 0x42;
+  const evmc::address destination_adr = evmc::address(destination[0]);
+  const evmc::address target = evmc::address(0x24);
+  std::vector<uint8_t> code = {0xef, 0x01, 0x00};
+  code.insert(code.end(), std::begin(target.bytes), std::end(target.bytes));
+
+  MockHost host;
+  EXPECT_CALL(host, access_account(destination_adr)).WillOnce(Return(EVMC_ACCESS_WARM));
+  EXPECT_CALL(host, call(_)).WillOnce(Return(evmc::Result(EVMC_SUCCESS)));
+
+  RunInterpreterTest({
+      .code = {op::CALL},
+      .gas_before = 50000,
+      .gas_after = 50000 - 100,
+      .stack_before =
+          {
+              0x00,         // < ret_size
+              0x00,         // < ret_offset
+              0x00,         // < arg_size
+              0x00,         // < arg_offset
+              0x00,         // < value
+              destination,  // < address
+              0,            // < gas
+          },
+      .stack_after = {0x01},
+      .host = &host,
+      .revision = EVMC_CANCUN,
+  });
+}
+
+TEST(InterpreterTest, CALL_PragueChargesForDelegationDesignation) {
+  const uint256_t destination = 0x42;
+  const evmc::address destination_adr = evmc::address(destination[0]);
+  const evmc::address target = evmc::address(0x24);
+  std::vector<uint8_t> code = {0xef, 0x01, 0x00};
+  code.insert(code.end(), std::begin(target.bytes), std::end(target.bytes));
+
+  MockHost host;
+  EXPECT_CALL(host, access_account(destination_adr)).WillOnce(Return(EVMC_ACCESS_WARM));
+  EXPECT_CALL(host, copy_code(destination_adr, 0, _, 24))  //
+      .Times(1)
+      .WillOnce(DoAll(SetArrayArgument<2>(code.data(), code.data() + 23), Return(23)));
+  EXPECT_CALL(host, access_account(target)).WillOnce(Return(EVMC_ACCESS_WARM));
+  EXPECT_CALL(host, call(_)).WillOnce(Return(evmc::Result(EVMC_SUCCESS)));
+
+  RunInterpreterTest({
+      .code = {op::CALL},
+      .gas_before = 50000,
+      .gas_after = 50000 - 100 - 100,
+      .stack_before =
+          {
+              0x00,         // < ret_size
+              0x00,         // < ret_offset
+              0x00,         // < arg_size
+              0x00,         // < arg_offset
+              0x00,         // < value
+              destination,  // < address
+              0,            // < gas
+          },
+      .stack_after = {0x01},
+      .host = &host,
+      .revision = EVMC_PRAGUE,
   });
 }
 

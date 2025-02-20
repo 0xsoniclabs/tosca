@@ -10,6 +10,7 @@
 
 #include "vm/evmzero/interpreter.h"
 
+#include <array>
 #include <bit>
 #include <cstdint>
 #include <cstdio>
@@ -1726,6 +1727,22 @@ struct CallImpl {
         }
       }
 
+      // EIP-7702 delegation designation warm/cold access cost
+      int64_t delegation_designation_cost = 0;
+      if (ctx.revision >= EVMC_PRAGUE) {
+        constexpr size_t kDelegationDesignationSize = 23;
+        std::array<uint8_t, kDelegationDesignationSize + 1> code;
+        size_t code_size = ctx.host->copy_code(account, 0, code.begin(), code.size());
+        if (code_size == kDelegationDesignationSize && code[0] == 0xef && code[1] == 0x01 && code[2] == 0x00) {
+          auto target = reinterpret_cast<evmc_address*>(&(code[3]));
+          if (ctx.host->access_account(*target) == EVMC_ACCESS_WARM) {
+            delegation_designation_cost = 100;
+          } else {
+            delegation_designation_cost = 2600;
+          }
+        }
+      }
+
       int64_t positive_value_cost = has_value ? 9000 : 0;
       int64_t value_to_empty_account_cost = 0;
       if constexpr (Op != op::CALLCODE) {
@@ -1734,7 +1751,8 @@ struct CallImpl {
         }
       }
 
-      if (gas -= address_access_cost + positive_value_cost + value_to_empty_account_cost; gas < 0) [[unlikely]]
+      if (gas -= address_access_cost + delegation_designation_cost + positive_value_cost + value_to_empty_account_cost;
+          gas < 0) [[unlikely]]
         return {.dynamic_gas_costs = initial_gas - gas};
     }
 
