@@ -321,10 +321,16 @@ func (g *StateGenerator) IsAbsentBlobHashIndex(variable Variable) {
 	g.transactionContextGen.IsAbsentBlobHashIndex(variable)
 }
 
-func (g *StateGenerator) BindDelegationDesignator(address Variable, access tosca.AccessStatus) {
-	g.accountsGen.BindDelegationDesignator(address, access)
+// BindToAddressOfDelegatedAccount constraints a variable to be bound to the
+// address of an account that is delegated, where the delegate address have
+// a defined AccessStatus.
+func (g *StateGenerator) BindToAddressOfDelegatedAccount(address Variable, delegateAccountStatus tosca.AccessStatus) {
+	g.accountsGen.BindToAddressOfDelegatedAccount(address, delegateAccountStatus)
 }
-func (g *StateGenerator) BindNoDelegationDesignator(address Variable) {
+
+// BindToAddressOfNotDelegatedAccount constraints a variable to be bound
+// to the address of an account that is not delegated.
+func (g *StateGenerator) BindToNotDelegatedAccount(address Variable) {
 	g.accountsGen.BindNoDelegationDesignator(address)
 }
 

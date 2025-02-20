@@ -110,20 +110,20 @@ func TestAccountsGenerator_DelegationDesignatorCanBePrinted(t *testing.T) {
 		},
 		"delegate is cold": {
 			setup: func(gen *AccountsGenerator, v Variable) {
-				gen.BindDelegationDesignator(v, tosca.ColdAccess)
+				gen.BindToAddressOfDelegatedAccount(v, tosca.ColdAccess)
 			},
 			expected: "{isDelegated($v1), cold(delegateOf($v1))}",
 		},
 		"delegate is warm": {
 			setup: func(gen *AccountsGenerator, v Variable) {
-				gen.BindDelegationDesignator(v, tosca.WarmAccess)
+				gen.BindToAddressOfDelegatedAccount(v, tosca.WarmAccess)
 			},
 			expected: "{isDelegated($v1), warm(delegateOf($v1))}",
 		},
 		"is sorted": {
 			setup: func(gen *AccountsGenerator, v Variable) {
 				v2 := Variable("v2")
-				gen.BindDelegationDesignator(v2, tosca.WarmAccess)
+				gen.BindToAddressOfDelegatedAccount(v2, tosca.WarmAccess)
 				gen.BindNoDelegationDesignator(v)
 			},
 			expected: "{!isDelegated($v1),isDelegated($v2), warm(delegateOf($v2))}",
@@ -161,14 +161,14 @@ func TestAccountsGenerator_DelegationDesignatorConstraintsAreUsed(t *testing.T) 
 		},
 		"delegate is cold": {
 			setup: func(gen *AccountsGenerator, v Variable) {
-				gen.BindDelegationDesignator(v, tosca.ColdAccess)
+				gen.BindToAddressOfDelegatedAccount(v, tosca.ColdAccess)
 			},
 			withDelegate: true,
 			access:       tosca.ColdAccess,
 		},
 		"delegate is warm": {
 			setup: func(gen *AccountsGenerator, v Variable) {
-				gen.BindDelegationDesignator(v, tosca.WarmAccess)
+				gen.BindToAddressOfDelegatedAccount(v, tosca.WarmAccess)
 			},
 			withDelegate: true,
 			access:       tosca.WarmAccess,
@@ -228,24 +228,24 @@ func TestAccountsGenerator_DelegationDesignatorCanConflictWithOtherRules(t *test
 		"disable and warm": {
 			constraint: func(gen *AccountsGenerator, v Variable) {
 				gen.BindNoDelegationDesignator(v)
-				gen.BindDelegationDesignator(v, tosca.WarmAccess)
+				gen.BindToAddressOfDelegatedAccount(v, tosca.WarmAccess)
 			},
 		},
 		"disable and cold": {
 			constraint: func(gen *AccountsGenerator, v Variable) {
 				gen.BindNoDelegationDesignator(v)
-				gen.BindDelegationDesignator(v, tosca.ColdAccess)
+				gen.BindToAddressOfDelegatedAccount(v, tosca.ColdAccess)
 			},
 		},
 		"cold and warm": {
 			constraint: func(gen *AccountsGenerator, v Variable) {
-				gen.BindDelegationDesignator(v, tosca.ColdAccess)
-				gen.BindDelegationDesignator(v, tosca.WarmAccess)
+				gen.BindToAddressOfDelegatedAccount(v, tosca.ColdAccess)
+				gen.BindToAddressOfDelegatedAccount(v, tosca.WarmAccess)
 			},
 		},
 		"empty and contains designator conflict": {
 			constraint: func(gen *AccountsGenerator, v Variable) {
-				gen.BindDelegationDesignator(v, tosca.ColdAccess)
+				gen.BindToAddressOfDelegatedAccount(v, tosca.ColdAccess)
 				gen.BindToAddressOfEmptyAccount(v)
 			},
 		},
