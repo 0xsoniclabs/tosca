@@ -2412,11 +2412,11 @@ func getRulesForAllCallTypes() []Rule {
 			for _, warm := range []bool{true, false} {
 				for _, static := range []bool{true, false} {
 					for _, zeroValue := range []bool{true, false} {
-						for _, DelegationDesignator := range []DelegationDesignatorState{NoDelegationDesignation, WarmDelegationDesignation, ColdDelegationDesignation} {
+						for _, delegationDesignator := range []DelegationDesignatorState{NoDelegationDesignation, WarmDelegationDesignation, ColdDelegationDesignation} {
 
 							// delegationDesignator is introduced in Prague; for any revision before, cold and warm cases
 							// are analogogus and half of them can be pruned.
-							if rev < tosca.R14_Prague && DelegationDesignator == ColdDelegationDesignation {
+							if rev < tosca.R14_Prague && delegationDesignator == ColdDelegationDesignation {
 								continue
 							}
 
@@ -2424,7 +2424,7 @@ func getRulesForAllCallTypes() []Rule {
 							if op == vm.CALL && static && !zeroValue {
 								effect = callFailEffect
 							}
-							res = append(res, getRulesForCall(op, rev, warm, zeroValue, DelegationDesignator, effect, static)...)
+							res = append(res, getRulesForCall(op, rev, warm, zeroValue, delegationDesignator, effect, static)...)
 						}
 					}
 				}
@@ -2435,7 +2435,7 @@ func getRulesForAllCallTypes() []Rule {
 	return res
 }
 
-func getRulesForCall(op vm.OpCode, revision tosca.Revision, warm, zeroValue bool, DelegationDesignator DelegationDesignatorState, opEffect func(s *st.State, addrAccessCost tosca.Gas, op vm.OpCode), static bool) []Rule {
+func getRulesForCall(op vm.OpCode, revision tosca.Revision, warm, zeroValue bool, delegationDesignator DelegationDesignatorState, opEffect func(s *st.State, addrAccessCost tosca.Gas, op vm.OpCode), static bool) []Rule {
 
 	var staticGas tosca.Gas
 	if revision == tosca.R07_Istanbul {
@@ -2483,7 +2483,7 @@ func getRulesForCall(op vm.OpCode, revision tosca.Revision, warm, zeroValue bool
 		IsRevision(revision),
 		targetWarm,
 		staticCondition,
-		ConstraintDelegationDesignator(Param(1), DelegationDesignator),
+		ConstraintDelegationDesignator(Param(1), delegationDesignator),
 	}
 
 	var valueZeroCondition Condition
@@ -2520,7 +2520,7 @@ func getRulesForCall(op vm.OpCode, revision tosca.Revision, warm, zeroValue bool
 		warmColdString,
 		staticConditionName,
 		valueZeroConditionName,
-		DelegationDesignator.String(),
+		delegationDesignator.String(),
 	}, "_")
 	name = strings.Replace(name, "__", "_", -1)
 
