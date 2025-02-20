@@ -212,9 +212,13 @@ func TestAccountsGenerator_DelegationDesignatorConstraintsAreUsed(t *testing.T) 
 				delegateAddress, isDesignator := ParseDelegationDesignator(account.Code)
 				if !isDesignator {
 					t.Errorf("Expected address to be a delegation designator but it is not")
-				} else if test.access !=
-					tosca.AccessStatus(accounts.IsWarm(delegateAddress)) {
-					t.Errorf("Expected address to be %v but it is not", test.access)
+				} else {
+					if test.access == tosca.WarmAccess && !accounts.IsWarm(delegateAddress) {
+						t.Errorf("Expected address to be warm but it is not")
+					}
+					if test.access == tosca.ColdAccess && accounts.IsWarm(delegateAddress) {
+						t.Errorf("Expected address to be warm but it is not")
+					}
 				}
 			}
 		})
