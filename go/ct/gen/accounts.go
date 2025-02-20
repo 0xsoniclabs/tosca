@@ -444,7 +444,7 @@ func (a *delegationDesignatorConstraint) String() string {
 		return fmt.Sprintf("!isDelegated(%v)", a.address)
 	}
 	if a.delegateAccountStatus == tosca.WarmAccess {
-		return fmt.Sprintf("isDelegated(%v), warm(delegateOf(%v))", a.address, a.address)
+		return fmt.Sprintf("isDelegated(%v),warm(delegateOf(%v))", a.address, a.address)
 	}
-	return fmt.Sprintf("isDelegated(%v), cold(delegateOf(%v))", a.address, a.address)
+	return fmt.Sprintf("isDelegated(%v),cold(delegateOf(%v))", a.address, a.address)
 }
