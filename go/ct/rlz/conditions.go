@@ -1101,11 +1101,11 @@ func (c *containsDelegationDesignation) GetTestValues() []TestValue {
 
 		switch state {
 		case NoDelegationDesignation:
-			generator.BindToNotDelegatedAccount(v)
+			generator.BindToAddressOfNotDelegatingAccount(v)
 		case WarnDelegationDesignation:
-			generator.BindToAddressOfDelegatedAccount(v, tosca.WarmAccess)
+			generator.BindToAddressOfDelegatingAccount(v, tosca.WarmAccess)
 		case ColdDelegationDesignation:
-			generator.BindToAddressOfDelegatedAccount(v, tosca.ColdAccess)
+			generator.BindToAddressOfDelegatingAccount(v, tosca.ColdAccess)
 		}
 	}
 	return []TestValue{

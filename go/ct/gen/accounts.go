@@ -98,14 +98,14 @@ func (g *AccountsGenerator) BindCold(address Variable) {
 	}
 }
 
-func (g *AccountsGenerator) BindToAddressOfDelegatedAccount(address Variable, delegateAccountStatus tosca.AccessStatus) {
+func (g *AccountsGenerator) BindToAddressOfDelegatingAccount(address Variable, delegateAccountStatus tosca.AccessStatus) {
 	v := delegationDesignatorConstraint{address, true, delegateAccountStatus}
 	if !slices.Contains(g.delegationDesignator, v) {
 		g.delegationDesignator = append(g.delegationDesignator, v)
 	}
 }
 
-func (g *AccountsGenerator) BindNoDelegationDesignator(address Variable) {
+func (g *AccountsGenerator) BindToAddressOfNotDelegatingAccount(address Variable) {
 	v := delegationDesignatorConstraint{address: address, isDelegated: false}
 	if !slices.Contains(g.delegationDesignator, v) {
 		g.delegationDesignator = append(g.delegationDesignator, v)
