@@ -110,23 +110,23 @@ func TestAccountsGenerator_DelegationDesignatorCanBePrinted(t *testing.T) {
 		},
 		"delegate is cold": {
 			setup: func(gen *AccountsGenerator, v Variable) {
-				gen.BindToAddressOfDelegatedAccount(v, tosca.ColdAccess)
+				gen.BindToAddressOfDelegatingAccount(v, tosca.ColdAccess)
 			},
-			expected: "{isDelegated($v1), cold(delegateOf($v1))}",
+			expected: "{isDelegated($v1),cold(delegateOf($v1))}",
 		},
 		"delegate is warm": {
 			setup: func(gen *AccountsGenerator, v Variable) {
-				gen.BindToAddressOfDelegatedAccount(v, tosca.WarmAccess)
+				gen.BindToAddressOfDelegatingAccount(v, tosca.WarmAccess)
 			},
-			expected: "{isDelegated($v1), warm(delegateOf($v1))}",
+			expected: "{isDelegated($v1),warm(delegateOf($v1))}",
 		},
 		"is sorted": {
 			setup: func(gen *AccountsGenerator, v Variable) {
 				v2 := Variable("v2")
-				gen.BindToAddressOfDelegatedAccount(v2, tosca.WarmAccess)
+				gen.BindToAddressOfDelegatingAccount(v2, tosca.WarmAccess)
 				gen.BindNoDelegationDesignator(v)
 			},
-			expected: "{!isDelegated($v1),isDelegated($v2), warm(delegateOf($v2))}",
+			expected: "{!isDelegated($v1),isDelegated($v2),warm(delegateOf($v2))}",
 		},
 	}
 
