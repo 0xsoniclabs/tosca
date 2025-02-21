@@ -1119,5 +1119,14 @@ func (c *containsDelegationDesignation) Restrict(*gen.StateGenerator) {
 }
 
 func (c *containsDelegationDesignation) String() string {
-	return fmt.Sprintf("%v containsDelegationDesignation", c.address)
+	switch c.state {
+	case NoDelegationDesignation:
+		return fmt.Sprintf("%v does not delegate code", c.address)
+	case WarmDelegationDesignation:
+		return fmt.Sprintf("%v is delegating code to a warm address", c.address)
+	case ColdDelegationDesignation:
+		return fmt.Sprintf("%v is delegating code to a cold address", c.address)
+	default:
+		return "unknown DelegationDesignatorState"
+	}
 }
