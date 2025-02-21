@@ -1,10 +1,10 @@
+use common::u256;
 use sha3::{Digest, Keccak256};
 
 #[cfg(feature = "hash-cache")]
 use crate::types::Cache;
 #[cfg(all(feature = "hash-cache", feature = "thread-local-cache"))]
 use crate::types::LocalKeyExt;
-use crate::u256;
 
 #[cfg(feature = "hash-cache")]
 const CACHE_SIZE: usize = 1024; // value taken from evmzero

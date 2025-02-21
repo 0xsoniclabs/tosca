@@ -1,11 +1,12 @@
-use driver::{self, get_tx_context_zeroed, host_interface::null_ptr_host_interface, Instance};
-use evmrs::{
+use common::{
     evmc_vm::{
         ffi::{evmc_host_interface, evmc_message},
         Revision, StatusCode, Uint256,
     },
-    u256, MockExecutionMessage, Opcode,
+    opcode::*,
+    u256, MockExecutionMessage,
 };
+use driver::{get_tx_context_zeroed, host_interface::null_ptr_host_interface, Instance};
 use sha3::{Digest, Keccak256};
 
 pub struct RunArgs {
@@ -30,17 +31,17 @@ impl RunArgs {
             input
         }
         const CODE: [u8; 11] = [
-            Opcode::Push1 as u8,
-            4,                          // offset
-            Opcode::CallDataLoad as u8, // load value from call data at offset 4
-            Opcode::Push1 as u8,
-            0,                    // offset
-            Opcode::MStore as u8, // store loaded call data value at offset 0
-            Opcode::Push1 as u8,
+            PUSH1,
+            4,            // offset
+            CALLDATALOAD, // load value from call data at offset 4
+            PUSH1,
+            0,      // offset
+            MSTORE, // store loaded call data value at offset 0
+            PUSH1,
             32, // len
-            Opcode::Push1 as u8,
-            0,                    // offset
-            Opcode::Return as u8, // return 32 bytes at offset 0
+            PUSH1,
+            0,      // offset
+            RETURN, // return 32 bytes at offset 0
         ];
 
         (Self::new(&CODE, size, None), static_overhead_ref(size))
@@ -341,7 +342,7 @@ impl RunArgs {
     }
 
     pub fn jumpdest_analysis(size: u32) -> (Self, u32) {
-        const FILLER: [u8; 1] = [Opcode::JumpDest as u8];
+        const FILLER: [u8; 1] = [JUMPDEST];
 
         const LONG_CODE_LEN: usize =
             RunArgs::analysis_code_len(RunArgs::LONG_MAX_LEN, FILLER.len());
@@ -355,7 +356,7 @@ impl RunArgs {
     }
 
     pub fn stop_analysis(size: u32) -> (Self, u32) {
-        const FILLER: [u8; 1] = [Opcode::Stop as u8];
+        const FILLER: [u8; 1] = [STOP];
 
         const LONG_CODE_LEN: usize =
             RunArgs::analysis_code_len(RunArgs::LONG_MAX_LEN, FILLER.len());
@@ -369,7 +370,7 @@ impl RunArgs {
     }
 
     pub fn push1_analysis(size: u32) -> (Self, u32) {
-        const FILLER: [u8; 2] = [Opcode::Push1 as u8, 0];
+        const FILLER: [u8; 2] = [PUSH1, 0];
 
         const LONG_CODE_LEN: usize =
             RunArgs::analysis_code_len(RunArgs::LONG_MAX_LEN, FILLER.len());
@@ -385,7 +386,7 @@ impl RunArgs {
     pub fn push32_analysis(size: u32) -> (Self, u32) {
         const FILLER: [u8; 33] = {
             let mut code = [0; 33];
-            code[0] = Opcode::Push32 as u8;
+            code[0] = PUSH32;
             code
         };
 
@@ -418,7 +419,7 @@ impl RunArgs {
 
         let message = MockExecutionMessage {
             input: Some(Box::leak(Box::from(input.as_slice()))),
-            code_hash: Some(Box::leak(Box::new(u256::from_le_bytes(code_hash).into()))),
+            code_hash: Some(Box::leak(Box::new(Uint256 { bytes: code_hash }))),
             ..Default::default()
         };
 

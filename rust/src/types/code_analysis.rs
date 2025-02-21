@@ -5,6 +5,7 @@ use std::sync::Arc;
 #[cfg(all(feature = "code-analysis-cache", feature = "thread-local-cache"))]
 use std::{rc::Rc, thread::LocalKey};
 
+use common::u256;
 #[cfg(feature = "code-analysis-cache")]
 use nohash_hasher::BuildNoHashHasher;
 
@@ -12,7 +13,7 @@ use nohash_hasher::BuildNoHashHasher;
 use crate::types::Cache;
 #[cfg(all(feature = "code-analysis-cache", feature = "thread-local-cache"))]
 use crate::types::LocalKeyExt;
-use crate::types::{code_byte_type, u256, CodeByteType};
+use crate::types::{code_byte_type, CodeByteType};
 #[cfg(all(
     not(feature = "fn-ptr-conversion-expanded-dispatch"),
     feature = "fn-ptr-conversion-inline-dispatch"
@@ -265,15 +266,18 @@ fn copy_push_data(src: &[u8], src_start: usize, len: usize) -> [u8; OP_FN_DATA_S
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "fn-ptr-conversion-expanded-dispatch")]
+    use common::u256;
+
     #[cfg(not(feature = "needs-fn-ptr-conversion"))]
     use crate::types::CodeByteType;
+    #[cfg(feature = "fn-ptr-conversion-expanded-dispatch")]
+    use crate::types::OpFnData;
     #[cfg(all(
         not(feature = "fn-ptr-conversion-expanded-dispatch"),
         feature = "fn-ptr-conversion-inline-dispatch"
     ))]
     use crate::types::{op_fn_data::OP_FN_DATA_SIZE, OpFnData};
-    #[cfg(feature = "fn-ptr-conversion-expanded-dispatch")]
-    use crate::types::{u256, OpFnData};
     use crate::types::{CodeAnalysis, Opcode};
 
     #[cfg(not(feature = "needs-fn-ptr-conversion"))]
@@ -361,8 +365,6 @@ mod tests {
     #[cfg(feature = "fn-ptr-conversion-expanded-dispatch")]
     #[test]
     fn analyze_code_jumpdest() {
-        use crate::u256;
-
         assert_eq!(
             CodeAnalysis::<false>::analyze_code(&[Opcode::JumpDest as u8, Opcode::Add as u8])
                 .analysis,
@@ -470,8 +472,6 @@ mod tests {
     #[cfg(feature = "fn-ptr-conversion-expanded-dispatch")]
     #[test]
     fn analyze_code_push_with_data() {
-        use crate::u256;
-
         assert_eq!(
             CodeAnalysis::<false>::analyze_code(&[
                 Opcode::Push1 as u8,
