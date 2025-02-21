@@ -1731,6 +1731,7 @@ struct CallImpl {
       int64_t delegation_designation_cost = 0;
       if (ctx.revision >= EVMC_PRAGUE) {
         constexpr size_t kDelegationDesignationSize = 23;
+        // Copy one extra byte to check if the code is exactly 23 bytes long.
         std::array<uint8_t, kDelegationDesignationSize + 1> code;
         size_t code_size = ctx.host->copy_code(account, 0, code.begin(), code.size());
         if (code_size == kDelegationDesignationSize && code[0] == 0xef && code[1] == 0x01 && code[2] == 0x00) {
