@@ -5361,32 +5361,39 @@ TEST(InterpreterTest, CALL_PragueChargesForDelegationDesignation) {
   std::vector<uint8_t> code = {0xef, 0x01, 0x00};
   code.insert(code.end(), std::begin(target.bytes), std::end(target.bytes));
 
-  MockHost host;
-  EXPECT_CALL(host, access_account(destination_adr)).WillOnce(Return(EVMC_ACCESS_WARM));
-  EXPECT_CALL(host, copy_code(destination_adr, 0, _, 24))  //
-      .Times(1)
-      .WillOnce(DoAll(SetArrayArgument<2>(code.data(), code.data() + 23), Return(23)));
-  EXPECT_CALL(host, access_account(target)).WillOnce(Return(EVMC_ACCESS_WARM));
-  EXPECT_CALL(host, call(_)).WillOnce(Return(evmc::Result(EVMC_SUCCESS)));
+  for (const auto access_status : {EVMC_ACCESS_WARM, EVMC_ACCESS_COLD}) {
+    MockHost host;
+    EXPECT_CALL(host, access_account(destination_adr)).WillOnce(Return(EVMC_ACCESS_WARM));
+    EXPECT_CALL(host, copy_code(destination_adr, 0, _, 24))  //
+        .Times(1)
+        .WillOnce(DoAll(SetArrayArgument<2>(code.data(), code.data() + 23), Return(23)));
+    EXPECT_CALL(host, access_account(target)).WillOnce(Return(access_status));
+    EXPECT_CALL(host, call(_)).WillOnce(Return(evmc::Result(EVMC_SUCCESS)));
 
-  RunInterpreterTest({
-      .code = {op::CALL},
-      .gas_before = 50000,
-      .gas_after = 50000 - 100 - 100,
-      .stack_before =
-          {
-              0x00,         // < ret_size
-              0x00,         // < ret_offset
-              0x00,         // < arg_size
-              0x00,         // < arg_offset
-              0x00,         // < value
-              destination,  // < address
-              0,            // < gas
-          },
-      .stack_after = {0x01},
-      .host = &host,
-      .revision = EVMC_PRAGUE,
-  });
+    int access_cost = 100;
+    if (access_status == EVMC_ACCESS_COLD) {
+      access_cost = 2600;
+    }
+
+    RunInterpreterTest({
+        .code = {op::CALL},
+        .gas_before = 50000,
+        .gas_after = 50000 - 100 - access_cost,
+        .stack_before =
+            {
+                0x00,         // < ret_size
+                0x00,         // < ret_offset
+                0x00,         // < arg_size
+                0x00,         // < arg_offset
+                0x00,         // < value
+                destination,  // < address
+                0,            // < gas
+            },
+        .stack_after = {0x01},
+        .host = &host,
+        .revision = EVMC_PRAGUE,
+    });
+  }
 }
 
 ///////////////////////////////////////////////////////////
