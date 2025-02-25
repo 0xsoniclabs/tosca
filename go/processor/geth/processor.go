@@ -175,10 +175,14 @@ func blockParametersToChainConfig(blockParams tosca.BlockParameters) *params.Cha
 	zeroTime := uint64(0)
 	chainConfig.ShanghaiTime = &zeroTime
 	chainConfig.CancunTime = &zeroTime
+	chainConfig.PragueTime = &zeroTime
 
 	greaterBlockTime := uint64(blockParams.Timestamp + 1)
 	greaterBlockNumber := big.NewInt(blockParams.BlockNumber + 1)
 
+	if blockParams.Revision < tosca.R14_Prague {
+		chainConfig.PragueTime = &greaterBlockTime
+	}
 	if blockParams.Revision < tosca.R13_Cancun {
 		chainConfig.CancunTime = &greaterBlockTime
 	}

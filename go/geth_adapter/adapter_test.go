@@ -553,6 +553,7 @@ func TestRunContextAdapter_bigIntToWord(t *testing.T) {
 }
 
 func TestRunContextAdapter_ConvertRevision(t *testing.T) {
+	pragueTime := uint64(1100)
 	cancunTime := uint64(1000)
 	shanghaiTime := uint64(900)
 	parisBlock := big.NewInt(100)
@@ -599,6 +600,12 @@ func TestRunContextAdapter_ConvertRevision(t *testing.T) {
 			time:   cancunTime,
 			want:   tosca.R13_Cancun,
 		},
+		"Prague": {
+			random: &gc.Hash{0x42},
+			block:  parisBlock,
+			time:   pragueTime,
+			want:   tosca.R14_Prague,
+		},
 	}
 
 	chainConfig := &params.ChainConfig{
@@ -609,6 +616,7 @@ func TestRunContextAdapter_ConvertRevision(t *testing.T) {
 		MergeNetsplitBlock: parisBlock,
 		ShanghaiTime:       &shanghaiTime,
 		CancunTime:         &cancunTime,
+		PragueTime:         &pragueTime,
 	}
 
 	for name, test := range tests {

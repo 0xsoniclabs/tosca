@@ -79,7 +79,7 @@ func TestOpCode_NumberOfOpCodes(t *testing.T) {
 		CREATE, CALL, CALLCODE, RETURN, DELEGATECALL, CREATE2, STATICCALL, REVERT, INVALID, SELFDESTRUCT,
 		BASEFEE,                                     // London
 		PUSH0,                                       // Shanghai
-		BLOBHASH, BLOBBASEFEE, TLOAD, TSTORE, MCOPY, // Cancun
+		BLOBHASH, BLOBBASEFEE, TLOAD, TSTORE, MCOPY, // Cancun, Prague
 	}
 
 	for i := 0; i < 256; i++ {
