@@ -20,8 +20,6 @@ mod tx_context;
 pub use amount::u256;
 #[cfg(feature = "needs-cache")]
 pub use cache::Cache;
-#[cfg(all(feature = "thread-local-cache", feature = "needs-cache"))]
-pub use cache::LocalKeyExt;
 pub use code_analysis::{AnalysisContainer, CodeAnalysis};
 pub use code_reader::{CodeReader, GetOpcodeError};
 pub use execution_context::*;

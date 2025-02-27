@@ -1,17 +1,13 @@
 #[cfg(feature = "needs-fn-ptr-conversion")]
 use std::cmp::min;
-#[cfg(all(feature = "code-analysis-cache", not(feature = "thread-local-cache")))]
+#[cfg(feature = "code-analysis-cache")]
 use std::sync::Arc;
-#[cfg(all(feature = "code-analysis-cache", feature = "thread-local-cache"))]
-use std::{rc::Rc, thread::LocalKey};
 
 #[cfg(feature = "code-analysis-cache")]
 use nohash_hasher::BuildNoHashHasher;
 
 #[cfg(feature = "code-analysis-cache")]
 use crate::types::Cache;
-#[cfg(all(feature = "code-analysis-cache", feature = "thread-local-cache"))]
-use crate::types::LocalKeyExt;
 use crate::types::{code_byte_type, u256, CodeByteType};
 #[cfg(all(
     not(feature = "fn-ptr-conversion-expanded-dispatch"),
@@ -39,10 +35,8 @@ impl std::hash::Hash for u256Hash {
 
 #[cfg(not(feature = "code-analysis-cache"))]
 pub type AnalysisContainer<T> = T;
-#[cfg(all(feature = "code-analysis-cache", not(feature = "thread-local-cache")))]
+#[cfg(feature = "code-analysis-cache")]
 pub type AnalysisContainer<T> = Arc<T>;
-#[cfg(all(feature = "code-analysis-cache", feature = "thread-local-cache"))]
-pub type AnalysisContainer<T> = Rc<T>;
 
 #[cfg(not(feature = "needs-fn-ptr-conversion"))]
 pub type AnalysisItem<const STEPPABLE: bool> = CodeByteType;
@@ -68,23 +62,12 @@ struct GenericCodeAnalysisCache;
 
 #[cfg(feature = "code-analysis-cache")]
 impl GetGenericStatic for GenericCodeAnalysisCache {
-    #[cfg(not(feature = "thread-local-cache"))]
     type I<const STEPPABLE: bool> = CodeAnalysisCache<STEPPABLE>;
-    #[cfg(feature = "thread-local-cache")]
-    type I<const STEPPABLE: bool> = LocalKey<CodeAnalysisCache<STEPPABLE>>;
 
     fn get<const STEPPABLE: bool>() -> &'static Self::I<STEPPABLE> {
-        #[cfg(not(feature = "thread-local-cache"))]
         static CODE_ANALYSIS_CACHE_STEPPABLE: CodeAnalysisCache<true> = CodeAnalysisCache::new();
-        #[cfg(not(feature = "thread-local-cache"))]
         static CODE_ANALYSIS_CACHE_NON_STEPPABLE: CodeAnalysisCache<false> =
             CodeAnalysisCache::new();
-
-        #[cfg(feature = "thread-local-cache")]
-        thread_local! {
-            static CODE_ANALYSIS_CACHE_STEPPABLE: CodeAnalysisCache<true> = CodeAnalysisCache::new();
-            static CODE_ANALYSIS_CACHE_NON_STEPPABLE: CodeAnalysisCache<false> = CodeAnalysisCache::new();
-        }
 
         Self::get_with_args(
             &CODE_ANALYSIS_CACHE_STEPPABLE,
