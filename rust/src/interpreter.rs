@@ -5,7 +5,7 @@ use evmc_vm::{
     StatusCode, StepResult, StorageStatus, Uint256,
 };
 
-#[cfg(not(feature = "needs-fn-ptr-conversion"))]
+#[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
 use crate::types::Opcode;
 #[cfg(feature = "needs-jumptable")]
 use crate::utils::GetGenericStatic;
@@ -60,13 +60,13 @@ const fn gen_jumptable<const STEPPABLE: bool>() -> [OpFn<STEPPABLE>; 256] {
         |i| i.jumptable_placeholder(),
         |i| i.jumptable_placeholder(),
         |i| i.sha3(),
-        #[cfg(feature = "needs-fn-ptr-conversion")]
+        #[cfg(feature = "fn-ptr-conversion-dispatch")]
         |i| i.no_op(),
-        #[cfg(feature = "needs-fn-ptr-conversion")]
+        #[cfg(feature = "fn-ptr-conversion-dispatch")]
         |i| i.skip_no_ops(),
-        #[cfg(not(feature = "needs-fn-ptr-conversion"))]
+        #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
         |i| i.jumptable_placeholder(),
-        #[cfg(not(feature = "needs-fn-ptr-conversion"))]
+        #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
         |i| i.jumptable_placeholder(),
         |i| i.jumptable_placeholder(),
         |i| i.jumptable_placeholder(),
@@ -458,13 +458,13 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.run_op(op)
     }
 
-    #[cfg(feature = "needs-fn-ptr-conversion")]
+    #[cfg(feature = "fn-ptr-conversion-dispatch")]
     fn run_op(&mut self, op: OpFn<STEPPABLE>) -> OpResult {
         op(self)
     }
     #[cfg(all(
         feature = "jumptable-dispatch",
-        not(feature = "needs-fn-ptr-conversion")
+        not(feature = "fn-ptr-conversion-dispatch")
     ))]
     fn run_op(&mut self, op: Opcode) -> OpResult {
         GenericJumptable::get()[op as u8 as usize](self)
@@ -639,13 +639,13 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         Err(FailStatus::Failure)
     }
 
-    #[cfg(feature = "needs-fn-ptr-conversion")]
+    #[cfg(feature = "fn-ptr-conversion-dispatch")]
     pub fn no_op(&mut self) -> OpResult {
         self.code_reader.next();
         self.return_from_op()
     }
 
-    #[cfg(feature = "needs-fn-ptr-conversion")]
+    #[cfg(feature = "fn-ptr-conversion-dispatch")]
     pub fn skip_no_ops(&mut self) -> OpResult {
         self.code_reader.jump_to();
         self.return_from_op()
@@ -1485,11 +1485,11 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
     fn push<const N: usize>(&mut self) -> OpResult {
         self.gas_left.consume(3)?;
-        #[cfg(not(feature = "fn-ptr-conversion-expanded-dispatch"))]
+        #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
         self.code_reader.next();
-        #[cfg(not(feature = "fn-ptr-conversion-expanded-dispatch"))]
+        #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
         self.stack.push(self.code_reader.get_push_data::<N>())?;
-        #[cfg(feature = "fn-ptr-conversion-expanded-dispatch")]
+        #[cfg(feature = "fn-ptr-conversion-dispatch")]
         self.stack.push(self.code_reader.get_push_data())?;
         self.return_from_op()
     }
@@ -1907,9 +1907,8 @@ mod tests {
         );
     }
 
-    // when features "fn-ptr-conversion-expanded-dispatch"  or
-    // "fn-ptr-conversion-inline-dispatch" are enabled this in undefined behavior
-    #[cfg(not(feature = "needs-fn-ptr-conversion"))]
+    // when features "fn-ptr-conversion-dispatch" is enabled this in undefined behavior
+    #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
     #[test]
     fn pc_on_data() {
         let mut context = MockExecutionContextTrait::new();

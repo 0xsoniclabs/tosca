@@ -21,7 +21,6 @@ mock = ["dep:mockall"]
 fuzzing = ["dep:arbitrary"]
 # partial features (enabled by other features to simplify conditional compilation attributes. Not intended to be used on their own)
 needs-jumptable = []
-needs-fn-ptr-conversion = ["needs-jumptable"]
 needs-cache = ["dep:lru"]
 # optimizations:
 performance = [
@@ -32,7 +31,7 @@ performance = [
     "hash-cache",
     "code-analysis-cache",
     "alloc-reuse",
-    "fn-ptr-conversion-expanded-dispatch",
+    "fn-ptr-conversion-dispatch",
 ]
 mimalloc = ["dep:mimalloc"]
 unsafe-stack = []
@@ -43,10 +42,9 @@ code-analysis-cache = ["dep:nohash-hasher", "needs-cache"]
 alloc-reuse = []
 tail-call = []
 # function/ opcode dispatch:
-# feature precedence: switch-dispatch (default) < jumptable-dispatch < fn-ptr-conversion-inline-dispatch < fn-ptr-conversion-expanded-dispatch
+# feature precedence: switch-dispatch (default) < jumptable-dispatch < fn-ptr-conversion-dispatch
 jumptable-dispatch = ["needs-jumptable"]
-fn-ptr-conversion-inline-dispatch = ["needs-fn-ptr-conversion"]
-fn-ptr-conversion-expanded-dispatch = ["needs-fn-ptr-conversion"]
+fn-ptr-conversion-dispatch = ["needs-jumptable"]
 
 [dependencies]
 bnum = "0.12.0"

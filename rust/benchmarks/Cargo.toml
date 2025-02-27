@@ -13,10 +13,7 @@ code-analysis-cache = ["evmrs/code-analysis-cache"]
 alloc-reuse = ["evmrs/alloc-reuse"]
 tail-call = ["evmrs/tail-call"]
 jumptable-dispatch = ["evmrs/jumptable-dispatch"]
-fn-ptr-conversion-expanded-dispatch = [
-    "evmrs/fn-ptr-conversion-expanded-dispatch",
-]
-fn-ptr-conversion-inline-dispatch = ["evmrs/fn-ptr-conversion-inline-dispatch"]
+fn-ptr-conversion-dispatch = ["evmrs/fn-ptr-conversion-dispatch"]
 
 [dependencies]
 evmrs = { path = ".." }

@@ -8,10 +8,10 @@ pub mod hash_cache;
 mod memory;
 mod mock_execution_message;
 mod observer;
-#[cfg(feature = "needs-fn-ptr-conversion")]
+#[cfg(feature = "fn-ptr-conversion-dispatch")]
 mod op_fn_data;
 mod opcode;
-#[cfg(feature = "needs-fn-ptr-conversion")]
+#[cfg(feature = "fn-ptr-conversion-dispatch")]
 mod pc_map;
 mod stack;
 mod status_code;
@@ -26,10 +26,10 @@ pub use execution_context::*;
 pub use memory::Memory;
 pub use mock_execution_message::MockExecutionMessage;
 pub use observer::*;
-#[cfg(feature = "needs-fn-ptr-conversion")]
+#[cfg(feature = "fn-ptr-conversion-dispatch")]
 pub use op_fn_data::OpFnData;
 pub use opcode::*;
-#[cfg(feature = "needs-fn-ptr-conversion")]
+#[cfg(feature = "fn-ptr-conversion-dispatch")]
 pub use pc_map::PcMap;
 pub use stack::Stack;
 pub use status_code::{ExecStatus, FailStatus};
