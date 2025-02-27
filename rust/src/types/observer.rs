@@ -1,7 +1,7 @@
 use std::{borrow::Cow, io::Write};
 
 use crate::interpreter::Interpreter;
-#[cfg(feature = "needs-fn-ptr-conversion")]
+#[cfg(feature = "fn-ptr-conversion-dispatch")]
 use crate::Opcode;
 
 pub trait Observer<const STEPPABLE: bool> {
@@ -35,9 +35,9 @@ impl<W: Write> LoggingObserver<W> {
 impl<W: Write, const STEPPABLE: bool> Observer<STEPPABLE> for LoggingObserver<W> {
     fn pre_op(&mut self, interpreter: &Interpreter<STEPPABLE>) {
         // pre_op is called after the op is fetched so this will always be Ok(..)
-        #[cfg(not(feature = "needs-fn-ptr-conversion"))]
+        #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
         let op = interpreter.code_reader.get().unwrap();
-        #[cfg(feature = "needs-fn-ptr-conversion")]
+        #[cfg(feature = "fn-ptr-conversion-dispatch")]
         let op = {
             let op = interpreter.code_reader[interpreter.code_reader.pc()];
             // SAFETY:

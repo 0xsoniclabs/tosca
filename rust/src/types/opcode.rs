@@ -178,9 +178,9 @@ pub enum Opcode {
     Shr = SHR,
     Sar = SAR,
     Sha3 = SHA3,
-    #[cfg(feature = "needs-fn-ptr-conversion")]
+    #[cfg(feature = "fn-ptr-conversion-dispatch")]
     NoOp = SHA3 + 1,
-    #[cfg(feature = "needs-fn-ptr-conversion")]
+    #[cfg(feature = "fn-ptr-conversion-dispatch")]
     SkipNoOps = SHA3 + 2,
     Address = ADDRESS,
     Balance = BALANCE,
@@ -309,7 +309,7 @@ pub enum Opcode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CodeByteType {
     JumpDest,
-    #[cfg(feature = "needs-fn-ptr-conversion")]
+    #[cfg(feature = "fn-ptr-conversion-dispatch")]
     Push,
     Opcode,
     DataOrInvalid,
@@ -331,9 +331,9 @@ pub fn code_byte_type(code_byte: u8) -> (CodeByteType, usize) {
         | LOG4 | CREATE | CALL | CALLCODE | RETURN | DELEGATECALL | CREATE2 | STATICCALL
         | REVERT | INVALID | SELFDESTRUCT => (CodeByteType::Opcode, 0),
         PUSH1..=PUSH32 => (
-            #[cfg(not(feature = "needs-fn-ptr-conversion"))]
+            #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
             CodeByteType::Opcode,
-            #[cfg(feature = "needs-fn-ptr-conversion")]
+            #[cfg(feature = "fn-ptr-conversion-dispatch")]
             CodeByteType::Push,
             (code_byte - Opcode::Push1 as u8 + 1) as usize,
         ),

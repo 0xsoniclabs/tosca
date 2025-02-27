@@ -16,24 +16,13 @@ compile_error!(
 );
 
 #[cfg(all(
-    feature = "needs-fn-ptr-conversion",
-    not(feature = "fn-ptr-conversion-expanded-dispatch"),
-    not(feature = "fn-ptr-conversion-inline-dispatch"),
-))]
-compile_error!(
-    "Feature `needs-fn-ptr-conversion` is only a helper feature and not supposed to be enabled on its own.
-    Either disable it or enable one or all of `fn-ptr-conversion-expanded-dispatch` or `fn-ptr-conversion-inline-dispatch`."
-);
-
-#[cfg(all(
     feature = "needs-jumptable",
     not(feature = "jumptable-dispatch"),
-    not(feature = "fn-ptr-conversion-expanded-dispatch"),
-    not(feature = "fn-ptr-conversion-inline-dispatch"),
+    not(feature = "fn-ptr-conversion-dispatch"),
 ))]
 compile_error!(
     "Feature `needs-jumptable` is only a helper feature and not supposed to be enabled on its own.
-    Either disable it or enable one or all of `jumptable-dispatch`, `fn-ptr-conversion-expanded-dispatch` or `fn-ptr-conversion-inline-dispatch`."
+    Either disable it or enable one or all of `jumptable-dispatch` or `fn-ptr-conversion-dispatch`."
 );
 
 #[cfg(not(feature = "custom-evmc"))]
