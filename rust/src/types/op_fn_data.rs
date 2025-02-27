@@ -3,7 +3,6 @@ use std::fmt::Debug;
 use crate::{
     interpreter::{GenericJumptable, OpFn},
     types::CodeByteType,
-    u256,
     utils::GetGenericStatic,
     Opcode,
 };
@@ -11,21 +10,24 @@ use crate::{
 #[derive(Clone, PartialEq, Eq)]
 pub struct OpFnData<const STEPPABLE: bool> {
     func: Option<OpFn<STEPPABLE>>,
-    data: u256,
+    data: usize,
 }
 
 impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
-    pub fn data(data: u256) -> Self {
-        Self { func: None, data }
+    pub fn invalid() -> Self {
+        Self {
+            func: None,
+            data: 0,
+        }
     }
 
     pub fn skip_no_ops_iter(count: usize) -> impl Iterator<Item = Self> {
-        let skip_no_ops = Self::func(Opcode::SkipNoOps as u8, (count as u64).into());
-        let gen_no_ops = move || Self::func(Opcode::NoOp as u8, u256::ZERO);
+        let skip_no_ops = Self::func(Opcode::SkipNoOps as u8, count);
+        let gen_no_ops = move || Self::func(Opcode::NoOp as u8, 0);
         std::iter::once(skip_no_ops).chain(std::iter::repeat_with(gen_no_ops).take(count - 1))
     }
 
-    pub fn func(op: u8, data: u256) -> Self {
+    pub fn func(op: u8, data: usize) -> Self {
         Self {
             func: Some(GenericJumptable::get()[op as usize]),
             data,
@@ -33,7 +35,7 @@ impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
     }
 
     pub fn jump_dest() -> Self {
-        Self::func(Opcode::JumpDest as u8, u256::ZERO)
+        Self::func(Opcode::JumpDest as u8, 0)
     }
 
     pub fn code_byte_type(&self) -> CodeByteType {
@@ -50,7 +52,7 @@ impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
         self.func
     }
 
-    pub fn get_data(&self) -> u256 {
+    pub fn get_data(&self) -> usize {
         self.data
     }
 }

@@ -1487,10 +1487,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.gas_left.consume(3)?;
         #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
         self.code_reader.next();
-        #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
         self.stack.push(self.code_reader.get_push_data::<N>())?;
-        #[cfg(feature = "fn-ptr-conversion-dispatch")]
-        self.stack.push(self.code_reader.get_push_data())?;
         self.return_from_op()
     }
 

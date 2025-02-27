@@ -109,7 +109,7 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
         data
     }
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
-    pub fn get_push_data(&mut self) -> u256 {
+    pub fn get_push_data<const N: usize>(&mut self) -> u256 {
         // SAFETY:
         // This assertion assumes that the program counter (self.pc) was not modified after calling
         // [`CodeReader::get`]. While this can not be guaranteed here, marking the function
@@ -124,15 +124,17 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
         }
         let res = self.code_analysis.analysis[self.pc].get_data();
         self.pc += 1;
-        res
+        if N <= 8 {
+            res.into()
+        } else {
+            self.code_analysis.large_push_data[res]
+        }
     }
 
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     pub fn jump_to(&mut self) {
         #[cfg(feature = "fn-ptr-conversion-dispatch")]
-        let offset = self.code_analysis.analysis[self.pc]
-            .get_data()
-            .into_u64_saturating();
+        let offset = self.code_analysis.analysis[self.pc].get_data();
         #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
         let offset = u32::from_ne_bytes(self.code_analysis.analysis[self.pc].get_data());
         self.pc += offset as usize;
@@ -174,7 +176,7 @@ mod tests {
 
         let mut code_reader = CodeReader::<false>::new(&code, None, 0);
         assert_eq!(code_reader.pc, 0);
-        code_reader.get_push_data();
+        code_reader.get_push_data::<1>();
         assert_eq!(code_reader.pc, 1);
         assert_eq!(code_reader.pc(), 2);
 
@@ -191,7 +193,7 @@ mod tests {
 
         let mut code_reader = CodeReader::<false>::new(&code, None, 0);
         assert_eq!(code_reader.pc, 0);
-        code_reader.get_push_data();
+        code_reader.get_push_data::<21>();
         assert_eq!(code_reader.pc, 1);
         assert_eq!(code_reader.pc(), 22);
 
@@ -270,6 +272,6 @@ mod tests {
         let mut code = [0xff; 33];
         code[0] = Opcode::Push32 as u8;
         let mut code_reader = CodeReader::<false>::new(&code, None, 0);
-        assert_eq!(code_reader.get_push_data(), u256::MAX);
+        assert_eq!(code_reader.get_push_data::<32>(), u256::MAX);
     }
 }
