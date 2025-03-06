@@ -1,19 +1,18 @@
 use std::fmt::Debug;
 
 use crate::{
-    interpreter::{GenericJumptable, OpFn},
+    interpreter::{OpFn, JUMPTABLE},
     types::CodeByteType,
-    utils::GetGenericStatic,
     Opcode,
 };
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct OpFnData<const STEPPABLE: bool> {
-    func: Option<OpFn<STEPPABLE>>,
+pub struct OpFnData {
+    func: Option<OpFn>,
     data: usize,
 }
 
-impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
+impl OpFnData {
     pub fn invalid() -> Self {
         Self {
             func: None,
@@ -29,7 +28,7 @@ impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
 
     pub fn func(op: u8, data: usize) -> Self {
         Self {
-            func: Some(GenericJumptable::get()[op as usize]),
+            func: Some(JUMPTABLE[op as usize]),
             data,
         }
     }
@@ -41,14 +40,14 @@ impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
     pub fn code_byte_type(&self) -> CodeByteType {
         match self.func {
             None => CodeByteType::DataOrInvalid,
-            Some(func) if func == GenericJumptable::get()[Opcode::JumpDest as u8 as usize] => {
+            Some(func) if func == JUMPTABLE[Opcode::JumpDest as u8 as usize] => {
                 CodeByteType::JumpDest
             }
             Some(_) => CodeByteType::Opcode,
         }
     }
 
-    pub fn get_func(&self) -> Option<OpFn<STEPPABLE>> {
+    pub fn get_func(&self) -> Option<OpFn> {
         self.func
     }
 
@@ -57,7 +56,7 @@ impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
     }
 }
 
-impl<const STEPPABLE: bool> Debug for OpFnData<STEPPABLE> {
+impl Debug for OpFnData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("OpFnData")
             .field("func", &self.func.map(|f| f as *const u8))

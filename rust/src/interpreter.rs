@@ -7,8 +7,6 @@ use evmc_vm::{
 
 #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
 use crate::types::Opcode;
-#[cfg(feature = "needs-jumptable")]
-use crate::utils::GetGenericStatic;
 use crate::{
     types::{
         hash_cache, u256, CodeReader, ExecStatus, ExecutionContextTrait, ExecutionTxContext,
@@ -20,12 +18,12 @@ use crate::{
 type OpResult = Result<(), FailStatus>;
 
 #[cfg(feature = "needs-jumptable")]
-pub type OpFn<const STEPPABLE: bool> = fn(&mut Interpreter<STEPPABLE>) -> OpResult;
+pub type OpFn = fn(&mut Interpreter) -> OpResult;
 
 // The closures here are necessary because methods capture the lifetime of the type which we
 // want to avoid.
 #[cfg(feature = "needs-jumptable")]
-const fn gen_jumptable<const STEPPABLE: bool>() -> [OpFn<STEPPABLE>; 256] {
+const fn gen_jumptable() -> [OpFn; 256] {
     [
         |i| i.stop(),
         |i| i.add(),
@@ -293,20 +291,9 @@ const fn gen_jumptable<const STEPPABLE: bool>() -> [OpFn<STEPPABLE>; 256] {
 }
 
 #[cfg(feature = "needs-jumptable")]
-pub struct GenericJumptable;
+pub static JUMPTABLE: [OpFn; 256] = gen_jumptable();
 
-#[cfg(feature = "needs-jumptable")]
-impl GetGenericStatic for GenericJumptable {
-    type I<const STEPPABLE: bool> = [OpFn<STEPPABLE>; 256];
-
-    fn get<const STEPPABLE: bool>() -> &'static Self::I<STEPPABLE> {
-        static JUMPTABLE_STEPPABLE: [OpFn<true>; 256] = gen_jumptable();
-        static JUMPTABLE_NON_STEPPABLE: [OpFn<false>; 256] = gen_jumptable();
-        Self::get_with_args(&JUMPTABLE_STEPPABLE, &JUMPTABLE_NON_STEPPABLE)
-    }
-}
-
-pub struct Interpreter<'a, const STEPPABLE: bool> {
+pub struct Interpreter<'a> {
     pub exec_status: ExecStatus,
     #[cfg(not(feature = "custom-evmc"))]
     pub message: &'a ExecutionMessage,
@@ -314,7 +301,7 @@ pub struct Interpreter<'a, const STEPPABLE: bool> {
     pub message: &'a ExecutionMessage<'a>,
     pub context: &'a mut dyn ExecutionContextTrait,
     pub revision: Revision,
-    pub code_reader: CodeReader<'a, STEPPABLE>,
+    pub code_reader: CodeReader<'a>,
     pub gas_left: Gas,
     pub gas_refund: GasRefund,
     #[cfg(not(feature = "custom-evmc"))]
@@ -327,7 +314,7 @@ pub struct Interpreter<'a, const STEPPABLE: bool> {
     pub steps: Option<i32>,
 }
 
-impl<'a> Interpreter<'a, false> {
+impl<'a> Interpreter<'a> {
     pub fn new(
         revision: Revision,
         message: &'a ExecutionMessage,
@@ -351,7 +338,7 @@ impl<'a> Interpreter<'a, false> {
     }
 }
 
-impl<'a> Interpreter<'a, true> {
+impl<'a> Interpreter<'a> {
     #[allow(clippy::too_many_arguments)]
     pub fn new_steppable(
         revision: Revision,
@@ -382,26 +369,17 @@ impl<'a> Interpreter<'a, true> {
     }
 }
 
-impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
-    /// R is expected to be [ExecutionResult] or [StepResult].
+impl Interpreter<'_> {
     #[cfg(not(feature = "tail-call"))]
-    pub fn run<O, R>(mut self, observer: &mut O) -> R
+    pub fn run_steps<O>(mut self, steps: usize, observer: &mut O) -> StepResult
     where
-        O: Observer<STEPPABLE>,
-        R: From<Self> + From<FailStatus>,
+        O: Observer,
     {
-        loop {
+        for _ in 0..steps {
             if self.exec_status != ExecStatus::Running {
                 break;
             }
 
-            if STEPPABLE {
-                match &mut self.steps {
-                    None => (),
-                    Some(0) => break,
-                    Some(steps) => *steps -= 1,
-                }
-            }
             let op = match self.code_reader.get() {
                 Ok(op) => op,
                 Err(GetOpcodeError::OutOfRange) => {
@@ -421,13 +399,53 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
         self.into()
     }
-    /// R is expected to be [ExecutionResult] or [StepResult].
+
+    #[cfg(not(feature = "tail-call"))]
+    pub fn run<O>(mut self, observer: &mut O) -> ExecutionResult
+    where
+        O: Observer,
+    {
+        loop {
+            if self.exec_status != ExecStatus::Running {
+                break;
+            }
+
+            let op = match self.code_reader.get() {
+                Ok(op) => op,
+                Err(GetOpcodeError::OutOfRange) => {
+                    self.exec_status = ExecStatus::Stopped;
+                    break;
+                }
+                Err(GetOpcodeError::Invalid) => {
+                    return FailStatus::InvalidInstruction.into();
+                }
+            };
+            observer.pre_op(&self);
+            if let Err(err) = self.run_op(op) {
+                return err.into();
+            }
+            observer.post_op(&self);
+        }
+
+        self.into()
+    }
     #[cfg(feature = "tail-call")]
     #[inline(always)]
-    pub fn run<O, R>(mut self, observer: &mut O) -> R
+    pub fn run_steps<O>(mut self, steps: usize, observer: &mut O) -> StepResult
     where
-        O: Observer<STEPPABLE>,
-        R: From<Self> + From<FailStatus>,
+        O: Observer,
+    {
+        observer.log("feature \"tail-call\" does not support logging".into());
+        if let Err(err) = self.next() {
+            return err.into();
+        }
+        self.into()
+    }
+    #[cfg(feature = "tail-call")]
+    #[inline(always)]
+    pub fn run<O>(mut self, observer: &mut O) -> ExecutionResult
+    where
+        O: Observer,
     {
         observer.log("feature \"tail-call\" does not support logging".into());
         if let Err(err) = self.next() {
@@ -438,13 +456,12 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     #[cfg(feature = "tail-call")]
     #[inline(always)]
     pub fn next(&mut self) -> OpResult {
-        if STEPPABLE {
-            match &mut self.steps {
-                None => (),
-                Some(0) => return Ok(()),
-                Some(steps) => *steps -= 1,
-            }
+        match &mut self.steps {
+            None => (),
+            Some(0) => return Ok(()),
+            Some(steps) => *steps -= 1,
         }
+
         let op = match self.code_reader.get() {
             Ok(op) => op,
             Err(GetOpcodeError::OutOfRange) => {
@@ -459,7 +476,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
-    fn run_op(&mut self, op: OpFn<STEPPABLE>) -> OpResult {
+    fn run_op(&mut self, op: OpFn) -> OpResult {
         op(self)
     }
     #[cfg(all(
@@ -1282,12 +1299,12 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn jump(&mut self) -> OpResult {
-        self.gas_left.consume(if STEPPABLE { 8 } else { 8 + 1 })?;
+        self.gas_left.consume(8)?; //if STEPPABLE { 8 } else { 8 + 1 })?;
         let [dest] = self.stack.pop()?;
         self.code_reader.try_jump(dest)?;
-        if !STEPPABLE {
-            self.code_reader.next();
-        }
+        //if !STEPPABLE {
+        //self.code_reader.next();
+        //}
         self.return_from_op()
     }
 
@@ -1298,10 +1315,10 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             self.code_reader.next();
         } else {
             self.code_reader.try_jump(dest)?;
-            if !STEPPABLE {
-                self.gas_left.consume(1)?;
-                self.code_reader.next();
-            }
+            //if !STEPPABLE {
+            //self.gas_left.consume(1)?;
+            //self.code_reader.next();
+            //}
         }
         self.return_from_op()
     }
@@ -1811,8 +1828,8 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 }
 
-impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for StepResult {
-    fn from(value: Interpreter<STEPPABLE>) -> Self {
+impl From<Interpreter<'_>> for StepResult {
+    fn from(value: Interpreter) -> Self {
         let stack = value
             .stack
             .as_slice()
@@ -1835,8 +1852,8 @@ impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for StepResult {
     }
 }
 
-impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for ExecutionResult {
-    fn from(value: Interpreter<STEPPABLE>) -> Self {
+impl From<Interpreter<'_>> for ExecutionResult {
+    fn from(value: Interpreter) -> Self {
         Self::new(
             value.exec_status.into(),
             value.gas_left.as_u64() as i64,
@@ -1870,7 +1887,7 @@ mod tests {
         let mut context = MockExecutionContextTrait::new();
         let message = MockExecutionMessage::default().into();
         let interpreter = Interpreter::new(Revision::EVMC_ISTANBUL, &message, &mut context, &[]);
-        let result: StepResult = interpreter.run(&mut NoOpObserver());
+        let result: StepResult = interpreter.run_steps(usize::MAX, &mut NoOpObserver());
         assert_eq!(result.step_status_code, StepStatusCode::EVMC_STEP_STOPPED);
         assert_eq!(result.pc, 0);
         assert_eq!(
@@ -1895,7 +1912,7 @@ mod tests {
             None,
             None,
         );
-        let result: StepResult = interpreter.run(&mut NoOpObserver());
+        let result: StepResult = interpreter.run_steps(usize::MAX, &mut NoOpObserver());
         assert_eq!(result.step_status_code, StepStatusCode::EVMC_STEP_STOPPED);
         assert_eq!(result.pc, 1);
         assert_eq!(
@@ -1942,7 +1959,7 @@ mod tests {
             None,
             Some(0),
         );
-        let result: StepResult = interpreter.run(&mut NoOpObserver());
+        let result: StepResult = interpreter.run_steps(usize::MAX, &mut NoOpObserver());
         assert_eq!(result.step_status_code, StepStatusCode::EVMC_STEP_RUNNING);
         assert_eq!(result.pc, 0);
         assert_eq!(
@@ -1967,7 +1984,7 @@ mod tests {
             None,
             Some(1),
         );
-        let result: StepResult = interpreter.run(&mut NoOpObserver());
+        let result: StepResult = interpreter.run_steps(usize::MAX, &mut NoOpObserver());
         assert_eq!(result.step_status_code, StepStatusCode::EVMC_STEP_RUNNING);
         assert_eq!(result.stack.as_slice(), [u256::from(3u8).into()]);
         assert_eq!(
@@ -1987,7 +2004,7 @@ mod tests {
             &[Opcode::Add as u8],
         );
         interpreter.stack = Stack::new(&[1u8.into(), 2u8.into()]);
-        let result: StepResult = interpreter.run(&mut NoOpObserver());
+        let result: StepResult = interpreter.run_steps(usize::MAX, &mut NoOpObserver());
         assert_eq!(result.step_status_code, StepStatusCode::EVMC_STEP_STOPPED);
         assert_eq!(result.stack.as_slice(), [u256::from(3u8).into()]);
         assert_eq!(
@@ -2007,7 +2024,7 @@ mod tests {
             &[Opcode::Add as u8, Opcode::Add as u8],
         );
         interpreter.stack = Stack::new(&[1u8.into(), 2u8.into(), 3u8.into()]);
-        let result: StepResult = interpreter.run(&mut NoOpObserver());
+        let result: StepResult = interpreter.run_steps(usize::MAX, &mut NoOpObserver());
         assert_eq!(result.step_status_code, StepStatusCode::EVMC_STEP_STOPPED);
         assert_eq!(result.stack.as_slice(), [u256::from(6u8).into()]);
         assert_eq!(
@@ -2136,7 +2153,7 @@ mod tests {
             None,
             None,
         );
-        let result: StepResult = interpreter.run(&mut NoOpObserver());
+        let result: StepResult = interpreter.run_steps(usize::MAX, &mut NoOpObserver());
         assert_eq!(result.step_status_code, StepStatusCode::EVMC_STEP_STOPPED);
         assert_eq!(result.pc, 1);
         assert_eq!(

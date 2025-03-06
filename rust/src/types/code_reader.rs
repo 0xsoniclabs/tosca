@@ -17,13 +17,13 @@ impl<const N: usize> PushDataLen<N> {
 }
 
 #[derive(Debug)]
-pub struct CodeReader<'a, const STEPPABLE: bool> {
+pub struct CodeReader<'a> {
     code: &'a [u8],
-    code_analysis: AnalysisContainer<CodeAnalysis<STEPPABLE>>,
+    code_analysis: AnalysisContainer<CodeAnalysis>,
     pc: usize,
 }
 
-impl<const STEPPABLE: bool> Deref for CodeReader<'_, STEPPABLE> {
+impl Deref for CodeReader<'_> {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
@@ -37,7 +37,7 @@ pub enum GetOpcodeError {
     Invalid,
 }
 
-impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
+impl<'a> CodeReader<'a> {
     pub fn new(code: &'a [u8], code_hash: Option<u256>, pc: usize) -> Self {
         let code_analysis = CodeAnalysis::new(code, code_hash);
         #[cfg(feature = "fn-ptr-conversion-dispatch")]
@@ -68,7 +68,7 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
         }
     }
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
-    pub fn get(&self) -> Result<OpFn<STEPPABLE>, GetOpcodeError> {
+    pub fn get(&self) -> Result<OpFn, GetOpcodeError> {
         self.code_analysis
             .analysis
             .get(self.pc)
@@ -159,7 +159,7 @@ mod tests {
     fn code_reader_internals() {
         let code = [Opcode::Add as u8, Opcode::Add as u8, 0xc0];
         let pc = 1;
-        let code_reader = CodeReader::<false>::new(&code, None, pc);
+        let code_reader = CodeReader::new(&code, None, pc);
         assert_eq!(*code_reader, code);
         assert_eq!(code_reader.len(), code.len());
         assert_eq!(code_reader.pc(), pc);
@@ -170,34 +170,34 @@ mod tests {
     fn code_reader_pc() {
         let code = [Opcode::Push1 as u8, Opcode::Add as u8, Opcode::Add as u8];
 
-        let code_reader = CodeReader::<false>::new(&code, None, 0);
+        let code_reader = CodeReader::new(&code, None, 0);
         assert_eq!(code_reader.pc, 0);
         assert_eq!(code_reader.pc(), 0);
 
-        let mut code_reader = CodeReader::<false>::new(&code, None, 0);
+        let mut code_reader = CodeReader::new(&code, None, 0);
         assert_eq!(code_reader.pc, 0);
         code_reader.get_push_data::<1>();
         assert_eq!(code_reader.pc, 1);
         assert_eq!(code_reader.pc(), 2);
 
-        let code_reader = CodeReader::<false>::new(&code, None, 2);
+        let code_reader = CodeReader::new(&code, None, 2);
         assert_eq!(code_reader.pc, 1);
         assert_eq!(code_reader.pc(), 2);
 
         let mut code = [Opcode::Add as u8; 23];
         code[0] = Opcode::Push21 as u8;
 
-        let code_reader = CodeReader::<false>::new(&code, None, 0);
+        let code_reader = CodeReader::new(&code, None, 0);
         assert_eq!(code_reader.pc, 0);
         assert_eq!(code_reader.pc(), 0);
 
-        let mut code_reader = CodeReader::<false>::new(&code, None, 0);
+        let mut code_reader = CodeReader::new(&code, None, 0);
         assert_eq!(code_reader.pc, 0);
         code_reader.get_push_data::<21>();
         assert_eq!(code_reader.pc, 1);
         assert_eq!(code_reader.pc(), 22);
 
-        let code_reader = CodeReader::<false>::new(&code, None, 22);
+        let code_reader = CodeReader::new(&code, None, 22);
         assert_eq!(code_reader.pc, 1);
         assert_eq!(code_reader.pc(), 22);
     }
@@ -205,7 +205,7 @@ mod tests {
     #[test]
     fn code_reader_get() {
         let mut code_reader =
-            CodeReader::<false>::new(&[Opcode::Add as u8, Opcode::Add as u8, 0xc0], None, 0);
+            CodeReader::new(&[Opcode::Add as u8, Opcode::Add as u8, 0xc0], None, 0);
         #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
         assert_eq!(code_reader.get(), Ok(Opcode::Add));
         #[cfg(feature = "fn-ptr-conversion-dispatch")]
@@ -223,7 +223,7 @@ mod tests {
 
     #[test]
     fn code_reader_try_jump() {
-        let mut code_reader = CodeReader::<false>::new(
+        let mut code_reader = CodeReader::new(
             &[
                 Opcode::Push1 as u8,
                 Opcode::JumpDest as u8,
@@ -250,19 +250,19 @@ mod tests {
     #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
     #[test]
     fn code_reader_get_push_data() {
-        let mut code_reader = CodeReader::<false>::new(&[0xff; 32], None, 0);
+        let mut code_reader = CodeReader::new(&[0xff; 32], None, 0);
         assert_eq!(code_reader.get_push_data::<1>(), 0xffu8.into());
 
-        let mut code_reader = CodeReader::<false>::new(&[0xff; 32], None, 0);
+        let mut code_reader = CodeReader::new(&[0xff; 32], None, 0);
         assert_eq!(code_reader.get_push_data::<32>(), u256::MAX);
 
-        let mut code_reader = CodeReader::<false>::new(&[0xff; 32], None, 31);
+        let mut code_reader = CodeReader::new(&[0xff; 32], None, 31);
         assert_eq!(
             code_reader.get_push_data::<32>(),
             u256::from(0xffu8) << u256::from(248u8)
         );
 
-        let mut code_reader = CodeReader::<false>::new(&[0xff; 32], None, 32);
+        let mut code_reader = CodeReader::new(&[0xff; 32], None, 32);
         assert_eq!(code_reader.get_push_data::<32>(), u256::ZERO);
     }
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
@@ -271,7 +271,7 @@ mod tests {
         // pc on data is non longer possible because there are not data items anymore
         let mut code = [0xff; 33];
         code[0] = Opcode::Push32 as u8;
-        let mut code_reader = CodeReader::<false>::new(&code, None, 0);
+        let mut code_reader = CodeReader::new(&code, None, 0);
         assert_eq!(code_reader.get_push_data::<32>(), u256::MAX);
     }
 }

@@ -120,8 +120,10 @@ impl SteppableEvmcVm for EvmRs {
             Some(steps),
         );
         match self.observer_type {
-            ObserverType::NoOp => interpreter.run(&mut NoOpObserver()),
-            ObserverType::Logging => interpreter.run(&mut LoggingObserver::new(std::io::stdout())),
+            ObserverType::NoOp => interpreter.run_steps(steps as usize, &mut NoOpObserver()),
+            ObserverType::Logging => {
+                interpreter.run_steps(steps as usize, &mut LoggingObserver::new(std::io::stdout()))
+            }
         }
     }
 }

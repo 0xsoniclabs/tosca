@@ -11,8 +11,6 @@ use crate::types::Cache;
 use crate::types::{code_byte_type, u256, CodeByteType};
 #[cfg(feature = "fn-ptr-conversion-dispatch")]
 use crate::types::{OpFnData, PcMap};
-#[cfg(feature = "code-analysis-cache")]
-use crate::utils::GetGenericStatic;
 
 /// This type represents a hash value in form of a u256.
 /// Because it is already a hash value there is no need to hash it again when implementing Hash.
@@ -34,9 +32,9 @@ pub type AnalysisContainer<T> = T;
 pub type AnalysisContainer<T> = Arc<T>;
 
 #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
-pub type AnalysisItem<const STEPPABLE: bool> = CodeByteType;
+pub type AnalysisItem = CodeByteType;
 #[cfg(feature = "fn-ptr-conversion-dispatch")]
-pub type AnalysisItem<const STEPPABLE: bool> = OpFnData<STEPPABLE>;
+pub type AnalysisItem = OpFnData;
 
 #[cfg(all(
     feature = "code-analysis-cache",
@@ -52,43 +50,27 @@ const CACHE_SIZE: usize = 1 << 16; // value taken from evmzero
 const CACHE_SIZE: usize = 1 << 10;
 
 #[cfg(feature = "code-analysis-cache")]
-type CodeAnalysisCache<const STEPPABLE: bool> =
-    Cache<CACHE_SIZE, u256Hash, AnalysisContainer<CodeAnalysis<STEPPABLE>>, BuildNoHashHasher<u64>>;
+type CodeAnalysisCache =
+    Cache<CACHE_SIZE, u256Hash, AnalysisContainer<CodeAnalysis>, BuildNoHashHasher<u64>>;
 
 #[cfg(feature = "code-analysis-cache")]
-struct GenericCodeAnalysisCache;
-
-#[cfg(feature = "code-analysis-cache")]
-impl GetGenericStatic for GenericCodeAnalysisCache {
-    type I<const STEPPABLE: bool> = CodeAnalysisCache<STEPPABLE>;
-
-    fn get<const STEPPABLE: bool>() -> &'static Self::I<STEPPABLE> {
-        static CODE_ANALYSIS_CACHE_STEPPABLE: CodeAnalysisCache<true> = CodeAnalysisCache::new();
-        static CODE_ANALYSIS_CACHE_NON_STEPPABLE: CodeAnalysisCache<false> =
-            CodeAnalysisCache::new();
-
-        Self::get_with_args(
-            &CODE_ANALYSIS_CACHE_STEPPABLE,
-            &CODE_ANALYSIS_CACHE_NON_STEPPABLE,
-        )
-    }
-}
+static CODE_ANALYSIS_CACHE: CodeAnalysisCache = CodeAnalysisCache::new();
 
 #[derive(Debug)]
-pub struct CodeAnalysis<const STEPPABLE: bool> {
-    pub analysis: Vec<AnalysisItem<STEPPABLE>>,
+pub struct CodeAnalysis {
+    pub analysis: Vec<AnalysisItem>,
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     pub pc_map: PcMap,
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     pub large_push_data: Vec<u256>,
 }
 
-impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
+impl CodeAnalysis {
     #[allow(unused_variables)]
     pub fn new(code: &[u8], code_hash: Option<u256>) -> AnalysisContainer<Self> {
         #[cfg(feature = "code-analysis-cache")]
         match code_hash {
-            Some(code_hash) if code_hash != u256::ZERO => GenericCodeAnalysisCache::get()
+            Some(code_hash) if code_hash != u256::ZERO => CODE_ANALYSIS_CACHE
                 .get_or_insert(u256Hash(code_hash), || {
                     AnalysisContainer::new(CodeAnalysis::analyze_code(code))
                 }),
@@ -196,19 +178,19 @@ mod tests {
     #[test]
     fn analyze_code_single_byte() {
         assert_eq!(
-            CodeAnalysis::<false>::analyze_code(&[Opcode::Add as u8]).analysis,
+            CodeAnalysis::analyze_code(&[Opcode::Add as u8]).analysis,
             [CodeByteType::Opcode]
         );
         assert_eq!(
-            CodeAnalysis::<false>::analyze_code(&[Opcode::Push2 as u8]).analysis,
+            CodeAnalysis::analyze_code(&[Opcode::Push2 as u8]).analysis,
             [CodeByteType::Opcode]
         );
         assert_eq!(
-            CodeAnalysis::<false>::analyze_code(&[Opcode::JumpDest as u8]).analysis,
+            CodeAnalysis::analyze_code(&[Opcode::JumpDest as u8]).analysis,
             [CodeByteType::JumpDest]
         );
         assert_eq!(
-            CodeAnalysis::<false>::analyze_code(&[0xc0]).analysis,
+            CodeAnalysis::analyze_code(&[0xc0]).analysis,
             [CodeByteType::DataOrInvalid]
         );
     }
@@ -217,19 +199,19 @@ mod tests {
     #[test]
     fn analyze_code_single_byte() {
         assert_eq!(
-            CodeAnalysis::<false>::analyze_code(&[Opcode::Add as u8]).analysis,
-            [OpFnData::<false>::func(Opcode::Add as u8, 0)]
+            CodeAnalysis::analyze_code(&[Opcode::Add as u8]).analysis,
+            [OpFnData::func(Opcode::Add as u8, 0)]
         );
         assert_eq!(
-            CodeAnalysis::<false>::analyze_code(&[Opcode::Push2 as u8]).analysis,
-            [OpFnData::<false>::func(Opcode::Push2 as u8, 0)]
+            CodeAnalysis::analyze_code(&[Opcode::Push2 as u8]).analysis,
+            [OpFnData::func(Opcode::Push2 as u8, 0)]
         );
         assert_eq!(
-            CodeAnalysis::<false>::analyze_code(&[Opcode::JumpDest as u8]).analysis,
+            CodeAnalysis::analyze_code(&[Opcode::JumpDest as u8]).analysis,
             [OpFnData::jump_dest()]
         );
         assert_eq!(
-            CodeAnalysis::<false>::analyze_code(&[0xc0]).analysis,
+            CodeAnalysis::analyze_code(&[0xc0]).analysis,
             [OpFnData::invalid()]
         );
     }
@@ -237,12 +219,11 @@ mod tests {
     #[test]
     fn analyze_code_jumpdest() {
         assert_eq!(
-            CodeAnalysis::<false>::analyze_code(&[Opcode::JumpDest as u8, Opcode::Add as u8])
-                .analysis,
+            CodeAnalysis::analyze_code(&[Opcode::JumpDest as u8, Opcode::Add as u8]).analysis,
             [CodeByteType::JumpDest, CodeByteType::Opcode]
         );
         assert_eq!(
-            CodeAnalysis::<false>::analyze_code(&[Opcode::JumpDest as u8, 0xc0]).analysis,
+            CodeAnalysis::analyze_code(&[Opcode::JumpDest as u8, 0xc0]).analysis,
             [CodeByteType::JumpDest, CodeByteType::DataOrInvalid]
         );
     }
@@ -251,15 +232,11 @@ mod tests {
     #[test]
     fn analyze_code_jumpdest() {
         assert_eq!(
-            CodeAnalysis::<false>::analyze_code(&[Opcode::JumpDest as u8, Opcode::Add as u8])
-                .analysis,
-            [
-                OpFnData::jump_dest(),
-                OpFnData::<false>::func(Opcode::Add as u8, 0)
-            ]
+            CodeAnalysis::analyze_code(&[Opcode::JumpDest as u8, Opcode::Add as u8]).analysis,
+            [OpFnData::jump_dest(), OpFnData::func(Opcode::Add as u8, 0)]
         );
         assert_eq!(
-            CodeAnalysis::<false>::analyze_code(&[Opcode::JumpDest as u8, 0xc0]).analysis,
+            CodeAnalysis::analyze_code(&[Opcode::JumpDest as u8, 0xc0]).analysis,
             [OpFnData::jump_dest(), OpFnData::invalid()]
         );
     }
@@ -268,7 +245,7 @@ mod tests {
     #[test]
     fn analyze_code_push_with_data() {
         assert_eq!(
-            CodeAnalysis::<false>::analyze_code(&[
+            CodeAnalysis::analyze_code(&[
                 Opcode::Push1 as u8,
                 Opcode::Add as u8,
                 Opcode::Add as u8
@@ -281,8 +258,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            CodeAnalysis::<false>::analyze_code(&[Opcode::Push1 as u8, Opcode::Add as u8, 0xc0])
-                .analysis,
+            CodeAnalysis::analyze_code(&[Opcode::Push1 as u8, Opcode::Add as u8, 0xc0]).analysis,
             [
                 CodeByteType::Opcode,
                 CodeByteType::DataOrInvalid,
@@ -290,7 +266,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            CodeAnalysis::<false>::analyze_code(&[
+            CodeAnalysis::analyze_code(&[
                 Opcode::Push1 as u8,
                 Opcode::Add as u8,
                 0xc0,
@@ -305,7 +281,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            CodeAnalysis::<false>::analyze_code(&[
+            CodeAnalysis::analyze_code(&[
                 Opcode::Push2 as u8,
                 Opcode::Add as u8,
                 Opcode::Add as u8,
@@ -320,7 +296,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            CodeAnalysis::<false>::analyze_code(&[
+            CodeAnalysis::analyze_code(&[
                 Opcode::Push2 as u8,
                 Opcode::Add as u8,
                 Opcode::Add as u8,
@@ -339,27 +315,26 @@ mod tests {
     #[test]
     fn analyze_code_push_with_data() {
         assert_eq!(
-            CodeAnalysis::<false>::analyze_code(&[
+            CodeAnalysis::analyze_code(&[
                 Opcode::Push1 as u8,
                 Opcode::Add as u8,
                 Opcode::Add as u8
             ])
             .analysis,
             [
-                OpFnData::<false>::func(Opcode::Push1 as u8, (Opcode::Add as u8).into()),
-                OpFnData::<false>::func(Opcode::Add as u8, 0),
+                OpFnData::func(Opcode::Push1 as u8, (Opcode::Add as u8).into()),
+                OpFnData::func(Opcode::Add as u8, 0),
             ]
         );
         assert_eq!(
-            CodeAnalysis::<false>::analyze_code(&[Opcode::Push1 as u8, Opcode::Add as u8, 0xc0])
-                .analysis,
+            CodeAnalysis::analyze_code(&[Opcode::Push1 as u8, Opcode::Add as u8, 0xc0]).analysis,
             [
-                OpFnData::<false>::func(Opcode::Push1 as u8, (Opcode::Add as u8).into()),
+                OpFnData::func(Opcode::Push1 as u8, (Opcode::Add as u8).into()),
                 OpFnData::invalid(),
             ]
         );
         assert_eq!(
-            CodeAnalysis::<false>::analyze_code(&[
+            CodeAnalysis::analyze_code(&[
                 Opcode::Push1 as u8,
                 Opcode::Add as u8,
                 0xc0,
@@ -367,13 +342,13 @@ mod tests {
             ])
             .analysis,
             [
-                OpFnData::<false>::func(Opcode::Push1 as u8, (Opcode::Add as u8).into()),
+                OpFnData::func(Opcode::Push1 as u8, (Opcode::Add as u8).into()),
                 OpFnData::invalid(),
-                OpFnData::<false>::func(Opcode::Add as u8, 0),
+                OpFnData::func(Opcode::Add as u8, 0),
             ]
         );
         assert_eq!(
-            CodeAnalysis::<false>::analyze_code(&[
+            CodeAnalysis::analyze_code(&[
                 Opcode::Push2 as u8,
                 Opcode::Add as u8,
                 Opcode::Add as u8,
@@ -381,15 +356,15 @@ mod tests {
             ])
             .analysis,
             [
-                OpFnData::<false>::func(
+                OpFnData::func(
                     Opcode::Push2 as u8,
                     ((Opcode::Add as u8 as usize) << 8) + Opcode::Add as u8 as usize
                 ),
-                OpFnData::<false>::func(Opcode::Add as u8, 0),
+                OpFnData::func(Opcode::Add as u8, 0),
             ]
         );
         assert_eq!(
-            CodeAnalysis::<false>::analyze_code(&[
+            CodeAnalysis::analyze_code(&[
                 Opcode::Push2 as u8,
                 Opcode::Add as u8,
                 Opcode::Add as u8,
@@ -397,7 +372,7 @@ mod tests {
             ])
             .analysis,
             [
-                OpFnData::<false>::func(
+                OpFnData::func(
                     Opcode::Push2 as u8,
                     ((Opcode::Add as u8 as usize) << 8) + Opcode::Add as u8 as usize
                 ),
@@ -408,13 +383,13 @@ mod tests {
         code[0] = Opcode::Push9 as u8;
         code[10] = Opcode::Add as u8;
         assert_eq!(
-            CodeAnalysis::<false>::analyze_code(&code).analysis,
+            CodeAnalysis::analyze_code(&code).analysis,
             [
-                OpFnData::<false>::func(
+                OpFnData::func(
                     Opcode::Push9 as u8,
                     0 // index 0
                 ),
-                OpFnData::<false>::func(Opcode::Add as u8, 0),
+                OpFnData::func(Opcode::Add as u8, 0),
             ]
         );
     }

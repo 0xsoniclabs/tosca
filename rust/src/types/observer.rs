@@ -4,20 +4,20 @@ use crate::interpreter::Interpreter;
 #[cfg(feature = "fn-ptr-conversion-dispatch")]
 use crate::Opcode;
 
-pub trait Observer<const STEPPABLE: bool> {
-    fn pre_op(&mut self, interpreter: &Interpreter<STEPPABLE>);
+pub trait Observer {
+    fn pre_op(&mut self, interpreter: &Interpreter);
 
-    fn post_op(&mut self, interpreter: &Interpreter<STEPPABLE>);
+    fn post_op(&mut self, interpreter: &Interpreter);
 
     fn log(&mut self, message: Cow<str>);
 }
 
 pub struct NoOpObserver();
 
-impl<const STEPPABLE: bool> Observer<STEPPABLE> for NoOpObserver {
-    fn pre_op(&mut self, _interpreter: &Interpreter<STEPPABLE>) {}
+impl Observer for NoOpObserver {
+    fn pre_op(&mut self, _interpreter: &Interpreter) {}
 
-    fn post_op(&mut self, _interpreter: &Interpreter<STEPPABLE>) {}
+    fn post_op(&mut self, _interpreter: &Interpreter) {}
 
     fn log(&mut self, _message: Cow<str>) {}
 }
@@ -32,8 +32,8 @@ impl<W: Write> LoggingObserver<W> {
     }
 }
 
-impl<W: Write, const STEPPABLE: bool> Observer<STEPPABLE> for LoggingObserver<W> {
-    fn pre_op(&mut self, interpreter: &Interpreter<STEPPABLE>) {
+impl<W: Write> Observer for LoggingObserver<W> {
+    fn pre_op(&mut self, interpreter: &Interpreter) {
         // pre_op is called after the op is fetched so this will always be Ok(..)
         #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
         let op = interpreter.code_reader.get().unwrap();
@@ -56,7 +56,7 @@ impl<W: Write, const STEPPABLE: bool> Observer<STEPPABLE> for LoggingObserver<W>
         self.writer.flush().unwrap();
     }
 
-    fn post_op(&mut self, _interpreter: &Interpreter<STEPPABLE>) {}
+    fn post_op(&mut self, _interpreter: &Interpreter) {}
 
     fn log(&mut self, message: Cow<str>) {
         writeln!(self.writer, "{message}").unwrap();
