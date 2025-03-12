@@ -111,10 +111,15 @@ impl Memory {
 
     pub fn get_word(&mut self, offset: u256, gas_left: &mut Gas) -> Result<u256, FailStatus> {
         let slice = self.get_mut_slice(offset, 32, gas_left)?;
+        let mut arr = [0; 32];
+        #[cfg(feature = "unsafe-hints")]
         // SAFETY:
         // The slice is 32 bytes long.
-        let slice = unsafe { &*(slice.as_ptr() as *const [u8; 32]) };
-        Ok(u256::from_be_bytes(*slice))
+        unsafe {
+            std::hint::assert_unchecked(slice.len() == 32);
+        }
+        arr.copy_from_slice(slice);
+        Ok(u256::from_be_bytes(arr))
     }
 
     pub fn get_mut_byte(
