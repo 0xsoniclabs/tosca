@@ -27,21 +27,10 @@ where
         }))
     }
 
-    #[cfg(feature = "code-analysis-cache")]
     pub fn get_or_insert(&self, key: K, f: impl FnOnce() -> V) -> V
     where
         V: Clone,
     {
         self.0.lock().unwrap().get_or_insert(key, f).clone()
-    }
-
-    #[cfg(feature = "hash-cache")]
-    pub fn get_or_insert_ref<Q>(&self, key: &Q, f: impl FnOnce() -> V) -> V
-    where
-        K: std::borrow::Borrow<Q>,
-        Q: ToOwned<Owned = K> + Hash + Eq,
-        V: Clone,
-    {
-        self.0.lock().unwrap().get_or_insert_ref(key, f).clone()
     }
 }

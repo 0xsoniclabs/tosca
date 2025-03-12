@@ -29,15 +29,13 @@ fn sha3(data: &[u8]) -> u256 {
 pub fn hash(data: &[u8]) -> u256 {
     #[cfg(feature = "hash-cache")]
     if data.len() == 32 {
-        // SAFETY:
-        // data has length 32 so it is safe to cast it to &[u8; 32].
-        let data = unsafe { &*(data.as_ptr() as *const [u8; 32]) };
-        HASH_CACHE_32.get_or_insert_ref(data, || sha3(data))
+        let mut arr = [0; 32];
+        arr.copy_from_slice(data);
+        HASH_CACHE_32.get_or_insert(arr, || sha3(&arr))
     } else if data.len() == 64 {
-        // SAFETY:
-        // data has length 64 so it is safe to cast it to &[u8; 64].
-        let data = unsafe { &*(data.as_ptr() as *const [u8; 64]) };
-        HASH_CACHE_64.get_or_insert_ref(data, || sha3(data))
+        let mut arr = [0; 64];
+        arr.copy_from_slice(data);
+        HASH_CACHE_64.get_or_insert(arr, || sha3(&arr))
     } else {
         sha3(data)
     }
