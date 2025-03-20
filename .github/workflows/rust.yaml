@@ -60,7 +60,7 @@ jobs:
       run: cargo install cargo-hack
     - name: cargo clippy
       working-directory: rust
-      run: cargo hack --workspace --each-feature --exclude-features needs-cache,needs-jumptable clippy --all-targets -- --deny warnings
+      run: cargo hack --workspace --each-feature --exclude-features needs-cache clippy --all-targets -- --deny warnings
     
   doc:
     name: doc
@@ -81,7 +81,7 @@ jobs:
       env:
         RUSTDOCFLAGS: "-D warnings" 
       working-directory: rust
-      run: cargo hack --workspace --each-feature --exclude-features needs-cache,needs-jumptable doc --no-deps
+      run: cargo hack --workspace --each-feature --exclude-features needs-cache doc --no-deps
 
   build:
     name: build
@@ -100,7 +100,7 @@ jobs:
       run: cargo install cargo-hack
     - name: cargo build
       working-directory: rust
-      run: cargo hack --workspace --each-feature --exclude-features needs-cache,needs-jumptable build
+      run: cargo hack --workspace --each-feature --exclude-features needs-cache build
 
   test:
     name: test
@@ -119,7 +119,7 @@ jobs:
       run: cargo install cargo-hack
     - name: cargo test
       working-directory: rust
-      run: cargo hack --workspace --each-feature --exclude-features needs-cache,needs-jumptable test
+      run: cargo hack --workspace --each-feature --exclude-features needs-cache test
     - name: cargo test tail call elimination
       working-directory: rust
       run: cargo test --profile release --features tail-call
@@ -145,18 +145,18 @@ jobs:
       working-directory: rust
       env:
         RUSTFLAGS: -Zsanitizer=address
-      run: cargo +nightly hack --workspace --each-feature --exclude-features needs-cache,needs-jumptable test -Zbuild-std --target x86_64-unknown-linux-gnu
+      run: cargo +nightly hack --workspace --each-feature --exclude-features needs-cache test -Zbuild-std --target x86_64-unknown-linux-gnu
     - name: cargo test with memory sanitizer
       working-directory: rust
       env:
         RUSTFLAGS: "-Zsanitizer=memory -Zsanitizer-memory-track-origins"
-      run: cargo +nightly hack --workspace --each-feature --exclude-features needs-cache,needs-jumptable test -Zbuild-std --target x86_64-unknown-linux-gnu
+      run: cargo +nightly hack --workspace --each-feature --exclude-features needs-cache test -Zbuild-std --target x86_64-unknown-linux-gnu
     - name: cargo test with thread sanitizer
       working-directory: rust
       env:
         CFLAGS: -fsanitize=thread
         RUSTFLAGS: -Zsanitizer=thread
-      run: cargo +nightly hack --workspace --each-feature --exclude-features needs-cache,needs-jumptable test -Zbuild-std --target x86_64-unknown-linux-gnu
+      run: cargo +nightly hack --workspace --each-feature --exclude-features needs-cache test -Zbuild-std --target x86_64-unknown-linux-gnu
 
   benchmarks-with-sanitizers:
     name: benchmarks-with-sanitizers
@@ -213,7 +213,7 @@ jobs:
       working-directory: rust
       env: 
         MIRIFLAGS: "-Zmiri-disable-stacked-borrows -Zmiri-permissive-provenance -Zmiri-backtrace=full"
-      run: cargo +nightly hack miri test --workspace --each-feature --exclude-features needs-cache,needs-jumptable,mimalloc,performance
+      run: cargo +nightly hack miri test --workspace --each-feature --exclude-features needs-cache,mimalloc,performance
     - name: cargo miri benchmarks
       working-directory: rust
       env: 
