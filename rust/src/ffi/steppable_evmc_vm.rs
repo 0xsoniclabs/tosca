@@ -14,7 +14,7 @@ use crate::{
     ffi::evmc_vm::{self, EVMC_CAPABILITY},
 };
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn evmc_create_steppable_evmrs() -> *mut evmc_vm_steppable {
     let new_instance = evmc_vm_steppable {
         vm: evmc_vm::evmc_create_evmrs(),

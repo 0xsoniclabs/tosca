@@ -68,7 +68,7 @@ extern "C" fn __evmc_set_option(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub(super) extern "C" fn evmc_create_evmrs() -> *mut evmc_vm_t {
     let new_instance = evmc_vm_t {
         abi_version: EVMC_ABI_VERSION as i32,

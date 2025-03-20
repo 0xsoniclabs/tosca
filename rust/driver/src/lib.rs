@@ -5,11 +5,11 @@ use std::{
 };
 
 use evmrs::evmc_vm::{
+    Address, ExecutionResult, Revision, StepResult, Uint256,
     ffi::{
         evmc_host_interface, evmc_message, evmc_step_status_code, evmc_tx_context,
         evmc_vm as evmc_vm_t, evmc_vm_steppable,
     },
-    Address, ExecutionResult, Revision, StepResult, Uint256,
 };
 
 pub mod host_interface;
@@ -101,7 +101,7 @@ impl Instance {
     ) -> ExecutionResult {
         let execute = self.execute.unwrap();
 
-        execute(self.0, host, context, revision, message, code, code_len).into()
+        unsafe { execute(self.0, host, context, revision, message, code, code_len).into() }
     }
 
     /// Run the interpreter (the `execute` function) with the supplied values. This is a safe
@@ -233,25 +233,27 @@ impl SteppableInstance {
     ) -> StepResult {
         let step_n = self.step_n.unwrap();
 
-        step_n(
-            self.0,
-            host,
-            context,
-            revision,
-            message,
-            code,
-            code_len,
-            status,
-            pc,
-            gas_refunds,
-            stack,
-            stack_len,
-            memory,
-            memory_len,
-            last_call_result_data,
-            last_call_result_data_len,
-            steps,
-        )
+        unsafe {
+            step_n(
+                self.0,
+                host,
+                context,
+                revision,
+                message,
+                code,
+                code_len,
+                status,
+                pc,
+                gas_refunds,
+                stack,
+                stack_len,
+                memory,
+                memory_len,
+                last_call_result_data,
+                last_call_result_data_len,
+                steps,
+            )
+        }
         .into()
     }
 
