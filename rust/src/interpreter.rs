@@ -5,26 +5,23 @@ use evmc_vm::{
     StatusCode, StepResult, StorageStatus, Uint256,
 };
 
-#[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
-use crate::types::Opcode;
-#[cfg(feature = "needs-jumptable")]
-use crate::utils::GetGenericStatic;
 use crate::{
     types::{
         hash_cache, u256, CodeReader, ExecStatus, ExecutionContextTrait, ExecutionTxContext,
         FailStatus, GetOpcodeError, Memory, Observer, Stack,
     },
-    utils::{check_min_revision, check_not_read_only, word_size, Gas, GasRefund, SliceExt},
+    utils::{
+        check_min_revision, check_not_read_only, word_size, Gas, GasRefund, GetGenericStatic,
+        SliceExt,
+    },
 };
 
 type OpResult = Result<(), FailStatus>;
 
-#[cfg(feature = "needs-jumptable")]
 pub type OpFn<const STEPPABLE: bool> = fn(&mut Interpreter<STEPPABLE>) -> OpResult;
 
 // The closures here are necessary because methods capture the lifetime of the type which we
 // want to avoid.
-#[cfg(feature = "needs-jumptable")]
 const fn gen_jumptable<const STEPPABLE: bool>() -> [OpFn<STEPPABLE>; 256] {
     [
         |i| i.stop(),
@@ -292,10 +289,8 @@ const fn gen_jumptable<const STEPPABLE: bool>() -> [OpFn<STEPPABLE>; 256] {
     ]
 }
 
-#[cfg(feature = "needs-jumptable")]
 pub struct GenericJumptable;
 
-#[cfg(feature = "needs-jumptable")]
 impl GetGenericStatic for GenericJumptable {
     type I<const STEPPABLE: bool> = [OpFn<STEPPABLE>; 256];
 
@@ -462,166 +457,9 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     fn run_op(&mut self, op: OpFn<STEPPABLE>) -> OpResult {
         op(self)
     }
-    #[cfg(all(
-        feature = "jumptable-dispatch",
-        not(feature = "fn-ptr-conversion-dispatch")
-    ))]
-    fn run_op(&mut self, op: Opcode) -> OpResult {
-        GenericJumptable::get()[op as u8 as usize](self)
-    }
-    #[cfg(not(feature = "needs-jumptable"))]
-    fn run_op(&mut self, op: Opcode) -> OpResult {
-        match op {
-            Opcode::Stop => self.stop(),
-            Opcode::Add => self.add(),
-            Opcode::Mul => self.mul(),
-            Opcode::Sub => self.sub(),
-            Opcode::Div => self.div(),
-            Opcode::SDiv => self.s_div(),
-            Opcode::Mod => self.mod_(),
-            Opcode::SMod => self.s_mod(),
-            Opcode::AddMod => self.add_mod(),
-            Opcode::MulMod => self.mul_mod(),
-            Opcode::Exp => self.exp(),
-            Opcode::SignExtend => self.sign_extend(),
-            Opcode::Lt => self.lt(),
-            Opcode::Gt => self.gt(),
-            Opcode::SLt => self.s_lt(),
-            Opcode::SGt => self.s_gt(),
-            Opcode::Eq => self.eq(),
-            Opcode::IsZero => self.is_zero(),
-            Opcode::And => self.and(),
-            Opcode::Or => self.or(),
-            Opcode::Xor => self.xor(),
-            Opcode::Not => self.not(),
-            Opcode::Byte => self.byte(),
-            Opcode::Shl => self.shl(),
-            Opcode::Shr => self.shr(),
-            Opcode::Sar => self.sar(),
-            Opcode::Sha3 => self.sha3(),
-            Opcode::Address => self.address(),
-            Opcode::Balance => self.balance(),
-            Opcode::Origin => self.origin(),
-            Opcode::Caller => self.caller(),
-            Opcode::CallValue => self.call_value(),
-            Opcode::CallDataLoad => self.call_data_load(),
-            Opcode::CallDataSize => self.call_data_size(),
-            Opcode::CallDataCopy => self.call_data_copy(),
-            Opcode::CodeSize => self.code_size(),
-            Opcode::CodeCopy => self.code_copy(),
-            Opcode::GasPrice => self.gas_price(),
-            Opcode::ExtCodeSize => self.ext_code_size(),
-            Opcode::ExtCodeCopy => self.ext_code_copy(),
-            Opcode::ReturnDataSize => self.return_data_size(),
-            Opcode::ReturnDataCopy => self.return_data_copy(),
-            Opcode::ExtCodeHash => self.ext_code_hash(),
-            Opcode::BlockHash => self.block_hash(),
-            Opcode::Coinbase => self.coinbase(),
-            Opcode::Timestamp => self.timestamp(),
-            Opcode::Number => self.number(),
-            Opcode::PrevRandao => self.prev_randao(),
-            Opcode::GasLimit => self.gas_limit(),
-            Opcode::ChainId => self.chain_id(),
-            Opcode::SelfBalance => self.self_balance(),
-            Opcode::BaseFee => self.base_fee(),
-            Opcode::BlobHash => self.blob_hash(),
-            Opcode::BlobBaseFee => self.blob_base_fee(),
-            Opcode::Pop => self.pop(),
-            Opcode::MLoad => self.m_load(),
-            Opcode::MStore => self.m_store(),
-            Opcode::MStore8 => self.m_store8(),
-            Opcode::SLoad => self.s_load(),
-            Opcode::SStore => self.sstore(),
-            Opcode::Jump => self.jump(),
-            Opcode::JumpI => self.jump_i(),
-            Opcode::Pc => self.pc(),
-            Opcode::MSize => self.m_size(),
-            Opcode::Gas => self.gas(),
-            Opcode::JumpDest => self.jump_dest(),
-            Opcode::TLoad => self.t_load(),
-            Opcode::TStore => self.t_store(),
-            Opcode::MCopy => self.m_copy(),
-            Opcode::Push0 => self.push0(),
-            Opcode::Push1 => self.push::<1>(),
-            Opcode::Push2 => self.push::<2>(),
-            Opcode::Push3 => self.push::<3>(),
-            Opcode::Push4 => self.push::<4>(),
-            Opcode::Push5 => self.push::<5>(),
-            Opcode::Push6 => self.push::<6>(),
-            Opcode::Push7 => self.push::<7>(),
-            Opcode::Push8 => self.push::<8>(),
-            Opcode::Push9 => self.push::<9>(),
-            Opcode::Push10 => self.push::<10>(),
-            Opcode::Push11 => self.push::<11>(),
-            Opcode::Push12 => self.push::<12>(),
-            Opcode::Push13 => self.push::<13>(),
-            Opcode::Push14 => self.push::<14>(),
-            Opcode::Push15 => self.push::<15>(),
-            Opcode::Push16 => self.push::<16>(),
-            Opcode::Push17 => self.push::<17>(),
-            Opcode::Push18 => self.push::<18>(),
-            Opcode::Push19 => self.push::<19>(),
-            Opcode::Push20 => self.push::<20>(),
-            Opcode::Push21 => self.push::<21>(),
-            Opcode::Push22 => self.push::<22>(),
-            Opcode::Push23 => self.push::<23>(),
-            Opcode::Push24 => self.push::<24>(),
-            Opcode::Push25 => self.push::<25>(),
-            Opcode::Push26 => self.push::<26>(),
-            Opcode::Push27 => self.push::<27>(),
-            Opcode::Push28 => self.push::<28>(),
-            Opcode::Push29 => self.push::<29>(),
-            Opcode::Push30 => self.push::<30>(),
-            Opcode::Push31 => self.push::<31>(),
-            Opcode::Push32 => self.push::<32>(),
-            Opcode::Dup1 => self.dup::<1>(),
-            Opcode::Dup2 => self.dup::<2>(),
-            Opcode::Dup3 => self.dup::<3>(),
-            Opcode::Dup4 => self.dup::<4>(),
-            Opcode::Dup5 => self.dup::<5>(),
-            Opcode::Dup6 => self.dup::<6>(),
-            Opcode::Dup7 => self.dup::<7>(),
-            Opcode::Dup8 => self.dup::<8>(),
-            Opcode::Dup9 => self.dup::<9>(),
-            Opcode::Dup10 => self.dup::<10>(),
-            Opcode::Dup11 => self.dup::<11>(),
-            Opcode::Dup12 => self.dup::<12>(),
-            Opcode::Dup13 => self.dup::<13>(),
-            Opcode::Dup14 => self.dup::<14>(),
-            Opcode::Dup15 => self.dup::<15>(),
-            Opcode::Dup16 => self.dup::<16>(),
-            Opcode::Swap1 => self.swap::<1>(),
-            Opcode::Swap2 => self.swap::<2>(),
-            Opcode::Swap3 => self.swap::<3>(),
-            Opcode::Swap4 => self.swap::<4>(),
-            Opcode::Swap5 => self.swap::<5>(),
-            Opcode::Swap6 => self.swap::<6>(),
-            Opcode::Swap7 => self.swap::<7>(),
-            Opcode::Swap8 => self.swap::<8>(),
-            Opcode::Swap9 => self.swap::<9>(),
-            Opcode::Swap10 => self.swap::<10>(),
-            Opcode::Swap11 => self.swap::<11>(),
-            Opcode::Swap12 => self.swap::<12>(),
-            Opcode::Swap13 => self.swap::<13>(),
-            Opcode::Swap14 => self.swap::<14>(),
-            Opcode::Swap15 => self.swap::<15>(),
-            Opcode::Swap16 => self.swap::<16>(),
-            Opcode::Log0 => self.log::<0>(),
-            Opcode::Log1 => self.log::<1>(),
-            Opcode::Log2 => self.log::<2>(),
-            Opcode::Log3 => self.log::<3>(),
-            Opcode::Log4 => self.log::<4>(),
-            Opcode::Create => self.create(),
-            Opcode::Call => self.call(),
-            Opcode::CallCode => self.call_code(),
-            Opcode::Return => self.return_(),
-            Opcode::DelegateCall => self.delegate_call(),
-            Opcode::Create2 => self.create2(),
-            Opcode::StaticCall => self.static_call(),
-            Opcode::Revert => self.revert(),
-            Opcode::Invalid => self.invalid(),
-            Opcode::SelfDestruct => self.self_destruct(),
-        }
+    #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
+    fn run_op(&mut self, op: u8) -> OpResult {
+        GenericJumptable::get()[op as usize](self)
     }
 
     #[allow(clippy::unused_self)]
@@ -633,7 +471,6 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         return self.next();
     }
 
-    #[cfg(feature = "needs-jumptable")]
     #[allow(clippy::unused_self)]
     pub fn jumptable_placeholder(&mut self) -> OpResult {
         Err(FailStatus::Failure)

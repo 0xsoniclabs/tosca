@@ -20,7 +20,6 @@ default = []
 mock = ["dep:mockall"]
 fuzzing = ["dep:arbitrary"]
 # partial features (enabled by other features to simplify conditional compilation attributes. Not intended to be used on their own)
-needs-jumptable = []
 needs-cache = ["dep:lru"]
 # optimizations:
 performance = [
@@ -42,9 +41,8 @@ code-analysis-cache = ["dep:nohash-hasher", "needs-cache"]
 alloc-reuse = []
 tail-call = []
 # function/ opcode dispatch:
-# feature precedence: switch-dispatch (default) < jumptable-dispatch < fn-ptr-conversion-dispatch
-jumptable-dispatch = ["needs-jumptable"]
-fn-ptr-conversion-dispatch = ["needs-jumptable"]
+# feature precedence: jumptable-dispatch (default) < fn-ptr-conversion-dispatch
+fn-ptr-conversion-dispatch = []
 
 [dependencies]
 bnum = "0.12.0"

@@ -15,16 +15,6 @@ compile_error!(
     Either disable it or enable one or all of `code-analysis-cache` or `hash-cache`."
 );
 
-#[cfg(all(
-    feature = "needs-jumptable",
-    not(feature = "jumptable-dispatch"),
-    not(feature = "fn-ptr-conversion-dispatch"),
-))]
-compile_error!(
-    "Feature `needs-jumptable` is only a helper feature and not supposed to be enabled on its own.
-    Either disable it or enable one or all of `jumptable-dispatch` or `fn-ptr-conversion-dispatch`."
-);
-
 #[cfg(not(feature = "custom-evmc"))]
 pub extern crate evmc_vm_tosca as evmc_vm;
 #[cfg(feature = "custom-evmc")]
