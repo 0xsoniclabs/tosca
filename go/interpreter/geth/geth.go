@@ -192,9 +192,8 @@ func createGethInterpreterContext(parameters tosca.Parameters) (*geth.EVM, *geth
 	evm.Context.Time = uint64(parameters.Timestamp)
 
 	value := parameters.Value.ToUint256()
-	addr := geth.AccountRef(parameters.Recipient)
-	contract := geth.NewContract(addr, addr, value, uint64(parameters.Gas))
-	contract.CallerAddress = common.Address(parameters.Sender)
+	addr := common.Address(parameters.Recipient)
+	contract := geth.NewContract(common.Address(parameters.Sender), addr, value, uint64(parameters.Gas), nil)
 	contract.Code = parameters.Code
 	contract.CodeHash = crypto.Keccak256Hash(parameters.Code)
 	contract.Input = parameters.Input

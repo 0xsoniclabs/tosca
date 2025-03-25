@@ -157,8 +157,8 @@ func (i *callInterceptor) makeCall(kind tosca.CallKind, callParam tosca.CallPara
 	return res, err
 }
 
-func (i *callInterceptor) Call(env *geth_vm.EVM, me geth_vm.ContractRef, addr geth_common.Address, data []byte, gas uint64, value *uint256.Int) ([]byte, uint64, error) {
-	have := i.stateDb.GetBalance(me.Address())
+func (i *callInterceptor) Call(env *geth_vm.EVM, me geth_common.Address, addr geth_common.Address, data []byte, gas uint64, value *uint256.Int) ([]byte, uint64, error) {
+	have := i.stateDb.GetBalance(me)
 	if value.Cmp(have) > 0 {
 		return nil, gas, geth_vm.ErrInsufficientBalance
 	}
@@ -169,7 +169,7 @@ func (i *callInterceptor) Call(env *geth_vm.EVM, me geth_vm.ContractRef, addr ge
 	}
 
 	res, err := i.makeCall(kind, tosca.CallParameters{
-		Sender:      tosca.Address(me.Address()),
+		Sender:      tosca.Address(me),
 		Recipient:   tosca.Address(addr),
 		Value:       tosca.ValueFromUint256(value),
 		Input:       data,
@@ -179,17 +179,17 @@ func (i *callInterceptor) Call(env *geth_vm.EVM, me geth_vm.ContractRef, addr ge
 	return res.Output, uint64(res.GasLeft), err
 }
 
-func (i *callInterceptor) CallCode(env *geth_vm.EVM, me geth_vm.ContractRef, addr geth_common.Address, data []byte, gas uint64, value *uint256.Int) ([]byte, uint64, error) {
+func (i *callInterceptor) CallCode(env *geth_vm.EVM, me geth_common.Address, addr geth_common.Address, data []byte, gas uint64, value *uint256.Int) ([]byte, uint64, error) {
 	kind := tosca.CallCode
 
-	have := i.stateDb.GetBalance(me.Address())
+	have := i.stateDb.GetBalance(me)
 	if value.Cmp(have) > 0 {
 		return nil, gas, geth_vm.ErrInsufficientBalance
 	}
 
 	res, err := i.makeCall(kind, tosca.CallParameters{
-		Sender:      tosca.Address(me.Address()),
-		Recipient:   tosca.Address(me.Address()),
+		Sender:      tosca.Address(me),
+		Recipient:   tosca.Address(me),
 		Value:       tosca.ValueFromUint256(value),
 		Input:       data,
 		CodeAddress: tosca.Address(addr),
@@ -199,7 +199,7 @@ func (i *callInterceptor) CallCode(env *geth_vm.EVM, me geth_vm.ContractRef, add
 	return res.Output, uint64(res.GasLeft), err
 }
 
-func (i *callInterceptor) DelegateCall(env *geth_vm.EVM, me geth_vm.ContractRef, addr geth_common.Address, data []byte, gas uint64) ([]byte, uint64, error) {
+func (i *callInterceptor) DelegateCall(env *geth_vm.EVM, me geth_common.Address, addr geth_common.Address, data []byte, gas uint64) ([]byte, uint64, error) {
 	res, err := i.makeCall(tosca.DelegateCall, tosca.CallParameters{
 		Sender:      i.parameters.Sender,
 		Recipient:   i.parameters.Recipient,
@@ -211,9 +211,9 @@ func (i *callInterceptor) DelegateCall(env *geth_vm.EVM, me geth_vm.ContractRef,
 	return res.Output, uint64(res.GasLeft), err
 }
 
-func (i *callInterceptor) StaticCall(env *geth_vm.EVM, me geth_vm.ContractRef, addr geth_common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
+func (i *callInterceptor) StaticCall(env *geth_vm.EVM, me geth_common.Address, addr geth_common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
 	res, err := i.makeCall(tosca.StaticCall, tosca.CallParameters{
-		Sender:      tosca.Address(me.Address()),
+		Sender:      tosca.Address(me),
 		Recipient:   tosca.Address(addr),
 		Input:       input,
 		Gas:         tosca.Gas(gas),
@@ -222,14 +222,14 @@ func (i *callInterceptor) StaticCall(env *geth_vm.EVM, me geth_vm.ContractRef, a
 	return res.Output, uint64(res.GasLeft), err
 }
 
-func (i *callInterceptor) Create(env *geth_vm.EVM, me geth_vm.ContractRef, code []byte, gas uint64, value *uint256.Int) ([]byte, geth_common.Address, uint64, error) {
-	have := i.stateDb.GetBalance(me.Address())
+func (i *callInterceptor) Create(env *geth_vm.EVM, me geth_common.Address, code []byte, gas uint64, value *uint256.Int) ([]byte, geth_common.Address, uint64, error) {
+	have := i.stateDb.GetBalance(me)
 	if value.Cmp(have) > 0 {
 		return nil, geth_common.Address{}, gas, geth_vm.ErrInsufficientBalance
 	}
 
 	res, err := i.makeCall(tosca.Create, tosca.CallParameters{
-		Sender: tosca.Address(me.Address()),
+		Sender: tosca.Address(me),
 		Value:  tosca.ValueFromUint256(value),
 		Gas:    tosca.Gas(gas),
 		Input:  code,
@@ -239,14 +239,14 @@ func (i *callInterceptor) Create(env *geth_vm.EVM, me geth_vm.ContractRef, code 
 
 }
 
-func (i *callInterceptor) Create2(env *geth_vm.EVM, me geth_vm.ContractRef, code []byte, gas uint64, value *uint256.Int, salt *uint256.Int) ([]byte, geth_common.Address, uint64, error) {
-	have := i.stateDb.GetBalance(me.Address())
+func (i *callInterceptor) Create2(env *geth_vm.EVM, me geth_common.Address, code []byte, gas uint64, value *uint256.Int, salt *uint256.Int) ([]byte, geth_common.Address, uint64, error) {
+	have := i.stateDb.GetBalance(me)
 	if value.Cmp(have) > 0 {
 		return nil, geth_common.Address{}, gas, geth_vm.ErrInsufficientBalance
 	}
 
 	res, err := i.makeCall(tosca.Create2, tosca.CallParameters{
-		Sender: tosca.Address(me.Address()),
+		Sender: tosca.Address(me),
 		Value:  tosca.ValueFromUint256(value),
 		Gas:    tosca.Gas(gas),
 		Input:  code,

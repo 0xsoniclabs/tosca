@@ -195,7 +195,7 @@ func (p *processor) Run(
 	}
 	gas -= intrinsicGasCosts
 
-	sender := geth.AccountRef(transaction.Sender)
+	sender := common.Address(transaction.Sender)
 	contractCreation := transaction.Recipient == nil
 
 	// Set up the initial access list.

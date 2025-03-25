@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
-	gc "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	geth "github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
@@ -95,10 +95,10 @@ func TestRunContextAdapter_SetAndGetNonce(t *testing.T) {
 	address := tosca.Address{0x42}
 	nonce := uint64(123)
 
-	stateDb.EXPECT().SetNonce(gc.Address(address), nonce, tracing.NonceChangeUnspecified)
+	stateDb.EXPECT().SetNonce(common.Address(address), nonce, tracing.NonceChangeUnspecified)
 	adapter.SetNonce(address, nonce)
 
-	stateDb.EXPECT().GetNonce(gc.Address(address)).Return(nonce)
+	stateDb.EXPECT().GetNonce(common.Address(address)).Return(nonce)
 	got := adapter.GetNonce(address)
 	if got != nonce {
 		t.Errorf("Got wrong nonce %v, expected %v", got, nonce)
@@ -113,10 +113,10 @@ func TestRunContextAdapter_SetAndGetCode(t *testing.T) {
 	address := tosca.Address{0x42}
 	code := []byte{1, 2, 3}
 
-	stateDb.EXPECT().SetCode(gc.Address(address), code)
+	stateDb.EXPECT().SetCode(common.Address(address), code)
 	adapter.SetCode(address, code)
 
-	stateDb.EXPECT().GetCode(gc.Address(address)).Return(code)
+	stateDb.EXPECT().GetCode(common.Address(address)).Return(code)
 	got := adapter.GetCode(address)
 	if !bytes.Equal(got, code) {
 		t.Errorf("Got wrong code %v, expected %v", got, code)
@@ -134,15 +134,15 @@ func TestRunContextAdapter_SetAndGetStorage(t *testing.T) {
 	current := tosca.Word{1}
 	future := tosca.Word{2}
 
-	stateDb.EXPECT().GetState(gc.Address(address), gc.Hash(key)).Return(gc.Hash(current))
-	stateDb.EXPECT().GetCommittedState(gc.Address(address), gc.Hash(key)).Return(gc.Hash(original))
-	stateDb.EXPECT().SetState(gc.Address(address), gc.Hash(key), gc.Hash(future))
+	stateDb.EXPECT().GetState(common.Address(address), common.Hash(key)).Return(common.Hash(current))
+	stateDb.EXPECT().GetCommittedState(common.Address(address), common.Hash(key)).Return(common.Hash(original))
+	stateDb.EXPECT().SetState(common.Address(address), common.Hash(key), common.Hash(future))
 	status := adapter.SetStorage(address, key, future)
 	if status != tosca.StorageAssigned {
 		t.Errorf("Storage status did not match expected, want %v, got %v", tosca.StorageAssigned, status)
 	}
 
-	stateDb.EXPECT().GetState(gc.Address(address), gc.Hash(key)).Return(gc.Hash(current))
+	stateDb.EXPECT().GetState(common.Address(address), common.Hash(key)).Return(common.Hash(current))
 	got := adapter.GetStorage(address, key)
 	if got != current {
 		t.Errorf("Got wrong storage value %v, expected %v", got, current)
@@ -158,10 +158,10 @@ func TestRunContextAdapter_GetAndSetTransientStorage(t *testing.T) {
 	key := tosca.Key{10}
 	value := tosca.Word{100}
 
-	stateDb.EXPECT().SetTransientState(gc.Address(address), gc.Hash(key), gc.Hash(value))
+	stateDb.EXPECT().SetTransientState(common.Address(address), common.Hash(key), common.Hash(value))
 	adapter.SetTransientStorage(address, key, value)
 
-	stateDb.EXPECT().GetTransientState(gc.Address(address), gc.Hash(key)).Return(gc.Hash(value))
+	stateDb.EXPECT().GetTransientState(common.Address(address), common.Hash(key)).Return(common.Hash(value))
 	got := adapter.GetTransientStorage(address, key)
 	if got != value {
 		t.Errorf("Got wrong transient storage value %v, expected %v", got, value)
@@ -198,9 +198,8 @@ func TestRunContextAdapter_SelfDestruct(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			stateDb := NewMockStateDb(ctrl)
 
-			address := tosca.Address{0x42}
-			beneficiary := tosca.Address{0x43}
-			contractRef := testContractRef{address: gc.Address(address)}
+			address := common.Address{0x42}
+			beneficiary := common.Address{0x43}
 
 			blockContext := geth.BlockContext{
 				BlockNumber: londonBlock.Add(londonBlock, big.NewInt(1)),
@@ -216,20 +215,20 @@ func TestRunContextAdapter_SelfDestruct(t *testing.T) {
 				chainConfig,
 				geth.Config{},
 			)
-			adapter := &runContextAdapter{evm: evm, contract: geth.NewContract(contractRef, contractRef, nil, 0)}
+			adapter := &runContextAdapter{evm: evm, caller: address}
 
-			stateDb.EXPECT().HasSelfDestructed(gc.Address(address)).Return(test.selfdestructed)
-			stateDb.EXPECT().GetBalance(gc.Address(address)).Return(uint256.NewInt(42))
-			stateDb.EXPECT().AddBalance(gc.Address(beneficiary), uint256.NewInt(42), tracing.BalanceDecreaseSelfdestruct)
+			stateDb.EXPECT().HasSelfDestructed(address).Return(test.selfdestructed)
+			stateDb.EXPECT().GetBalance(address).Return(uint256.NewInt(42))
+			stateDb.EXPECT().AddBalance(common.Address(beneficiary), uint256.NewInt(42), tracing.BalanceDecreaseSelfdestruct)
 
 			if test.blockTime < cancunTime {
-				stateDb.EXPECT().SelfDestruct(gc.Address(address))
+				stateDb.EXPECT().SelfDestruct(address)
 			} else {
-				stateDb.EXPECT().SubBalance(gc.Address(address), uint256.NewInt(42), tracing.BalanceDecreaseSelfdestruct)
-				stateDb.EXPECT().SelfDestruct6780(gc.Address(address))
+				stateDb.EXPECT().SubBalance(address, uint256.NewInt(42), tracing.BalanceDecreaseSelfdestruct)
+				stateDb.EXPECT().SelfDestruct6780(address)
 			}
 
-			got := adapter.SelfDestruct(address, beneficiary)
+			got := adapter.SelfDestruct(tosca.Address(address), tosca.Address(beneficiary))
 			if got == test.selfdestructed {
 				t.Errorf("Selfdestruct should only return true if it has not been called before")
 			}
@@ -261,54 +260,44 @@ func TestRunContextAdapter_AccountOperations(t *testing.T) {
 
 	address := tosca.Address{0x42}
 
-	stateDb.EXPECT().AddressInAccessList(gc.Address(address)).Return(false)
-	stateDb.EXPECT().AddAddressToAccessList(gc.Address(address))
+	stateDb.EXPECT().AddressInAccessList(common.Address(address)).Return(false)
+	stateDb.EXPECT().AddAddressToAccessList(common.Address(address))
 	accessStatus := adapter.AccessAccount(address)
 	if accessStatus != tosca.ColdAccess {
 		t.Errorf("Got wrong access type %v, expected %v", accessStatus, tosca.ColdAccess)
 	}
 
-	stateDb.EXPECT().Exist(gc.Address(address)).Return(true)
+	stateDb.EXPECT().Exist(common.Address(address)).Return(true)
 	exits := adapter.AccountExists(address)
 	if !exits {
 		t.Errorf("Account should exist")
 	}
 
 	// Ensure that both CreateAccount and CreateContract are called when the account does not exist
-	stateDb.EXPECT().Exist(gc.Address(address)).Return(false)
-	stateDb.EXPECT().CreateAccount(gc.Address(address))
-	stateDb.EXPECT().CreateContract(gc.Address(address))
+	stateDb.EXPECT().Exist(common.Address(address)).Return(false)
+	stateDb.EXPECT().CreateAccount(common.Address(address))
+	stateDb.EXPECT().CreateContract(common.Address(address))
 	adapter.CreateAccount(address)
 
-	stateDb.EXPECT().AddressInAccessList(gc.Address(address)).Return(true)
+	stateDb.EXPECT().AddressInAccessList(common.Address(address)).Return(true)
 	inAccessList := adapter.IsAddressInAccessList(address)
 	if !inAccessList {
 		t.Errorf("Address should be in access list")
 	}
 }
 
-type testContractRef struct {
-	address gc.Address
-}
-
-func (c testContractRef) Address() gc.Address {
-	return c.address
-}
-
 func TestRunContextAdapter_Call(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	stateDb := NewMockStateDb(ctrl)
 
-	address := gc.Address{0x42}
+	address := common.Address{0x42}
 
 	stateDb.EXPECT().Snapshot().Return(1)
 	stateDb.EXPECT().Exist(address).Return(true)
 	stateDb.EXPECT().GetCode(address).Return([]byte{})
 
-	contractRef := testContractRef{address: address}
-
-	canTransfer := func(geth.StateDB, gc.Address, *uint256.Int) bool { return true }
-	transfer := func(geth.StateDB, gc.Address, gc.Address, *uint256.Int) {}
+	canTransfer := func(geth.StateDB, common.Address, *uint256.Int) bool { return true }
+	transfer := func(geth.StateDB, common.Address, common.Address, *uint256.Int) {}
 
 	runContextAdapter := &runContextAdapter{
 		evm: &geth.EVM{
@@ -318,7 +307,7 @@ func TestRunContextAdapter_Call(t *testing.T) {
 				Transfer:    transfer,
 			},
 		},
-		contract: geth.NewContract(contractRef, contractRef, nil, 0),
+		caller: address,
 	}
 
 	gas := tosca.Gas(42)
@@ -359,7 +348,7 @@ func TestRunContextAdapter_getPrevRandaoReturnsHashBasedOnRevision(t *testing.T)
 		},
 	}
 
-	random := gc.Hash{0x24}
+	random := common.Hash{0x24}
 	context := geth.BlockContext{
 		Difficulty: big.NewInt(42),
 		Random:     &random,
@@ -465,8 +454,7 @@ func TestRunContextAdapter_Run(t *testing.T) {
 				stateDb.EXPECT().SubRefund(refundShift)
 			}
 
-			contractRef := testContractRef{address: gc.Address(address)}
-			contract := geth.NewContract(contractRef, contractRef, nil, 0)
+			contract := geth.NewContract(common.Address(address), common.Address(address), nil, 0, nil)
 
 			_, err := adapter.Run(contract, []byte{}, false)
 			if success && err != nil {
@@ -562,7 +550,7 @@ func TestRunContextAdapter_ConvertRevision(t *testing.T) {
 	istanbulBlock := big.NewInt(70)
 
 	tests := map[string]struct {
-		random *gc.Hash
+		random *common.Hash
 		block  *big.Int
 		time   uint64
 		want   tosca.Revision
@@ -583,25 +571,25 @@ func TestRunContextAdapter_ConvertRevision(t *testing.T) {
 			want:  tosca.R10_London,
 		},
 		"Paris": {
-			random: &gc.Hash{0x42},
+			random: &common.Hash{0x42},
 			block:  parisBlock,
 			time:   uint64(0),
 			want:   tosca.R11_Paris,
 		},
 		"Shanghai": {
-			random: &gc.Hash{0x42},
+			random: &common.Hash{0x42},
 			block:  parisBlock,
 			time:   shanghaiTime,
 			want:   tosca.R12_Shanghai,
 		},
 		"Cancun": {
-			random: &gc.Hash{0x42},
+			random: &common.Hash{0x42},
 			block:  parisBlock,
 			time:   cancunTime,
 			want:   tosca.R13_Cancun,
 		},
 		"Prague": {
-			random: &gc.Hash{0x42},
+			random: &common.Hash{0x42},
 			block:  parisBlock,
 			time:   pragueTime,
 			want:   tosca.R14_Prague,
