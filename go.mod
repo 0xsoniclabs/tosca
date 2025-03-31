@@ -22,9 +22,9 @@ require (
 	github.com/holiman/uint256 v1.3.2
 	github.com/urfave/cli/v2 v2.27.5
 	go.uber.org/mock v0.4.0
-	golang.org/x/crypto v0.32.0
+	golang.org/x/crypto v0.35.0
 	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa
-	golang.org/x/sync v0.10.0
+	golang.org/x/sync v0.11.0
 	pgregory.net/rand v1.0.2
 )
 
@@ -59,10 +59,10 @@ require (
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
-	golang.org/x/sys v0.29.0 // indirect
+	golang.org/x/sys v0.30.0 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ethereum/go-ethereum => github.com/0xsoniclabs/go-ethereum v0.0.0-20250324153703-a2c758c03bd2
+replace github.com/ethereum/go-ethereum => github.com/0xsoniclabs/go-ethereum v0.0.0-20250331081335-f740133d93bc
 
 replace github.com/ethereum/evmc/v11 => ./third_party/evmc
