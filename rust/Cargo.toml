@@ -40,7 +40,6 @@ unsafe-hints = []
 custom-evmc = ["dep:evmc-vm-tosca-refactor"]
 hash-cache = ["needs-cache"]
 code-analysis-cache = ["dep:nohash-hasher", "needs-cache"]
-thread-local-cache = []
 alloc-reuse = []
 tail-call = []
 # function/ opcode dispatch:
