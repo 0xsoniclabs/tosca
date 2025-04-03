@@ -4,8 +4,6 @@ use std::{self, ops::Deref};
 
 #[cfg(feature = "fn-ptr-conversion-dispatch")]
 use crate::interpreter::OpFn;
-#[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
-use crate::types::Opcode;
 use crate::types::{u256, AnalysisContainer, CodeAnalysis, CodeByteType, FailStatus};
 
 #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
@@ -50,18 +48,13 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
     }
 
     #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
-    pub fn get(&self) -> Result<Opcode, GetOpcodeError> {
+    pub fn get(&self) -> Result<u8, GetOpcodeError> {
         if let Some(op) = self.code.get(self.pc) {
             let analysis = self.code_analysis.analysis[self.pc];
             if analysis == CodeByteType::DataOrInvalid {
                 Err(GetOpcodeError::Invalid)
             } else {
-                // SAFETY:
-                // [Opcode] has repr(u8) and therefore the same memory layout as u8.
-                // In get_code_byte_types this byte of the code was determined to be a valid opcode.
-                // Therefore the value is a valid [Opcode].
-                let op = unsafe { std::mem::transmute::<u8, Opcode>(*op) };
-                Ok(op)
+                Ok(*op)
             }
         } else {
             Err(GetOpcodeError::OutOfRange)
@@ -205,12 +198,12 @@ mod tests {
         let mut code_reader =
             CodeReader::<false>::new(&[Opcode::Add as u8, Opcode::Add as u8, 0xc0], None, 0);
         #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
-        assert_eq!(code_reader.get(), Ok(Opcode::Add));
+        assert_eq!(code_reader.get(), Ok(Opcode::Add as u8));
         #[cfg(feature = "fn-ptr-conversion-dispatch")]
         assert!(code_reader.get().is_ok(),);
         code_reader.next();
         #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
-        assert_eq!(code_reader.get(), Ok(Opcode::Add));
+        assert_eq!(code_reader.get(), Ok(Opcode::Add as u8));
         #[cfg(feature = "fn-ptr-conversion-dispatch")]
         assert!(code_reader.get().is_ok(),);
         code_reader.next();
