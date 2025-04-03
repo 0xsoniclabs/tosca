@@ -63,6 +63,6 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ethereum/go-ethereum => github.com/0xsoniclabs/go-ethereum v0.0.0-20250331081335-f740133d93bc
+replace github.com/ethereum/go-ethereum => github.com/0xsoniclabs/go-ethereum v0.0.0-20250403075908-a6b1c7063681
 
 replace github.com/ethereum/evmc/v11 => ./third_party/evmc
