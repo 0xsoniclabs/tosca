@@ -6,8 +6,8 @@
 use std::slice;
 
 use evmc_vm::{
-    ffi::{evmc_tx_context, evmc_tx_initcode},
     Address, Uint256,
+    ffi::{evmc_tx_context, evmc_tx_initcode},
 };
 
 /// EVMC transaction context.

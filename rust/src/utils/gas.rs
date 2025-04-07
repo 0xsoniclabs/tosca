@@ -1,7 +1,7 @@
 use evmc_vm::{AccessStatus, Address, Revision};
 
 use crate::{
-    types::{u256, ExecutionContextTrait, FailStatus},
+    types::{ExecutionContextTrait, FailStatus, u256},
     utils::word_size,
 };
 
@@ -41,11 +41,7 @@ impl PartialOrd<u64> for Gas {
 
 impl Gas {
     pub fn new(gas: i64) -> Self {
-        if gas < 0 {
-            Self(0)
-        } else {
-            Self(gas as u64)
-        }
+        if gas < 0 { Self(0) } else { Self(gas as u64) }
     }
 
     pub fn as_u64(&self) -> u64 {
@@ -145,7 +141,7 @@ mod tests {
 
     use crate::{
         interpreter::Interpreter,
-        types::{u256, FailStatus, MockExecutionContextTrait, MockExecutionMessage, Opcode},
+        types::{FailStatus, MockExecutionContextTrait, MockExecutionMessage, Opcode, u256},
         utils::Gas,
     };
 

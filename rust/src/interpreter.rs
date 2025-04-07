@@ -7,12 +7,12 @@ use evmc_vm::{
 
 use crate::{
     types::{
-        hash_cache, u256, CodeReader, ExecStatus, ExecutionContextTrait, ExecutionTxContext,
-        FailStatus, GetOpcodeError, Memory, Observer, Stack,
+        CodeReader, ExecStatus, ExecutionContextTrait, ExecutionTxContext, FailStatus,
+        GetOpcodeError, Memory, Observer, Stack, hash_cache, u256,
     },
     utils::{
-        check_min_revision, check_not_read_only, word_size, Gas, GasRefund, GetGenericStatic,
-        SliceExt,
+        Gas, GasRefund, GetGenericStatic, SliceExt, check_min_revision, check_not_read_only,
+        word_size,
     },
 };
 
@@ -1700,8 +1700,8 @@ mod tests {
     use crate::{
         interpreter::Interpreter,
         types::{
-            u256, Memory, MockExecutionContextTrait, MockExecutionMessage, NoOpObserver, Opcode,
-            Stack,
+            Memory, MockExecutionContextTrait, MockExecutionMessage, NoOpObserver, Opcode, Stack,
+            u256,
         },
     };
 

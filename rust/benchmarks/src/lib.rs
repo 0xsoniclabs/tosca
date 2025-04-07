@@ -1,10 +1,11 @@
-use driver::{self, get_tx_context_zeroed, host_interface::null_ptr_host_interface, Instance};
+use driver::{self, Instance, get_tx_context_zeroed, host_interface::null_ptr_host_interface};
 use evmrs::{
+    MockExecutionMessage, Opcode,
     evmc_vm::{
-        ffi::{evmc_host_interface, evmc_message},
         Revision, StatusCode, Uint256,
+        ffi::{evmc_host_interface, evmc_message},
     },
-    u256, MockExecutionMessage, Opcode,
+    u256,
 };
 use sha3::{Digest, Keccak256};
 
@@ -215,7 +216,7 @@ impl RunArgs {
     pub fn memory(size: u32) -> (Self, u32) {
         fn memory_ref(input: u32) -> u32 {
             let mut values = vec![0; input as usize];
-            #[allow(clippy::needless_range_loop)]
+            #[allow(clippy::needless_range_loop, clippy::manual_slice_fill)]
             for i in 0..values.len() {
                 values[i] = i as u32;
             }

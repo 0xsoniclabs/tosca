@@ -3,7 +3,7 @@ use std::cmp::min;
 use evmc_vm::{ExecutionMessage, MessageFlags, Revision};
 
 use crate::{
-    types::{u256, FailStatus},
+    types::{FailStatus, u256},
     utils::Gas,
 };
 
@@ -73,7 +73,7 @@ mod tests {
 
     use crate::{
         interpreter::Interpreter,
-        types::{u256, FailStatus, MockExecutionContextTrait, MockExecutionMessage},
+        types::{FailStatus, MockExecutionContextTrait, MockExecutionMessage, u256},
         utils::{self, Gas, SliceExt},
     };
 

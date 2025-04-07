@@ -1,12 +1,12 @@
 use std::{ffi::c_void, panic, slice};
 
 use ::evmc_vm::{
+    ExecutionContext, ExecutionMessage, StatusCode, StepResult, StepStatusCode,
+    SteppableEvmcContainer, SteppableEvmcVm,
     ffi::{
         evmc_bytes32, evmc_capabilities, evmc_host_interface, evmc_message, evmc_revision,
         evmc_step_result, evmc_step_status_code, evmc_vm_steppable,
     },
-    ExecutionContext, ExecutionMessage, StatusCode, StepResult, StepStatusCode,
-    SteppableEvmcContainer, SteppableEvmcVm,
 };
 
 use crate::{
@@ -14,7 +14,7 @@ use crate::{
     ffi::evmc_vm::{self, EVMC_CAPABILITY},
 };
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn evmc_create_steppable_evmrs() -> *mut evmc_vm_steppable {
     let new_instance = evmc_vm_steppable {
         vm: evmc_vm::evmc_create_evmrs(),

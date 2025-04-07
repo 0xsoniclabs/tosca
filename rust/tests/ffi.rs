@@ -2,13 +2,12 @@
 #[cfg(not(feature = "custom-evmc"))]
 use driver::TX_CONTEXT_ZEROED;
 use driver::{
-    get_tx_context_zeroed,
+    Instance, SteppableInstance, ZERO, get_tx_context_zeroed,
     host_interface::{self, null_ptr_host_interface},
-    Instance, SteppableInstance, ZERO,
 };
 use evmrs::{
-    evmc_vm::{Revision, StatusCode, StepStatusCode},
     MockExecutionContextTrait, MockExecutionMessage, Opcode,
+    evmc_vm::{Revision, StatusCode, StepStatusCode},
 };
 
 #[test]

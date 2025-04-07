@@ -26,11 +26,11 @@ use llvm_profile_wrappers::{
 };
 #[cfg(feature = "mock")]
 pub use types::MockExecutionContextTrait;
-pub use types::{u256, ExecutionContextTrait, MockExecutionMessage, Opcode};
+pub use types::{ExecutionContextTrait, MockExecutionMessage, Opcode, u256};
 
 /// Dump coverage data when compiled with `RUSTFLAGS="-C instrument-coverage"`.
 /// Otherwise this is a no-op.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn evmrs_dump_coverage(filename: Option<&std::ffi::c_char>) {
     if llvm_profile_enabled() != 0 {
         llvm_profile_set_filename(filename);
@@ -39,7 +39,7 @@ pub extern "C" fn evmrs_dump_coverage(filename: Option<&std::ffi::c_char>) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn evmrs_is_coverage_enabled() -> u8 {
     llvm_profile_enabled()
 }

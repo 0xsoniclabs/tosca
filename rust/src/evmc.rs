@@ -1,9 +1,9 @@
 use std::process;
 
 use evmc_vm::{
-    ffi::evmc_capabilities, EvmcVm, ExecutionContext, ExecutionMessage, ExecutionResult, Revision,
+    EvmcVm, ExecutionContext, ExecutionMessage, ExecutionResult, Revision,
     StatusCode as EvmcStatusCode, StepResult, StepStatusCode as EvmcStepStatusCode,
-    SteppableEvmcVm, Uint256,
+    SteppableEvmcVm, Uint256, ffi::evmc_capabilities,
 };
 
 use crate::{

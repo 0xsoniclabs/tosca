@@ -8,7 +8,7 @@ use nohash_hasher::BuildNoHashHasher;
 
 #[cfg(feature = "code-analysis-cache")]
 use crate::types::Cache;
-use crate::types::{code_byte_type, u256, CodeByteType};
+use crate::types::{CodeByteType, code_byte_type, u256};
 #[cfg(feature = "fn-ptr-conversion-dispatch")]
 use crate::types::{OpFnData, PcMap};
 #[cfg(feature = "code-analysis-cache")]
@@ -168,9 +168,9 @@ impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
 mod tests {
     #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
     use crate::types::CodeByteType;
-    #[cfg(feature = "fn-ptr-conversion-dispatch")]
-    use crate::types::{u256, OpFnData};
     use crate::types::{CodeAnalysis, Opcode};
+    #[cfg(feature = "fn-ptr-conversion-dispatch")]
+    use crate::types::{OpFnData, u256};
 
     #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
     #[test]

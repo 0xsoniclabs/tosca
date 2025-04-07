@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use benchmarks::RunArgs;
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 
 fn criterion_benchmark(c: &mut Criterion) {
     let (mut args, expected) = RunArgs::static_overhead(1);

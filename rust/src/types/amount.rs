@@ -28,7 +28,7 @@ impl<'a> Arbitrary<'a> for u256 {
 
 impl LowerHex for u256 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let digits: [u64; 4] = transmute!(self.0 .0);
+        let digits: [u64; 4] = transmute!(self.0.0);
         if f.alternate() {
             write!(f, "0x")?;
         }
@@ -293,13 +293,13 @@ impl u256 {
     pub const MAX: Self = Self(U256::MAX);
 
     pub fn into_u64_with_overflow(self) -> (u64, bool) {
-        let digits: [u64; 4] = transmute!(self.0 .0);
+        let digits: [u64; 4] = transmute!(self.0.0);
         let overflow = digits[1..] != [0; 3];
         (digits[0], overflow)
     }
 
     pub fn into_u64_saturating(self) -> u64 {
-        let digits: [u64; 4] = transmute!(self.0 .0);
+        let digits: [u64; 4] = transmute!(self.0.0);
         if digits[1..] != [0; 3] {
             u64::MAX
         } else {
@@ -327,17 +327,16 @@ impl u256 {
         if m == u256::ZERO {
             return u256::ZERO;
         }
-        let s1 = bnum::types::U256::from_digits(transmute!(s1.0 .0));
+        let s1 = bnum::types::U256::from_digits(transmute!(s1.0.0));
         let s1 = U512::cast_from(s1);
-        let s2 = bnum::types::U256::from_digits(transmute!(s2.0 .0));
+        let s2 = bnum::types::U256::from_digits(transmute!(s2.0.0));
         let s2 = U512::cast_from(s2);
-        let m = bnum::types::U256::from_digits(transmute!(m.0 .0));
+        let m = bnum::types::U256::from_digits(transmute!(m.0.0));
         let m = U512::cast_from(m);
 
-        Self(U256(transmute!(*bnum::types::U256::cast_from(
-            (s1 + s2).rem(m)
-        )
-        .digits())))
+        Self(U256(transmute!(
+            *bnum::types::U256::cast_from((s1 + s2).rem(m)).digits()
+        )))
     }
 
     // ethnum has no support for addmod and mulmod yet (see https://github.com/nlordell/ethnum-rs/issues/10)
@@ -345,17 +344,16 @@ impl u256 {
         if m == u256::ZERO {
             return u256::ZERO;
         }
-        let s1 = bnum::types::U256::from_digits(transmute!(s1.0 .0));
+        let s1 = bnum::types::U256::from_digits(transmute!(s1.0.0));
         let s1 = U512::cast_from(s1);
-        let s2 = bnum::types::U256::from_digits(transmute!(s2.0 .0));
+        let s2 = bnum::types::U256::from_digits(transmute!(s2.0.0));
         let s2 = U512::cast_from(s2);
-        let m = bnum::types::U256::from_digits(transmute!(m.0 .0));
+        let m = bnum::types::U256::from_digits(transmute!(m.0.0));
         let m = U512::cast_from(m);
 
-        Self(U256(transmute!(*bnum::types::U256::cast_from(
-            (s1 * s2).rem(m)
-        )
-        .digits())))
+        Self(U256(transmute!(
+            *bnum::types::U256::cast_from((s1 * s2).rem(m)).digits()
+        )))
     }
 
     pub fn pow(self, exp: Self) -> Self {
@@ -449,7 +447,7 @@ impl u256 {
     }
 
     pub fn least_significant_byte(&self) -> u8 {
-        self.0 .0[0] as u8
+        self.0.0[0] as u8
     }
 
     pub fn to_le_bytes(self) -> [u8; 32] {
@@ -461,7 +459,7 @@ impl u256 {
 mod tests {
     use evmc_vm::Address;
 
-    use crate::types::amount::{u256, U64Overflow};
+    use crate::types::amount::{U64Overflow, u256};
 
     #[test]
     fn display() {

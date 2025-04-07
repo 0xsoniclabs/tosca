@@ -5,11 +5,11 @@ mod mock_callbacks {
     use std::{ffi, slice};
 
     use evmrs::{
-        evmc_vm::{
-            ffi::{evmc_message, evmc_result, evmc_tx_context},
-            AccessStatus, Address, StorageStatus, Uint256,
-        },
         ExecutionContextTrait, MockExecutionContextTrait,
+        evmc_vm::{
+            AccessStatus, Address, StorageStatus, Uint256,
+            ffi::{evmc_message, evmc_result, evmc_tx_context},
+        },
     };
 
     pub extern "C" fn account_exists(context: *mut ffi::c_void, addr: *const Address) -> bool {

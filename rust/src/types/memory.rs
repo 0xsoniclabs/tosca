@@ -3,8 +3,8 @@ use std::sync::Mutex;
 use std::{cmp::max, iter};
 
 use crate::{
-    types::{u256, FailStatus},
-    utils::{word_size, Gas},
+    types::{FailStatus, u256},
+    utils::{Gas, word_size},
 };
 
 #[cfg(feature = "alloc-reuse")]
@@ -47,7 +47,7 @@ impl Memory {
         fn expand_raw(m: &mut Memory, new_len: u64, gas_left: &mut Gas) -> Result<(), FailStatus> {
             let current_len = m.0.len() as u64;
             m.consume_expansion_cost(new_len, gas_left)?;
-            m.0.extend(iter::repeat(0).take((new_len - current_len) as usize));
+            m.0.extend(iter::repeat_n(0, (new_len - current_len) as usize));
             Ok(())
         }
 
@@ -159,7 +159,7 @@ impl Memory {
 #[cfg(test)]
 mod tests {
     use crate::{
-        types::{memory::Memory, u256, FailStatus},
+        types::{FailStatus, memory::Memory, u256},
         utils::Gas,
     };
 

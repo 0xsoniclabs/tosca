@@ -1,15 +1,15 @@
 use std::{
-    ffi::{c_char, CStr},
+    ffi::{CStr, c_char},
     panic, slice,
 };
 
 use evmc_vm::{
-    ffi::{
-        evmc_capabilities, evmc_capabilities_flagset, evmc_host_context, evmc_host_interface,
-        evmc_message, evmc_result, evmc_revision, evmc_set_option_result, evmc_status_code,
-        evmc_vm as evmc_vm_t, EVMC_ABI_VERSION,
-    },
     EvmcContainer, EvmcVm, ExecutionContext, ExecutionMessage, ExecutionResult, SetOptionError,
+    ffi::{
+        EVMC_ABI_VERSION, evmc_capabilities, evmc_capabilities_flagset, evmc_host_context,
+        evmc_host_interface, evmc_message, evmc_result, evmc_revision, evmc_set_option_result,
+        evmc_status_code, evmc_vm as evmc_vm_t,
+    },
 };
 
 use crate::evmc::EvmRs;
@@ -68,7 +68,7 @@ extern "C" fn __evmc_set_option(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub(super) extern "C" fn evmc_create_evmrs() -> *mut evmc_vm_t {
     let new_instance = evmc_vm_t {
         abi_version: EVMC_ABI_VERSION as i32,
@@ -165,8 +165,8 @@ mod tests {
     use evmc_vm::ffi::{evmc_capabilities_flagset, evmc_set_option_result};
 
     use crate::ffi::{
-        evmc_vm::{__evmc_destroy, __evmc_get_capabilities, __evmc_set_option, evmc_create_evmrs},
         EVMC_CAPABILITY,
+        evmc_vm::{__evmc_destroy, __evmc_get_capabilities, __evmc_set_option, evmc_create_evmrs},
     };
 
     #[test]

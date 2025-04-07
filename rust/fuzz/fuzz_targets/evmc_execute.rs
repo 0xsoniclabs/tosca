@@ -4,14 +4,15 @@ use core::slice;
 use std::fmt::Debug;
 
 use arbitrary::Arbitrary;
-use driver::{host_interface::mocked_host_interface, Instance};
+use driver::{Instance, host_interface::mocked_host_interface};
 use evmrs::{
+    MockExecutionContextTrait,
     evmc_vm::{
-        ffi::{evmc_host_interface, evmc_message},
         AccessStatus, ExecutionResult, ExecutionTxContext, MessageKind, Revision, StatusCode,
         StorageStatus, Uint256,
+        ffi::{evmc_host_interface, evmc_message},
     },
-    u256, MockExecutionContextTrait,
+    u256,
 };
 use libfuzzer_sys::fuzz_target;
 

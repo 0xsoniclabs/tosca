@@ -1,6 +1,6 @@
 use std::ptr;
 
-use evmc_vm::{ffi::evmc_message, Address, ExecutionMessage, MessageKind, Uint256};
+use evmc_vm::{Address, ExecutionMessage, MessageKind, Uint256, ffi::evmc_message};
 
 use crate::types::u256;
 
