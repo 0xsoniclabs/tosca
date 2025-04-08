@@ -12,8 +12,11 @@ package floria
 
 import (
 	"fmt"
+	"math/big"
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
+	"github.com/holiman/uint256"
 )
 
 const (
@@ -23,10 +26,13 @@ const (
 	TxDataZeroGasEIP2028      = 4
 	TxAccessListAddressGas    = 2400
 	TxAccessListStorageKeyGas = 1900
+	InitCodeWordGas           = 2 // Once per word of the init code when creating a contract.
 
 	createGasCostPerByte = 200
 	maxCodeSize          = 24576
 	maxInitCodeSize      = 2 * maxCodeSize
+
+	BlobTxBlobGasPerBlob = 1 << 17
 
 	MaxRecursiveDepth = 1024 // Maximum depth of call/create stack.
 )
@@ -36,20 +42,23 @@ func init() {
 }
 
 func newProcessor(interpreter tosca.Interpreter) tosca.Processor {
-	return &processor{
-		interpreter: interpreter,
+	return &Processor{
+		Interpreter:        interpreter,
+		EthereumCompatible: false,
 	}
 }
 
-type processor struct {
-	interpreter tosca.Interpreter
+type Processor struct {
+	Interpreter        tosca.Interpreter
+	EthereumCompatible bool
 }
 
-func (p *processor) Run(
+func (p *Processor) Run(
 	blockParameters tosca.BlockParameters,
 	transaction tosca.Transaction,
 	context tosca.TransactionContext,
 ) (tosca.Receipt, error) {
+	snapshot := context.CreateSnapshot()
 	errorReceipt := tosca.Receipt{
 		Success: false,
 		GasUsed: transaction.GasLimit,
@@ -58,40 +67,65 @@ func (p *processor) Run(
 	if err != nil {
 		return errorReceipt, err
 	}
-	gas := transaction.GasLimit
 
 	if nonceCheck(transaction.Nonce, context.GetNonce(transaction.Sender)) != nil {
+		if p.EthereumCompatible {
+			return tosca.Receipt{}, fmt.Errorf("nonce mismatch")
+		}
 		return tosca.Receipt{}, nil
 	}
 
 	if eoaCheck(transaction.Sender, context) != nil {
+		if p.EthereumCompatible {
+			return tosca.Receipt{}, fmt.Errorf("sender is not an eoa")
+		}
 		return tosca.Receipt{}, nil
 	}
 
-	if err := buyGas(transaction, context, gasPrice); err != nil {
+	if err = blobCheck(transaction, blockParameters, context); err != nil {
+		if p.EthereumCompatible {
+			return errorReceipt, err
+		}
+		return errorReceipt, nil
+	}
+
+	if err := buyGas(transaction, context, gasPrice, blockParameters.BlobBaseFee, p.EthereumCompatible); err != nil {
+		context.RestoreSnapshot(snapshot)
+		if p.EthereumCompatible {
+			return tosca.Receipt{}, fmt.Errorf("insufficient balance for gas")
+		}
 		return tosca.Receipt{}, nil
 	}
 
-	setupGas := calculateSetupGas(transaction)
+	gas := transaction.GasLimit
+	setupGas := calculateSetupGas(transaction, blockParameters.Revision)
 	if gas < setupGas {
+		context.RestoreSnapshot(snapshot)
+		if p.EthereumCompatible {
+			return tosca.Receipt{}, fmt.Errorf("insufficient gas for set up")
+		}
 		return errorReceipt, nil
 	}
 	gas -= setupGas
 
 	if blockParameters.Revision >= tosca.R12_Shanghai && transaction.Recipient == nil &&
 		len(transaction.Input) > maxInitCodeSize {
+		context.RestoreSnapshot(snapshot)
+		if p.EthereumCompatible {
+			return tosca.Receipt{}, fmt.Errorf("max init code size exceeded")
+		}
 		return tosca.Receipt{}, nil
 	}
 
 	transactionParameters := tosca.TransactionParameters{
 		Origin:     transaction.Sender,
 		GasPrice:   gasPrice,
-		BlobHashes: []tosca.Hash{}, // ?
+		BlobHashes: transaction.BlobHashes,
 	}
 
 	runContext := runContext{
-		floriaContext{context, context.SelfDestruct},
-		p.interpreter,
+		floriaContext{context, blockParameters.Revision, context.SelfDestruct},
+		p.Interpreter,
 		blockParameters,
 		transactionParameters,
 		0,
@@ -99,7 +133,7 @@ func (p *processor) Run(
 	}
 
 	if blockParameters.Revision >= tosca.R09_Berlin {
-		setUpAccessList(transaction, &runContext, blockParameters.Revision)
+		setUpAccessList(transaction, &runContext, blockParameters)
 	}
 
 	callParameters := callParameters(transaction, gas)
@@ -119,8 +153,12 @@ func (p *processor) Run(
 		createdAddress = &result.CreatedAddress
 	}
 
-	gasLeft := calculateGasLeft(transaction, result, blockParameters.Revision)
+	gasLeft := calculateGasLeft(transaction, result, blockParameters.Revision, p.EthereumCompatible)
 	refundGas(context, transaction.Sender, gasPrice, gasLeft)
+
+	if p.EthereumCompatible {
+		paymentToCoinbase(transaction, gasPrice, transaction.GasLimit-gasLeft, blockParameters, context)
+	}
 
 	logs := context.GetLogs()
 
@@ -137,6 +175,9 @@ func calculateGasPrice(baseFee, gasFeeCap, gasTipCap tosca.Value) (tosca.Value, 
 	if gasFeeCap.Cmp(baseFee) < 0 {
 		return tosca.Value{}, fmt.Errorf("gasFeeCap %v is lower than baseFee %v", gasFeeCap, baseFee)
 	}
+	if gasFeeCap.Cmp(gasTipCap) < 0 {
+		return tosca.Value{}, fmt.Errorf("gasFeeCap %v is lower than gasTipCap %v", gasFeeCap, gasTipCap)
+	}
 	return tosca.Add(baseFee, tosca.Min(gasTipCap, tosca.Sub(gasFeeCap, baseFee))), nil
 }
 
@@ -144,12 +185,17 @@ func calculateGasPrice(baseFee, gasFeeCap, gasTipCap tosca.Value) (tosca.Value, 
 // that adds the balance transfer to the selfdestruct function
 type floriaContext struct {
 	tosca.TransactionContext
+	revision tosca.Revision
 	// the original selfdestruct function is saved here, as it still needs to be called
 	selfdestruct func(addr, beneficiary tosca.Address) bool
 }
 
 func (c floriaContext) SelfDestruct(addr tosca.Address, beneficiary tosca.Address) bool {
-	c.SetBalance(beneficiary, tosca.Add(c.GetBalance(beneficiary), c.GetBalance(addr)))
+	balance := c.GetBalance(addr)
+	if c.revision >= tosca.R13_Cancun {
+		c.SetBalance(addr, tosca.Value{})
+	}
+	c.SetBalance(beneficiary, tosca.Add(c.GetBalance(beneficiary), balance))
 	return c.selfdestruct(addr, beneficiary)
 }
 
@@ -172,7 +218,7 @@ func eoaCheck(sender tosca.Address, context tosca.TransactionContext) error {
 	return nil
 }
 
-func setUpAccessList(transaction tosca.Transaction, context tosca.TransactionContext, revision tosca.Revision) {
+func setUpAccessList(transaction tosca.Transaction, context tosca.TransactionContext, blockParameters tosca.BlockParameters) {
 	if transaction.AccessList == nil {
 		return
 	}
@@ -182,7 +228,7 @@ func setUpAccessList(transaction tosca.Transaction, context tosca.TransactionCon
 		context.AccessAccount(*transaction.Recipient)
 	}
 
-	precompiles := getPrecompiledAddresses(revision)
+	precompiles := getPrecompiledAddresses(blockParameters.Revision)
 	for _, address := range precompiles {
 		context.AccessAccount(address)
 	}
@@ -192,6 +238,10 @@ func setUpAccessList(transaction tosca.Transaction, context tosca.TransactionCon
 		for _, key := range accessTuple.Keys {
 			context.AccessStorage(accessTuple.Address, key)
 		}
+	}
+
+	if blockParameters.Revision >= tosca.R12_Shanghai {
+		context.AccessAccount(blockParameters.Coinbase)
 	}
 }
 
@@ -211,15 +261,16 @@ func callParameters(transaction tosca.Transaction, gas tosca.Gas) tosca.CallPara
 	}
 	if transaction.Recipient != nil {
 		callParameters.Recipient = *transaction.Recipient
+		callParameters.CodeAddress = *transaction.Recipient
 	}
 	return callParameters
 }
 
-func calculateGasLeft(transaction tosca.Transaction, result tosca.CallResult, revision tosca.Revision) tosca.Gas {
+func calculateGasLeft(transaction tosca.Transaction, result tosca.CallResult, revision tosca.Revision, ethCompatible bool) tosca.Gas {
 	gasLeft := result.GasLeft
 
 	// 10% of remaining gas is charged for non-internal transactions
-	if transaction.Sender != (tosca.Address{}) {
+	if !ethCompatible && transaction.Sender != (tosca.Address{}) {
 		gasLeft -= gasLeft / 10
 	}
 
@@ -252,7 +303,7 @@ func refundGas(context tosca.TransactionContext, sender tosca.Address, gasPrice 
 	context.SetBalance(sender, senderBalance)
 }
 
-func calculateSetupGas(transaction tosca.Transaction) tosca.Gas {
+func calculateSetupGas(transaction tosca.Transaction, revision tosca.Revision) tosca.Gas {
 	var gas tosca.Gas
 	if transaction.Recipient == nil {
 		gas = TxGasContractCreation
@@ -274,6 +325,11 @@ func calculateSetupGas(transaction tosca.Transaction) tosca.Gas {
 		// greater than 2^64 / 16 - 53000 = ~10^18, which is not possible with real world hardware
 		gas += zeroBytes * TxDataZeroGasEIP2028
 		gas += nonZeroBytes * TxDataNonZeroGasEIP2028
+
+		if transaction.Recipient == nil && revision >= tosca.R12_Shanghai {
+			lenWords := tosca.SizeInWords(uint64(len(transaction.Input)))
+			gas += tosca.Gas(lenWords * InitCodeWordGas)
+		}
 	}
 
 	if transaction.AccessList != nil {
@@ -288,8 +344,19 @@ func calculateSetupGas(transaction tosca.Transaction) tosca.Gas {
 	return tosca.Gas(gas)
 }
 
-func buyGas(transaction tosca.Transaction, context tosca.TransactionContext, gasPrice tosca.Value) error {
+func buyGas(transaction tosca.Transaction, context tosca.TransactionContext, gasPrice tosca.Value, blobBaseFee tosca.Value, ethCompatible bool) error {
 	gas := gasPrice.Scale(uint64(transaction.GasLimit))
+
+	if ethCompatible {
+		if err := ethereumBalanceCheck(gasPrice, transaction, context); err != nil {
+			return err
+		}
+	}
+
+	if len(transaction.BlobHashes) > 0 {
+		blobFee := blobBaseFee.Scale(uint64(len(transaction.BlobHashes) * BlobTxBlobGasPerBlob))
+		gas = tosca.Add(gas, blobFee)
+	}
 
 	// Buy gas
 	senderBalance := context.GetBalance(transaction.Sender)
@@ -301,4 +368,72 @@ func buyGas(transaction tosca.Transaction, context tosca.TransactionContext, gas
 	context.SetBalance(transaction.Sender, senderBalance)
 
 	return nil
+}
+
+func ethereumBalanceCheck(gasPrice tosca.Value, transaction tosca.Transaction, context tosca.TransactionContext) error {
+	capGas := gasPrice.ToBig().Mul(gasPrice.ToBig(), big.NewInt(int64(transaction.GasLimit)))
+	if transaction.GasFeeCap != (tosca.Value{}) {
+		capGas = transaction.GasFeeCap.ToBig().Mul(transaction.GasFeeCap.ToBig(), big.NewInt(int64(transaction.GasLimit)))
+	}
+
+	capGas = capGas.Add(capGas, transaction.Value.ToBig())
+
+	if len(transaction.BlobHashes) > 0 {
+		blobFee := transaction.BlobGasFeeCap.Scale(uint64(len(transaction.BlobHashes) * BlobTxBlobGasPerBlob))
+		capGas = capGas.Add(capGas, blobFee.ToBig())
+	}
+
+	capGasU256, overflow := uint256.FromBig(capGas)
+	if overflow {
+		return fmt.Errorf("capGas overflow")
+	}
+	capGasValue := tosca.ValueFromUint256(capGasU256)
+
+	if have := context.GetBalance(transaction.Sender); have.Cmp(capGasValue) < 0 {
+		return fmt.Errorf("insufficient balance: %v < %v", have, capGasValue)
+	}
+
+	return nil
+}
+
+func blobCheck(transaction tosca.Transaction, blockParameters tosca.BlockParameters, context tosca.TransactionContext) error {
+	if transaction.BlobHashes != nil {
+		if transaction.Recipient == nil {
+			return fmt.Errorf("blob transactions need to have a existing recipient")
+		}
+		if len(transaction.BlobHashes) == 0 {
+			return fmt.Errorf("missing blob hashes")
+		}
+		for _, hash := range transaction.BlobHashes {
+			if !kzg4844.IsValidVersionedHash(hash[:]) {
+				return fmt.Errorf("blob with invalid hash version")
+			}
+		}
+
+	}
+
+	if blockParameters.Revision >= tosca.R13_Cancun && len(transaction.BlobHashes) > 0 {
+		if transaction.BlobGasFeeCap == (tosca.Value{}) {
+			return nil // skip checks if no blob gas fee cap is set
+		}
+		if transaction.BlobGasFeeCap.Cmp(blockParameters.BlobBaseFee) < 0 {
+			return fmt.Errorf("blobGasFeeCap %v is lower than blobBaseFee %v", transaction.BlobGasFeeCap, blockParameters.BlobBaseFee)
+		}
+	}
+	return nil
+}
+
+func paymentToCoinbase(transaction tosca.Transaction, gasPrice tosca.Value, gasUsed tosca.Gas, blockParameters tosca.BlockParameters, context tosca.TransactionContext) {
+	if transaction.GasFeeCap == (tosca.Value{}) && transaction.GasTipCap == (tosca.Value{}) {
+		return
+	}
+	effectiveTip := gasPrice
+	if blockParameters.Revision >= tosca.R10_London {
+		effectiveTip = tosca.Sub(transaction.GasFeeCap, blockParameters.BaseFee)
+		if effectiveTip.Cmp(transaction.GasTipCap) > 0 {
+			effectiveTip = transaction.GasTipCap
+		}
+	}
+	fee := effectiveTip.Scale(uint64(gasUsed))
+	context.SetBalance(blockParameters.Coinbase, tosca.Add(context.GetBalance(blockParameters.Coinbase), fee))
 }

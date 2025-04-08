@@ -69,13 +69,13 @@ func (r runContext) executeCall(kind tosca.CallKind, parameters tosca.CallParame
 		return tosca.CallResult{Success: true, GasLeft: parameters.Gas}, nil
 	}
 
-	if kind == tosca.Call || kind == tosca.CallCode {
+	if kind == tosca.Call {
 		transferValue(r, parameters.Value, parameters.Sender, recipient)
 	}
 
 	if kind == tosca.Call {
 		result, isStatePrecompiled := handleStateContract(
-			r, parameters.Sender, recipient, parameters.Input, parameters.Gas)
+			r, parameters.Sender, parameters.CodeAddress, parameters.Input, parameters.Gas)
 		if isStatePrecompiled {
 			if !result.Success {
 				r.RestoreSnapshot(snapshot)
@@ -86,7 +86,7 @@ func (r runContext) executeCall(kind tosca.CallKind, parameters tosca.CallParame
 	}
 
 	result, isPrecompiled := handlePrecompiledContract(
-		r.blockParameters.Revision, parameters.Input, recipient, parameters.Gas)
+		r.blockParameters.Revision, parameters.Input, parameters.CodeAddress, parameters.Gas)
 	if isPrecompiled {
 		if !result.Success {
 			r.RestoreSnapshot(snapshot)
@@ -168,11 +168,15 @@ func (r runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallPara
 	}
 
 	if r.GetNonce(createdAddress) != 0 ||
+		!r.HasEmptyStorage(createdAddress) ||
 		(r.GetCodeHash(createdAddress) != (tosca.Hash{}) &&
 			r.GetCodeHash(createdAddress) != emptyCodeHash) {
 		return tosca.CallResult{}, nil
 	}
 	snapshot := r.CreateSnapshot()
+	if !r.AccountExists(createdAddress) {
+		r.CreateAccount(createdAddress)
+	}
 	r.SetNonce(createdAddress, 1)
 
 	transferValue(r, parameters.Value, parameters.Sender, createdAddress)

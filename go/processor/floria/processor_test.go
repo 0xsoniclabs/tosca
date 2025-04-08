@@ -89,12 +89,6 @@ func TestProcessor_GasPriceCalculation(t *testing.T) {
 			gasTipCap: 0,
 			expected:  10,
 		},
-		"lowCapHighTip": {
-			baseFee:   10,
-			gasFeeCap: 10,
-			gasTipCap: 100,
-			expected:  10,
-		},
 		"capTipEqual": {
 			baseFee:   10,
 			gasFeeCap: 10,
@@ -128,9 +122,29 @@ func TestProcessor_GasPriceCalculation(t *testing.T) {
 }
 
 func TestProcessor_GasPriceCalculationError(t *testing.T) {
-	_, err := calculateGasPrice(tosca.NewValue(10), tosca.NewValue(5), tosca.NewValue(10))
-	if err == nil {
-		t.Errorf("calculateGasPrice did not return an error")
+	tests := map[string]struct {
+		baseFee   uint64
+		gasFeeCap uint64
+		gasTipCap uint64
+	}{
+		"feeCapLowerThanBaseFee": {
+			baseFee:   100,
+			gasFeeCap: 10,
+			gasTipCap: 5,
+		},
+		"feeCapLowerThanTipCap": {
+			baseFee:   10,
+			gasFeeCap: 5,
+			gasTipCap: 100,
+		},
+	}
+	for testName, test := range tests {
+		t.Run(testName, func(t *testing.T) {
+			_, err := calculateGasPrice(tosca.NewValue(test.baseFee), tosca.NewValue(test.gasFeeCap), tosca.NewValue(test.gasTipCap))
+			if err == nil {
+				t.Errorf("calculateGasPrice did not return an error")
+			}
+		})
 	}
 }
 
@@ -184,7 +198,7 @@ func TestProcessor_BuyGas(t *testing.T) {
 	context.EXPECT().SetBalance(transaction.Sender, tosca.NewValue(balance-gasLimit*gasPrice))
 	context.EXPECT().GetBalance(transaction.Sender).Return(tosca.NewValue(balance - gasLimit*gasPrice))
 
-	err := buyGas(transaction, context, tosca.NewValue(gasPrice))
+	err := buyGas(transaction, context, tosca.NewValue(gasPrice), tosca.Value{}, false)
 	if err != nil {
 		t.Errorf("buyGas returned an error: %v", err)
 	}
@@ -207,7 +221,7 @@ func TestProcessor_BuyGasInsufficientBalance(t *testing.T) {
 	context := tosca.NewMockTransactionContext(ctrl)
 	context.EXPECT().GetBalance(transaction.Sender).Return(tosca.NewValue(balance))
 
-	err := buyGas(transaction, context, tosca.NewValue(gasPrice))
+	err := buyGas(transaction, context, tosca.NewValue(gasPrice), tosca.Value{}, false)
 	if err == nil {
 		t.Errorf("buyGas did not fail with insufficient balance")
 	}
@@ -315,7 +329,7 @@ func TestGasUsed(t *testing.T) {
 
 	for testName, test := range tests {
 		t.Run(testName, func(t *testing.T) {
-			actualGasLeft := calculateGasLeft(test.transaction, test.result, test.revision)
+			actualGasLeft := calculateGasLeft(test.transaction, test.result, test.revision, false)
 
 			if actualGasLeft != test.expectedGasLeft {
 				t.Errorf("gasUsed returned incorrect result, got: %d, want: %d", actualGasLeft, test.expectedGasLeft)
@@ -392,7 +406,7 @@ func TestProcessor_SetupGasBilling(t *testing.T) {
 				AccessList: test.accessList,
 			}
 
-			actualGasUsed := calculateSetupGas(transaction)
+			actualGasUsed := calculateSetupGas(transaction, tosca.R11_Paris)
 			if actualGasUsed != test.expectedGasUsed {
 				t.Errorf("setupGasBilling returned incorrect gas used, got: %d, want: %d", actualGasUsed, test.expectedGasUsed)
 			}
@@ -450,6 +464,7 @@ func TestProcessor_CallParameters(t *testing.T) {
 
 	transaction.Recipient = &tosca.Address{2}
 	want.Recipient = *transaction.Recipient
+	want.CodeAddress = *transaction.Recipient
 
 	got = callParameters(transaction, gas)
 	if !reflect.DeepEqual(got, want) {
@@ -486,7 +501,7 @@ func TestProcessor_SetUpAccessList(t *testing.T) {
 	context.EXPECT().AccessStorage(accessListAddress, tosca.Key{1})
 	context.EXPECT().AccessStorage(accessListAddress, tosca.Key{2})
 
-	setUpAccessList(transaction, context, tosca.R09_Berlin)
+	setUpAccessList(transaction, context, tosca.BlockParameters{Revision: tosca.R09_Berlin})
 }
 
 func TestProcessor_AccessListIsNotCreatedIfTransactionHasNone(t *testing.T) {
@@ -502,5 +517,5 @@ func TestProcessor_AccessListIsNotCreatedIfTransactionHasNone(t *testing.T) {
 		Recipient: &recipient,
 	}
 
-	setUpAccessList(transaction, context, tosca.R09_Berlin)
+	setUpAccessList(transaction, context, tosca.BlockParameters{Revision: tosca.R09_Berlin})
 }
