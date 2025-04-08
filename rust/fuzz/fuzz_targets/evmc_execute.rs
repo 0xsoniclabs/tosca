@@ -50,7 +50,7 @@ impl<'a> Arbitrary<'a> for InterpreterArgs<'a> {
                 MessageKind::EVMC_EOFCREATE,
             ])?,
             flags: u32::arbitrary(u)?,
-            depth: i32::arbitrary(u)?,
+            depth: u.int_in_range(0..=1024)?,
             gas: u.int_in_range(0..=100_000_000)?, // see go/ct/evm_fuzz_test.go
             recipient: u256::arbitrary(u)?.into(),
             sender: u256::arbitrary(u)?.into(),
