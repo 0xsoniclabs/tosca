@@ -7,6 +7,7 @@ use crate::EvmcVm;
 use std::ops::{Deref, DerefMut};
 
 /// Container struct for EVMC instances and user-defined data.
+#[repr(C)]
 pub struct EvmcContainer<T>
 where
     T: EvmcVm + Sized,
@@ -67,6 +68,7 @@ where
 }
 
 /// Container struct for steppable EVMC instances and user-defined data.
+#[repr(C)]
 pub struct SteppableEvmcContainer<T>
 where
     T: EvmcVm + Sized,

@@ -597,22 +597,23 @@ impl From<ffi::evmc_result> for ExecutionResult {
 
 fn allocate_output_data<T>(output: Option<&Vec<T>>) -> (*const T, usize) {
     if let Some(buf) = output {
-        let buf_len = buf.len();
+        if !buf.is_empty() {
+            let buf_len = buf.len();
 
-        // Manually allocate heap memory for the new home of the output buffer.
-        let memlayout =
-            std::alloc::Layout::from_size_align(buf_len * size_of::<T>(), align_of::<T>())
-                .expect("Bad layout");
-        let new_buf = unsafe { std::alloc::alloc(memlayout) as *mut T };
-        unsafe {
-            // Copy the data into the allocated buffer.
-            std::ptr::copy(buf.as_ptr(), new_buf, buf_len);
+            // Manually allocate heap memory for the new home of the output buffer.
+            let memlayout =
+                std::alloc::Layout::from_size_align(buf_len * size_of::<T>(), align_of::<T>())
+                    .expect("Bad layout");
+            let new_buf = unsafe { std::alloc::alloc(memlayout) as *mut T };
+            unsafe {
+                // Copy the data into the allocated buffer.
+                std::ptr::copy(buf.as_ptr(), new_buf, buf_len);
+            }
+
+            return (new_buf as *const T, buf_len);
         }
-
-        (new_buf as *const T, buf_len)
-    } else {
-        (std::ptr::null(), 0)
     }
+    (std::ptr::null(), 0)
 }
 
 unsafe fn deallocate_output_data<T>(ptr: *const T, size: usize) {
