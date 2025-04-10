@@ -18,6 +18,11 @@ import (
 	"github.com/holiman/uint256"
 )
 
+const (
+	MaxCodeSize     = 24576           // Maximum bytecode to permit for a contract
+	MaxInitCodeSize = 2 * MaxCodeSize // Maximum initcode to permit in a creation transaction and create instructions
+)
+
 func opStop() status {
 	return statusStopped
 }
@@ -849,11 +854,7 @@ func genericCreate(c *context, kind tosca.CallKind) error {
 // Returns the gas cost for the size of the init code and nil, or
 // zero and an error if size is greater than MaxInitCodeSize.
 func computeCodeSizeCost(size uint64) (tosca.Gas, error) {
-	const (
-		maxCodeSize     = 24576           // Maximum bytecode to permit for a contract
-		maxInitCodeSize = 2 * maxCodeSize // Maximum initcode to permit in a creation transaction and create instructions
-	)
-	if size > maxInitCodeSize {
+	if size > MaxInitCodeSize {
 		return 0, errInitCodeTooLarge
 	}
 	// Once per word of the init code when creating a contract.
