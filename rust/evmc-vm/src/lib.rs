@@ -108,7 +108,7 @@ pub type ExecutionTxContext = ffi::evmc_tx_context;
 pub struct ExecutionContext<'a> {
     host: &'a ffi::evmc_host_interface,
     context: *mut ffi::evmc_host_context,
-    tx_context: ExecutionTxContext,
+    tx_context: Option<ExecutionTxContext>,
 }
 
 impl ExecutionResult {
@@ -332,21 +332,19 @@ impl ExecutionMessage {
 
 impl<'a> ExecutionContext<'a> {
     pub fn new(host: &'a ffi::evmc_host_interface, _context: *mut ffi::evmc_host_context) -> Self {
-        let _tx_context = unsafe {
-            assert!((*host).get_tx_context.is_some());
-            (*host).get_tx_context.unwrap()(_context)
-        };
-
         ExecutionContext {
             host,
             context: _context,
-            tx_context: _tx_context,
+            tx_context: None,
         }
     }
 
     /// Retrieve the transaction context.
-    pub fn get_tx_context(&self) -> &ExecutionTxContext {
-        &self.tx_context
+    pub fn get_tx_context(&mut self) -> &ExecutionTxContext {
+        let get_tx_context = self.host.get_tx_context.unwrap();
+        let context = self.context;
+        self.tx_context
+            .get_or_insert_with(|| unsafe { get_tx_context(context) })
     }
 
     /// Check if an account exists.
@@ -1185,7 +1183,7 @@ mod tests {
     fn execution_context() {
         let host_context = std::ptr::null_mut();
         let host_interface = get_dummy_host_interface();
-        let exe_context = ExecutionContext::new(&host_interface, host_context);
+        let mut exe_context = ExecutionContext::new(&host_interface, host_context);
         let a = exe_context.get_tx_context();
 
         let b = unsafe { get_dummy_tx_context(host_context) };
