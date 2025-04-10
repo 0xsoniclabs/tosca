@@ -1,6 +1,6 @@
 use std::{
     ffi::{CStr, c_char},
-    panic, slice,
+    panic,
 };
 
 use evmc_vm::{
@@ -12,7 +12,12 @@ use evmc_vm::{
     },
 };
 
-use crate::evmrs::EvmRs;
+use crate::{
+    evmrs::EvmRs,
+    ffi::{
+        LifetimeToken, ref_from_ptr_scoped, ref_mut_from_ptr_scoped, slice_from_raw_parts_scoped,
+    },
+};
 
 static EVM_RS_NAME: &CStr = c"evmrs";
 static EVM_RS_VERSION: &CStr = c"0.1.0";
@@ -30,6 +35,8 @@ extern "C" fn __evmc_set_option(
     key: *const c_char,
     value: *const c_char,
 ) -> evmc_set_option_result {
+    let token = LifetimeToken;
+
     assert!(!instance.is_null());
 
     if key.is_null() {
@@ -59,7 +66,8 @@ extern "C" fn __evmc_set_option(
     // `instance` is not null. The caller must make sure that `instance` points to a valid
     // `EvmcContainer::<EvmRs>` (which is the case it it was created with evmc_create_evmrs) and the
     // pointer is unique.
-    let container = unsafe { &mut **(instance as *mut EvmcContainer<EvmRs>) };
+    let container =
+        unsafe { ref_mut_from_ptr_scoped(instance as *mut EvmcContainer<EvmRs>, &token) };
 
     match container.set_option(key, value) {
         Ok(()) => evmc_set_option_result::EVMC_SET_OPTION_SUCCESS,
@@ -107,6 +115,8 @@ extern "C" fn __evmc_execute(
     code: *const u8,
     code_size: usize,
 ) -> evmc_result {
+    let token = LifetimeToken;
+
     if instance.is_null()
         || (host.is_null() && EVMC_CAPABILITY != evmc_capabilities::EVMC_CAPABILITY_PRECOMPILES)
         || message.is_null()
@@ -118,7 +128,7 @@ extern "C" fn __evmc_execute(
 
     // SAFETY:
     // `message`` is not null. The caller must make sure it points to a valid `ExecutionMessage`.
-    let execution_message = ExecutionMessage::from(unsafe { &*message });
+    let execution_message = ExecutionMessage::from(unsafe { ref_from_ptr_scoped(message, &token) });
 
     let code_ref = if code.is_null() {
         &[]
@@ -126,14 +136,15 @@ extern "C" fn __evmc_execute(
         // SAFETY:
         // `code` is not null and `code_size > 0`. The caller must make sure that the size is
         // valid.
-        unsafe { slice::from_raw_parts(code, code_size) }
+        unsafe { slice_from_raw_parts_scoped(code, code_size, &token) }
     };
 
     // SAFETY:
     // `instance` is not null. The caller must make sure that `instance` points to a valid
     // `EvmcContainer::<EvmRs>` (which is the case it it was created with evmc_create_evmrs) and the
     // pointer is unique.
-    let container = unsafe { &mut **(instance as *mut EvmcContainer<EvmRs>) };
+    let container =
+        unsafe { ref_mut_from_ptr_scoped(instance as *mut EvmcContainer<EvmRs>, &token) };
 
     panic::catch_unwind(|| {
         let mut execution_context = if host.is_null() {
@@ -142,8 +153,8 @@ extern "C" fn __evmc_execute(
             // SAFETY:
             // `host` is not null. The caller must make sure that it points to a valid
             // `evmc_host_interface`.
-            let execution_context = ExecutionContext::new(unsafe { &*host }, context);
-            Some(execution_context)
+            let host = unsafe { ref_from_ptr_scoped(host, &token) };
+            Some(ExecutionContext::new(host, context))
         };
 
         container.execute(

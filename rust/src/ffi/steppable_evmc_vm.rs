@@ -11,7 +11,11 @@ use ::evmc_vm::{
 
 use crate::{
     evmrs::EvmRs,
-    ffi::evmc_vm::{self, EVMC_CAPABILITY},
+    ffi::{
+        LifetimeToken,
+        evmc_vm::{self, EVMC_CAPABILITY},
+        ref_from_ptr_scoped, ref_mut_from_ptr_scoped, slice_from_raw_parts_scoped,
+    },
 };
 
 #[unsafe(no_mangle)]
@@ -58,6 +62,8 @@ extern "C" fn __evmc_step_n(
     last_call_result_data_size: usize,
     steps: i32,
 ) -> evmc_step_result {
+    let token = LifetimeToken;
+
     if instance.is_null()
         || (host.is_null() && EVMC_CAPABILITY != evmc_capabilities::EVMC_CAPABILITY_PRECOMPILES)
         || message.is_null()
@@ -73,7 +79,7 @@ extern "C" fn __evmc_step_n(
     // SAFETY:
     // `message` is not null. The caller must make sure that is points to a valid
     // `ExecutionMessage`.
-    let execution_message = ExecutionMessage::from(unsafe { &*message });
+    let execution_message = ExecutionMessage::from(unsafe { ref_from_ptr_scoped(message, &token) });
 
     let code_ref = if code.is_null() {
         &[]
@@ -81,14 +87,15 @@ extern "C" fn __evmc_step_n(
         // SAFETY:
         // `code` is not null and `code_size > 0`. The caller must make sure that the size is
         // valid.
-        unsafe { slice::from_raw_parts(code, code_size) }
+        unsafe { slice_from_raw_parts_scoped(code, code_size, &token) }
     };
 
     // SAFETY:
     // `instance` is not null. The caller must make sure that it points to a valid
     // `SteppableEvmcContainer::<EvmRs>` (which is the case it it was created with
     // evmc_create_steppable_evmrs) an the pointer is unique.
-    let container = unsafe { &mut **(instance as *mut SteppableEvmcContainer<EvmRs>) };
+    let container =
+        unsafe { ref_mut_from_ptr_scoped(instance as *mut SteppableEvmcContainer<EvmRs>, &token) };
 
     panic::catch_unwind(|| {
         let mut execution_context = if host.is_null() {
@@ -97,8 +104,8 @@ extern "C" fn __evmc_step_n(
             // SAFETY:
             // `host` is not null. The caller must make sure that it points to a valid
             // `evmc_host_interface`.
-            let execution_context = ExecutionContext::new(unsafe { &*host }, context);
-            Some(execution_context)
+            let host = unsafe { ref_from_ptr_scoped(host, &token) };
+            Some(ExecutionContext::new(host, context))
         };
 
         let stack = if stack.is_null() {
