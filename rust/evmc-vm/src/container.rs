@@ -66,6 +66,77 @@ where
     }
 }
 
+/// Container struct for steppable EVMC instances and user-defined data.
+pub struct SteppableEvmcContainer<T>
+where
+    T: EvmcVm + Sized,
+{
+    #[allow(dead_code)]
+    instance: ::evmc_sys::evmc_vm_steppable,
+    vm: T,
+}
+
+impl<T> SteppableEvmcContainer<T>
+where
+    T: EvmcVm + Sized,
+{
+    /// Basic constructor.
+    pub fn new(_instance: ::evmc_sys::evmc_vm_steppable) -> Box<Self> {
+        Box::new(Self {
+            instance: _instance,
+            vm: T::init(),
+        })
+    }
+
+    /// Take ownership of the given pointer and free the associated memory.
+    ///
+    /// # Safety
+    /// This function expects a valid instance to be passed.
+    pub unsafe fn from_ffi_pointer(instance: *mut ::evmc_sys::evmc_vm_steppable) -> Box<Self> {
+        assert!(!instance.is_null(), "from_ffi_pointer received NULL");
+        Box::from_raw(instance as *mut SteppableEvmcContainer<T>)
+    }
+
+    /// Convert boxed self into an FFI pointer, surrendering ownership of the heap data.
+    ///
+    /// # Safety
+    /// This function will return a valid instance pointer.
+    pub unsafe fn into_ffi_pointer(boxed: Box<Self>) -> *mut ::evmc_sys::evmc_vm_steppable {
+        Box::into_raw(boxed) as *mut ::evmc_sys::evmc_vm_steppable
+    }
+}
+
+impl<T> Drop for SteppableEvmcContainer<T>
+where
+    T: EvmcVm + Sized,
+{
+    fn drop(&mut self) {
+        unsafe {
+            EvmcContainer::<T>::from_ffi_pointer(self.instance.vm);
+        }
+    }
+}
+
+impl<T> Deref for SteppableEvmcContainer<T>
+where
+    T: EvmcVm,
+{
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.vm
+    }
+}
+
+impl<T> DerefMut for SteppableEvmcContainer<T>
+where
+    T: EvmcVm,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.vm
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -138,6 +209,7 @@ mod tests {
             code_address: ::evmc_sys::evmc_address::default(),
             code: std::ptr::null(),
             code_size: 0,
+            code_hash: std::ptr::null(),
         };
         let message: ExecutionMessage = (&message).into();
 

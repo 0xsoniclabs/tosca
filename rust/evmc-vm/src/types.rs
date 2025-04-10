@@ -18,6 +18,9 @@ pub type MessageFlags = ffi::evmc_flags;
 /// EVMC status code.
 pub type StatusCode = ffi::evmc_status_code;
 
+/// EVMC step status code.
+pub type StepStatusCode = ffi::evmc_step_status_code;
+
 /// EVMC access status.
 pub type AccessStatus = ffi::evmc_access_status;
 

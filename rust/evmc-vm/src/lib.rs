@@ -12,7 +12,7 @@
 mod container;
 mod types;
 
-pub use container::EvmcContainer;
+pub use container::{EvmcContainer, SteppableEvmcContainer};
 pub use evmc_sys as ffi;
 pub use types::*;
 
@@ -35,6 +35,23 @@ pub trait EvmcVm {
     ) -> ExecutionResult;
 }
 
+pub trait SteppableEvmcVm {
+    fn step_n<'a>(
+        &self,
+        revision: Revision,
+        code: &'a [u8],
+        message: &'a ExecutionMessage,
+        context: Option<&'a mut ExecutionContext<'a>>,
+        status: StepStatusCode,
+        pc: u64,
+        gas_refunds: i64,
+        stack: &'a mut [Uint256],
+        memory: &'a mut [u8],
+        last_call_result_data: &'a mut [u8],
+        steps: i32,
+    ) -> StepResult;
+}
+
 /// Error codes for set_option.
 #[derive(Debug)]
 pub enum SetOptionError {
@@ -52,6 +69,20 @@ pub struct ExecutionResult {
     create_address: Option<Address>,
 }
 
+#[derive(Debug)]
+pub struct StepResult {
+    step_status_code: StepStatusCode,
+    status_code: StatusCode,
+    revision: Revision,
+    pc: u64,
+    gas_left: i64,
+    gas_refund: i64,
+    output: Option<Vec<u8>>,
+    stack: Vec<Uint256>,
+    memory: Vec<u8>,
+    last_call_return_data: Option<Vec<u8>>,
+}
+
 /// EVMC execution message structure.
 #[derive(Debug)]
 pub struct ExecutionMessage {
@@ -66,6 +97,7 @@ pub struct ExecutionMessage {
     create2_salt: Bytes32,
     code_address: Address,
     code: Option<Vec<u8>>,
+    code_hash: Option<Uint256>,
 }
 
 /// EVMC transaction context structure.
@@ -138,6 +170,74 @@ impl ExecutionResult {
     }
 }
 
+impl StepResult {
+    pub fn new(
+        step_status_code: StepStatusCode,
+        status_code: StatusCode,
+        revision: Revision,
+        pc: u64,
+        gas_left: i64,
+        gas_refund: i64,
+        output: Option<Vec<u8>>,
+        stack: Vec<Uint256>,
+        memory: Vec<u8>,
+        last_call_return_data: Option<Vec<u8>>,
+    ) -> Self {
+        Self {
+            step_status_code,
+            status_code,
+            revision,
+            pc,
+            gas_left,
+            gas_refund,
+            output,
+            stack,
+            memory,
+            last_call_return_data,
+        }
+    }
+
+    pub fn step_status_code(&self) -> StatusCode {
+        self.status_code
+    }
+
+    pub fn status_code(&self) -> StatusCode {
+        self.status_code
+    }
+
+    pub fn revision(&self) -> Revision {
+        self.revision
+    }
+
+    pub fn pc(&self) -> u64 {
+        self.pc
+    }
+
+    pub fn gas_left(&self) -> i64 {
+        self.gas_left
+    }
+
+    pub fn gas_refund(&self) -> i64 {
+        self.gas_refund
+    }
+
+    pub fn output(&self) -> Option<&[u8]> {
+        self.output.as_ref().map(AsRef::as_ref)
+    }
+
+    pub fn stack(&self) -> &[Uint256] {
+        self.stack.as_ref()
+    }
+
+    pub fn memory(&self) -> &[u8] {
+        self.memory.as_ref()
+    }
+
+    pub fn last_call_return_data(&self) -> Option<&[u8]> {
+        self.last_call_return_data.as_ref().map(AsRef::as_ref)
+    }
+}
+
 impl ExecutionMessage {
     pub fn new(
         kind: MessageKind,
@@ -151,6 +251,7 @@ impl ExecutionMessage {
         create2_salt: Bytes32,
         code_address: Address,
         code: Option<&[u8]>,
+        code_hash: Option<Uint256>,
     ) -> Self {
         ExecutionMessage {
             kind,
@@ -164,6 +265,7 @@ impl ExecutionMessage {
             create2_salt,
             code_address,
             code: code.map(|s| s.to_vec()),
+            code_hash,
         }
     }
 
@@ -220,6 +322,11 @@ impl ExecutionMessage {
     /// Read the optional init code.
     pub fn code(&self) -> Option<&Vec<u8>> {
         self.code.as_ref()
+    }
+
+    /// Read the optional code hash.
+    pub fn code_hash(&self) -> Option<&Bytes32> {
+        self.code_hash.as_ref()
     }
 }
 
@@ -369,6 +476,7 @@ impl<'a> ExecutionContext<'a> {
             code_address: *message.code_address(),
             code: code_data,
             code_size,
+            code_hash: std::ptr::null(),
         };
         unsafe {
             assert!((*self.host).call.is_some());
@@ -423,8 +531,8 @@ impl<'a> ExecutionContext<'a> {
     /// Read from a transient storage key.
     pub fn get_transient_storage(&self, address: &Address, key: &Bytes32) -> Bytes32 {
         unsafe {
-            assert!((*self.host).get_transient_storage.is_some());
-            (*self.host).get_transient_storage.unwrap()(
+            assert!(self.host.get_transient_storage.is_some());
+            self.host.get_transient_storage.unwrap()(
                 self.context,
                 address as *const Address,
                 key as *const Bytes32,
@@ -435,13 +543,25 @@ impl<'a> ExecutionContext<'a> {
     /// Set value of a transient storage key.
     pub fn set_transient_storage(&mut self, address: &Address, key: &Bytes32, value: &Bytes32) {
         unsafe {
-            assert!((*self.host).set_transient_storage.is_some());
-            (*self.host).set_transient_storage.unwrap()(
+            assert!(self.host.set_transient_storage.is_some());
+            self.host.set_transient_storage.unwrap()(
                 self.context,
                 address as *const Address,
                 key as *const Bytes32,
                 value as *const Bytes32,
             )
+        }
+    }
+}
+
+impl From<StepResult> for ExecutionResult {
+    fn from(result: StepResult) -> Self {
+        Self {
+            status_code: result.status_code,
+            gas_left: result.gas_left,
+            gas_refund: result.gas_refund,
+            output: result.output,
+            create_address: None,
         }
     }
 }
@@ -475,27 +595,31 @@ impl From<ffi::evmc_result> for ExecutionResult {
     }
 }
 
-fn allocate_output_data(output: Option<&Vec<u8>>) -> (*const u8, usize) {
+fn allocate_output_data<T>(output: Option<&Vec<T>>) -> (*const T, usize) {
     if let Some(buf) = output {
         let buf_len = buf.len();
 
         // Manually allocate heap memory for the new home of the output buffer.
-        let memlayout = std::alloc::Layout::from_size_align(buf_len, 1).expect("Bad layout");
-        let new_buf = unsafe { std::alloc::alloc(memlayout) };
+        let memlayout =
+            std::alloc::Layout::from_size_align(buf_len * size_of::<T>(), align_of::<T>())
+                .expect("Bad layout");
+        let new_buf = unsafe { std::alloc::alloc(memlayout) as *mut T };
         unsafe {
             // Copy the data into the allocated buffer.
             std::ptr::copy(buf.as_ptr(), new_buf, buf_len);
         }
 
-        (new_buf as *const u8, buf_len)
+        (new_buf as *const T, buf_len)
     } else {
         (std::ptr::null(), 0)
     }
 }
 
-unsafe fn deallocate_output_data(ptr: *const u8, size: usize) {
+unsafe fn deallocate_output_data<T>(ptr: *const T, size: usize) {
     if !ptr.is_null() {
-        let buf_layout = std::alloc::Layout::from_size_align(size, 1).expect("Bad layout");
+        let buf_layout =
+            std::alloc::Layout::from_size_align(size * size_of::<T>(), align_of::<T>())
+                .expect("Bad layout");
         std::alloc::dealloc(ptr as *mut u8, buf_layout);
     }
 }
@@ -538,11 +662,51 @@ impl From<ExecutionResult> for ffi::evmc_result {
     }
 }
 
+/// Returns a pointer to a stack-allocated evmc_step_result.
+impl From<StepResult> for ffi::evmc_step_result {
+    fn from(value: StepResult) -> Self {
+        let (output_data, output_size) = allocate_output_data(value.output.as_ref());
+        let (stack, stack_size) = allocate_output_data(Some(&value.stack));
+        let (memory, memory_size) = allocate_output_data(Some(&value.memory));
+        let (last_call_return_data, last_call_return_data_size) =
+            allocate_output_data(value.last_call_return_data.as_ref());
+
+        Self {
+            step_status_code: value.step_status_code,
+            status_code: value.status_code,
+            revision: value.revision,
+            pc: value.pc,
+            gas_left: value.gas_left,
+            gas_refund: value.gas_refund,
+            output_data,
+            output_size,
+            stack,
+            stack_size,
+            memory,
+            memory_size,
+            last_call_return_data,
+            last_call_return_data_size,
+            release: Some(release_stack_step_result),
+        }
+    }
+}
+
 /// Callback to pass across FFI, de-allocating the optional output_data.
 extern "C" fn release_stack_result(result: *const ffi::evmc_result) {
     unsafe {
         let tmp = *result;
         deallocate_output_data(tmp.output_data, tmp.output_size);
+    }
+}
+
+/// Callback to pass across FFI, de-allocating all allocated fields.
+extern "C" fn release_stack_step_result(result: *const ffi::evmc_step_result) {
+    unsafe {
+        let tmp = *result;
+        deallocate_output_data(tmp.output_data, tmp.output_size);
+        deallocate_output_data(tmp.stack, tmp.stack_size);
+        deallocate_output_data(tmp.memory, tmp.memory_size);
+        deallocate_output_data(tmp.last_call_return_data, tmp.last_call_return_data_size);
     }
 }
 
@@ -573,6 +737,11 @@ impl From<&ffi::evmc_message> for ExecutionMessage {
                 None
             } else {
                 Some(from_buf_raw::<u8>(message.code, message.code_size))
+            },
+            code_hash: if message.code_hash.is_null() {
+                None
+            } else {
+                Some(unsafe { *message.code_hash })
             },
         }
     }
@@ -755,6 +924,7 @@ mod tests {
             create2_salt,
             code_address,
             None,
+            None,
         );
 
         assert_eq!(ret.kind(), MessageKind::EVMC_CALL);
@@ -791,6 +961,7 @@ mod tests {
             create2_salt,
             code_address,
             Some(&code),
+            None,
         );
 
         assert_eq!(ret.kind(), MessageKind::EVMC_CALL);
@@ -828,6 +999,7 @@ mod tests {
             code_address,
             code: std::ptr::null(),
             code_size: 0,
+            code_hash: std::ptr::null(),
         };
 
         let ret: ExecutionMessage = (&msg).into();
@@ -868,6 +1040,7 @@ mod tests {
             code_address,
             code: std::ptr::null(),
             code_size: 0,
+            code_hash: std::ptr::null(),
         };
 
         let ret: ExecutionMessage = (&msg).into();
@@ -909,6 +1082,7 @@ mod tests {
             code_address,
             code: code.as_ptr(),
             code_size: code.len(),
+            code_hash: std::ptr::null(),
         };
 
         let ret: ExecutionMessage = (&msg).into();
@@ -1055,6 +1229,7 @@ mod tests {
             Bytes32::default(),
             test_addr,
             None,
+            None,
         );
 
         let b = exe_context.call(&message);
@@ -1087,6 +1262,7 @@ mod tests {
             Uint256::default(),
             Bytes32::default(),
             test_addr,
+            None,
             None,
         );
 
