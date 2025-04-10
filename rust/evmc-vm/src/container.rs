@@ -2,9 +2,9 @@
 // Copyright 2019 The EVMC Authors.
 // Licensed under the Apache License, Version 2.0.
 
-use crate::EvmcVm;
-
 use std::ops::{Deref, DerefMut};
+
+use crate::EvmcVm;
 
 /// Container struct for EVMC instances and user-defined data.
 #[repr(C)]
@@ -32,17 +32,18 @@ where
     /// Take ownership of the given pointer and return a box.
     ///
     /// # Safety
-    /// This function expects a valid instance to be passed.
+    /// `instance` must be a valid non-aliased pointer to an [`EvmcContainer`] struct allocated by
+    /// the global allocator.
     pub unsafe fn from_ffi_pointer(instance: *mut ::evmc_sys::evmc_vm) -> Box<Self> {
         assert!(!instance.is_null(), "from_ffi_pointer received NULL");
-        Box::from_raw(instance as *mut EvmcContainer<T>)
+        // Safety:
+        // instance is a valid pointer to an [`EvmcContainer`] struct allocated by the global
+        // allocator.
+        unsafe { Box::from_raw(instance as *mut EvmcContainer<T>) }
     }
 
     /// Convert boxed self into an FFI pointer, surrendering ownership of the heap data.
-    ///
-    /// # Safety
-    /// This function will return a valid instance pointer.
-    pub unsafe fn into_ffi_pointer(boxed: Box<Self>) -> *mut ::evmc_sys::evmc_vm {
+    pub fn into_ffi_pointer(boxed: Box<Self>) -> *mut ::evmc_sys::evmc_vm {
         Box::into_raw(boxed) as *mut ::evmc_sys::evmc_vm
     }
 }
@@ -93,17 +94,18 @@ where
     /// Take ownership of the given pointer and free the associated memory.
     ///
     /// # Safety
-    /// This function expects a valid instance to be passed.
+    /// `instance` must be a valid non-aliased pointer to an [`SteppableEvmcContainer`] struct
+    /// allocated by the global allocator.
     pub unsafe fn from_ffi_pointer(instance: *mut ::evmc_sys::evmc_vm_steppable) -> Box<Self> {
         assert!(!instance.is_null(), "from_ffi_pointer received NULL");
-        Box::from_raw(instance as *mut SteppableEvmcContainer<T>)
+        // Safety:
+        // instance is a valid pointer to an [`EvmcContainer`] struct allocated by the global
+        // allocator.
+        unsafe { Box::from_raw(instance as *mut SteppableEvmcContainer<T>) }
     }
 
     /// Convert boxed self into an FFI pointer, surrendering ownership of the heap data.
-    ///
-    /// # Safety
-    /// This function will return a valid instance pointer.
-    pub unsafe fn into_ffi_pointer(boxed: Box<Self>) -> *mut ::evmc_sys::evmc_vm_steppable {
+    pub fn into_ffi_pointer(boxed: Box<Self>) -> *mut ::evmc_sys::evmc_vm_steppable {
         Box::into_raw(boxed) as *mut ::evmc_sys::evmc_vm_steppable
     }
 }
@@ -142,8 +144,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::*;
-    use crate::{ExecutionContext, ExecutionMessage, ExecutionResult};
+    use crate::{ExecutionContext, ExecutionMessage, ExecutionResult, types::*};
 
     struct TestVm {}
 
@@ -158,7 +159,13 @@ mod tests {
             _message: &ExecutionMessage,
             _context: Option<&mut ExecutionContext>,
         ) -> ExecutionResult {
-            ExecutionResult::failure()
+            ExecutionResult {
+                status_code: StatusCode::EVMC_FAILURE,
+                gas_left: 0,
+                gas_refund: 0,
+                output: None,
+                create_address: None,
+            }
         }
     }
 
@@ -245,11 +252,11 @@ mod tests {
                     &message,
                     Some(&mut context)
                 )
-                .status_code(),
+                .status_code,
             ::evmc_sys::evmc_status_code::EVMC_FAILURE
         );
 
-        let ptr = unsafe { EvmcContainer::into_ffi_pointer(container) };
+        let ptr = EvmcContainer::into_ffi_pointer(container);
 
         let mut context = ExecutionContext::new(&host, host_context);
         let container = unsafe { EvmcContainer::<TestVm>::from_ffi_pointer(ptr) };
@@ -261,7 +268,7 @@ mod tests {
                     &message,
                     Some(&mut context)
                 )
-                .status_code(),
+                .status_code,
             ::evmc_sys::evmc_status_code::EVMC_FAILURE
         );
     }

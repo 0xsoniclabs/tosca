@@ -4,13 +4,14 @@
 
 //! Rust bindings for EVMC (Ethereum Client-VM Connector API).
 //!
-//! Have a look at evmc-declare to declare an EVMC compatible VM.
 //! This crate documents how to use certain data types.
 
-#![allow(clippy::not_unsafe_ptr_arg_deref, clippy::too_many_arguments)]
+#![allow(clippy::too_many_arguments)]
 
 mod container;
 mod types;
+
+use std::{ptr, slice};
 
 pub use container::{EvmcContainer, SteppableEvmcContainer};
 pub use evmc_sys as ffi;
@@ -25,6 +26,7 @@ pub trait EvmcVm {
     fn set_option(&mut self, _: &str, _: &str) -> Result<(), SetOptionError> {
         Ok(())
     }
+
     /// This is called for every incoming message.
     fn execute<'a>(
         &self,
@@ -62,42 +64,42 @@ pub enum SetOptionError {
 /// EVMC result structure.
 #[derive(Debug)]
 pub struct ExecutionResult {
-    status_code: StatusCode,
-    gas_left: i64,
-    gas_refund: i64,
-    output: Option<Vec<u8>>,
-    create_address: Option<Address>,
+    pub status_code: StatusCode,
+    pub gas_left: i64,
+    pub gas_refund: i64,
+    pub output: Option<Vec<u8>>,
+    pub create_address: Option<Address>,
 }
 
 #[derive(Debug)]
 pub struct StepResult {
-    step_status_code: StepStatusCode,
-    status_code: StatusCode,
-    revision: Revision,
-    pc: u64,
-    gas_left: i64,
-    gas_refund: i64,
-    output: Option<Vec<u8>>,
-    stack: Vec<Uint256>,
-    memory: Vec<u8>,
-    last_call_return_data: Option<Vec<u8>>,
+    pub step_status_code: StepStatusCode,
+    pub status_code: StatusCode,
+    pub revision: Revision,
+    pub pc: u64,
+    pub gas_left: i64,
+    pub gas_refund: i64,
+    pub output: Option<Vec<u8>>,
+    pub stack: Vec<Uint256>,
+    pub memory: Vec<u8>,
+    pub last_call_return_data: Option<Vec<u8>>,
 }
 
 /// EVMC execution message structure.
 #[derive(Debug)]
 pub struct ExecutionMessage {
-    kind: MessageKind,
-    flags: u32,
-    depth: i32,
-    gas: i64,
-    recipient: Address,
-    sender: Address,
-    input: Option<Vec<u8>>,
-    value: Uint256,
-    create2_salt: Bytes32,
-    code_address: Address,
-    code: Option<Vec<u8>>,
-    code_hash: Option<Uint256>,
+    pub kind: MessageKind,
+    pub flags: u32,
+    pub depth: i32,
+    pub gas: i64,
+    pub recipient: Address,
+    pub sender: Address,
+    pub input: Option<Vec<u8>>,
+    pub value: Uint256,
+    pub create2_salt: Uint256,
+    pub code_address: Address,
+    pub code: Option<Vec<u8>>,
+    pub code_hash: Option<Uint256>,
 }
 
 /// EVMC transaction context structure.
@@ -111,230 +113,11 @@ pub struct ExecutionContext<'a> {
     tx_context: Option<ExecutionTxContext>,
 }
 
-impl ExecutionResult {
-    /// Manually create a result.
-    pub fn new(
-        _status_code: StatusCode,
-        _gas_left: i64,
-        _gas_refund: i64,
-        _output: Option<&[u8]>,
-    ) -> Self {
-        ExecutionResult {
-            status_code: _status_code,
-            gas_left: _gas_left,
-            gas_refund: _gas_refund,
-            output: _output.map(|s| s.to_vec()),
-            create_address: None,
-        }
-    }
-
-    /// Create failure result.
-    pub fn failure() -> Self {
-        ExecutionResult::new(StatusCode::EVMC_FAILURE, 0, 0, None)
-    }
-
-    /// Create a revert result.
-    pub fn revert(_gas_left: i64, _output: Option<&[u8]>) -> Self {
-        ExecutionResult::new(StatusCode::EVMC_REVERT, _gas_left, 0, _output)
-    }
-
-    /// Create a successful result.
-    pub fn success(_gas_left: i64, _gas_refund: i64, _output: Option<&[u8]>) -> Self {
-        ExecutionResult::new(StatusCode::EVMC_SUCCESS, _gas_left, _gas_refund, _output)
-    }
-
-    /// Read the status code.
-    pub fn status_code(&self) -> StatusCode {
-        self.status_code
-    }
-
-    /// Read the amount of gas left.
-    pub fn gas_left(&self) -> i64 {
-        self.gas_left
-    }
-
-    /// Read the amount of gas refunded.
-    pub fn gas_refund(&self) -> i64 {
-        self.gas_refund
-    }
-
-    /// Read the output returned.
-    pub fn output(&self) -> Option<&Vec<u8>> {
-        self.output.as_ref()
-    }
-
-    /// Read the address of the created account. This will likely be set when
-    /// returned from a CREATE/CREATE2.
-    pub fn create_address(&self) -> Option<&Address> {
-        self.create_address.as_ref()
-    }
-}
-
-impl StepResult {
-    pub fn new(
-        step_status_code: StepStatusCode,
-        status_code: StatusCode,
-        revision: Revision,
-        pc: u64,
-        gas_left: i64,
-        gas_refund: i64,
-        output: Option<Vec<u8>>,
-        stack: Vec<Uint256>,
-        memory: Vec<u8>,
-        last_call_return_data: Option<Vec<u8>>,
-    ) -> Self {
-        Self {
-            step_status_code,
-            status_code,
-            revision,
-            pc,
-            gas_left,
-            gas_refund,
-            output,
-            stack,
-            memory,
-            last_call_return_data,
-        }
-    }
-
-    pub fn step_status_code(&self) -> StatusCode {
-        self.status_code
-    }
-
-    pub fn status_code(&self) -> StatusCode {
-        self.status_code
-    }
-
-    pub fn revision(&self) -> Revision {
-        self.revision
-    }
-
-    pub fn pc(&self) -> u64 {
-        self.pc
-    }
-
-    pub fn gas_left(&self) -> i64 {
-        self.gas_left
-    }
-
-    pub fn gas_refund(&self) -> i64 {
-        self.gas_refund
-    }
-
-    pub fn output(&self) -> Option<&[u8]> {
-        self.output.as_ref().map(AsRef::as_ref)
-    }
-
-    pub fn stack(&self) -> &[Uint256] {
-        self.stack.as_ref()
-    }
-
-    pub fn memory(&self) -> &[u8] {
-        self.memory.as_ref()
-    }
-
-    pub fn last_call_return_data(&self) -> Option<&[u8]> {
-        self.last_call_return_data.as_ref().map(AsRef::as_ref)
-    }
-}
-
-impl ExecutionMessage {
-    pub fn new(
-        kind: MessageKind,
-        flags: u32,
-        depth: i32,
-        gas: i64,
-        recipient: Address,
-        sender: Address,
-        input: Option<&[u8]>,
-        value: Uint256,
-        create2_salt: Bytes32,
-        code_address: Address,
-        code: Option<&[u8]>,
-        code_hash: Option<Uint256>,
-    ) -> Self {
-        ExecutionMessage {
-            kind,
-            flags,
-            depth,
-            gas,
-            recipient,
-            sender,
-            input: input.map(|s| s.to_vec()),
-            value,
-            create2_salt,
-            code_address,
-            code: code.map(|s| s.to_vec()),
-            code_hash,
-        }
-    }
-
-    /// Read the message kind.
-    pub fn kind(&self) -> MessageKind {
-        self.kind
-    }
-
-    /// Read the message flags.
-    pub fn flags(&self) -> u32 {
-        self.flags
-    }
-
-    /// Read the call depth.
-    pub fn depth(&self) -> i32 {
-        self.depth
-    }
-
-    /// Read the gas limit supplied with the message.
-    pub fn gas(&self) -> i64 {
-        self.gas
-    }
-
-    /// Read the recipient address of the message.
-    pub fn recipient(&self) -> &Address {
-        &self.recipient
-    }
-
-    /// Read the sender address of the message.
-    pub fn sender(&self) -> &Address {
-        &self.sender
-    }
-
-    /// Read the optional input message.
-    pub fn input(&self) -> Option<&Vec<u8>> {
-        self.input.as_ref()
-    }
-
-    /// Read the value of the message.
-    pub fn value(&self) -> &Uint256 {
-        &self.value
-    }
-
-    /// Read the salt for CREATE2. Only valid if the message kind is CREATE2.
-    pub fn create2_salt(&self) -> &Bytes32 {
-        &self.create2_salt
-    }
-
-    /// Read the code address of the message.
-    pub fn code_address(&self) -> &Address {
-        &self.code_address
-    }
-
-    /// Read the optional init code.
-    pub fn code(&self) -> Option<&Vec<u8>> {
-        self.code.as_ref()
-    }
-
-    /// Read the optional code hash.
-    pub fn code_hash(&self) -> Option<&Bytes32> {
-        self.code_hash.as_ref()
-    }
-}
-
 impl<'a> ExecutionContext<'a> {
-    pub fn new(host: &'a ffi::evmc_host_interface, _context: *mut ffi::evmc_host_context) -> Self {
+    pub fn new(host: &'a ffi::evmc_host_interface, context: *mut ffi::evmc_host_context) -> Self {
         ExecutionContext {
             host,
-            context: _context,
+            context,
             tx_context: None,
         }
     }
@@ -349,73 +132,45 @@ impl<'a> ExecutionContext<'a> {
 
     /// Check if an account exists.
     pub fn account_exists(&self, address: &Address) -> bool {
-        unsafe {
-            assert!((*self.host).account_exists.is_some());
-            (*self.host).account_exists.unwrap()(self.context, address as *const Address)
-        }
+        unsafe { self.host.account_exists.unwrap()(self.context, address) }
     }
 
     /// Read from a storage key.
-    pub fn get_storage(&self, address: &Address, key: &Bytes32) -> Bytes32 {
-        unsafe {
-            assert!((*self.host).get_storage.is_some());
-            (*self.host).get_storage.unwrap()(
-                self.context,
-                address as *const Address,
-                key as *const Bytes32,
-            )
-        }
+    pub fn get_storage(&self, address: &Address, key: &Uint256) -> Uint256 {
+        unsafe { self.host.get_storage.unwrap()(self.context, address, key) }
     }
 
     /// Set value of a storage key.
     pub fn set_storage(
         &mut self,
         address: &Address,
-        key: &Bytes32,
-        value: &Bytes32,
+        key: &Uint256,
+        value: &Uint256,
     ) -> StorageStatus {
-        unsafe {
-            assert!((*self.host).set_storage.is_some());
-            (*self.host).set_storage.unwrap()(
-                self.context,
-                address as *const Address,
-                key as *const Bytes32,
-                value as *const Bytes32,
-            )
-        }
+        unsafe { self.host.set_storage.unwrap()(self.context, address, key, value) }
     }
 
     /// Get balance of an account.
     pub fn get_balance(&self, address: &Address) -> Uint256 {
-        unsafe {
-            assert!((*self.host).get_balance.is_some());
-            (*self.host).get_balance.unwrap()(self.context, address as *const Address)
-        }
+        unsafe { self.host.get_balance.unwrap()(self.context, address) }
     }
 
     /// Get code size of an account.
     pub fn get_code_size(&self, address: &Address) -> usize {
-        unsafe {
-            assert!((*self.host).get_code_size.is_some());
-            (*self.host).get_code_size.unwrap()(self.context, address as *const Address)
-        }
+        unsafe { self.host.get_code_size.unwrap()(self.context, address) }
     }
 
     /// Get code hash of an account.
-    pub fn get_code_hash(&self, address: &Address) -> Bytes32 {
-        unsafe {
-            assert!((*self.host).get_code_hash.is_some());
-            (*self.host).get_code_hash.unwrap()(self.context, address as *const Address)
-        }
+    pub fn get_code_hash(&self, address: &Address) -> Uint256 {
+        unsafe { self.host.get_code_hash.unwrap()(self.context, address) }
     }
 
     /// Copy code of an account.
     pub fn copy_code(&self, address: &Address, code_offset: usize, buffer: &mut [u8]) -> usize {
         unsafe {
-            assert!((*self.host).copy_code.is_some());
-            (*self.host).copy_code.unwrap()(
+            self.host.copy_code.unwrap()(
                 self.context,
-                address as *const Address,
+                address,
                 code_offset,
                 // FIXME: ensure that alignment of the array elements is OK
                 buffer.as_mut_ptr(),
@@ -426,77 +181,57 @@ impl<'a> ExecutionContext<'a> {
 
     /// Self-destruct the current account.
     pub fn selfdestruct(&mut self, address: &Address, beneficiary: &Address) -> bool {
-        unsafe {
-            assert!((*self.host).selfdestruct.is_some());
-            (*self.host).selfdestruct.unwrap()(
-                self.context,
-                address as *const Address,
-                beneficiary as *const Address,
-            )
-        }
+        unsafe { self.host.selfdestruct.unwrap()(self.context, address, beneficiary) }
     }
 
     /// Call to another account.
     pub fn call(&mut self, message: &ExecutionMessage) -> ExecutionResult {
         // There is no need to make any kind of copies here, because the caller
         // won't go out of scope and ensures these pointers remain valid.
-        let input = message.input();
-        let input_size = if let Some(input) = input {
-            input.len()
-        } else {
-            0
-        };
-        let input_data = if let Some(input) = input {
-            input.as_ptr()
-        } else {
-            std::ptr::null() as *const u8
-        };
-        let code = message.code();
-        let code_size = if let Some(code) = code { code.len() } else { 0 };
-        let code_data = if let Some(code) = code {
-            code.as_ptr()
-        } else {
-            std::ptr::null() as *const u8
-        };
+        let input_size = message.input.as_ref().map(Vec::len).unwrap_or_default();
+        let input_data = message
+            .input
+            .as_ref()
+            .map(Vec::as_ptr)
+            .unwrap_or(ptr::null());
+        let code_size = message.code.as_ref().map(Vec::len).unwrap_or_default();
+        let code_data = message
+            .code
+            .as_ref()
+            .map(Vec::as_ptr)
+            .unwrap_or(ptr::null());
         // Cannot use a nice from trait here because that complicates memory management,
         // evmc_message doesn't have a release() method we could abstract it with.
         let message = ffi::evmc_message {
-            kind: message.kind(),
-            flags: message.flags(),
-            depth: message.depth(),
-            gas: message.gas(),
-            recipient: *message.recipient(),
-            sender: *message.sender(),
+            kind: message.kind,
+            flags: message.flags,
+            depth: message.depth,
+            gas: message.gas,
+            recipient: message.recipient,
+            sender: message.sender,
             input_data,
             input_size,
-            value: *message.value(),
-            create2_salt: *message.create2_salt(),
-            code_address: *message.code_address(),
+            value: message.value,
+            create2_salt: message.create2_salt,
+            code_address: message.code_address,
             code: code_data,
             code_size,
-            code_hash: std::ptr::null(),
+            code_hash: ptr::null(),
         };
-        unsafe {
-            assert!((*self.host).call.is_some());
-            (*self.host).call.unwrap()(self.context, &message as *const ffi::evmc_message).into()
-        }
+        unsafe { self.host.call.unwrap()(self.context, &message).into() }
     }
 
     /// Get block hash of an account.
-    pub fn get_block_hash(&self, num: i64) -> Bytes32 {
-        unsafe {
-            assert!((*self.host).get_block_hash.is_some());
-            (*self.host).get_block_hash.unwrap()(self.context, num)
-        }
+    pub fn get_block_hash(&self, num: i64) -> Uint256 {
+        unsafe { self.host.get_block_hash.unwrap()(self.context, num) }
     }
 
     /// Emit a log.
-    pub fn emit_log(&mut self, address: &Address, data: &[u8], topics: &[Bytes32]) {
+    pub fn emit_log(&mut self, address: &Address, data: &[u8], topics: &[Uint256]) {
         unsafe {
-            assert!((*self.host).emit_log.is_some());
-            (*self.host).emit_log.unwrap()(
+            self.host.emit_log.unwrap()(
                 self.context,
-                address as *const Address,
+                address,
                 // FIXME: ensure that alignment of the array elements is OK
                 data.as_ptr(),
                 data.len(),
@@ -508,59 +243,22 @@ impl<'a> ExecutionContext<'a> {
 
     /// Access an account.
     pub fn access_account(&mut self, address: &Address) -> AccessStatus {
-        unsafe {
-            assert!((*self.host).access_account.is_some());
-            (*self.host).access_account.unwrap()(self.context, address as *const Address)
-        }
+        unsafe { self.host.access_account.unwrap()(self.context, address) }
     }
 
     /// Access a storage key.
-    pub fn access_storage(&mut self, address: &Address, key: &Bytes32) -> AccessStatus {
-        unsafe {
-            assert!((*self.host).access_storage.is_some());
-            (*self.host).access_storage.unwrap()(
-                self.context,
-                address as *const Address,
-                key as *const Bytes32,
-            )
-        }
+    pub fn access_storage(&mut self, address: &Address, key: &Uint256) -> AccessStatus {
+        unsafe { self.host.access_storage.unwrap()(self.context, address, key) }
     }
 
     /// Read from a transient storage key.
-    pub fn get_transient_storage(&self, address: &Address, key: &Bytes32) -> Bytes32 {
-        unsafe {
-            assert!(self.host.get_transient_storage.is_some());
-            self.host.get_transient_storage.unwrap()(
-                self.context,
-                address as *const Address,
-                key as *const Bytes32,
-            )
-        }
+    pub fn get_transient_storage(&self, address: &Address, key: &Uint256) -> Uint256 {
+        unsafe { self.host.get_transient_storage.unwrap()(self.context, address, key) }
     }
 
     /// Set value of a transient storage key.
-    pub fn set_transient_storage(&mut self, address: &Address, key: &Bytes32, value: &Bytes32) {
-        unsafe {
-            assert!(self.host.set_transient_storage.is_some());
-            self.host.set_transient_storage.unwrap()(
-                self.context,
-                address as *const Address,
-                key as *const Bytes32,
-                value as *const Bytes32,
-            )
-        }
-    }
-}
-
-impl From<StepResult> for ExecutionResult {
-    fn from(result: StepResult) -> Self {
-        Self {
-            status_code: result.status_code,
-            gas_left: result.gas_left,
-            gas_refund: result.gas_refund,
-            output: result.output,
-            create_address: None,
-        }
+    pub fn set_transient_storage(&mut self, address: &Address, key: &Uint256, value: &Uint256) {
+        unsafe { self.host.set_transient_storage.unwrap()(self.context, address, key, value) }
     }
 }
 
@@ -585,7 +283,7 @@ impl From<ffi::evmc_result> for ExecutionResult {
         // Release allocated ffi struct.
         if result.release.is_some() {
             unsafe {
-                result.release.unwrap()(&result as *const ffi::evmc_result);
+                result.release.unwrap()(&result);
             }
         }
 
@@ -623,24 +321,6 @@ unsafe fn deallocate_output_data<T>(ptr: *const T, size: usize) {
     }
 }
 
-/// Returns a pointer to a heap-allocated evmc_result.
-impl From<ExecutionResult> for *const ffi::evmc_result {
-    fn from(value: ExecutionResult) -> Self {
-        let mut result: ffi::evmc_result = value.into();
-        result.release = Some(release_heap_result);
-        Box::into_raw(Box::new(result))
-    }
-}
-
-/// Callback to pass across FFI, de-allocating the optional output_data.
-extern "C" fn release_heap_result(result: *const ffi::evmc_result) {
-    unsafe {
-        let tmp = Box::from_raw(result as *mut ffi::evmc_result);
-        deallocate_output_data(tmp.output_data, tmp.output_size);
-    }
-}
-
-/// Returns a pointer to a stack-allocated evmc_result.
 impl From<ExecutionResult> for ffi::evmc_result {
     fn from(value: ExecutionResult) -> Self {
         let (buffer, len) = allocate_output_data(value.output.as_ref());
@@ -651,17 +331,12 @@ impl From<ExecutionResult> for ffi::evmc_result {
             output_data: buffer,
             output_size: len,
             release: Some(release_stack_result),
-            create_address: if value.create_address.is_some() {
-                value.create_address.unwrap()
-            } else {
-                Address { bytes: [0u8; 20] }
-            },
+            create_address: value.create_address.unwrap_or_default(),
             padding: [0u8; 4],
         }
     }
 }
 
-/// Returns a pointer to a stack-allocated evmc_step_result.
 impl From<StepResult> for ffi::evmc_step_result {
     fn from(value: StepResult) -> Self {
         let (output_data, output_size) = allocate_output_data(value.output.as_ref());
@@ -687,6 +362,67 @@ impl From<StepResult> for ffi::evmc_step_result {
             last_call_return_data_size,
             release: Some(release_stack_step_result),
         }
+    }
+}
+
+impl From<ffi::evmc_step_result> for StepResult {
+    fn from(value: ffi::evmc_step_result) -> Self {
+        let ret = Self {
+            step_status_code: value.step_status_code,
+            status_code: value.status_code,
+            revision: value.revision,
+            pc: value.pc,
+            gas_left: value.gas_left,
+            gas_refund: value.gas_refund,
+            output: if value.output_data.is_null() || value.output_size == 0 {
+                None
+            } else {
+                Some(Vec::from(unsafe {
+                    slice::from_raw_parts(value.output_data as *mut u8, value.output_size)
+                }))
+            },
+            stack: if value.stack.is_null() || value.stack_size == 0 {
+                Vec::new()
+            } else {
+                unsafe {
+                    Vec::from(slice::from_raw_parts(
+                        value.stack as *mut _,
+                        value.stack_size,
+                    ))
+                }
+            },
+            memory: if value.memory.is_null() || value.memory_size == 0 {
+                Vec::new()
+            } else {
+                unsafe {
+                    Vec::from(slice::from_raw_parts(
+                        value.memory as *mut _,
+                        value.memory_size,
+                    ))
+                }
+            },
+            last_call_return_data: if value.last_call_return_data.is_null()
+                || value.last_call_return_data_size == 0
+            {
+                None
+            } else {
+                Some(unsafe {
+                    Vec::from(slice::from_raw_parts(
+                        value.last_call_return_data as *mut _,
+                        value.last_call_return_data_size,
+                    ))
+                })
+            },
+        };
+
+        // If release function is provided, use it to release resources.
+        if let Some(release) = value.release {
+            unsafe {
+                release(&value);
+            }
+        }
+
+        ret
     }
 }
 
@@ -718,10 +454,7 @@ impl From<&ffi::evmc_message> for ExecutionMessage {
             gas: message.gas,
             recipient: message.recipient,
             sender: message.sender,
-            input: if message.input_data.is_null() {
-                assert_eq!(message.input_size, 0);
-                None
-            } else if message.input_size == 0 {
+            input: if message.input_data.is_null() || message.input_size == 0 {
                 None
             } else {
                 Some(from_buf_raw::<u8>(message.input_data, message.input_size))
@@ -729,10 +462,7 @@ impl From<&ffi::evmc_message> for ExecutionMessage {
             value: message.value,
             create2_salt: message.create2_salt,
             code_address: message.code_address,
-            code: if message.code.is_null() {
-                assert_eq!(message.code_size, 0);
-                None
-            } else if message.code_size == 0 {
+            code: if message.code.is_null() || message.code_size == 0 {
                 None
             } else {
                 Some(from_buf_raw::<u8>(message.code, message.code_size))
@@ -761,17 +491,6 @@ fn from_buf_raw<T>(ptr: *const T, size: usize) -> Vec<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn result_new() {
-        let r = ExecutionResult::new(StatusCode::EVMC_FAILURE, 420, 21, None);
-
-        assert_eq!(r.status_code(), StatusCode::EVMC_FAILURE);
-        assert_eq!(r.gas_left(), 420);
-        assert_eq!(r.gas_refund(), 21);
-        assert!(r.output().is_none());
-        assert!(r.create_address().is_none());
-    }
 
     // Test-specific helper to dispose of execution results in unit tests
     extern "C" fn test_result_dispose(result: *const ffi::evmc_result) {
@@ -802,69 +521,23 @@ mod tests {
 
         let r: ExecutionResult = f.into();
 
-        assert_eq!(r.status_code(), StatusCode::EVMC_SUCCESS);
-        assert_eq!(r.gas_left(), 1337);
-        assert_eq!(r.gas_refund(), 21);
-        assert!(r.output().is_some());
-        assert_eq!(r.output().unwrap().len(), 4);
-        assert!(r.create_address().is_some());
-    }
-
-    #[test]
-    fn result_into_heap_ffi() {
-        let r = ExecutionResult::new(
-            StatusCode::EVMC_FAILURE,
-            420,
-            21,
-            Some(&[0xc0, 0xff, 0xee, 0x71, 0x75]),
-        );
-
-        let f: *const ffi::evmc_result = r.into();
-        assert!(!f.is_null());
-        unsafe {
-            assert_eq!((*f).status_code, StatusCode::EVMC_FAILURE);
-            assert_eq!((*f).gas_left, 420);
-            assert_eq!((*f).gas_refund, 21);
-            assert!(!(*f).output_data.is_null());
-            assert_eq!((*f).output_size, 5);
-            assert_eq!(
-                std::slice::from_raw_parts((*f).output_data, 5) as &[u8],
-                &[0xc0, 0xff, 0xee, 0x71, 0x75]
-            );
-            assert_eq!((*f).create_address.bytes, [0u8; 20]);
-            if (*f).release.is_some() {
-                (*f).release.unwrap()(f);
-            }
-        }
-    }
-
-    #[test]
-    fn result_into_heap_ffi_empty_data() {
-        let r = ExecutionResult::new(StatusCode::EVMC_FAILURE, 420, 21, None);
-
-        let f: *const ffi::evmc_result = r.into();
-        assert!(!f.is_null());
-        unsafe {
-            assert_eq!((*f).status_code, StatusCode::EVMC_FAILURE);
-            assert_eq!((*f).gas_left, 420);
-            assert_eq!((*f).gas_refund, 21);
-            assert!((*f).output_data.is_null());
-            assert_eq!((*f).output_size, 0);
-            assert_eq!((*f).create_address.bytes, [0u8; 20]);
-            if (*f).release.is_some() {
-                (*f).release.unwrap()(f);
-            }
-        }
+        assert_eq!(r.status_code, StatusCode::EVMC_SUCCESS);
+        assert_eq!(r.gas_left, 1337);
+        assert_eq!(r.gas_refund, 21);
+        assert!(r.output.is_some());
+        assert_eq!(r.output.unwrap().len(), 4);
+        assert!(r.create_address.is_some());
     }
 
     #[test]
     fn result_into_stack_ffi() {
-        let r = ExecutionResult::new(
-            StatusCode::EVMC_FAILURE,
-            420,
-            21,
-            Some(&[0xc0, 0xff, 0xee, 0x71, 0x75]),
-        );
+        let r = ExecutionResult {
+            status_code: StatusCode::EVMC_FAILURE,
+            gas_left: 420,
+            gas_refund: 21,
+            output: Some(vec![0xc0, 0xff, 0xee, 0x71, 0x75]),
+            create_address: None,
+        };
 
         let f: ffi::evmc_result = r.into();
         unsafe {
@@ -886,7 +559,13 @@ mod tests {
 
     #[test]
     fn result_into_stack_ffi_empty_data() {
-        let r = ExecutionResult::new(StatusCode::EVMC_FAILURE, 420, 21, None);
+        let r = ExecutionResult {
+            status_code: StatusCode::EVMC_FAILURE,
+            gas_left: 420,
+            gas_refund: 21,
+            output: None,
+            create_address: None,
+        };
 
         let f: ffi::evmc_result = r.into();
         unsafe {
@@ -903,85 +582,11 @@ mod tests {
     }
 
     #[test]
-    fn message_new_with_input() {
-        let input = vec![0xc0, 0xff, 0xee];
-        let recipient = Address { bytes: [32u8; 20] };
-        let sender = Address { bytes: [128u8; 20] };
-        let value = Uint256 { bytes: [0u8; 32] };
-        let create2_salt = Bytes32 { bytes: [255u8; 32] };
-        let code_address = Address { bytes: [64u8; 20] };
-
-        let ret = ExecutionMessage::new(
-            MessageKind::EVMC_CALL,
-            44,
-            66,
-            4466,
-            recipient,
-            sender,
-            Some(&input),
-            value,
-            create2_salt,
-            code_address,
-            None,
-            None,
-        );
-
-        assert_eq!(ret.kind(), MessageKind::EVMC_CALL);
-        assert_eq!(ret.flags(), 44);
-        assert_eq!(ret.depth(), 66);
-        assert_eq!(ret.gas(), 4466);
-        assert_eq!(*ret.recipient(), recipient);
-        assert_eq!(*ret.sender(), sender);
-        assert!(ret.input().is_some());
-        assert_eq!(*ret.input().unwrap(), input);
-        assert_eq!(*ret.value(), value);
-        assert_eq!(*ret.create2_salt(), create2_salt);
-        assert_eq!(*ret.code_address(), code_address);
-    }
-
-    #[test]
-    fn message_new_with_code() {
-        let recipient = Address { bytes: [32u8; 20] };
-        let sender = Address { bytes: [128u8; 20] };
-        let value = Uint256 { bytes: [0u8; 32] };
-        let create2_salt = Bytes32 { bytes: [255u8; 32] };
-        let code_address = Address { bytes: [64u8; 20] };
-        let code = vec![0x5f, 0x5f, 0xfd];
-
-        let ret = ExecutionMessage::new(
-            MessageKind::EVMC_CALL,
-            44,
-            66,
-            4466,
-            recipient,
-            sender,
-            None,
-            value,
-            create2_salt,
-            code_address,
-            Some(&code),
-            None,
-        );
-
-        assert_eq!(ret.kind(), MessageKind::EVMC_CALL);
-        assert_eq!(ret.flags(), 44);
-        assert_eq!(ret.depth(), 66);
-        assert_eq!(ret.gas(), 4466);
-        assert_eq!(*ret.recipient(), recipient);
-        assert_eq!(*ret.sender(), sender);
-        assert_eq!(*ret.value(), value);
-        assert_eq!(*ret.create2_salt(), create2_salt);
-        assert_eq!(*ret.code_address(), code_address);
-        assert!(ret.code().is_some());
-        assert_eq!(*ret.code().unwrap(), code);
-    }
-
-    #[test]
     fn message_from_ffi() {
         let recipient = Address { bytes: [32u8; 20] };
         let sender = Address { bytes: [128u8; 20] };
         let value = Uint256 { bytes: [0u8; 32] };
-        let create2_salt = Bytes32 { bytes: [255u8; 32] };
+        let create2_salt = Uint256 { bytes: [255u8; 32] };
         let code_address = Address { bytes: [64u8; 20] };
 
         let msg = ffi::evmc_message {
@@ -1003,17 +608,17 @@ mod tests {
 
         let ret: ExecutionMessage = (&msg).into();
 
-        assert_eq!(ret.kind(), msg.kind);
-        assert_eq!(ret.flags(), msg.flags);
-        assert_eq!(ret.depth(), msg.depth);
-        assert_eq!(ret.gas(), msg.gas);
-        assert_eq!(*ret.recipient(), msg.recipient);
-        assert_eq!(*ret.sender(), msg.sender);
-        assert!(ret.input().is_none());
-        assert_eq!(*ret.value(), msg.value);
-        assert_eq!(*ret.create2_salt(), msg.create2_salt);
-        assert_eq!(*ret.code_address(), msg.code_address);
-        assert!(ret.code().is_none());
+        assert_eq!(ret.kind, msg.kind);
+        assert_eq!(ret.flags, msg.flags);
+        assert_eq!(ret.depth, msg.depth);
+        assert_eq!(ret.gas, msg.gas);
+        assert_eq!(ret.recipient, msg.recipient);
+        assert_eq!(ret.sender, msg.sender);
+        assert!(ret.input.is_none());
+        assert_eq!(ret.value, msg.value);
+        assert_eq!(ret.create2_salt, msg.create2_salt);
+        assert_eq!(ret.code_address, msg.code_address);
+        assert!(ret.code.is_none());
     }
 
     #[test]
@@ -1022,7 +627,7 @@ mod tests {
         let recipient = Address { bytes: [32u8; 20] };
         let sender = Address { bytes: [128u8; 20] };
         let value = Uint256 { bytes: [0u8; 32] };
-        let create2_salt = Bytes32 { bytes: [255u8; 32] };
+        let create2_salt = Uint256 { bytes: [255u8; 32] };
         let code_address = Address { bytes: [64u8; 20] };
 
         let msg = ffi::evmc_message {
@@ -1044,18 +649,18 @@ mod tests {
 
         let ret: ExecutionMessage = (&msg).into();
 
-        assert_eq!(ret.kind(), msg.kind);
-        assert_eq!(ret.flags(), msg.flags);
-        assert_eq!(ret.depth(), msg.depth);
-        assert_eq!(ret.gas(), msg.gas);
-        assert_eq!(*ret.recipient(), msg.recipient);
-        assert_eq!(*ret.sender(), msg.sender);
-        assert!(ret.input().is_some());
-        assert_eq!(*ret.input().unwrap(), input);
-        assert_eq!(*ret.value(), msg.value);
-        assert_eq!(*ret.create2_salt(), msg.create2_salt);
-        assert_eq!(*ret.code_address(), msg.code_address);
-        assert!(ret.code().is_none());
+        assert_eq!(ret.kind, msg.kind);
+        assert_eq!(ret.flags, msg.flags);
+        assert_eq!(ret.depth, msg.depth);
+        assert_eq!(ret.gas, msg.gas);
+        assert_eq!(ret.recipient, msg.recipient);
+        assert_eq!(ret.sender, msg.sender);
+        assert!(ret.input.is_some());
+        assert_eq!(ret.input.unwrap(), input);
+        assert_eq!(ret.value, msg.value);
+        assert_eq!(ret.create2_salt, msg.create2_salt);
+        assert_eq!(ret.code_address, msg.code_address);
+        assert!(ret.code.is_none());
     }
 
     #[test]
@@ -1063,7 +668,7 @@ mod tests {
         let recipient = Address { bytes: [32u8; 20] };
         let sender = Address { bytes: [128u8; 20] };
         let value = Uint256 { bytes: [0u8; 32] };
-        let create2_salt = Bytes32 { bytes: [255u8; 32] };
+        let create2_salt = Uint256 { bytes: [255u8; 32] };
         let code_address = Address { bytes: [64u8; 20] };
         let code = vec![0x5f, 0x5f, 0xfd];
 
@@ -1086,18 +691,18 @@ mod tests {
 
         let ret: ExecutionMessage = (&msg).into();
 
-        assert_eq!(ret.kind(), msg.kind);
-        assert_eq!(ret.flags(), msg.flags);
-        assert_eq!(ret.depth(), msg.depth);
-        assert_eq!(ret.gas(), msg.gas);
-        assert_eq!(*ret.recipient(), msg.recipient);
-        assert_eq!(*ret.sender(), msg.sender);
-        assert!(ret.input().is_none());
-        assert_eq!(*ret.value(), msg.value);
-        assert_eq!(*ret.create2_salt(), msg.create2_salt);
-        assert_eq!(*ret.code_address(), msg.code_address);
-        assert!(ret.code().is_some());
-        assert_eq!(*ret.code().unwrap(), code);
+        assert_eq!(ret.kind, msg.kind);
+        assert_eq!(ret.flags, msg.flags);
+        assert_eq!(ret.depth, msg.depth);
+        assert_eq!(ret.gas, msg.gas);
+        assert_eq!(ret.recipient, msg.recipient);
+        assert_eq!(ret.sender, msg.sender);
+        assert!(ret.input.is_none());
+        assert_eq!(ret.value, msg.value);
+        assert_eq!(ret.create2_salt, msg.create2_salt);
+        assert_eq!(ret.code_address, msg.code_address);
+        assert!(ret.code.is_some());
+        assert_eq!(ret.code.unwrap(), code);
     }
 
     unsafe extern "C" fn get_dummy_tx_context(
@@ -1133,7 +738,7 @@ mod tests {
         _msg: *const ffi::evmc_message,
     ) -> ffi::evmc_result {
         // Some dumb validation for testing.
-        let msg = *_msg;
+        let msg = unsafe { *_msg };
         let success = if msg.input_size != 0 && msg.input_data.is_null() {
             false
         } else {
@@ -1216,28 +821,28 @@ mod tests {
         let host_context = std::ptr::null_mut();
         let mut exe_context = ExecutionContext::new(&host, host_context);
 
-        let message = ExecutionMessage::new(
-            MessageKind::EVMC_CALL,
-            0,
-            0,
-            6566,
-            test_addr,
-            test_addr,
-            None,
-            Uint256::default(),
-            Bytes32::default(),
-            test_addr,
-            None,
-            None,
-        );
+        let message = ExecutionMessage {
+            kind: MessageKind::EVMC_CALL,
+            flags: 0,
+            depth: 0,
+            gas: 6566,
+            recipient: test_addr,
+            sender: test_addr,
+            input: None,
+            value: Uint256::default(),
+            create2_salt: Uint256::default(),
+            code_address: test_addr,
+            code: None,
+            code_hash: None,
+        };
 
         let b = exe_context.call(&message);
 
-        assert_eq!(b.status_code(), StatusCode::EVMC_SUCCESS);
-        assert_eq!(b.gas_left(), 2);
-        assert!(b.output().is_none());
-        assert!(b.create_address().is_some());
-        assert_eq!(b.create_address().unwrap(), &Address::default());
+        assert_eq!(b.status_code, StatusCode::EVMC_SUCCESS);
+        assert_eq!(b.gas_left, 2);
+        assert!(b.output.is_none());
+        assert!(b.create_address.is_some());
+        assert_eq!(b.create_address.unwrap(), Address::default());
     }
 
     #[test]
@@ -1250,28 +855,28 @@ mod tests {
 
         let data = vec![0xc0, 0xff, 0xfe];
 
-        let message = ExecutionMessage::new(
-            MessageKind::EVMC_CALL,
-            0,
-            0,
-            6566,
-            test_addr,
-            test_addr,
-            Some(&data),
-            Uint256::default(),
-            Bytes32::default(),
-            test_addr,
-            None,
-            None,
-        );
+        let message = ExecutionMessage {
+            kind: MessageKind::EVMC_CALL,
+            flags: 0,
+            depth: 0,
+            gas: 6566,
+            recipient: test_addr,
+            sender: test_addr,
+            input: Some(data.clone()),
+            value: Uint256::default(),
+            create2_salt: Uint256::default(),
+            code_address: test_addr,
+            code: None,
+            code_hash: None,
+        };
 
         let b = exe_context.call(&message);
 
-        assert_eq!(b.status_code(), StatusCode::EVMC_SUCCESS);
-        assert_eq!(b.gas_left(), 2);
-        assert!(b.output().is_some());
-        assert_eq!(b.output().unwrap(), &data);
-        assert!(b.create_address().is_some());
-        assert_eq!(b.create_address().unwrap(), &Address::default());
+        assert_eq!(b.status_code, StatusCode::EVMC_SUCCESS);
+        assert_eq!(b.gas_left, 2);
+        assert!(b.output.is_some());
+        assert_eq!(b.output.unwrap(), data);
+        assert!(b.create_address.is_some());
+        assert_eq!(b.create_address.unwrap(), Address::default());
     }
 }
