@@ -24,4 +24,5 @@ const (
 	errMaxMemoryExpansionSize = tosca.ConstError("max memory expansion size exceeded")
 	errStackUnderflow         = tosca.ConstError("stack underflow")
 	errStackOverflow          = tosca.ConstError("stack overflow")
+	errCodeSizeExceeded       = tosca.ConstError("max code size exceeded")
 )

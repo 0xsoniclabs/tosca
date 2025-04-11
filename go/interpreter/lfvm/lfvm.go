@@ -124,6 +124,10 @@ func (v *lfvm) Run(params tosca.Parameters) (tosca.Result, error) {
 		return tosca.Result{}, &tosca.ErrUnsupportedRevision{Revision: params.Revision}
 	}
 
+	if len(params.Code) > MaxInitCodeSize {
+		return tosca.Result{}, errCodeSizeExceeded
+	}
+
 	converted := v.converter.Convert(
 		params.Code,
 		params.CodeHash,

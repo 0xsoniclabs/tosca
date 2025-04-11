@@ -11,6 +11,7 @@
 package lfvm
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -69,5 +70,41 @@ func TestLfvm_newVm_returnsErrorWithWrongConfiguration(t *testing.T) {
 	_, err := newVm(config)
 	if err == nil {
 		t.Fatalf("expected error, got nil")
+	}
+}
+
+func TestLfvm_CodeLargerThanMaxInitCodeSizeReturnsAnError(t *testing.T) {
+	tests := map[string]struct {
+		codeSize int
+		err      error
+	}{
+		"small code": {
+			codeSize: MaxInitCodeSize - 1,
+			err:      nil,
+		},
+		"exact code": {
+			codeSize: MaxInitCodeSize,
+			err:      nil,
+		},
+		"large code": {
+			codeSize: MaxInitCodeSize + 1,
+			err:      errCodeSizeExceeded,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			config := config{
+				ConversionConfig: ConversionConfig{},
+			}
+			vm, err := newVm(config)
+			if err != nil {
+				t.Fatalf("unexpected error")
+			}
+			_, err = vm.Run(tosca.Parameters{Code: make([]byte, test.codeSize)})
+			if !errors.Is(err, test.err) {
+				t.Fatalf("unexpected error: want %v, got %v", test.err, err)
+			}
+		})
 	}
 }
