@@ -24,10 +24,7 @@ extern "C" fn evmc_create_steppable_evmrs() -> *mut evmc_vm_steppable {
     let container = SteppableEvmcContainer::<EvmRs>::new(new_instance);
 
     // Release ownership to EVMC.
-    // SAFETY:
-    // SteppableEvmcContainer::into_ffi_pointer is marked as unsafe in the evmc bindings although it
-    // only contains safe operations (it only calls Box::into_raw which is safe).
-    unsafe { SteppableEvmcContainer::into_ffi_pointer(container) }
+    SteppableEvmcContainer::into_ffi_pointer(container)
 }
 
 extern "C" fn __evmc_steppable_destroy(instance: *mut evmc_vm_steppable) {
@@ -145,19 +142,17 @@ extern "C" fn __evmc_step_n(
             steps,
         )
     })
-    .unwrap_or_else(|_| {
-        StepResult::new(
-            StepStatusCode::EVMC_STEP_FAILED,
-            StatusCode::EVMC_INTERNAL_ERROR,
-            revision,
-            0,
-            0,
-            0,
-            None,
-            Vec::new(),
-            Vec::new(),
-            None,
-        )
+    .unwrap_or_else(|_| StepResult {
+        step_status_code: StepStatusCode::EVMC_STEP_FAILED,
+        status_code: StatusCode::EVMC_INTERNAL_ERROR,
+        revision,
+        pc: 0,
+        gas_left: 0,
+        gas_refund: 0,
+        output: None,
+        stack: Vec::new(),
+        memory: Vec::new(),
+        last_call_return_data: None,
     })
     .into()
 }

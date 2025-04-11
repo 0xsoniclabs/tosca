@@ -1,6 +1,4 @@
 #![allow(unused_crate_dependencies)]
-#[cfg(not(feature = "custom-evmc"))]
-use driver::TX_CONTEXT_ZEROED;
 use driver::{
     Instance, SteppableInstance, ZERO, get_tx_context_zeroed,
     host_interface::{self, null_ptr_host_interface},
@@ -15,11 +13,6 @@ fn execute_can_be_called_with_mocked_context() {
     let mut instance = Instance::default();
     let host = host_interface::mocked_host_interface();
     let mut context = MockExecutionContextTrait::new();
-    #[cfg(not(feature = "custom-evmc"))]
-    context
-        .expect_get_tx_context()
-        .times(1)
-        .return_const(TX_CONTEXT_ZEROED);
     let revision = Revision::EVMC_CANCUN;
     let message = MockExecutionMessage::default().to_evmc_message();
     let code = &[Opcode::Push0 as u8];
@@ -68,11 +61,6 @@ fn step_n_can_be_called_with_mocked_context() {
     let mut instance = SteppableInstance::default();
     let host = host_interface::mocked_host_interface();
     let mut context = MockExecutionContextTrait::new();
-    #[cfg(not(feature = "custom-evmc"))]
-    context
-        .expect_get_tx_context()
-        .times(1)
-        .return_const(TX_CONTEXT_ZEROED);
     let revision = Revision::EVMC_CANCUN;
     let message = MockExecutionMessage::default().to_evmc_message();
     let code = &[Opcode::Push0 as u8];

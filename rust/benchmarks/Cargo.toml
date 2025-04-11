@@ -7,7 +7,6 @@ edition = "2024"
 performance = ["evmrs/performance"]
 mimalloc = ["evmrs/mimalloc"]
 unsafe-stack = ["evmrs/unsafe-stack"]
-custom-evmc = ["evmrs/custom-evmc"]
 hash-cache = ["evmrs/hash-cache"]
 code-analysis-cache = ["evmrs/code-analysis-cache"]
 alloc-reuse = ["evmrs/alloc-reuse"]

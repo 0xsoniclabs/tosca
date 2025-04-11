@@ -95,7 +95,7 @@ mod mock_callbacks {
 
     pub unsafe extern "C" fn get_tx_context(context: *mut ffi::c_void) -> evmc_tx_context {
         let mock = unsafe { &mut *(context as *mut MockExecutionContextTrait) };
-        *mock.get_tx_context()
+        (*mock.get_tx_context()).into()
     }
 
     pub extern "C" fn get_block_hash(context: *mut ffi::c_void, num: i64) -> Uint256 {

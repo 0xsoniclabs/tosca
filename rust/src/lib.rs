@@ -15,11 +15,7 @@ compile_error!(
     Either disable it or enable one or all of `code-analysis-cache` or `hash-cache`."
 );
 
-#[cfg(not(feature = "custom-evmc"))]
-pub extern crate evmc_vm_tosca as evmc_vm;
-#[cfg(feature = "custom-evmc")]
-pub extern crate evmc_vm_tosca_refactor as evmc_vm;
-
+pub use evmc_vm;
 use llvm_profile_wrappers::{
     llvm_profile_enabled, llvm_profile_reset_counters, llvm_profile_set_filename,
     llvm_profile_write_file,

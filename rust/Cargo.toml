@@ -26,7 +26,6 @@ performance = [
     "mimalloc",
     "unsafe-stack",
     "unsafe-hints",
-    "custom-evmc",
     "hash-cache",
     "code-analysis-cache",
     "alloc-reuse",
@@ -35,7 +34,6 @@ performance = [
 mimalloc = ["dep:mimalloc"]
 unsafe-stack = []
 unsafe-hints = []
-custom-evmc = ["dep:evmc-vm-tosca-refactor"]
 hash-cache = ["needs-cache"]
 code-analysis-cache = ["dep:nohash-hasher", "needs-cache"]
 alloc-reuse = []
@@ -45,17 +43,16 @@ tail-call = []
 fn-ptr-conversion-dispatch = []
 
 [dependencies]
-bnum = "0.12.0"
+evmc-vm = { path = "evmc-vm" }
+llvm-profile-wrappers = { path = "llvm-profile-wrappers" }
+bnum = "0.13.0"
 ethnum = "1.5.0"
-evmc-vm-tosca = { package = "evmc-vm", git = "https://github.com/0xsoniclabs/evmc", branch = "tosca-extensions" }
-evmc-vm-tosca-refactor = { package = "evmc-vm", git = "https://github.com/0xsoniclabs/evmc", branch = "tosca-extensions-optimized", optional = true }
 sha3 = "0.10.8"
 zerocopy = { version = "0.8.8", features = ["derive"] }
-llvm-profile-wrappers = { path = "llvm-profile-wrappers" }
 mockall = { version = "0.13.0", optional = true }
 arbitrary = { version = "1.4.1", features = ["derive"], optional = true }
 mimalloc = { version = "0.1.43", optional = true }
-lru = { version = "0.12.5", optional = true }
+lru = { version = "0.14.0", optional = true }
 nohash-hasher = { version = "0.2.0", optional = true }
 
 [dev-dependencies]

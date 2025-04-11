@@ -83,10 +83,7 @@ pub(super) extern "C" fn evmc_create_evmrs() -> *mut evmc_vm_t {
     let container = EvmcContainer::<EvmRs>::new(new_instance);
 
     // Release ownership to EVMC.
-    // SAFETY:
-    // EvmcContainer::into_ffi_pointer is marked as unsafe in the evmc bindings although it
-    // only contains safe operations (it only calls Box::into_raw which is safe).
-    unsafe { EvmcContainer::into_ffi_pointer(container) }
+    EvmcContainer::into_ffi_pointer(container)
 }
 
 extern "C" fn __evmc_destroy(instance: *mut evmc_vm_t) {
@@ -156,7 +153,13 @@ extern "C" fn __evmc_execute(
             execution_context.as_mut(),
         )
     })
-    .unwrap_or_else(|_| ExecutionResult::new(evmc_status_code::EVMC_INTERNAL_ERROR, 0, 0, None))
+    .unwrap_or(ExecutionResult {
+        status_code: evmc_status_code::EVMC_INTERNAL_ERROR,
+        gas_left: 0,
+        gas_refund: 0,
+        output: None,
+        create_address: None,
+    })
     .into()
 }
 

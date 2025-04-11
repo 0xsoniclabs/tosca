@@ -2,7 +2,7 @@ use sha3::{Digest, Keccak256};
 
 #[cfg(feature = "hash-cache")]
 use crate::types::Cache;
-use crate::u256;
+use crate::types::u256;
 
 #[cfg(feature = "hash-cache")]
 const CACHE_SIZE: usize = 1024; // value taken from evmzero

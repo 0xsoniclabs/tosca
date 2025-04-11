@@ -15,7 +15,6 @@ mod opcode;
 mod pc_map;
 mod stack;
 mod status_code;
-mod tx_context;
 
 pub use amount::u256;
 #[cfg(feature = "needs-cache")]
@@ -33,4 +32,3 @@ pub use opcode::*;
 pub use pc_map::PcMap;
 pub use stack::Stack;
 pub use status_code::{ExecStatus, FailStatus};
-pub use tx_context::ExecutionTxContext;

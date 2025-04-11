@@ -63,42 +63,21 @@ impl Default for MockExecutionMessage {
     }
 }
 
-#[cfg(not(feature = "custom-evmc"))]
-impl From<MockExecutionMessage> for ExecutionMessage {
-    fn from(value: MockExecutionMessage) -> Self {
-        Self::new(
-            value.kind,
-            value.flags,
-            value.depth,
-            value.gas,
-            value.recipient,
-            value.sender,
-            value.input,
-            value.value,
-            value.create2_salt,
-            value.code_address,
-            value.code,
-            value.code_hash.copied(),
-        )
-    }
-}
-
-#[cfg(feature = "custom-evmc")]
 impl From<MockExecutionMessage> for ExecutionMessage<'_> {
     fn from(value: MockExecutionMessage) -> Self {
-        Self::new(
-            value.kind,
-            value.flags,
-            value.depth,
-            value.gas,
-            value.recipient,
-            value.sender,
-            value.input,
-            value.value,
-            value.create2_salt,
-            value.code_address,
-            value.code,
-            value.code_hash.copied(),
-        )
+        Self {
+            kind: value.kind,
+            flags: value.flags,
+            depth: value.depth,
+            gas: value.gas,
+            recipient: value.recipient,
+            sender: value.sender,
+            input: value.input,
+            value: value.value,
+            create2_salt: value.create2_salt,
+            code_address: value.code_address,
+            code: value.code,
+            code_hash: value.code_hash.copied(),
+        }
     }
 }

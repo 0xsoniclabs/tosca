@@ -66,10 +66,6 @@ impl<'a> Arbitrary<'a> for InterpreterArgs<'a> {
         };
 
         let mut context = MockExecutionContextTrait::new();
-        let len = u.arbitrary_len::<[u8; 32]>()?;
-        let bytes = u.bytes(len * 32)?;
-        let blob_hashes: &[Uint256] =
-            unsafe { slice::from_raw_parts(bytes.as_ptr() as *const Uint256, len) };
         let txcontext = ExecutionTxContext {
             tx_gas_price: u256::arbitrary(u)?.into(),
             tx_origin: u256::arbitrary(u)?.into(),
@@ -81,10 +77,12 @@ impl<'a> Arbitrary<'a> for InterpreterArgs<'a> {
             chain_id: u256::arbitrary(u)?.into(),
             block_base_fee: u256::arbitrary(u)?.into(),
             blob_base_fee: u256::arbitrary(u)?.into(),
-            blob_hashes: blob_hashes.as_ptr(),
-            blob_hashes_count: blob_hashes.len(),
-            initcodes: std::ptr::null(),
-            initcodes_count: 0,
+            blob_hashes: {
+                let len = u.arbitrary_len::<[u8; 32]>()?;
+                let bytes = u.bytes(len * 32)?;
+                unsafe { slice::from_raw_parts(bytes.as_ptr() as *const Uint256, len) }
+            },
+            initcodes: &[],
         };
         context.expect_get_tx_context().return_const(txcontext);
         context

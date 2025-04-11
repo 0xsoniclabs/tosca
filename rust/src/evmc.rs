@@ -9,8 +9,7 @@ use evmc_vm::{
 use crate::{
     ffi::EVMC_CAPABILITY,
     interpreter::Interpreter,
-    types::{LoggingObserver, Memory, NoOpObserver, ObserverType, Stack},
-    u256,
+    types::{LoggingObserver, Memory, NoOpObserver, ObserverType, Stack, u256},
 };
 
 pub struct EvmRs {
@@ -73,9 +72,9 @@ impl SteppableEvmcVm for EvmRs {
         steps: i32,
     ) -> StepResult {
         if step_status_code != EvmcStepStatusCode::EVMC_STEP_RUNNING {
-            return StepResult::new(
+            return StepResult {
                 step_status_code,
-                match step_status_code {
+                status_code: match step_status_code {
                     EvmcStepStatusCode::EVMC_STEP_RUNNING
                     | EvmcStepStatusCode::EVMC_STEP_STOPPED
                     | EvmcStepStatusCode::EVMC_STEP_RETURNED => EvmcStatusCode::EVMC_SUCCESS,
@@ -84,17 +83,17 @@ impl SteppableEvmcVm for EvmRs {
                 },
                 revision,
                 pc,
+                gas_left: gas_refund,
                 gas_refund,
-                gas_refund,
-                None,
-                stack.to_owned(),
-                memory.to_owned(),
-                if last_call_return_data.is_empty() {
+                output: None,
+                stack: stack.to_owned(),
+                memory: memory.to_owned(),
+                last_call_return_data: if last_call_return_data.is_empty() {
                     None
                 } else {
-                    Some(last_call_return_data.to_owned())
+                    Some(Box::from(last_call_return_data))
                 },
-            );
+            };
         }
         assert_ne!(
             EVMC_CAPABILITY,
@@ -116,7 +115,7 @@ impl SteppableEvmcVm for EvmRs {
             gas_refund,
             stack,
             memory,
-            Some(last_call_return_data.to_owned()),
+            Some(Box::from(last_call_return_data)),
             Some(steps),
         );
         match self.observer_type {

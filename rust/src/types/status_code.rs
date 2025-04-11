@@ -90,23 +90,29 @@ impl From<ExecStatus> for EvmcStepStatusCode {
 
 impl From<FailStatus> for StepResult {
     fn from(fail_status: FailStatus) -> Self {
-        Self::new(
-            fail_status.into(),
-            fail_status.into(),
-            Revision::EVMC_ISTANBUL,
-            0,
-            0,
-            0,
-            None,
-            Vec::new(),
-            Vec::new(),
-            None,
-        )
+        Self {
+            step_status_code: fail_status.into(),
+            status_code: fail_status.into(),
+            revision: Revision::EVMC_ISTANBUL,
+            pc: 0,
+            gas_left: 0,
+            gas_refund: 0,
+            output: None,
+            stack: Vec::new(),
+            memory: Vec::new(),
+            last_call_return_data: None,
+        }
     }
 }
 
 impl From<FailStatus> for ExecutionResult {
     fn from(fail_status: FailStatus) -> Self {
-        Self::new(fail_status.into(), 0, 0, None)
+        Self {
+            status_code: fail_status.into(),
+            gas_left: 0,
+            gas_refund: 0,
+            output: None,
+            create_address: None,
+        }
     }
 }

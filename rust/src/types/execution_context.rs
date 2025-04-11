@@ -6,7 +6,7 @@ use evmc_vm::{
 #[cfg_attr(feature = "mock", mockall::automock)]
 pub trait ExecutionContextTrait {
     /// Retrieve the transaction context.
-    fn get_tx_context(&mut self) -> &ExecutionTxContext;
+    fn get_tx_context(&mut self) -> &ExecutionTxContext<'_>;
 
     /// Check if an account exists.
     fn account_exists(&self, address: &Address) -> bool;
@@ -33,9 +33,6 @@ pub trait ExecutionContextTrait {
     fn selfdestruct(&mut self, address: &Address, beneficiary: &Address) -> bool;
 
     /// Call to another account.
-    #[cfg(not(feature = "custom-evmc"))]
-    fn call(&mut self, message: &ExecutionMessage) -> ExecutionResult;
-    #[cfg(feature = "custom-evmc")]
     #[allow(clippy::needless_lifetimes)] // this is a bug in clippy
     fn call<'a>(&mut self, message: &ExecutionMessage<'a>) -> ExecutionResult;
 
@@ -59,7 +56,7 @@ pub trait ExecutionContextTrait {
 }
 
 impl ExecutionContextTrait for ExecutionContext<'_> {
-    fn get_tx_context(&mut self) -> &ExecutionTxContext {
+    fn get_tx_context(&mut self) -> &ExecutionTxContext<'_> {
         ExecutionContext::get_tx_context(self)
     }
 

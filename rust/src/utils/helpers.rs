@@ -61,7 +61,7 @@ pub fn check_min_revision(min_revision: Revision, revision: Revision) -> Result<
 
 #[inline(always)]
 pub fn check_not_read_only(message: &ExecutionMessage) -> Result<(), FailStatus> {
-    if message.flags() == MessageFlags::EVMC_STATIC as u32 {
+    if message.flags == MessageFlags::EVMC_STATIC as u32 {
         return Err(FailStatus::StaticModeViolation);
     }
     Ok(())

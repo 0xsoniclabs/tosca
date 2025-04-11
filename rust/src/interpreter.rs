@@ -7,8 +7,8 @@ use evmc_vm::{
 
 use crate::{
     types::{
-        CodeReader, ExecStatus, ExecutionContextTrait, ExecutionTxContext, FailStatus,
-        GetOpcodeError, Memory, Observer, Stack, hash_cache, u256,
+        CodeReader, ExecStatus, ExecutionContextTrait, FailStatus, GetOpcodeError, Memory,
+        Observer, Stack, hash_cache, u256,
     },
     utils::{
         Gas, GasRefund, GetGenericStatic, SliceExt, check_min_revision, check_not_read_only,
@@ -303,22 +303,16 @@ impl GetGenericStatic for GenericJumptable {
 
 pub struct Interpreter<'a, const STEPPABLE: bool> {
     pub exec_status: ExecStatus,
-    #[cfg(not(feature = "custom-evmc"))]
-    pub message: &'a ExecutionMessage,
-    #[cfg(feature = "custom-evmc")]
     pub message: &'a ExecutionMessage<'a>,
     pub context: &'a mut dyn ExecutionContextTrait,
     pub revision: Revision,
     pub code_reader: CodeReader<'a, STEPPABLE>,
     pub gas_left: Gas,
     pub gas_refund: GasRefund,
-    #[cfg(not(feature = "custom-evmc"))]
-    pub output: Option<Vec<u8>>,
-    #[cfg(feature = "custom-evmc")]
     pub output: Option<Box<[u8]>>,
     pub stack: Stack,
     pub memory: Memory,
-    pub last_call_return_data: Option<Vec<u8>>,
+    pub last_call_return_data: Option<Box<[u8]>>,
     pub steps: Option<i32>,
 }
 
@@ -334,8 +328,8 @@ impl<'a> Interpreter<'a, false> {
             message,
             context,
             revision,
-            code_reader: CodeReader::new(code, message.code_hash().map(|h| u256::from(*h)), 0),
-            gas_left: Gas::new(message.gas()),
+            code_reader: CodeReader::new(code, message.code_hash.map(u256::from), 0),
+            gas_left: Gas::new(message.gas),
             gas_refund: GasRefund::new(0),
             output: None,
             stack: Stack::new(&[]),
@@ -357,7 +351,7 @@ impl<'a> Interpreter<'a, true> {
         gas_refund: i64,
         stack: Stack,
         memory: Memory,
-        last_call_return_data: Option<Vec<u8>>,
+        last_call_return_data: Option<Box<[u8]>>,
         steps: Option<i32>,
     ) -> Self {
         Self {
@@ -365,8 +359,8 @@ impl<'a> Interpreter<'a, true> {
             message,
             context,
             revision,
-            code_reader: CodeReader::new(code, message.code_hash().map(|h| u256::from(*h)), pc),
-            gas_left: Gas::new(message.gas()),
+            code_reader: CodeReader::new(code, message.code_hash.map(u256::from), pc),
+            gas_left: Gas::new(message.gas),
             gas_refund: GasRefund::new(gas_refund),
             output: None,
             stack,
@@ -709,7 +703,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
     fn address(&mut self) -> OpResult {
         self.gas_left.consume(2)?;
-        self.stack.push(self.message.recipient())?;
+        self.stack.push(self.message.recipient)?;
         self.code_reader.next();
         self.return_from_op()
     }
@@ -736,14 +730,14 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
     fn caller(&mut self) -> OpResult {
         self.gas_left.consume(2)?;
-        self.stack.push(self.message.sender())?;
+        self.stack.push(self.message.sender)?;
         self.code_reader.next();
         self.return_from_op()
     }
 
     fn call_value(&mut self) -> OpResult {
         self.gas_left.consume(2)?;
-        self.stack.push(*self.message.value())?;
+        self.stack.push(self.message.value)?;
         self.code_reader.next();
         self.return_from_op()
     }
@@ -753,17 +747,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let (push_location, [offset]) = self.stack.pop_with_location()?;
         let (offset, overflow) = offset.into_u64_with_overflow();
         let offset = offset as usize;
-        #[allow(clippy::map_identity)]
-        let call_data = self
-            .message
-            .input()
-            .map(
-                #[cfg(not(feature = "custom-evmc"))]
-                Vec::as_slice,
-                #[cfg(feature = "custom-evmc")]
-                std::convert::identity,
-            )
-            .unwrap_or_default();
+        let call_data = self.message.input.unwrap_or_default();
         if overflow || offset >= call_data.len() {
             push_location.push(u256::ZERO);
         } else {
@@ -778,14 +762,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
     fn call_data_size(&mut self) -> OpResult {
         self.gas_left.consume(2)?;
-        let call_data_len = self
-            .message
-            .input()
-            .map(|m| {
-                #[allow(clippy::redundant_closure)]
-                m.len()
-            })
-            .unwrap_or_default();
+        let call_data_len = self.message.input.map(<[u8]>::len).unwrap_or_default();
         self.stack.push(call_data_len)?;
         self.code_reader.next();
         self.return_from_op()
@@ -806,16 +783,9 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         if len != u256::ZERO {
             let len = u64::try_from(len).map_err(|_| FailStatus::InvalidMemoryAccess)?;
 
-            #[allow(clippy::map_identity)]
             let src = self
                 .message
-                .input()
-                .map(
-                    #[cfg(not(feature = "custom-evmc"))]
-                    Vec::as_slice,
-                    #[cfg(feature = "custom-evmc")]
-                    std::convert::identity,
-                )
+                .input
                 .unwrap_or_default()
                 .get_within_bounds(offset, len);
             let dest = self
@@ -905,7 +875,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.stack.push(
             self.last_call_return_data
                 .as_ref()
-                .map(Vec::len)
+                .map(|d| d.len())
                 .unwrap_or_default(),
         )?;
         self.code_reader.next();
@@ -1010,11 +980,11 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     fn self_balance(&mut self) -> OpResult {
         check_min_revision(Revision::EVMC_ISTANBUL, self.revision)?;
         self.gas_left.consume(5)?;
-        let addr = self.message.recipient();
+        let addr = self.message.recipient;
         if u256::from(addr) == u256::ZERO {
             self.stack.push(u256::ZERO)?;
         } else {
-            self.stack.push(self.context.get_balance(addr))?;
+            self.stack.push(self.context.get_balance(&addr))?;
         }
         self.code_reader.next();
         self.return_from_op()
@@ -1035,7 +1005,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let (push_location, [idx]) = self.stack.pop_with_location()?;
         let (idx, idx_overflow) = idx.into_u64_with_overflow();
         let idx = idx as usize;
-        let hashes = ExecutionTxContext::from(self.context.get_tx_context()).blob_hashes;
+        let hashes = self.context.get_tx_context().blob_hashes;
         if !idx_overflow && idx < hashes.len() {
             push_location.push(hashes[idx]);
         } else {
@@ -1104,7 +1074,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         }
         let (push_location, [key]) = self.stack.pop_with_location()?;
         let key = key.into();
-        let addr = self.message.recipient();
+        let addr = &self.message.recipient;
         if self.revision >= Revision::EVMC_BERLIN {
             if self.context.access_storage(addr, &key) == AccessStatus::EVMC_ACCESS_COLD {
                 self.gas_left.consume(2_100)?;
@@ -1174,8 +1144,9 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         check_min_revision(Revision::EVMC_CANCUN, self.revision)?;
         self.gas_left.consume(100)?;
         let (push_location, [key]) = self.stack.pop_with_location()?;
-        let addr = self.message.recipient();
-        let value = self.context.get_transient_storage(addr, &key.into());
+        let value = self
+            .context
+            .get_transient_storage(&self.message.recipient, &key.into());
         push_location.push(value);
         self.code_reader.next();
         self.return_from_op()
@@ -1186,9 +1157,8 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         check_not_read_only(self.message)?;
         self.gas_left.consume(100)?;
         let [value, key] = self.stack.pop()?;
-        let addr = self.message.recipient();
         self.context
-            .set_transient_storage(addr, &key.into(), &value.into());
+            .set_transient_storage(&self.message.recipient, &key.into(), &value.into());
         self.code_reader.next();
         self.return_from_op()
     }
@@ -1209,14 +1179,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let [len, offset] = self.stack.pop()?;
         let len = u64::try_from(len).map_err(|_| FailStatus::OutOfGas)?;
         let data = self.memory.get_mut_slice(offset, len, &mut self.gas_left)?;
-        #[cfg(not(feature = "custom-evmc"))]
-        {
-            self.output = Some(data.to_owned());
-        }
-        #[cfg(feature = "custom-evmc")]
-        {
-            self.output = Some(Box::from(&*data));
-        }
+        self.output = Some(Box::from(&*data));
         self.exec_status = ExecStatus::Returned;
         Ok(())
     }
@@ -1225,14 +1188,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let [len, offset] = self.stack.pop()?;
         let len = u64::try_from(len).map_err(|_| FailStatus::OutOfGas)?;
         let data = self.memory.get_mut_slice(offset, len, &mut self.gas_left)?;
-        #[cfg(not(feature = "custom-evmc"))]
-        {
-            self.output = Some(data.to_owned());
-        }
-        #[cfg(feature = "custom-evmc")]
-        {
-            self.output = Some(Box::from(&*data));
-        }
+        self.output = Some(Box::from(&*data));
         self.exec_status = ExecStatus::Revert;
         Ok(())
     }
@@ -1254,13 +1210,13 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             self.gas_left.consume(2_600)?;
         }
 
-        if u256::from(self.context.get_balance(self.message.recipient())) > u256::ZERO
+        if u256::from(self.context.get_balance(&self.message.recipient)) > u256::ZERO
             && !self.context.account_exists(&addr)
         {
             self.gas_left.consume(25_000)?;
         }
 
-        let destructed = self.context.selfdestruct(self.message.recipient(), &addr);
+        let destructed = self.context.selfdestruct(&self.message.recipient, &addr);
         if self.revision <= Revision::EVMC_BERLIN && destructed {
             self.gas_refund.add(24_000);
         }
@@ -1277,7 +1233,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         }
         let [value, key] = self.stack.pop()?;
         let key = key.into();
-        let addr = self.message.recipient();
+        let addr = &self.message.recipient;
 
         let (dyn_gas_1, dyn_gas_2, dyn_gas_3, refund_1, refund_2, refund_3) =
             if self.revision >= Revision::EVMC_LONDON {
@@ -1364,7 +1320,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             topics_uint256[i] = Uint256::from(topics[N - 1 - i]);
         }
         self.context
-            .emit_log(self.message.recipient(), data, &topics_uint256);
+            .emit_log(&self.message.recipient, data, &topics_uint256);
         self.code_reader.next();
         self.return_from_op()
     }
@@ -1405,7 +1361,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
         let init_code = self.memory.get_mut_slice(offset, len, &mut self.gas_left)?;
 
-        if value > self.context.get_balance(self.message.recipient()).into() {
+        if value > self.context.get_balance(&self.message.recipient).into() {
             self.last_call_return_data = None;
             self.stack.push(u256::ZERO)?;
             self.code_reader.next();
@@ -1416,38 +1372,38 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let gas_limit = gas_left - gas_left / 64;
         self.gas_left.consume(gas_limit)?;
 
-        let message = ExecutionMessage::new(
-            if CREATE2 {
+        let message = ExecutionMessage {
+            kind: if CREATE2 {
                 MessageKind::EVMC_CREATE2
             } else {
                 MessageKind::EVMC_CREATE
             },
-            self.message.flags(),
-            self.message.depth() + 1,
-            gas_limit as i64,
-            u256::ZERO.into(), // ignored
-            *self.message.recipient(),
-            Some(init_code),
-            value.into(),
-            salt.into(),
-            u256::ZERO.into(), // ignored
-            None,
-            None,
-        );
+            flags: self.message.flags,
+            depth: self.message.depth + 1,
+            gas: gas_limit as i64,
+            recipient: u256::ZERO.into(), // ignored
+            sender: self.message.recipient,
+            input: Some(init_code),
+            value: value.into(),
+            create2_salt: salt.into(),
+            code_address: u256::ZERO.into(), // ignored
+            code: None,
+            code_hash: None,
+        };
         let result = self.context.call(&message);
 
-        self.gas_left.add(result.gas_left())?;
-        self.gas_refund.add(result.gas_refund());
+        self.gas_left.add(result.gas_left)?;
+        self.gas_refund.add(result.gas_refund);
 
-        if result.status_code() == StatusCode::EVMC_SUCCESS {
-            let Some(addr) = result.create_address() else {
+        if result.status_code == StatusCode::EVMC_SUCCESS {
+            let Some(addr) = result.create_address else {
                 return Err(FailStatus::InternalError);
             };
 
             self.last_call_return_data = None;
             self.stack.push(addr)?;
         } else {
-            self.last_call_return_data = result.output().map(ToOwned::to_owned);
+            self.last_call_return_data = result.output;
             self.stack.push(u256::ZERO)?;
         }
         self.code_reader.next();
@@ -1502,7 +1458,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let stipend: u64 = if value == u256::ZERO { 0 } else { 2_300 };
         self.gas_left.add(stipend as i64)?;
 
-        if value > u256::from(self.context.get_balance(self.message.recipient())) {
+        if value > u256::from(self.context.get_balance(&self.message.recipient)) {
             self.last_call_return_data = None;
             self.stack.push(u256::ZERO)?;
             self.code_reader.next();
@@ -1510,39 +1466,39 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         }
 
         let call_message = if CODE {
-            ExecutionMessage::new(
-                MessageKind::EVMC_CALLCODE,
-                self.message.flags(),
-                self.message.depth() + 1,
-                (endowment + stipend) as i64,
-                *self.message.recipient(),
-                *self.message.recipient(),
-                Some(input),
-                value.into(),
-                u256::ZERO.into(), // ignored
-                addr,
-                None,
-                None,
-            )
+            ExecutionMessage {
+                kind: MessageKind::EVMC_CALLCODE,
+                flags: self.message.flags,
+                depth: self.message.depth + 1,
+                gas: (endowment + stipend) as i64,
+                recipient: self.message.recipient,
+                sender: self.message.recipient,
+                input: Some(input),
+                value: value.into(),
+                create2_salt: u256::ZERO.into(), // ignored
+                code_address: addr,
+                code: None,
+                code_hash: None,
+            }
         } else {
-            ExecutionMessage::new(
-                MessageKind::EVMC_CALL,
-                self.message.flags(),
-                self.message.depth() + 1,
-                (endowment + stipend) as i64,
-                addr,
-                *self.message.recipient(),
-                Some(input),
-                value.into(),
-                u256::ZERO.into(), // ignored
-                addr,
-                None,
-                None,
-            )
+            ExecutionMessage {
+                kind: MessageKind::EVMC_CALL,
+                flags: self.message.flags,
+                depth: self.message.depth + 1,
+                gas: (endowment + stipend) as i64,
+                recipient: addr,
+                sender: self.message.recipient,
+                input: Some(input),
+                value: value.into(),
+                create2_salt: u256::ZERO.into(), // ignored
+                code_address: addr,
+                code: None,
+                code_hash: None,
+            }
         };
 
         let result = self.context.call(&call_message);
-        self.last_call_return_data = result.output().map(ToOwned::to_owned);
+        self.last_call_return_data = result.output;
         let dest = self
             .memory
             .get_mut_slice(ret_offset, ret_len, &mut self.gas_left)?;
@@ -1551,13 +1507,13 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             dest[..min_len].copy_from_slice(&output[..min_len]);
         }
 
-        self.gas_left.add(result.gas_left())?;
+        self.gas_left.add(result.gas_left)?;
         self.gas_left.consume(endowment)?;
         self.gas_left.consume(stipend)?;
-        self.gas_refund.add(result.gas_refund());
+        self.gas_refund.add(result.gas_refund);
 
         self.stack
-            .push(result.status_code() == StatusCode::EVMC_SUCCESS)?;
+            .push(result.status_code == StatusCode::EVMC_SUCCESS)?;
         self.code_reader.next();
         self.return_from_op()
     }
@@ -1599,39 +1555,39 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         endowment = min(endowment, limit); // cap gas at all but one 64th of gas left
 
         let call_message = if DELEGATE {
-            ExecutionMessage::new(
-                MessageKind::EVMC_DELEGATECALL,
-                self.message.flags(),
-                self.message.depth() + 1,
-                endowment as i64,
-                *self.message.recipient(),
-                *self.message.sender(),
-                Some(input),
-                *self.message.value(),
-                u256::ZERO.into(), // ignored
-                addr,
-                None,
-                None,
-            )
+            ExecutionMessage {
+                kind: MessageKind::EVMC_DELEGATECALL,
+                flags: self.message.flags,
+                depth: self.message.depth + 1,
+                gas: endowment as i64,
+                recipient: self.message.recipient,
+                sender: self.message.sender,
+                input: Some(input),
+                value: self.message.value,
+                create2_salt: u256::ZERO.into(), // ignored
+                code_address: addr,
+                code: None,
+                code_hash: None,
+            }
         } else {
-            ExecutionMessage::new(
-                MessageKind::EVMC_CALL,
-                MessageFlags::EVMC_STATIC as u32,
-                self.message.depth() + 1,
-                endowment as i64,
-                addr,
-                *self.message.recipient(),
-                Some(input),
-                u256::ZERO.into(), // ignored
-                u256::ZERO.into(), // ignored
-                addr,
-                None,
-                None,
-            )
+            ExecutionMessage {
+                kind: MessageKind::EVMC_CALL,
+                flags: MessageFlags::EVMC_STATIC as u32,
+                depth: self.message.depth + 1,
+                gas: endowment as i64,
+                recipient: addr,
+                sender: self.message.recipient,
+                input: Some(input),
+                value: u256::ZERO.into(),        // ignored
+                create2_salt: u256::ZERO.into(), // ignored
+                code_address: addr,
+                code: None,
+                code_hash: None,
+            }
         };
 
         let result = self.context.call(&call_message);
-        self.last_call_return_data = result.output().map(ToOwned::to_owned);
+        self.last_call_return_data = result.output;
         let dest = self
             .memory
             .get_mut_slice(ret_offset, ret_len, &mut self.gas_left)?;
@@ -1640,12 +1596,12 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             dest[..min_len].copy_from_slice(&output[..min_len]);
         }
 
-        self.gas_left.add(result.gas_left())?;
+        self.gas_left.add(result.gas_left)?;
         self.gas_left.consume(endowment)?;
-        self.gas_refund.add(result.gas_refund());
+        self.gas_refund.add(result.gas_refund);
 
         self.stack
-            .push(result.status_code() == StatusCode::EVMC_SUCCESS)?;
+            .push(result.status_code == StatusCode::EVMC_SUCCESS)?;
         self.code_reader.next();
         self.return_from_op()
     }
@@ -1660,32 +1616,30 @@ impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for StepResult {
             .copied()
             .map(Into::into)
             .collect();
-        Self::new(
-            value.exec_status.into(),
-            StatusCode::EVMC_SUCCESS,
-            value.revision,
-            value.code_reader.pc() as u64,
-            value.gas_left.as_u64() as i64,
-            value.gas_refund.as_i64(),
-            value.output,
+        Self {
+            step_status_code: value.exec_status.into(),
+            status_code: StatusCode::EVMC_SUCCESS,
+            revision: value.revision,
+            pc: value.code_reader.pc() as u64,
+            gas_left: value.gas_left.as_u64() as i64,
+            gas_refund: value.gas_refund.as_i64(),
+            output: value.output,
             stack,
-            value.memory.as_slice().to_vec(),
-            value.last_call_return_data,
-        )
+            memory: value.memory.as_slice().to_vec(),
+            last_call_return_data: value.last_call_return_data,
+        }
     }
 }
 
 impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for ExecutionResult {
     fn from(value: Interpreter<STEPPABLE>) -> Self {
-        Self::new(
-            value.exec_status.into(),
-            value.gas_left.as_u64() as i64,
-            value.gas_refund.as_i64(),
-            #[cfg(not(feature = "custom-evmc"))]
-            value.output.as_deref(),
-            #[cfg(feature = "custom-evmc")]
-            value.output,
-        )
+        Self {
+            status_code: value.exec_status.into(),
+            gas_left: value.gas_left.as_u64() as i64,
+            gas_refund: value.gas_refund.as_i64(),
+            output: value.output,
+            create_address: None,
+        }
     }
 }
 
@@ -1928,28 +1882,24 @@ mod tests {
             .expect_call()
             .times(1)
             .withf(move |call_message| {
-                call_message.kind() == MessageKind::EVMC_CALL
-                    && call_message.flags() == 0
-                    && call_message.depth() == message.depth + 1
-                    && call_message.gas() == gas as i64
-                    && call_message.sender() == &message.recipient
-                    && call_message.recipient() == &Address::from(addr)
-                    && call_message.input() == Some(&input)
-                    && call_message.value() == &Uint256::from(value)
-                    && call_message.create2_salt() == &Uint256::from(u256::ZERO)
-                    && call_message.code_address() == &Address::from(addr)
-                    && call_message.code().is_none()
+                call_message.kind == MessageKind::EVMC_CALL
+                    && call_message.flags == 0
+                    && call_message.depth == message.depth + 1
+                    && call_message.gas == gas as i64
+                    && call_message.sender == message.recipient
+                    && call_message.recipient == Address::from(addr)
+                    && call_message.input == Some(&input)
+                    && call_message.value == Uint256::from(value)
+                    && call_message.create2_salt == Uint256::from(u256::ZERO)
+                    && call_message.code_address == Address::from(addr)
+                    && call_message.code.is_none()
             })
-            .returning(move |_| {
-                #[cfg(not(feature = "custom-evmc"))]
-                return ExecutionResult::new(StatusCode::EVMC_SUCCESS, 0, 0, Some(&ret_data));
-                #[cfg(feature = "custom-evmc")]
-                return ExecutionResult::new(
-                    StatusCode::EVMC_SUCCESS,
-                    0,
-                    0,
-                    Some(Box::from(ret_data.as_slice())),
-                );
+            .returning(move |_| ExecutionResult {
+                status_code: StatusCode::EVMC_SUCCESS,
+                gas_left: 0,
+                gas_refund: 0,
+                output: Some(Box::from(ret_data.as_slice())),
+                create_address: None,
             });
 
         let message = message.into();
