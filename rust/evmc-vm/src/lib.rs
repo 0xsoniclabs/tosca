@@ -82,7 +82,7 @@ pub struct StepResult {
     pub output: Option<Box<[u8]>>,
     pub stack: Vec<Uint256>,
     pub memory: Vec<u8>,
-    pub last_call_return_data: Option<Vec<u8>>,
+    pub last_call_return_data: Option<Box<[u8]>>,
 }
 
 /// EVMC execution message structure.
@@ -103,14 +103,28 @@ pub struct ExecutionMessage<'a> {
 }
 
 /// EVMC transaction context structure.
-pub type ExecutionTxContext = ffi::evmc_tx_context;
+#[derive(Debug, Copy, Clone, Hash, PartialEq)]
+pub struct ExecutionTxContext<'a> {
+    pub tx_gas_price: Uint256,
+    pub tx_origin: Address,
+    pub block_coinbase: Address,
+    pub block_number: i64,
+    pub block_timestamp: i64,
+    pub block_gas_limit: i64,
+    pub block_prev_randao: Uint256,
+    pub chain_id: Uint256,
+    pub block_base_fee: Uint256,
+    pub blob_base_fee: Uint256,
+    pub blob_hashes: &'a [Uint256],
+    pub initcodes: &'a [ffi::evmc_tx_initcode],
+}
 
 /// EVMC context structure. Exposes the EVMC host functions, message data, and transaction context
 /// to the executing VM.
 pub struct ExecutionContext<'a> {
     host: &'a ffi::evmc_host_interface,
     context: *mut ffi::evmc_host_context,
-    tx_context: Option<ExecutionTxContext>,
+    tx_context: Option<ExecutionTxContext<'a>>,
 }
 
 impl<'a> ExecutionContext<'a> {
@@ -123,11 +137,47 @@ impl<'a> ExecutionContext<'a> {
     }
 
     /// Retrieve the transaction context.
-    pub fn get_tx_context(&mut self) -> &ExecutionTxContext {
+    ///
+    /// Although ExecutionTxContext is created from data obtained via a callback into Go, the
+    /// underlying data is actually stored in the host context and therefore valid for the
+    /// lifetime of the ExecutionContext which internally holds the host context.
+    pub fn get_tx_context(&mut self) -> &ExecutionTxContext<'a> {
+        // This conversion creates an ExecutionTxContext with a unbounded lifetime.
+        // As long as this function is only called inside get_tx_context this is fine because
+        // get_tx_context itself bounds the lifetime of ExecutionTxContext to that of itself. This
+        // is also the reason why this implementation lives here instead of having a From
+        // implementation.
+        fn from_ffi<'a>(message: ffi::evmc_tx_context) -> ExecutionTxContext<'a> {
+            let blob_hashes = if message.blob_hashes.is_null() {
+                &[]
+            } else {
+                unsafe { slice::from_raw_parts(message.blob_hashes, message.blob_hashes_count) }
+            };
+            let initcodes = if message.initcodes.is_null() {
+                &[]
+            } else {
+                unsafe { slice::from_raw_parts(message.initcodes, message.initcodes_count) }
+            };
+            ExecutionTxContext {
+                tx_gas_price: message.tx_gas_price,
+                tx_origin: message.tx_origin,
+                block_coinbase: message.block_coinbase,
+                block_number: message.block_number,
+                block_timestamp: message.block_timestamp,
+                block_gas_limit: message.block_gas_limit,
+                block_prev_randao: message.block_prev_randao,
+                chain_id: message.chain_id,
+                block_base_fee: message.block_base_fee,
+                blob_base_fee: message.blob_base_fee,
+                blob_hashes,
+                initcodes,
+            }
+        }
+
         let get_tx_context = self.host.get_tx_context.unwrap();
         let context = self.context;
         self.tx_context
-            .get_or_insert_with(|| unsafe { get_tx_context(context) })
+            .get_or_insert_with(|| from_ffi(unsafe { get_tx_context(context) }))
     }
 
     /// Check if an account exists.
@@ -328,7 +378,7 @@ impl From<StepResult> for ffi::evmc_step_result {
         let (memory, memory_size) =
             boxed_slice_into_raw_parts(Some(value.memory.into_boxed_slice()));
         let (last_call_return_data, last_call_return_data_size) =
-            boxed_slice_into_raw_parts(value.last_call_return_data.map(|v| v.into_boxed_slice()));
+            boxed_slice_into_raw_parts(value.last_call_return_data);
 
         Self {
             step_status_code: value.step_status_code,
@@ -392,7 +442,7 @@ impl From<ffi::evmc_step_result> for StepResult {
                 None
             } else {
                 Some(unsafe {
-                    Vec::from(slice::from_raw_parts(
+                    Box::from(slice::from_raw_parts(
                         value.last_call_return_data as *mut _,
                         value.last_call_return_data_size,
                     ))
@@ -460,6 +510,27 @@ impl<'a> From<&'a ffi::evmc_message> for ExecutionMessage<'a> {
             } else {
                 Some(unsafe { *message.code_hash })
             },
+        }
+    }
+}
+
+impl From<ExecutionTxContext<'_>> for ffi::evmc_tx_context {
+    fn from(message: ExecutionTxContext) -> Self {
+        ffi::evmc_tx_context {
+            tx_gas_price: message.tx_gas_price,
+            tx_origin: message.tx_origin,
+            block_coinbase: message.block_coinbase,
+            block_number: message.block_number,
+            block_timestamp: message.block_timestamp,
+            block_gas_limit: message.block_gas_limit,
+            block_prev_randao: message.block_prev_randao,
+            chain_id: message.chain_id,
+            block_base_fee: message.block_base_fee,
+            blob_base_fee: message.blob_base_fee,
+            blob_hashes: message.blob_hashes.as_ptr(),
+            blob_hashes_count: message.blob_hashes.len(),
+            initcodes: message.initcodes.as_ptr(),
+            initcodes_count: message.initcodes.len(),
         }
     }
 }
