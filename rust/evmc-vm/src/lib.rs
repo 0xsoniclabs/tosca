@@ -67,7 +67,7 @@ pub struct ExecutionResult {
     pub status_code: StatusCode,
     pub gas_left: i64,
     pub gas_refund: i64,
-    pub output: Option<Vec<u8>>,
+    pub output: Option<Box<[u8]>>,
     pub create_address: Option<Address>,
 }
 
@@ -79,7 +79,7 @@ pub struct StepResult {
     pub pc: u64,
     pub gas_left: i64,
     pub gas_refund: i64,
-    pub output: Option<Vec<u8>>,
+    pub output: Option<Box<[u8]>>,
     pub stack: Vec<Uint256>,
     pub memory: Vec<u8>,
     pub last_call_return_data: Option<Vec<u8>>,
@@ -87,18 +87,18 @@ pub struct StepResult {
 
 /// EVMC execution message structure.
 #[derive(Debug)]
-pub struct ExecutionMessage {
+pub struct ExecutionMessage<'a> {
     pub kind: MessageKind,
     pub flags: u32,
     pub depth: i32,
     pub gas: i64,
     pub recipient: Address,
     pub sender: Address,
-    pub input: Option<Vec<u8>>,
+    pub input: Option<&'a [u8]>,
     pub value: Uint256,
     pub create2_salt: Uint256,
     pub code_address: Address,
-    pub code: Option<Vec<u8>>,
+    pub code: Option<&'a [u8]>,
     pub code_hash: Option<Uint256>,
 }
 
@@ -188,18 +188,10 @@ impl<'a> ExecutionContext<'a> {
     pub fn call(&mut self, message: &ExecutionMessage) -> ExecutionResult {
         // There is no need to make any kind of copies here, because the caller
         // won't go out of scope and ensures these pointers remain valid.
-        let input_size = message.input.as_ref().map(Vec::len).unwrap_or_default();
-        let input_data = message
-            .input
-            .as_ref()
-            .map(Vec::as_ptr)
-            .unwrap_or(ptr::null());
-        let code_size = message.code.as_ref().map(Vec::len).unwrap_or_default();
-        let code_data = message
-            .code
-            .as_ref()
-            .map(Vec::as_ptr)
-            .unwrap_or(ptr::null());
+        let input_size = message.input.map(|s| s.len()).unwrap_or_default();
+        let input_data = message.input.map(|s| s.as_ptr()).unwrap_or(ptr::null());
+        let code_size = message.code.map(|s| s.len()).unwrap_or_default();
+        let code_data = message.code.map(|s| s.as_ptr()).unwrap_or(ptr::null());
         // Cannot use a nice from trait here because that complicates memory management,
         // evmc_message doesn't have a release() method we could abstract it with.
         let message = ffi::evmc_message {
@@ -274,16 +266,18 @@ impl From<ffi::evmc_result> for ExecutionResult {
             } else if result.output_size == 0 {
                 None
             } else {
-                Some(from_buf_raw::<u8>(result.output_data, result.output_size))
+                Some(Box::from(unsafe {
+                    slice::from_raw_parts(result.output_data as *mut u8, result.output_size)
+                }))
             },
             // Consider it is always valid.
             create_address: Some(result.create_address),
         };
 
         // Release allocated ffi struct.
-        if result.release.is_some() {
+        if let Some(release) = result.release {
             unsafe {
-                result.release.unwrap()(&result);
+                release(&result);
             }
         }
 
@@ -313,8 +307,7 @@ unsafe fn boxed_slice_from_raw_parts<T>(ptr: *const T, len: usize) -> Option<Box
 
 impl From<ExecutionResult> for ffi::evmc_result {
     fn from(value: ExecutionResult) -> Self {
-        let (output_data, output_size) =
-            boxed_slice_into_raw_parts(value.output.map(Vec::into_boxed_slice));
+        let (output_data, output_size) = boxed_slice_into_raw_parts(value.output);
         Self {
             status_code: value.status_code,
             gas_left: value.gas_left,
@@ -330,8 +323,7 @@ impl From<ExecutionResult> for ffi::evmc_result {
 
 impl From<StepResult> for ffi::evmc_step_result {
     fn from(value: StepResult) -> Self {
-        let (output_data, output_size) =
-            boxed_slice_into_raw_parts(value.output.map(Vec::into_boxed_slice));
+        let (output_data, output_size) = boxed_slice_into_raw_parts(value.output);
         let (stack, stack_size) = boxed_slice_into_raw_parts(Some(value.stack.into_boxed_slice()));
         let (memory, memory_size) =
             boxed_slice_into_raw_parts(Some(value.memory.into_boxed_slice()));
@@ -370,7 +362,7 @@ impl From<ffi::evmc_step_result> for StepResult {
             output: if value.output_data.is_null() || value.output_size == 0 {
                 None
             } else {
-                Some(Vec::from(unsafe {
+                Some(Box::from(unsafe {
                     slice::from_raw_parts(value.output_data as *mut u8, value.output_size)
                 }))
             },
@@ -441,8 +433,8 @@ extern "C" fn release_stack_step_result(result: *const ffi::evmc_step_result) {
     }
 }
 
-impl From<&ffi::evmc_message> for ExecutionMessage {
-    fn from(message: &ffi::evmc_message) -> Self {
+impl<'a> From<&'a ffi::evmc_message> for ExecutionMessage<'a> {
+    fn from(message: &'a ffi::evmc_message) -> Self {
         ExecutionMessage {
             kind: message.kind,
             flags: message.flags,
@@ -453,7 +445,7 @@ impl From<&ffi::evmc_message> for ExecutionMessage {
             input: if message.input_data.is_null() || message.input_size == 0 {
                 None
             } else {
-                Some(from_buf_raw::<u8>(message.input_data, message.input_size))
+                Some(unsafe { slice::from_raw_parts(message.input_data, message.input_size) })
             },
             value: message.value,
             create2_salt: message.create2_salt,
@@ -461,7 +453,7 @@ impl From<&ffi::evmc_message> for ExecutionMessage {
             code: if message.code.is_null() || message.code_size == 0 {
                 None
             } else {
-                Some(from_buf_raw::<u8>(message.code, message.code_size))
+                Some(unsafe { slice::from_raw_parts(message.code, message.code_size) })
             },
             code_hash: if message.code_hash.is_null() {
                 None
@@ -470,18 +462,6 @@ impl From<&ffi::evmc_message> for ExecutionMessage {
             },
         }
     }
-}
-
-fn from_buf_raw<T>(ptr: *const T, size: usize) -> Vec<T> {
-    // Pre-allocate a vector.
-    let mut buf = Vec::with_capacity(size);
-    unsafe {
-        // Copy from the C buffer to the vec's buffer.
-        std::ptr::copy(ptr, buf.as_mut_ptr(), size);
-        // Set the len of the vec manually.
-        buf.set_len(size);
-    }
-    buf
 }
 
 #[cfg(test)]
@@ -493,23 +473,24 @@ mod tests {
         unsafe {
             if !result.is_null() {
                 let owned = *result;
-                Vec::from_raw_parts(
+                let _ = Box::from_raw(slice::from_raw_parts_mut(
                     owned.output_data as *mut u8,
                     owned.output_size,
-                    owned.output_size,
-                );
+                ));
             }
         }
     }
 
     #[test]
     fn result_from_ffi() {
+        let output: Box<[u8]> = Box::from([0xde, 0xad, 0xbe, 0xef].as_slice());
+        let output_len = output.len();
         let f = ffi::evmc_result {
             status_code: StatusCode::EVMC_SUCCESS,
             gas_left: 1337,
             gas_refund: 21,
-            output_data: Box::into_raw(Box::new([0xde, 0xad, 0xbe, 0xef])) as *const u8,
-            output_size: 4,
+            output_data: Box::into_raw(output) as *const u8,
+            output_size: output_len,
             release: Some(test_result_dispose),
             create_address: Address { bytes: [0u8; 20] },
             padding: [0u8; 4],
@@ -531,7 +512,7 @@ mod tests {
             status_code: StatusCode::EVMC_FAILURE,
             gas_left: 420,
             gas_refund: 21,
-            output: Some(vec![0xc0, 0xff, 0xee, 0x71, 0x75]),
+            output: Some(vec![0xc0, 0xff, 0xee, 0x71, 0x75].into_boxed_slice()),
             create_address: None,
         };
 
@@ -849,7 +830,7 @@ mod tests {
         let host_context = std::ptr::null_mut();
         let mut exe_context = ExecutionContext::new(&host, host_context);
 
-        let data = vec![0xc0, 0xff, 0xfe];
+        let data = [0xc0, 0xff, 0xfe];
 
         let message = ExecutionMessage {
             kind: MessageKind::EVMC_CALL,
@@ -858,7 +839,7 @@ mod tests {
             gas: 6566,
             recipient: test_addr,
             sender: test_addr,
-            input: Some(data.clone()),
+            input: Some(&data),
             value: Uint256::default(),
             create2_salt: Uint256::default(),
             code_address: test_addr,
@@ -870,9 +851,7 @@ mod tests {
 
         assert_eq!(b.status_code, StatusCode::EVMC_SUCCESS);
         assert_eq!(b.gas_left, 2);
-        assert!(b.output.is_some());
-        assert_eq!(b.output.unwrap(), data);
-        assert!(b.create_address.is_some());
-        assert_eq!(b.create_address.unwrap(), Address::default());
+        assert_eq!(b.output.as_deref(), Some(data.as_slice()));
+        assert_eq!(b.create_address, Some(Address::default()));
     }
 }
