@@ -124,10 +124,13 @@ func (v *lfvm) Run(params tosca.Parameters) (tosca.Result, error) {
 		return tosca.Result{}, &tosca.ErrUnsupportedRevision{Revision: params.Revision}
 	}
 
-	converted := v.converter.Convert(
+	converted, err := v.converter.Convert(
 		params.Code,
 		params.CodeHash,
 	)
+	if err != nil {
+		return tosca.Result{}, err
+	}
 
 	return run(v.config, params, converted)
 }

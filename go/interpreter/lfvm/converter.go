@@ -64,23 +64,27 @@ func NewConverter(config ConversionConfig) (*Converter, error) {
 // Convert converts EVM code to LFVM code. If the provided code hash is not nil,
 // it is assumed to be a valid hash of the code and is used to cache the
 // conversion result. If the hash is nil, the conversion result is not cached.
-func (c *Converter) Convert(code []byte, codeHash *tosca.Hash) Code {
+func (c *Converter) Convert(code []byte, codeHash *tosca.Hash) (Code, error) {
+	if len(code) > math.MaxUint16 {
+		return Code{}, errCodeSizeExceeded
+	}
+
 	if c.cache == nil || codeHash == nil {
-		return convert(code, c.config)
+		return convert(code, c.config), nil
 	}
 
 	res, exists := c.cache.Get(*codeHash)
 	if exists {
-		return res
+		return res, nil
 	}
 
 	res = convert(code, c.config)
 	if len(res) > maxCachedCodeLength {
-		return res
+		return res, nil
 	}
 
 	c.cache.Add(*codeHash, res)
-	return res
+	return res, nil
 }
 
 // maxCachedCodeLength is the maximum length of a code in bytes that are

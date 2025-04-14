@@ -49,10 +49,13 @@ func (a *ctAdapter) StepN(state *st.State, numSteps int) (*st.State, error) {
 		return state, nil
 	}
 
-	converted := a.vm.converter.Convert(
+	converted, err := a.vm.converter.Convert(
 		params.Code,
 		params.CodeHash,
 	)
+	if err != nil {
+		return &st.State{}, err
+	}
 
 	pcMap := a.getPcMap(state.Code)
 

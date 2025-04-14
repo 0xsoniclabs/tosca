@@ -12,6 +12,7 @@ package lfvm
 
 import (
 	"bytes"
+	"errors"
 	"math"
 	"math/rand"
 	"slices"
@@ -68,6 +69,42 @@ func TestConverter_LongExampleCode(t *testing.T) {
 	converter.Convert(longExampleCode, nil)
 }
 
+func TestConverter_CodeLargerThanMaxUint16ReturnsAnError(t *testing.T) {
+	tests := map[string]struct {
+		codeSize int
+		err      error
+	}{
+		"small code": {
+			codeSize: math.MaxUint16 - 1,
+			err:      nil,
+		},
+		"exact code": {
+			codeSize: math.MaxUint16,
+			err:      nil,
+		},
+		"large code": {
+			codeSize: math.MaxUint16 + 1,
+			err:      errCodeSizeExceeded,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			config := config{
+				ConversionConfig: ConversionConfig{},
+			}
+			vm, err := newVm(config)
+			if err != nil {
+				t.Fatalf("unexpected error")
+			}
+			_, err = vm.Run(tosca.Parameters{Code: make([]byte, test.codeSize)})
+			if !errors.Is(err, test.err) {
+				t.Fatalf("unexpected error: want %v, got %v", test.err, err)
+			}
+		})
+	}
+}
+
 func TestConverter_InputsAreCachedUsingHashAsKey(t *testing.T) {
 	converter, err := NewConverter(ConversionConfig{})
 	if err != nil {
@@ -75,8 +112,15 @@ func TestConverter_InputsAreCachedUsingHashAsKey(t *testing.T) {
 	}
 	code := []byte{byte(vm.STOP)}
 	hash := tosca.Hash{byte(1)}
-	want := converter.Convert(code, &hash)
-	got := converter.Convert(code, &hash)
+	want, err := converter.Convert(code, &hash)
+	if err != nil {
+		t.Fatalf("failed to convert code: %v", err)
+
+	}
+	got, err := converter.Convert(code, &hash)
+	if err != nil {
+		t.Fatalf("failed to convert code: %v", err)
+	}
 	if &want[0] != &got[0] { // < it needs to be the same slice
 		t.Errorf("cached conversion result not returned")
 	}
@@ -127,7 +171,10 @@ func TestConverter_ResultsAreCached(t *testing.T) {
 	}
 	code := []byte{byte(vm.STOP)}
 	hash := tosca.Hash{byte(1)}
-	want := converter.Convert(code, &hash)
+	want, err := converter.Convert(code, &hash)
+	if err != nil {
+		t.Fatalf("failed to convert code: %v", err)
+	}
 	if got, found := converter.cache.Get(hash); !found || !slices.Equal(want, got) {
 		t.Errorf("converted code not added to cache")
 	}
