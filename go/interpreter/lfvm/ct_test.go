@@ -13,6 +13,7 @@ package lfvm
 import (
 	"bytes"
 	"errors"
+	"math"
 	"reflect"
 	"testing"
 
@@ -91,6 +92,19 @@ func TestCtAdapter_ReturnsErrorForUnsupportedRevisions(t *testing.T) {
 	var e *tosca.ErrUnsupportedRevision
 	if !errors.As(err, &e) {
 		t.Errorf("unexpected error, wanted %v, got %v", want, err)
+	}
+}
+
+func TestCtAdapter_ReturnsErrorIfCodeSizeExceeded(t *testing.T) {
+	s := st.NewState(st.NewCode(make([]byte, math.MaxUint16+1)))
+	s.Status = st.Running
+	s.Revision = tosca.R07_Istanbul
+
+	c := NewConformanceTestingTarget()
+	_, err := c.StepN(s, 1)
+
+	if !errors.Is(err, errCodeSizeExceeded) {
+		t.Errorf("unexpected error, wanted %v, got %v", errCodeSizeExceeded, err)
 	}
 }
 
