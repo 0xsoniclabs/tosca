@@ -129,7 +129,7 @@ func (v *lfvm) Run(params tosca.Parameters) (tosca.Result, error) {
 		params.CodeHash,
 	)
 	if err != nil {
-		return tosca.Result{}, err
+		return tosca.Result{}, fmt.Errorf("failed to convert code: %w", err)
 	}
 
 	return run(v.config, params, converted)

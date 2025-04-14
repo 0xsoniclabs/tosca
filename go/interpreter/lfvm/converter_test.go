@@ -12,7 +12,6 @@ package lfvm
 
 import (
 	"bytes"
-	goContext "context"
 	"errors"
 	"math"
 	"math/rand"
@@ -210,7 +209,7 @@ func TestConverter_ConverterIsThreadSafe(t *testing.T) {
 	code := []byte{byte(vm.STOP)}
 	hash := tosca.Hash{byte(1)}
 
-	errs, _ := errgroup.WithContext(goContext.Background())
+	errs, _ := errgroup.WithContext(t.Context())
 	errs.SetLimit(NumGoroutines)
 	for i := range NumGoroutines {
 		errs.Go(func() error {

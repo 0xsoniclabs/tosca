@@ -11,6 +11,8 @@
 package lfvm
 
 import (
+	"fmt"
+
 	"github.com/0xsoniclabs/tosca/go/ct"
 	"github.com/0xsoniclabs/tosca/go/ct/common"
 	"github.com/0xsoniclabs/tosca/go/ct/st"
@@ -54,7 +56,7 @@ func (a *ctAdapter) StepN(state *st.State, numSteps int) (*st.State, error) {
 		params.CodeHash,
 	)
 	if err != nil {
-		return &st.State{}, err
+		return &st.State{}, fmt.Errorf("failed to convert code: %w", err)
 	}
 
 	pcMap := a.getPcMap(state.Code)
