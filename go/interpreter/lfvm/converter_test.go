@@ -216,14 +216,14 @@ func TestConverter_ConverterIsThreadSafe(t *testing.T) {
 		errs.Go(func() error {
 			for j := 0; j < NumSteps; j++ {
 				// read a value every go routine is requesting
-				_, err = converter.Convert(code, &hash)
-				if err != nil {
-					return err
+				_, routineErr := converter.Convert(code, &hash)
+				if routineErr != nil {
+					return routineErr
 				}
 				// convert a value only this go routine is requesting
-				_, err = converter.Convert(code, &tosca.Hash{byte(i), byte(j)})
-				if err != nil {
-					return err
+				_, routineErr = converter.Convert(code, &tosca.Hash{byte(i), byte(j)})
+				if routineErr != nil {
+					return routineErr
 				}
 			}
 			return nil
