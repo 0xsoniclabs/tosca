@@ -10,7 +10,7 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 arbitrary = { version = "1.4.1" }
-evmrs = { path = "..", features = ["mock", "fuzzing"] }
+evmrs = { path = "..", features = ["mock", "fuzzing", "performance"] }
 driver = { path = "../driver", features = ["mock"] }
 
 [[bin]]

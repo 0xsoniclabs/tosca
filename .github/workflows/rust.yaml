@@ -237,7 +237,7 @@ jobs:
       run: cargo install cargo-fuzz
     - name: cargo fuzz evmc execute
       working-directory: rust
-      run: cargo fuzz run --sanitizer none evmc_execute -- -max_total_time=10
+      run: cargo fuzz run --release --sanitizer none evmc_execute -- -max_total_time=10  -- -rss_limit_mb=6000
 
   deps:
     name: unused deps
