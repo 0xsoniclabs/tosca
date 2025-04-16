@@ -1,5 +1,12 @@
 [workspace]
-members = ["driver", "benchmarks", "bencher", "llvm-profile-wrappers", "fuzz"]
+members = [
+    "driver",
+    "benchmarks",
+    "bencher",
+    "llvm-profile-wrappers",
+    "fuzz",
+    "evmc-vm",
+]
 
 [package]
 name = "evmrs"

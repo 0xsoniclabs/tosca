@@ -67,7 +67,7 @@ pub struct ExecutionResult {
     pub status_code: StatusCode,
     pub gas_left: i64,
     pub gas_refund: i64,
-    pub output: Option<Box<[u8]>>,
+    pub output: Box<[u8]>,
     pub create_address: Option<Address>,
 }
 
@@ -79,10 +79,10 @@ pub struct StepResult {
     pub pc: u64,
     pub gas_left: i64,
     pub gas_refund: i64,
-    pub output: Option<Box<[u8]>>,
+    pub output: Box<[u8]>,
     pub stack: Vec<Uint256>,
     pub memory: Vec<u8>,
-    pub last_call_return_data: Option<Box<[u8]>>,
+    pub last_call_return_data: Box<[u8]>,
 }
 
 /// EVMC execution message structure.
@@ -94,11 +94,11 @@ pub struct ExecutionMessage<'a> {
     pub gas: i64,
     pub recipient: Address,
     pub sender: Address,
-    pub input: Option<&'a [u8]>,
+    pub input: &'a [u8],
     pub value: Uint256,
     pub create2_salt: Uint256,
     pub code_address: Address,
-    pub code: Option<&'a [u8]>,
+    pub code: &'a [u8],
     pub code_hash: Option<Uint256>,
 }
 
@@ -148,16 +148,10 @@ impl<'a> ExecutionContext<'a> {
         // is also the reason why this implementation lives here instead of having a From
         // implementation.
         fn from_ffi<'a>(message: ffi::evmc_tx_context) -> ExecutionTxContext<'a> {
-            let blob_hashes = if message.blob_hashes.is_null() {
-                &[]
-            } else {
-                unsafe { slice::from_raw_parts(message.blob_hashes, message.blob_hashes_count) }
-            };
-            let initcodes = if message.initcodes.is_null() {
-                &[]
-            } else {
-                unsafe { slice::from_raw_parts(message.initcodes, message.initcodes_count) }
-            };
+            let blob_hashes =
+                unsafe { slice_from_raw_parts(message.blob_hashes, message.blob_hashes_count) };
+            let initcodes =
+                unsafe { slice_from_raw_parts(message.initcodes, message.initcodes_count) };
             ExecutionTxContext {
                 tx_gas_price: message.tx_gas_price,
                 tx_origin: message.tx_origin,
@@ -238,10 +232,8 @@ impl<'a> ExecutionContext<'a> {
     pub fn call(&mut self, message: &ExecutionMessage) -> ExecutionResult {
         // There is no need to make any kind of copies here, because the caller
         // won't go out of scope and ensures these pointers remain valid.
-        let input_size = message.input.map(|s| s.len()).unwrap_or_default();
-        let input_data = message.input.map(|s| s.as_ptr()).unwrap_or(ptr::null());
-        let code_size = message.code.map(|s| s.len()).unwrap_or_default();
-        let code_data = message.code.map(|s| s.as_ptr()).unwrap_or(ptr::null());
+        let (input_data, input_size) = slice_into_raw_parts(message.input);
+        let (code_data, code_size) = slice_into_raw_parts(message.code);
         // Cannot use a nice from trait here because that complicates memory management,
         // evmc_message doesn't have a release() method we could abstract it with.
         let message = ffi::evmc_message {
@@ -310,16 +302,11 @@ impl From<ffi::evmc_result> for ExecutionResult {
             status_code: result.status_code,
             gas_left: result.gas_left,
             gas_refund: result.gas_refund,
-            output: if result.output_data.is_null() {
-                assert_eq!(result.output_size, 0);
-                None
-            } else if result.output_size == 0 {
-                None
-            } else {
-                Some(Box::from(unsafe {
-                    slice::from_raw_parts(result.output_data as *mut u8, result.output_size)
-                }))
-            },
+            // A fresh allocation is necessary because the data may come from a different allocator
+            // and is released by the release callback.
+            output: Box::from(unsafe {
+                slice_from_raw_parts(result.output_data as *mut u8, result.output_size)
+            }),
             // Consider it is always valid.
             create_address: Some(result.create_address),
         };
@@ -335,23 +322,43 @@ impl From<ffi::evmc_result> for ExecutionResult {
     }
 }
 
-fn boxed_slice_into_raw_parts<T>(slice: Option<Box<[T]>>) -> (*const T, usize) {
-    slice
-        .map(|v| {
-            let len = v.len();
-            (Box::into_raw(v) as *const T, len)
-        })
-        .unwrap_or((std::ptr::null(), 0))
+fn boxed_slice_into_raw_parts<T>(slice: Box<[T]>) -> (*const T, usize) {
+    let len = slice.len();
+    let mut ptr = Box::into_raw(slice) as *const T;
+    if len == 0 {
+        ptr = ptr::null();
+    }
+    (ptr, len)
+}
+
+fn slice_into_raw_parts<T>(slice: &[T]) -> (*const T, usize) {
+    let len = slice.len();
+    let ptr = if len == 0 {
+        ptr::null()
+    } else {
+        slice.as_ptr()
+    };
+    (ptr, len)
 }
 
 /// # Safety
 /// ptr must be null or valid for reads and writes for `len * mem::size_of::<T>()` many bytes and
 /// must have been allocated by the global allocator.
-unsafe fn boxed_slice_from_raw_parts<T>(ptr: *const T, len: usize) -> Option<Box<[T]>> {
+unsafe fn boxed_slice_from_raw_parts<T>(ptr: *const T, len: usize) -> Box<[T]> {
     if ptr.is_null() {
-        None
+        Box::default()
     } else {
-        Some(unsafe { Box::<[T]>::from_raw(slice::from_raw_parts_mut(ptr as *mut T, len)) })
+        unsafe { Box::from_raw(slice::from_raw_parts_mut(ptr as *mut T, len)) }
+    }
+}
+
+/// # Safety
+/// ptr must be null or valid for reads for `len * mem::size_of::<T>()` many bytes.
+unsafe fn slice_from_raw_parts<'a, T>(ptr: *const T, len: usize) -> &'a [T] {
+    if ptr.is_null() {
+        &[]
+    } else {
+        unsafe { slice::from_raw_parts(ptr, len) }
     }
 }
 
@@ -374,9 +381,8 @@ impl From<ExecutionResult> for ffi::evmc_result {
 impl From<StepResult> for ffi::evmc_step_result {
     fn from(value: StepResult) -> Self {
         let (output_data, output_size) = boxed_slice_into_raw_parts(value.output);
-        let (stack, stack_size) = boxed_slice_into_raw_parts(Some(value.stack.into_boxed_slice()));
-        let (memory, memory_size) =
-            boxed_slice_into_raw_parts(Some(value.memory.into_boxed_slice()));
+        let (stack, stack_size) = boxed_slice_into_raw_parts(value.stack.into_boxed_slice());
+        let (memory, memory_size) = boxed_slice_into_raw_parts(value.memory.into_boxed_slice());
         let (last_call_return_data, last_call_return_data_size) =
             boxed_slice_into_raw_parts(value.last_call_return_data);
 
@@ -409,45 +415,25 @@ impl From<ffi::evmc_step_result> for StepResult {
             pc: value.pc,
             gas_left: value.gas_left,
             gas_refund: value.gas_refund,
-            output: if value.output_data.is_null() || value.output_size == 0 {
-                None
-            } else {
-                Some(Box::from(unsafe {
-                    slice::from_raw_parts(value.output_data as *mut u8, value.output_size)
-                }))
-            },
-            stack: if value.stack.is_null() || value.stack_size == 0 {
-                Vec::new()
-            } else {
-                unsafe {
-                    Vec::from(slice::from_raw_parts(
-                        value.stack as *mut _,
-                        value.stack_size,
-                    ))
-                }
-            },
-            memory: if value.memory.is_null() || value.memory_size == 0 {
-                Vec::new()
-            } else {
-                unsafe {
-                    Vec::from(slice::from_raw_parts(
-                        value.memory as *mut _,
-                        value.memory_size,
-                    ))
-                }
-            },
-            last_call_return_data: if value.last_call_return_data.is_null()
-                || value.last_call_return_data_size == 0
-            {
-                None
-            } else {
-                Some(unsafe {
-                    Box::from(slice::from_raw_parts(
-                        value.last_call_return_data as *mut _,
-                        value.last_call_return_data_size,
-                    ))
-                })
-            },
+            // A fresh allocation is necessary because the data may come from a different allocator
+            // and is released by the release callback.
+            output: Box::from(unsafe {
+                slice_from_raw_parts(value.output_data, value.output_size)
+            }),
+            // A fresh allocation is necessary because the data may come from a different
+            // allocator and is released by the release callback.
+            stack: Vec::from(unsafe { slice_from_raw_parts(value.stack, value.stack_size) }),
+            // A fresh allocation is necessary because the data may come from a different
+            // allocator and is released by the release callback.
+            memory: Vec::from(unsafe { slice_from_raw_parts(value.memory, value.memory_size) }),
+            // A fresh allocation is necessary because the data may come from a different allocator
+            // and is released by the release callback.
+            last_call_return_data: Box::from(unsafe {
+                slice_from_raw_parts(
+                    value.last_call_return_data,
+                    value.last_call_return_data_size,
+                )
+            }),
         };
 
         // If release function is provided, use it to release resources.
@@ -492,19 +478,11 @@ impl<'a> From<&'a ffi::evmc_message> for ExecutionMessage<'a> {
             gas: message.gas,
             recipient: message.recipient,
             sender: message.sender,
-            input: if message.input_data.is_null() || message.input_size == 0 {
-                None
-            } else {
-                Some(unsafe { slice::from_raw_parts(message.input_data, message.input_size) })
-            },
+            input: unsafe { slice_from_raw_parts(message.input_data, message.input_size) },
             value: message.value,
             create2_salt: message.create2_salt,
             code_address: message.code_address,
-            code: if message.code.is_null() || message.code_size == 0 {
-                None
-            } else {
-                Some(unsafe { slice::from_raw_parts(message.code, message.code_size) })
-            },
+            code: unsafe { slice_from_raw_parts(message.code, message.code_size) },
             code_hash: if message.code_hash.is_null() {
                 None
             } else {
@@ -554,7 +532,7 @@ mod tests {
 
     #[test]
     fn result_from_ffi() {
-        let output: Box<[u8]> = Box::from([0xde, 0xad, 0xbe, 0xef].as_slice());
+        let output: Box<[u8]> = vec![0xde, 0xad, 0xbe, 0xef].into_boxed_slice();
         let output_len = output.len();
         let f = ffi::evmc_result {
             status_code: StatusCode::EVMC_SUCCESS,
@@ -572,8 +550,7 @@ mod tests {
         assert_eq!(r.status_code, StatusCode::EVMC_SUCCESS);
         assert_eq!(r.gas_left, 1337);
         assert_eq!(r.gas_refund, 21);
-        assert!(r.output.is_some());
-        assert_eq!(r.output.unwrap().len(), 4);
+        assert_eq!(r.output.len(), 4);
         assert!(r.create_address.is_some());
     }
 
@@ -583,7 +560,7 @@ mod tests {
             status_code: StatusCode::EVMC_FAILURE,
             gas_left: 420,
             gas_refund: 21,
-            output: Some(vec![0xc0, 0xff, 0xee, 0x71, 0x75].into_boxed_slice()),
+            output: vec![0xc0, 0xff, 0xee, 0x71, 0x75].into_boxed_slice(),
             create_address: None,
         };
 
@@ -611,7 +588,7 @@ mod tests {
             status_code: StatusCode::EVMC_FAILURE,
             gas_left: 420,
             gas_refund: 21,
-            output: None,
+            output: Box::default(),
             create_address: None,
         };
 
@@ -662,11 +639,11 @@ mod tests {
         assert_eq!(ret.gas, msg.gas);
         assert_eq!(ret.recipient, msg.recipient);
         assert_eq!(ret.sender, msg.sender);
-        assert!(ret.input.is_none());
+        assert_eq!(ret.input, &[]);
         assert_eq!(ret.value, msg.value);
         assert_eq!(ret.create2_salt, msg.create2_salt);
         assert_eq!(ret.code_address, msg.code_address);
-        assert!(ret.code.is_none());
+        assert_eq!(ret.code, &[]);
     }
 
     #[test]
@@ -703,12 +680,11 @@ mod tests {
         assert_eq!(ret.gas, msg.gas);
         assert_eq!(ret.recipient, msg.recipient);
         assert_eq!(ret.sender, msg.sender);
-        assert!(ret.input.is_some());
-        assert_eq!(ret.input.unwrap(), input);
+        assert_eq!(ret.input, input);
         assert_eq!(ret.value, msg.value);
         assert_eq!(ret.create2_salt, msg.create2_salt);
         assert_eq!(ret.code_address, msg.code_address);
-        assert!(ret.code.is_none());
+        assert_eq!(ret.code, &[]);
     }
 
     #[test]
@@ -745,12 +721,11 @@ mod tests {
         assert_eq!(ret.gas, msg.gas);
         assert_eq!(ret.recipient, msg.recipient);
         assert_eq!(ret.sender, msg.sender);
-        assert!(ret.input.is_none());
+        assert_eq!(ret.input, &[]);
         assert_eq!(ret.value, msg.value);
         assert_eq!(ret.create2_salt, msg.create2_salt);
         assert_eq!(ret.code_address, msg.code_address);
-        assert!(ret.code.is_some());
-        assert_eq!(ret.code.unwrap(), code);
+        assert_eq!(ret.code, code);
     }
 
     unsafe extern "C" fn get_dummy_tx_context(
@@ -876,11 +851,11 @@ mod tests {
             gas: 6566,
             recipient: test_addr,
             sender: test_addr,
-            input: None,
+            input: &[],
             value: Uint256::default(),
             create2_salt: Uint256::default(),
             code_address: test_addr,
-            code: None,
+            code: &[],
             code_hash: None,
         };
 
@@ -888,9 +863,8 @@ mod tests {
 
         assert_eq!(b.status_code, StatusCode::EVMC_SUCCESS);
         assert_eq!(b.gas_left, 2);
-        assert!(b.output.is_none());
-        assert!(b.create_address.is_some());
-        assert_eq!(b.create_address.unwrap(), Address::default());
+        assert_eq!(b.output, Box::default());
+        assert_eq!(b.create_address, Some(Address::default()));
     }
 
     #[test]
@@ -910,11 +884,11 @@ mod tests {
             gas: 6566,
             recipient: test_addr,
             sender: test_addr,
-            input: Some(&data),
+            input: &data,
             value: Uint256::default(),
             create2_salt: Uint256::default(),
             code_address: test_addr,
-            code: None,
+            code: &[],
             code_hash: None,
         };
 
@@ -922,7 +896,7 @@ mod tests {
 
         assert_eq!(b.status_code, StatusCode::EVMC_SUCCESS);
         assert_eq!(b.gas_left, 2);
-        assert_eq!(b.output.as_deref(), Some(data.as_slice()));
+        assert_eq!(b.output, Box::from(data));
         assert_eq!(b.create_address, Some(Address::default()));
     }
 }

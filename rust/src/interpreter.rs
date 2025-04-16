@@ -309,10 +309,10 @@ pub struct Interpreter<'a, const STEPPABLE: bool> {
     pub code_reader: CodeReader<'a, STEPPABLE>,
     pub gas_left: Gas,
     pub gas_refund: GasRefund,
-    pub output: Option<Box<[u8]>>,
+    pub output: Box<[u8]>,
     pub stack: Stack,
     pub memory: Memory,
-    pub last_call_return_data: Option<Box<[u8]>>,
+    pub last_call_return_data: Box<[u8]>,
     pub steps: Option<i32>,
 }
 
@@ -331,10 +331,10 @@ impl<'a> Interpreter<'a, false> {
             code_reader: CodeReader::new(code, message.code_hash.map(u256::from), 0),
             gas_left: Gas::new(message.gas),
             gas_refund: GasRefund::new(0),
-            output: None,
+            output: Box::default(),
             stack: Stack::new(&[]),
             memory: Memory::new(&[]),
-            last_call_return_data: None,
+            last_call_return_data: Box::default(),
             steps: None,
         }
     }
@@ -351,7 +351,7 @@ impl<'a> Interpreter<'a, true> {
         gas_refund: i64,
         stack: Stack,
         memory: Memory,
-        last_call_return_data: Option<Box<[u8]>>,
+        last_call_return_data: Box<[u8]>,
         steps: Option<i32>,
     ) -> Self {
         Self {
@@ -362,7 +362,7 @@ impl<'a> Interpreter<'a, true> {
             code_reader: CodeReader::new(code, message.code_hash.map(u256::from), pc),
             gas_left: Gas::new(message.gas),
             gas_refund: GasRefund::new(gas_refund),
-            output: None,
+            output: Box::default(),
             stack,
             memory,
             last_call_return_data,
@@ -747,7 +747,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let (push_location, [offset]) = self.stack.pop_with_location()?;
         let (offset, overflow) = offset.into_u64_with_overflow();
         let offset = offset as usize;
-        let call_data = self.message.input.unwrap_or_default();
+        let call_data = self.message.input;
         if overflow || offset >= call_data.len() {
             push_location.push(u256::ZERO);
         } else {
@@ -762,7 +762,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
     fn call_data_size(&mut self) -> OpResult {
         self.gas_left.consume(2)?;
-        let call_data_len = self.message.input.map(<[u8]>::len).unwrap_or_default();
+        let call_data_len = self.message.input.len();
         self.stack.push(call_data_len)?;
         self.code_reader.next();
         self.return_from_op()
@@ -783,11 +783,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         if len != u256::ZERO {
             let len = u64::try_from(len).map_err(|_| FailStatus::InvalidMemoryAccess)?;
 
-            let src = self
-                .message
-                .input
-                .unwrap_or_default()
-                .get_within_bounds(offset, len);
+            let src = self.message.input.get_within_bounds(offset, len);
             let dest = self
                 .memory
                 .get_mut_slice(dest_offset, len, &mut self.gas_left)?;
@@ -872,12 +868,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
     fn return_data_size(&mut self) -> OpResult {
         self.gas_left.consume(2)?;
-        self.stack.push(
-            self.last_call_return_data
-                .as_ref()
-                .map(|d| d.len())
-                .unwrap_or_default(),
-        )?;
+        self.stack.push(self.last_call_return_data.len())?;
         self.code_reader.next();
         self.return_from_op()
     }
@@ -886,7 +877,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.gas_left.consume(3)?;
         let [len, offset, dest_offset] = self.stack.pop()?;
 
-        let src = self.last_call_return_data.as_deref().unwrap_or_default();
+        let src = &self.last_call_return_data;
         let (offset, offset_overflow) = offset.into_u64_with_overflow();
         let (len, len_overflow) = len.into_u64_with_overflow();
         let (end, end_overflow) = offset.overflowing_add(len);
@@ -1179,7 +1170,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let [len, offset] = self.stack.pop()?;
         let len = u64::try_from(len).map_err(|_| FailStatus::OutOfGas)?;
         let data = self.memory.get_mut_slice(offset, len, &mut self.gas_left)?;
-        self.output = Some(Box::from(&*data));
+        self.output = Box::from(&*data);
         self.exec_status = ExecStatus::Returned;
         Ok(())
     }
@@ -1188,7 +1179,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let [len, offset] = self.stack.pop()?;
         let len = u64::try_from(len).map_err(|_| FailStatus::OutOfGas)?;
         let data = self.memory.get_mut_slice(offset, len, &mut self.gas_left)?;
-        self.output = Some(Box::from(&*data));
+        self.output = Box::from(&*data);
         self.exec_status = ExecStatus::Revert;
         Ok(())
     }
@@ -1362,7 +1353,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let init_code = self.memory.get_mut_slice(offset, len, &mut self.gas_left)?;
 
         if value > self.context.get_balance(&self.message.recipient).into() {
-            self.last_call_return_data = None;
+            self.last_call_return_data = Box::default();
             self.stack.push(u256::ZERO)?;
             self.code_reader.next();
             return self.return_from_op();
@@ -1383,11 +1374,11 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             gas: gas_limit as i64,
             recipient: u256::ZERO.into(), // ignored
             sender: self.message.recipient,
-            input: Some(init_code),
+            input: init_code,
             value: value.into(),
             create2_salt: salt.into(),
             code_address: u256::ZERO.into(), // ignored
-            code: None,
+            code: &[],
             code_hash: None,
         };
         let result = self.context.call(&message);
@@ -1400,7 +1391,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
                 return Err(FailStatus::InternalError);
             };
 
-            self.last_call_return_data = None;
+            self.last_call_return_data = Box::default();
             self.stack.push(addr)?;
         } else {
             self.last_call_return_data = result.output;
@@ -1459,7 +1450,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.gas_left.add(stipend as i64)?;
 
         if value > u256::from(self.context.get_balance(&self.message.recipient)) {
-            self.last_call_return_data = None;
+            self.last_call_return_data = Box::default();
             self.stack.push(u256::ZERO)?;
             self.code_reader.next();
             return self.return_from_op();
@@ -1473,11 +1464,11 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
                 gas: (endowment + stipend) as i64,
                 recipient: self.message.recipient,
                 sender: self.message.recipient,
-                input: Some(input),
+                input,
                 value: value.into(),
                 create2_salt: u256::ZERO.into(), // ignored
                 code_address: addr,
-                code: None,
+                code: &[],
                 code_hash: None,
             }
         } else {
@@ -1488,11 +1479,11 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
                 gas: (endowment + stipend) as i64,
                 recipient: addr,
                 sender: self.message.recipient,
-                input: Some(input),
+                input,
                 value: value.into(),
                 create2_salt: u256::ZERO.into(), // ignored
                 code_address: addr,
-                code: None,
+                code: &[],
                 code_hash: None,
             }
         };
@@ -1502,10 +1493,9 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let dest = self
             .memory
             .get_mut_slice(ret_offset, ret_len, &mut self.gas_left)?;
-        if let Some(output) = &self.last_call_return_data {
-            let min_len = min(output.len(), ret_len as usize); // ret_len == dest.len()
-            dest[..min_len].copy_from_slice(&output[..min_len]);
-        }
+        let output = &self.last_call_return_data;
+        let min_len = min(output.len(), ret_len as usize); // ret_len == dest.len()
+        dest[..min_len].copy_from_slice(&output[..min_len]);
 
         self.gas_left.add(result.gas_left)?;
         self.gas_left.consume(endowment)?;
@@ -1562,11 +1552,11 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
                 gas: endowment as i64,
                 recipient: self.message.recipient,
                 sender: self.message.sender,
-                input: Some(input),
+                input,
                 value: self.message.value,
                 create2_salt: u256::ZERO.into(), // ignored
                 code_address: addr,
-                code: None,
+                code: &[],
                 code_hash: None,
             }
         } else {
@@ -1577,11 +1567,11 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
                 gas: endowment as i64,
                 recipient: addr,
                 sender: self.message.recipient,
-                input: Some(input),
+                input,
                 value: u256::ZERO.into(),        // ignored
                 create2_salt: u256::ZERO.into(), // ignored
                 code_address: addr,
-                code: None,
+                code: &[],
                 code_hash: None,
             }
         };
@@ -1591,10 +1581,9 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let dest = self
             .memory
             .get_mut_slice(ret_offset, ret_len, &mut self.gas_left)?;
-        if let Some(output) = &self.last_call_return_data {
-            let min_len = min(output.len(), ret_len as usize); // ret_len == dest.len()
-            dest[..min_len].copy_from_slice(&output[..min_len]);
-        }
+        let output = &self.last_call_return_data;
+        let min_len = min(output.len(), ret_len as usize); // ret_len == dest.len()
+        dest[..min_len].copy_from_slice(&output[..min_len]);
 
         self.gas_left.add(result.gas_left)?;
         self.gas_left.consume(endowment)?;
@@ -1686,7 +1675,7 @@ mod tests {
             0,
             Stack::new(&[]),
             Memory::new(&[]),
-            None,
+            Box::default(),
             None,
         );
         let result: StepResult = interpreter.run(&mut NoOpObserver());
@@ -1713,7 +1702,7 @@ mod tests {
             0,
             Stack::new(&[]),
             Memory::new(&[]),
-            None,
+            Box::default(),
             None,
         )
         .run(&mut NoOpObserver());
@@ -1733,7 +1722,7 @@ mod tests {
             0,
             Stack::new(&[]),
             Memory::new(&[]),
-            None,
+            Box::default(),
             Some(0),
         );
         let result: StepResult = interpreter.run(&mut NoOpObserver());
@@ -1758,7 +1747,7 @@ mod tests {
             0,
             Stack::new(&[1u8.into(), 2u8.into()]),
             Memory::new(&[]),
-            None,
+            Box::default(),
             Some(1),
         );
         let result: StepResult = interpreter.run(&mut NoOpObserver());
@@ -1888,17 +1877,17 @@ mod tests {
                     && call_message.gas == gas as i64
                     && call_message.sender == message.recipient
                     && call_message.recipient == Address::from(addr)
-                    && call_message.input == Some(&input)
+                    && call_message.input == input
                     && call_message.value == Uint256::from(value)
                     && call_message.create2_salt == Uint256::from(u256::ZERO)
                     && call_message.code_address == Address::from(addr)
-                    && call_message.code.is_none()
+                    && call_message.code.is_empty()
             })
             .returning(move |_| ExecutionResult {
                 status_code: StatusCode::EVMC_SUCCESS,
                 gas_left: 0,
                 gas_refund: 0,
-                output: Some(Box::from(ret_data.as_slice())),
+                output: Box::from(ret_data.as_slice()),
                 create_address: None,
             });
 
@@ -1923,7 +1912,7 @@ mod tests {
             0,
             Stack::new(&stack),
             Memory::new(&memory),
-            None,
+            Box::default(),
             None,
         );
         let result: StepResult = interpreter.run(&mut NoOpObserver());
@@ -1933,10 +1922,7 @@ mod tests {
             result.gas_left,
             MockExecutionMessage::DEFAULT_INIT_GAS as i64 - 700 - gas as i64
         );
-        assert_eq!(
-            result.last_call_return_data.as_deref(),
-            Some(ret_data.as_slice())
-        );
+        assert_eq!(result.last_call_return_data.as_ref(), ret_data.as_slice());
         assert_eq!(
             &result.memory[ret_offset..ret_offset + ret_len],
             ret_data.as_slice()

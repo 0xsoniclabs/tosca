@@ -163,7 +163,7 @@ mod tests {
                 status_code: StatusCode::EVMC_FAILURE,
                 gas_left: 0,
                 gas_refund: 0,
-                output: None,
+                output: Box::default(),
                 create_address: None,
             }
         }

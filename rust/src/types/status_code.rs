@@ -97,10 +97,10 @@ impl From<FailStatus> for StepResult {
             pc: 0,
             gas_left: 0,
             gas_refund: 0,
-            output: None,
+            output: Box::default(),
             stack: Vec::new(),
             memory: Vec::new(),
-            last_call_return_data: None,
+            last_call_return_data: Box::default(),
         }
     }
 }
@@ -111,7 +111,7 @@ impl From<FailStatus> for ExecutionResult {
             status_code: fail_status.into(),
             gas_left: 0,
             gas_refund: 0,
-            output: None,
+            output: Box::default(),
             create_address: None,
         }
     }

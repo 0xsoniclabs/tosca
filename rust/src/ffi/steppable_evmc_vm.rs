@@ -149,10 +149,10 @@ extern "C" fn __evmc_step_n(
         pc: 0,
         gas_left: 0,
         gas_refund: 0,
-        output: None,
+        output: Box::default(),
         stack: Vec::new(),
         memory: Vec::new(),
-        last_call_return_data: None,
+        last_call_return_data: Box::default(),
     })
     .into()
 }

@@ -157,7 +157,7 @@ extern "C" fn __evmc_execute(
         status_code: evmc_status_code::EVMC_INTERNAL_ERROR,
         gas_left: 0,
         gas_refund: 0,
-        output: None,
+        output: Box::default(),
         create_address: None,
     })
     .into()

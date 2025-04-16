@@ -85,14 +85,10 @@ impl SteppableEvmcVm for EvmRs {
                 pc,
                 gas_left: gas_refund,
                 gas_refund,
-                output: None,
+                output: Box::default(),
                 stack: stack.to_owned(),
                 memory: memory.to_owned(),
-                last_call_return_data: if last_call_return_data.is_empty() {
-                    None
-                } else {
-                    Some(Box::from(last_call_return_data))
-                },
+                last_call_return_data: Box::from(last_call_return_data),
             };
         }
         assert_ne!(
@@ -115,7 +111,7 @@ impl SteppableEvmcVm for EvmRs {
             gas_refund,
             stack,
             memory,
-            Some(Box::from(last_call_return_data)),
+            Box::from(last_call_return_data),
             Some(steps),
         );
         match self.observer_type {

@@ -13,11 +13,11 @@ pub struct MockExecutionMessage {
     pub gas: i64,
     pub recipient: Address,
     pub sender: Address,
-    pub input: Option<&'static [u8]>,
+    pub input: &'static [u8],
     pub value: Uint256,
     pub create2_salt: Uint256,
     pub code_address: Address,
-    pub code: Option<&'static [u8]>,
+    pub code: &'static [u8],
     pub code_hash: Option<&'static Uint256>,
 }
 
@@ -32,13 +32,21 @@ impl MockExecutionMessage {
             gas: self.gas,
             recipient: self.recipient,
             sender: self.sender,
-            input_data: self.input.map(<[u8]>::as_ptr).unwrap_or(ptr::null()),
-            input_size: self.input.map(<[u8]>::len).unwrap_or_default(),
+            input_data: if self.input.is_empty() {
+                ptr::null()
+            } else {
+                self.input.as_ptr()
+            },
+            input_size: self.input.len(),
             value: self.value,
             create2_salt: self.create2_salt,
             code_address: self.code_address,
-            code: self.code.map(<[u8]>::as_ptr).unwrap_or(ptr::null()),
-            code_size: self.code.map(<[u8]>::len).unwrap_or_default(),
+            code: if self.code.is_empty() {
+                ptr::null()
+            } else {
+                self.code.as_ptr()
+            },
+            code_size: self.code.len(),
             code_hash: self.code_hash.map(|h| h as *const _).unwrap_or(ptr::null()),
         }
     }
@@ -53,11 +61,11 @@ impl Default for MockExecutionMessage {
             gas: Self::DEFAULT_INIT_GAS as i64,
             recipient: u256::ZERO.into(),
             sender: u256::ZERO.into(),
-            input: None,
+            input: &[],
             value: u256::ZERO.into(),
             create2_salt: u256::ZERO.into(),
             code_address: u256::ZERO.into(),
-            code: None,
+            code: &[],
             code_hash: None,
         }
     }
