@@ -19,7 +19,7 @@ mod status_code;
 pub use amount::u256;
 #[cfg(feature = "needs-cache")]
 pub use cache::Cache;
-pub use code_analysis::{AnalysisContainer, CodeAnalysis};
+pub use code_analysis::{AnalysisContainer, CodeAnalysis, CodeAnalysisCache};
 pub use code_reader::{CodeReader, GetOpcodeError};
 pub use execution_context::*;
 pub use memory::Memory;

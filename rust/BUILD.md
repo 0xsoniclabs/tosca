@@ -15,6 +15,9 @@
     cargo build --lib --profile profiling --features performance
     ```
 
+NOTE: The maximum size of the code analysis and hash cache can be modified by setting the environment variables `EVMRS_CODE_ANALYSIS_CACHE_SIZE` and `EVMRS_HASH_CACHE_SIZE`.
+The size is measured in the number of elements not the number of bytes.
+
 ## Lint
 
 To run the [Rust linter](https://doc.rust-lang.org/clippy/) on the whole project run:
