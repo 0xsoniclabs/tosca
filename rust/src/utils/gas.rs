@@ -140,8 +140,7 @@ mod tests {
     use mockall::predicate;
 
     use crate::{
-        interpreter::Interpreter,
-        types::{FailStatus, MockExecutionContextTrait, MockExecutionMessage, Opcode, u256},
+        types::{FailStatus, MockExecutionContextTrait, u256},
         utils::Gas,
     };
 
@@ -189,7 +188,6 @@ mod tests {
 
         for (exists, value, consume) in cases {
             let addr = Address::from(u256::ONE);
-            let message = MockExecutionMessage::default().into();
 
             let mut context = MockExecutionContextTrait::new();
             context
@@ -204,33 +202,19 @@ mod tests {
                 .with(predicate::eq(addr))
                 .return_const(exists);
 
-            let mut interpreter = Interpreter::new(
-                Revision::EVMC_ISTANBUL,
-                &message,
-                &mut context,
-                &[Opcode::Call as u8],
-            );
-            interpreter.gas_left = Gas::new(if consume { 25_000 } else { 0 });
+            let mut gas_left = Gas::new(if consume { 25_000 } else { 0 });
 
             assert_eq!(
-                interpreter.gas_left.consume_value_to_empty_account_cost(
-                    &value,
-                    &addr,
-                    interpreter.context
-                ),
+                gas_left.consume_value_to_empty_account_cost(&value, &addr, &mut context),
                 Ok(())
             );
-            assert_eq!(interpreter.gas_left, 0);
+            assert_eq!(gas_left, 0);
 
             if consume {
-                interpreter.gas_left = Gas::new(0);
+                gas_left = Gas::new(0);
 
                 assert_eq!(
-                    interpreter.gas_left.consume_value_to_empty_account_cost(
-                        &value,
-                        &addr,
-                        interpreter.context
-                    ),
+                    gas_left.consume_value_to_empty_account_cost(&value, &addr, &mut context),
                     Err(FailStatus::OutOfGas)
                 );
             }
@@ -258,7 +242,6 @@ mod tests {
         ];
         for (revision, access_status, gas) in cases {
             let addr = Address::from(u256::ONE);
-            let message = MockExecutionMessage::default().into();
 
             let mut context = MockExecutionContextTrait::new();
             context
@@ -271,19 +254,13 @@ mod tests {
                 .with(predicate::eq(addr))
                 .return_const(access_status);
 
-            let mut interpreter =
-                Interpreter::new(revision, &message, &mut context, &[Opcode::Call as u8]);
-            interpreter.gas_left = gas;
+            let mut gas_left = gas;
 
             assert_eq!(
-                interpreter.gas_left.consume_address_access_cost(
-                    &addr,
-                    interpreter.revision,
-                    interpreter.context
-                ),
+                gas_left.consume_address_access_cost(&addr, revision, &mut context),
                 Ok(())
             );
-            assert_eq!(interpreter.gas_left, 0);
+            assert_eq!(gas_left, 0);
         }
     }
 

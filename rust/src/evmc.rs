@@ -9,17 +9,26 @@ use evmc_vm::{
 use crate::{
     ffi::EVMC_CAPABILITY,
     interpreter::Interpreter,
-    types::{LoggingObserver, Memory, NoOpObserver, ObserverType, Stack, u256},
+    types::{
+        CodeAnalysisCache, LoggingObserver, Memory, NoOpObserver, ObserverType, Stack,
+        hash_cache::HashCache, u256,
+    },
 };
 
 pub struct EvmRs {
     observer_type: ObserverType,
+    hash_cache: HashCache,
+    code_analysis_cache_steppable: CodeAnalysisCache<true>,
+    code_analysis_cache_non_steppable: CodeAnalysisCache<false>,
 }
 
 impl EvmcVm for EvmRs {
     fn init() -> Self {
         EvmRs {
             observer_type: ObserverType::NoOp,
+            hash_cache: HashCache::new_from_env_size(),
+            code_analysis_cache_steppable: CodeAnalysisCache::new_from_env_size(),
+            code_analysis_cache_non_steppable: CodeAnalysisCache::new_from_env_size(),
         }
     }
 
@@ -39,7 +48,14 @@ impl EvmcVm for EvmRs {
             // If this is not the case it violates the EVMC spec and is an irrecoverable error.
             process::abort();
         };
-        let interpreter = Interpreter::new(revision, message, context, code);
+        let interpreter = Interpreter::new(
+            revision,
+            message,
+            context,
+            code,
+            &self.code_analysis_cache_non_steppable,
+            &self.hash_cache,
+        );
         match self.observer_type {
             ObserverType::NoOp => interpreter.run(&mut NoOpObserver()),
             ObserverType::Logging => interpreter.run(&mut LoggingObserver::new(std::io::stdout())),
@@ -113,6 +129,8 @@ impl SteppableEvmcVm for EvmRs {
             memory,
             Box::from(last_call_return_data),
             Some(steps),
+            &self.code_analysis_cache_steppable,
+            &self.hash_cache,
         );
         match self.observer_type {
             ObserverType::NoOp => interpreter.run(&mut NoOpObserver()),

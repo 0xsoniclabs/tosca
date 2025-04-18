@@ -4,7 +4,9 @@ use std::{self, ops::Deref};
 
 #[cfg(feature = "fn-ptr-conversion-dispatch")]
 use crate::interpreter::OpFn;
-use crate::types::{AnalysisContainer, CodeAnalysis, CodeByteType, FailStatus, u256};
+use crate::types::{
+    AnalysisContainer, CodeAnalysis, CodeAnalysisCache, CodeByteType, FailStatus, u256,
+};
 
 #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
 struct PushDataLen<const N: usize>;
@@ -36,8 +38,13 @@ pub enum GetOpcodeError {
 }
 
 impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
-    pub fn new(code: &'a [u8], code_hash: Option<u256>, pc: usize) -> Self {
-        let code_analysis = CodeAnalysis::new(code, code_hash);
+    pub fn new(
+        code: &'a [u8],
+        code_hash: Option<u256>,
+        pc: usize,
+        cache: &CodeAnalysisCache<STEPPABLE>,
+    ) -> Self {
+        let code_analysis = CodeAnalysis::new(code, code_hash, cache);
         #[cfg(feature = "fn-ptr-conversion-dispatch")]
         let pc = code_analysis.pc_map.to_converted(pc);
         Self {
@@ -142,16 +149,17 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
 #[cfg(test)]
 mod tests {
     use crate::types::{
-        FailStatus, Opcode,
+        CodeAnalysisCache, FailStatus, Opcode,
         code_reader::{CodeReader, GetOpcodeError},
         u256,
     };
 
     #[test]
     fn code_reader_internals() {
+        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
         let code = [Opcode::Add as u8, Opcode::Add as u8, 0xc0];
         let pc = 1;
-        let code_reader = CodeReader::<false>::new(&code, None, pc);
+        let code_reader = CodeReader::<false>::new(&code, None, pc, &code_analysis_cache);
         assert_eq!(*code_reader, code);
         assert_eq!(code_reader.len(), code.len());
         assert_eq!(code_reader.pc(), pc);
@@ -160,44 +168,51 @@ mod tests {
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     #[test]
     fn code_reader_pc() {
+        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
+
         let code = [Opcode::Push1 as u8, Opcode::Add as u8, Opcode::Add as u8];
 
-        let code_reader = CodeReader::<false>::new(&code, None, 0);
+        let code_reader = CodeReader::<false>::new(&code, None, 0, &code_analysis_cache);
         assert_eq!(code_reader.pc, 0);
         assert_eq!(code_reader.pc(), 0);
 
-        let mut code_reader = CodeReader::<false>::new(&code, None, 0);
+        let mut code_reader = CodeReader::<false>::new(&code, None, 0, &code_analysis_cache);
         assert_eq!(code_reader.pc, 0);
         code_reader.get_push_data();
         assert_eq!(code_reader.pc, 1);
         assert_eq!(code_reader.pc(), 2);
 
-        let code_reader = CodeReader::<false>::new(&code, None, 2);
+        let code_reader = CodeReader::<false>::new(&code, None, 2, &code_analysis_cache);
         assert_eq!(code_reader.pc, 1);
         assert_eq!(code_reader.pc(), 2);
 
         let mut code = [Opcode::Add as u8; 23];
         code[0] = Opcode::Push21 as u8;
 
-        let code_reader = CodeReader::<false>::new(&code, None, 0);
+        let code_reader = CodeReader::<false>::new(&code, None, 0, &code_analysis_cache);
         assert_eq!(code_reader.pc, 0);
         assert_eq!(code_reader.pc(), 0);
 
-        let mut code_reader = CodeReader::<false>::new(&code, None, 0);
+        let mut code_reader = CodeReader::<false>::new(&code, None, 0, &code_analysis_cache);
         assert_eq!(code_reader.pc, 0);
         code_reader.get_push_data();
         assert_eq!(code_reader.pc, 1);
         assert_eq!(code_reader.pc(), 22);
 
-        let code_reader = CodeReader::<false>::new(&code, None, 22);
+        let code_reader = CodeReader::<false>::new(&code, None, 22, &code_analysis_cache);
         assert_eq!(code_reader.pc, 1);
         assert_eq!(code_reader.pc(), 22);
     }
 
     #[test]
     fn code_reader_get() {
-        let mut code_reader =
-            CodeReader::<false>::new(&[Opcode::Add as u8, Opcode::Add as u8, 0xc0], None, 0);
+        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
+        let mut code_reader = CodeReader::<false>::new(
+            &[Opcode::Add as u8, Opcode::Add as u8, 0xc0],
+            None,
+            0,
+            &code_analysis_cache,
+        );
         #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
         assert_eq!(code_reader.get(), Ok(Opcode::Add as u8));
         #[cfg(feature = "fn-ptr-conversion-dispatch")]
@@ -215,6 +230,7 @@ mod tests {
 
     #[test]
     fn code_reader_try_jump() {
+        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
         let mut code_reader = CodeReader::<false>::new(
             &[
                 Opcode::Push1 as u8,
@@ -223,6 +239,7 @@ mod tests {
             ],
             None,
             0,
+            &code_analysis_cache,
         );
         assert_eq!(
             code_reader.try_jump(1u8.into()),
@@ -242,28 +259,30 @@ mod tests {
     #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
     #[test]
     fn code_reader_get_push_data() {
-        let mut code_reader = CodeReader::<false>::new(&[0xff; 32], None, 0);
+        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
+        let mut code_reader = CodeReader::<false>::new(&[0xff; 32], None, 0, &code_analysis_cache);
         assert_eq!(code_reader.get_push_data::<1>(), 0xffu8.into());
 
-        let mut code_reader = CodeReader::<false>::new(&[0xff; 32], None, 0);
+        let mut code_reader = CodeReader::<false>::new(&[0xff; 32], None, 0, &code_analysis_cache);
         assert_eq!(code_reader.get_push_data::<32>(), u256::MAX);
 
-        let mut code_reader = CodeReader::<false>::new(&[0xff; 32], None, 31);
+        let mut code_reader = CodeReader::<false>::new(&[0xff; 32], None, 31, &code_analysis_cache);
         assert_eq!(
             code_reader.get_push_data::<32>(),
             u256::from(0xffu8) << u256::from(248u8)
         );
 
-        let mut code_reader = CodeReader::<false>::new(&[0xff; 32], None, 32);
+        let mut code_reader = CodeReader::<false>::new(&[0xff; 32], None, 32, &code_analysis_cache);
         assert_eq!(code_reader.get_push_data::<32>(), u256::ZERO);
     }
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     #[test]
     fn code_reader_get_push_data() {
+        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
         // pc on data is non longer possible because there are not data items anymore
         let mut code = [0xff; 33];
         code[0] = Opcode::Push32 as u8;
-        let mut code_reader = CodeReader::<false>::new(&code, None, 0);
+        let mut code_reader = CodeReader::<false>::new(&code, None, 0, &code_analysis_cache);
         assert_eq!(code_reader.get_push_data(), u256::MAX);
     }
 }

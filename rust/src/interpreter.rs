@@ -7,13 +7,10 @@ use evmc_vm::{
 
 use crate::{
     types::{
-        CodeReader, ExecStatus, ExecutionContextTrait, FailStatus, GetOpcodeError, Memory,
-        Observer, Stack, hash_cache, u256,
+        CodeAnalysisCache, CodeReader, ExecStatus, ExecutionContextTrait, FailStatus,
+        GetOpcodeError, Memory, Observer, Stack, hash_cache::HashCache, u256,
     },
-    utils::{
-        Gas, GasRefund, GetGenericStatic, SliceExt, check_min_revision, check_not_read_only,
-        word_size,
-    },
+    utils::{Gas, GasRefund, SliceExt, check_min_revision, check_not_read_only, word_size},
 };
 
 type OpResult = Result<(), FailStatus>;
@@ -289,15 +286,25 @@ const fn gen_jumptable<const STEPPABLE: bool>() -> [OpFn<STEPPABLE>; 256] {
     ]
 }
 
-pub struct GenericJumptable;
-
-impl GetGenericStatic for GenericJumptable {
-    type I<const STEPPABLE: bool> = [OpFn<STEPPABLE>; 256];
-
-    fn get<const STEPPABLE: bool>() -> &'static Self::I<STEPPABLE> {
-        static JUMPTABLE_STEPPABLE: [OpFn<true>; 256] = gen_jumptable();
-        static JUMPTABLE_NON_STEPPABLE: [OpFn<false>; 256] = gen_jumptable();
-        Self::get_with_args(&JUMPTABLE_STEPPABLE, &JUMPTABLE_NON_STEPPABLE)
+pub const fn get_jumptable<const STEPPABLE: bool>() -> &'static [OpFn<STEPPABLE>; 256] {
+    static JUMPTABLE_STEPPABLE: [OpFn<true>; 256] = gen_jumptable();
+    static JUMPTABLE_NON_STEPPABLE: [OpFn<false>; 256] = gen_jumptable();
+    if STEPPABLE {
+        // SAFETY:
+        // STEPPABLE is true
+        unsafe {
+            std::mem::transmute::<&'static [OpFn<true>; 256], &'static [OpFn<STEPPABLE>; 256]>(
+                &JUMPTABLE_STEPPABLE,
+            )
+        }
+    } else {
+        // SAFETY:
+        // STEPPABLE is false
+        unsafe {
+            std::mem::transmute::<&'static [OpFn<false>; 256], &'static [OpFn<STEPPABLE>; 256]>(
+                &JUMPTABLE_NON_STEPPABLE,
+            )
+        }
     }
 }
 
@@ -314,6 +321,7 @@ pub struct Interpreter<'a, const STEPPABLE: bool> {
     pub memory: Memory,
     pub last_call_return_data: Box<[u8]>,
     pub steps: Option<i32>,
+    pub hash_cache: &'a HashCache,
 }
 
 impl<'a> Interpreter<'a, false> {
@@ -322,13 +330,20 @@ impl<'a> Interpreter<'a, false> {
         message: &'a ExecutionMessage,
         context: &'a mut dyn ExecutionContextTrait,
         code: &'a [u8],
+        code_analysis_cache: &'a CodeAnalysisCache<false>,
+        hash_cache: &'a HashCache,
     ) -> Self {
         Self {
             exec_status: ExecStatus::Running,
             message,
             context,
             revision,
-            code_reader: CodeReader::new(code, message.code_hash.map(u256::from), 0),
+            code_reader: CodeReader::new(
+                code,
+                message.code_hash.map(u256::from),
+                0,
+                code_analysis_cache,
+            ),
             gas_left: Gas::new(message.gas),
             gas_refund: GasRefund::new(0),
             output: Box::default(),
@@ -336,6 +351,7 @@ impl<'a> Interpreter<'a, false> {
             memory: Memory::new(&[]),
             last_call_return_data: Box::default(),
             steps: None,
+            hash_cache,
         }
     }
 }
@@ -353,13 +369,20 @@ impl<'a> Interpreter<'a, true> {
         memory: Memory,
         last_call_return_data: Box<[u8]>,
         steps: Option<i32>,
+        code_analysis_cache: &'a CodeAnalysisCache<true>,
+        hash_cache: &'a HashCache,
     ) -> Self {
         Self {
             exec_status: ExecStatus::Running,
             message,
             context,
             revision,
-            code_reader: CodeReader::new(code, message.code_hash.map(u256::from), pc),
+            code_reader: CodeReader::new(
+                code,
+                message.code_hash.map(u256::from),
+                pc,
+                code_analysis_cache,
+            ),
             gas_left: Gas::new(message.gas),
             gas_refund: GasRefund::new(gas_refund),
             output: Box::default(),
@@ -367,6 +390,7 @@ impl<'a> Interpreter<'a, true> {
             memory,
             last_call_return_data,
             steps,
+            hash_cache,
         }
     }
 }
@@ -453,7 +477,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
     #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
     fn run_op(&mut self, op: u8) -> OpResult {
-        GenericJumptable::get()[op as usize](self)
+        get_jumptable()[op as usize](self)
     }
 
     #[allow(clippy::unused_self)]
@@ -696,7 +720,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.gas_left.consume(6 * word_size(len)?)?; // * does not overflow
 
         let data = self.memory.get_mut_slice(offset, len, &mut self.gas_left)?;
-        push_location.push(hash_cache::hash(data));
+        push_location.push(self.hash_cache.hash(data));
         self.code_reader.next();
         self.return_from_op()
     }
@@ -1643,16 +1667,25 @@ mod tests {
     use crate::{
         interpreter::Interpreter,
         types::{
-            Memory, MockExecutionContextTrait, MockExecutionMessage, NoOpObserver, Opcode, Stack,
-            u256,
+            CodeAnalysisCache, Memory, MockExecutionContextTrait, MockExecutionMessage,
+            NoOpObserver, Opcode, Stack, hash_cache::HashCache, u256,
         },
     };
 
     #[test]
     fn empty_code() {
+        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
+        let hash_cache = HashCache::new_from_env_size();
         let mut context = MockExecutionContextTrait::new();
         let message = MockExecutionMessage::default().into();
-        let interpreter = Interpreter::new(Revision::EVMC_ISTANBUL, &message, &mut context, &[]);
+        let interpreter = Interpreter::new(
+            Revision::EVMC_ISTANBUL,
+            &message,
+            &mut context,
+            &[],
+            &code_analysis_cache,
+            &hash_cache,
+        );
         let result: StepResult = interpreter.run(&mut NoOpObserver());
         assert_eq!(result.step_status_code, StepStatusCode::EVMC_STEP_STOPPED);
         assert_eq!(result.pc, 0);
@@ -1664,6 +1697,8 @@ mod tests {
 
     #[test]
     fn pc_after_end() {
+        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
+        let hash_cache = HashCache::new_from_env_size();
         let mut context = MockExecutionContextTrait::new();
         let message = MockExecutionMessage::default().into();
         let interpreter = Interpreter::new_steppable(
@@ -1677,6 +1712,8 @@ mod tests {
             Memory::new(&[]),
             Box::default(),
             None,
+            &code_analysis_cache,
+            &hash_cache,
         );
         let result: StepResult = interpreter.run(&mut NoOpObserver());
         assert_eq!(result.step_status_code, StepStatusCode::EVMC_STEP_STOPPED);
@@ -1691,6 +1728,8 @@ mod tests {
     #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
     #[test]
     fn pc_on_data() {
+        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
+        let hash_cache = HashCache::new_from_env_size();
         let mut context = MockExecutionContextTrait::new();
         let message = MockExecutionMessage::default().into();
         let result: ExecutionResult = Interpreter::new_steppable(
@@ -1704,6 +1743,8 @@ mod tests {
             Memory::new(&[]),
             Box::default(),
             None,
+            &code_analysis_cache,
+            &hash_cache,
         )
         .run(&mut NoOpObserver());
         assert_eq!(result.status_code, StatusCode::EVMC_INVALID_INSTRUCTION);
@@ -1711,6 +1752,8 @@ mod tests {
 
     #[test]
     fn zero_steps() {
+        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
+        let hash_cache = HashCache::new_from_env_size();
         let mut context = MockExecutionContextTrait::new();
         let message = MockExecutionMessage::default().into();
         let interpreter = Interpreter::new_steppable(
@@ -1724,6 +1767,8 @@ mod tests {
             Memory::new(&[]),
             Box::default(),
             Some(0),
+            &code_analysis_cache,
+            &hash_cache,
         );
         let result: StepResult = interpreter.run(&mut NoOpObserver());
         assert_eq!(result.step_status_code, StepStatusCode::EVMC_STEP_RUNNING);
@@ -1736,6 +1781,8 @@ mod tests {
 
     #[test]
     fn add_one_step() {
+        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
+        let hash_cache = HashCache::new_from_env_size();
         let mut context = MockExecutionContextTrait::new();
         let message = MockExecutionMessage::default().into();
         let interpreter = Interpreter::new_steppable(
@@ -1749,6 +1796,8 @@ mod tests {
             Memory::new(&[]),
             Box::default(),
             Some(1),
+            &code_analysis_cache,
+            &hash_cache,
         );
         let result: StepResult = interpreter.run(&mut NoOpObserver());
         assert_eq!(result.step_status_code, StepStatusCode::EVMC_STEP_RUNNING);
@@ -1761,6 +1810,8 @@ mod tests {
 
     #[test]
     fn add_single_op() {
+        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
+        let hash_cache = HashCache::new_from_env_size();
         let mut context = MockExecutionContextTrait::new();
         let message = MockExecutionMessage::default().into();
         let mut interpreter = Interpreter::new(
@@ -1768,6 +1819,8 @@ mod tests {
             &message,
             &mut context,
             &[Opcode::Add as u8],
+            &code_analysis_cache,
+            &hash_cache,
         );
         interpreter.stack = Stack::new(&[1u8.into(), 2u8.into()]);
         let result: StepResult = interpreter.run(&mut NoOpObserver());
@@ -1781,6 +1834,8 @@ mod tests {
 
     #[test]
     fn add_twice() {
+        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
+        let hash_cache = HashCache::new_from_env_size();
         let mut context = MockExecutionContextTrait::new();
         let message = MockExecutionMessage::default().into();
         let mut interpreter = Interpreter::new(
@@ -1788,6 +1843,8 @@ mod tests {
             &message,
             &mut context,
             &[Opcode::Add as u8, Opcode::Add as u8],
+            &code_analysis_cache,
+            &hash_cache,
         );
         interpreter.stack = Stack::new(&[1u8.into(), 2u8.into(), 3u8.into()]);
         let result: StepResult = interpreter.run(&mut NoOpObserver());
@@ -1806,6 +1863,8 @@ mod tests {
     // Because it will fail when compiled without optimizations, it is only enabled when
     // debug_assertions are not enabled (the default in release mode).
     fn tail_call_elimination() {
+        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
+        let hash_cache = HashCache::new_from_env_size();
         let mut context = MockExecutionContextTrait::new();
         let message = MockExecutionMessage::default().into();
         let interpreter = Interpreter::new(
@@ -1813,6 +1872,8 @@ mod tests {
             &message,
             &mut context,
             &[Opcode::JumpDest as u8; 10_000_000],
+            &code_analysis_cache,
+            &hash_cache,
         );
         let result: StepResult = interpreter.run(&mut NoOpObserver());
         assert_eq!(result.step_status_code, StepStatusCode::EVMC_STEP_STOPPED);
@@ -1820,6 +1881,8 @@ mod tests {
 
     #[test]
     fn add_not_enough_gas() {
+        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
+        let hash_cache = HashCache::new_from_env_size();
         let mut context = MockExecutionContextTrait::new();
         let message = MockExecutionMessage {
             gas: 2,
@@ -1831,6 +1894,8 @@ mod tests {
             &message,
             &mut context,
             &[Opcode::Add as u8],
+            &code_analysis_cache,
+            &hash_cache,
         );
         interpreter.stack = Stack::new(&[1u8.into(), 2u8.into()]);
         let result: ExecutionResult = interpreter.run(&mut NoOpObserver());
@@ -1839,6 +1904,8 @@ mod tests {
 
     #[test]
     fn call() {
+        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
+        let hash_cache = HashCache::new_from_env_size();
         // helpers to generate unique values; random values are not needed
         let mut unique_values = 1u8..;
         let mut next_value = || unique_values.next().unwrap();
@@ -1914,6 +1981,8 @@ mod tests {
             Memory::new(&memory),
             Box::default(),
             None,
+            &code_analysis_cache,
+            &hash_cache,
         );
         let result: StepResult = interpreter.run(&mut NoOpObserver());
         assert_eq!(result.step_status_code, StepStatusCode::EVMC_STEP_STOPPED);
