@@ -72,8 +72,7 @@ mod tests {
     use evmc_vm::{MessageFlags, Revision};
 
     use crate::{
-        interpreter::Interpreter,
-        types::{FailStatus, MockExecutionContextTrait, MockExecutionMessage, u256},
+        types::{FailStatus, MockExecutionMessage, u256},
         utils::{self, Gas, SliceExt},
     };
 
@@ -144,18 +143,15 @@ mod tests {
     #[test]
     fn check_not_read_only() {
         let message = MockExecutionMessage::default().into();
-        let mut context = MockExecutionContextTrait::new();
-        let interpreter = Interpreter::new(Revision::EVMC_CANCUN, &message, &mut context, &[]);
-        assert_eq!(utils::check_not_read_only(interpreter.message), Ok(()));
+        assert_eq!(utils::check_not_read_only(&message), Ok(()));
 
         let message = MockExecutionMessage {
             flags: MessageFlags::EVMC_STATIC as u32,
             ..Default::default()
         };
         let message = message.into();
-        let interpreter = Interpreter::new(Revision::EVMC_CANCUN, &message, &mut context, &[]);
         assert_eq!(
-            utils::check_not_read_only(interpreter.message),
+            utils::check_not_read_only(&message),
             Err(FailStatus::StaticModeViolation)
         );
     }

@@ -1,30 +1,28 @@
 use std::{
     hash::{BuildHasher, Hash},
     num::NonZeroUsize,
-    sync::{LazyLock, Mutex},
+    sync::Mutex,
 };
 
 use lru::{DefaultHasher, LruCache};
 
-pub struct Cache<const S: usize, K, V, H = DefaultHasher>(
+pub struct Cache<K, V, H = DefaultHasher>(
     // Mutex<LruCache<...>> is faster that quick_cache::Cache<...>
-    LazyLock<Mutex<LruCache<K, V, H>>>,
+    Mutex<LruCache<K, V, H>>,
 )
 where
     K: Hash + Eq;
 
-impl<const S: usize, K, V, H> Cache<S, K, V, H>
+impl<K, V, H> Cache<K, V, H>
 where
     K: Hash + Eq,
     H: BuildHasher + Default,
 {
-    pub const fn new() -> Self {
-        Self(LazyLock::new(|| {
-            Mutex::new(LruCache::with_hasher(
-                NonZeroUsize::new(S).unwrap(),
-                H::default(),
-            ))
-        }))
+    pub fn new(size: usize) -> Self {
+        Self(Mutex::new(LruCache::with_hasher(
+            NonZeroUsize::new(size).unwrap(),
+            H::default(),
+        )))
     }
 
     #[cfg(feature = "code-analysis-cache")]

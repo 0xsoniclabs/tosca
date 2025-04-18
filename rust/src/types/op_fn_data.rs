@@ -2,10 +2,9 @@ use std::fmt::Debug;
 
 use crate::{
     Opcode,
-    interpreter::{GenericJumptable, OpFn},
+    interpreter::{self, OpFn},
     types::CodeByteType,
     u256,
-    utils::GetGenericStatic,
 };
 
 #[derive(Clone, PartialEq, Eq)]
@@ -27,7 +26,7 @@ impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
 
     pub fn func(op: u8, data: u256) -> Self {
         Self {
-            func: Some(GenericJumptable::get()[op as usize]),
+            func: Some(interpreter::get_jumptable()[op as usize]),
             data,
         }
     }
@@ -42,7 +41,7 @@ impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
             Some(func) => {
                 if std::ptr::fn_addr_eq(
                     func,
-                    GenericJumptable::get::<STEPPABLE>()[Opcode::JumpDest as u8 as usize],
+                    interpreter::get_jumptable::<STEPPABLE>()[Opcode::JumpDest as u8 as usize],
                 ) {
                     CodeByteType::JumpDest
                 } else {
