@@ -1,6 +1,3 @@
-#[cfg(feature = "hash-cache")]
-use std::env;
-
 use sha3::{Digest, Keccak256};
 
 #[cfg(feature = "hash-cache")]
@@ -19,19 +16,17 @@ pub struct HashCache {
     hash_cache_64: HashCache64,
 }
 
-impl HashCache {
-    #[cfg(feature = "hash-cache")]
-    const ENV_VAR: &str = "EVMRS_HASH_CACHE_SIZE";
+impl Default for HashCache {
+    fn default() -> Self {
+        Self::new(Self::DEFAULT_CACHE_SIZE)
+    }
+}
 
-    #[cfg(feature = "hash-cache")]
+impl HashCache {
     const DEFAULT_CACHE_SIZE: usize = 1024; // value taken from evmzero
 
-    pub fn new_from_env_size() -> Self {
-        #[cfg(feature = "hash-cache")]
-        let size = env::var(Self::ENV_VAR)
-            .ok()
-            .and_then(|s| s.parse::<usize>().ok())
-            .unwrap_or(Self::DEFAULT_CACHE_SIZE);
+    #[allow(unused_variables)]
+    pub fn new(size: usize) -> Self {
         Self {
             #[cfg(feature = "hash-cache")]
             hash_cache_32: HashCache32::new(size),

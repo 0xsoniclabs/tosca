@@ -15,7 +15,7 @@
     cargo build --lib --profile profiling --features performance
     ```
 
-NOTE: The maximum size of the code analysis and hash cache can be modified by setting the environment variables `EVMRS_CODE_ANALYSIS_CACHE_SIZE` and `EVMRS_HASH_CACHE_SIZE`.
+NOTE: The maximum size of the code analysis and hash cache can be modified by calling the set_option method on the interpreter with the key `code-analysis-cache-size` / `hash-cache-size` and the desired size.
 The size is measured in the number of elements not the number of bytes.
 
 ## Lint

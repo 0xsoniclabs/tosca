@@ -1674,8 +1674,8 @@ mod tests {
 
     #[test]
     fn empty_code() {
-        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
-        let hash_cache = HashCache::new_from_env_size();
+        let code_analysis_cache = CodeAnalysisCache::default();
+        let hash_cache = HashCache::default();
         let mut context = MockExecutionContextTrait::new();
         let message = MockExecutionMessage::default().into();
         let interpreter = Interpreter::new(
@@ -1697,8 +1697,8 @@ mod tests {
 
     #[test]
     fn pc_after_end() {
-        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
-        let hash_cache = HashCache::new_from_env_size();
+        let code_analysis_cache = CodeAnalysisCache::default();
+        let hash_cache = HashCache::default();
         let mut context = MockExecutionContextTrait::new();
         let message = MockExecutionMessage::default().into();
         let interpreter = Interpreter::new_steppable(
@@ -1728,8 +1728,8 @@ mod tests {
     #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
     #[test]
     fn pc_on_data() {
-        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
-        let hash_cache = HashCache::new_from_env_size();
+        let code_analysis_cache = CodeAnalysisCache::default();
+        let hash_cache = HashCache::default();
         let mut context = MockExecutionContextTrait::new();
         let message = MockExecutionMessage::default().into();
         let result: ExecutionResult = Interpreter::new_steppable(
@@ -1752,8 +1752,8 @@ mod tests {
 
     #[test]
     fn zero_steps() {
-        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
-        let hash_cache = HashCache::new_from_env_size();
+        let code_analysis_cache = CodeAnalysisCache::default();
+        let hash_cache = HashCache::default();
         let mut context = MockExecutionContextTrait::new();
         let message = MockExecutionMessage::default().into();
         let interpreter = Interpreter::new_steppable(
@@ -1781,8 +1781,8 @@ mod tests {
 
     #[test]
     fn add_one_step() {
-        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
-        let hash_cache = HashCache::new_from_env_size();
+        let code_analysis_cache = CodeAnalysisCache::default();
+        let hash_cache = HashCache::default();
         let mut context = MockExecutionContextTrait::new();
         let message = MockExecutionMessage::default().into();
         let interpreter = Interpreter::new_steppable(
@@ -1810,8 +1810,8 @@ mod tests {
 
     #[test]
     fn add_single_op() {
-        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
-        let hash_cache = HashCache::new_from_env_size();
+        let code_analysis_cache = CodeAnalysisCache::default();
+        let hash_cache = HashCache::default();
         let mut context = MockExecutionContextTrait::new();
         let message = MockExecutionMessage::default().into();
         let mut interpreter = Interpreter::new(
@@ -1834,8 +1834,8 @@ mod tests {
 
     #[test]
     fn add_twice() {
-        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
-        let hash_cache = HashCache::new_from_env_size();
+        let code_analysis_cache = CodeAnalysisCache::default();
+        let hash_cache = HashCache::default();
         let mut context = MockExecutionContextTrait::new();
         let message = MockExecutionMessage::default().into();
         let mut interpreter = Interpreter::new(
@@ -1863,8 +1863,8 @@ mod tests {
     // Because it will fail when compiled without optimizations, it is only enabled when
     // debug_assertions are not enabled (the default in release mode).
     fn tail_call_elimination() {
-        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
-        let hash_cache = HashCache::new_from_env_size();
+        let code_analysis_cache = CodeAnalysisCache::default();
+        let hash_cache = HashCache::default();
         let mut context = MockExecutionContextTrait::new();
         let message = MockExecutionMessage::default().into();
         let interpreter = Interpreter::new(
@@ -1881,8 +1881,8 @@ mod tests {
 
     #[test]
     fn add_not_enough_gas() {
-        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
-        let hash_cache = HashCache::new_from_env_size();
+        let code_analysis_cache = CodeAnalysisCache::default();
+        let hash_cache = HashCache::default();
         let mut context = MockExecutionContextTrait::new();
         let message = MockExecutionMessage {
             gas: 2,
@@ -1904,8 +1904,8 @@ mod tests {
 
     #[test]
     fn call() {
-        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
-        let hash_cache = HashCache::new_from_env_size();
+        let code_analysis_cache = CodeAnalysisCache::default();
+        let hash_cache = HashCache::default();
         // helpers to generate unique values; random values are not needed
         let mut unique_values = 1u8..;
         let mut next_value = || unique_values.next().unwrap();

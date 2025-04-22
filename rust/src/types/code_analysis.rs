@@ -1,7 +1,7 @@
 #[cfg(feature = "fn-ptr-conversion-dispatch")]
 use std::cmp::min;
 #[cfg(feature = "code-analysis-cache")]
-use std::{env, sync::Arc};
+use std::sync::Arc;
 
 #[cfg(feature = "code-analysis-cache")]
 use nohash_hasher::BuildNoHashHasher;
@@ -41,30 +41,23 @@ pub struct CodeAnalysisCache<const STEPPABLE: bool>(
     Cache<u256Hash, AnalysisContainer<CodeAnalysis<STEPPABLE>>, BuildNoHashHasher<u64>>,
 );
 
-impl<const STEPPABLE: bool> CodeAnalysisCache<STEPPABLE> {
-    #[cfg(feature = "code-analysis-cache")]
-    const ENV_VAR: &str = "EVMRS_CODE_ANALYSIS_CACHE_SIZE";
+impl<const STEPPABLE: bool> Default for CodeAnalysisCache<STEPPABLE> {
+    fn default() -> Self {
+        Self::new(Self::DEFAULT_CACHE_SIZE)
+    }
+}
 
-    #[cfg(all(
-        feature = "code-analysis-cache",
-        not(feature = "fn-ptr-conversion-dispatch")
-    ))]
+impl<const STEPPABLE: bool> CodeAnalysisCache<STEPPABLE> {
+    #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
     const DEFAULT_CACHE_SIZE: usize = 1 << 16; // value taken from evmzero
     // 48B for OpFnData + 2*8B for entries in PcMap = 64B -> reduce size from 2^16 to 2^16 / 64 =
     // 2^10 to keep roughly the same memory size
     // default to 2^13 nonetheless for better performance
-    #[cfg(all(
-        feature = "code-analysis-cache",
-        feature = "fn-ptr-conversion-dispatch"
-    ))]
+    #[cfg(feature = "fn-ptr-conversion-dispatch")]
     const DEFAULT_CACHE_SIZE: usize = 1 << 13;
 
-    pub fn new_from_env_size() -> Self {
-        #[cfg(feature = "code-analysis-cache")]
-        let size = env::var(Self::ENV_VAR)
-            .ok()
-            .and_then(|s| s.parse::<usize>().ok())
-            .unwrap_or(Self::DEFAULT_CACHE_SIZE);
+    #[allow(unused_variables)]
+    pub fn new(size: usize) -> Self {
         #[cfg(feature = "code-analysis-cache")]
         return Self(Cache::new(size));
         #[cfg(not(feature = "code-analysis-cache"))]

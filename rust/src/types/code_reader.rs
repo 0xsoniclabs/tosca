@@ -156,7 +156,7 @@ mod tests {
 
     #[test]
     fn code_reader_internals() {
-        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
+        let code_analysis_cache = CodeAnalysisCache::default();
         let code = [Opcode::Add as u8, Opcode::Add as u8, 0xc0];
         let pc = 1;
         let code_reader = CodeReader::<false>::new(&code, None, pc, &code_analysis_cache);
@@ -168,7 +168,7 @@ mod tests {
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     #[test]
     fn code_reader_pc() {
-        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
+        let code_analysis_cache = CodeAnalysisCache::default();
 
         let code = [Opcode::Push1 as u8, Opcode::Add as u8, Opcode::Add as u8];
 
@@ -206,7 +206,7 @@ mod tests {
 
     #[test]
     fn code_reader_get() {
-        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
+        let code_analysis_cache = CodeAnalysisCache::default();
         let mut code_reader = CodeReader::<false>::new(
             &[Opcode::Add as u8, Opcode::Add as u8, 0xc0],
             None,
@@ -230,7 +230,7 @@ mod tests {
 
     #[test]
     fn code_reader_try_jump() {
-        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
+        let code_analysis_cache = CodeAnalysisCache::default();
         let mut code_reader = CodeReader::<false>::new(
             &[
                 Opcode::Push1 as u8,
@@ -259,7 +259,7 @@ mod tests {
     #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
     #[test]
     fn code_reader_get_push_data() {
-        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
+        let code_analysis_cache = CodeAnalysisCache::default();
         let mut code_reader = CodeReader::<false>::new(&[0xff; 32], None, 0, &code_analysis_cache);
         assert_eq!(code_reader.get_push_data::<1>(), 0xffu8.into());
 
@@ -278,7 +278,7 @@ mod tests {
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     #[test]
     fn code_reader_get_push_data() {
-        let code_analysis_cache = CodeAnalysisCache::new_from_env_size();
+        let code_analysis_cache = CodeAnalysisCache::default();
         // pc on data is non longer possible because there are not data items anymore
         let mut code = [0xff; 33];
         code[0] = Opcode::Push32 as u8;

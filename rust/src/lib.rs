@@ -1,5 +1,5 @@
 #![allow(unused_crate_dependencies)]
-mod evmc;
+mod evmrs;
 mod ffi;
 mod interpreter;
 mod types;

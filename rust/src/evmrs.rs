@@ -1,7 +1,7 @@
 use std::process;
 
 use evmc_vm::{
-    EvmcVm, ExecutionContext, ExecutionMessage, ExecutionResult, Revision,
+    EvmcVm, ExecutionContext, ExecutionMessage, ExecutionResult, Revision, SetOptionError,
     StatusCode as EvmcStatusCode, StepResult, StepStatusCode as EvmcStepStatusCode,
     SteppableEvmcVm, Uint256, ffi::evmc_capabilities,
 };
@@ -26,9 +26,9 @@ impl EvmcVm for EvmRs {
     fn init() -> Self {
         EvmRs {
             observer_type: ObserverType::NoOp,
-            hash_cache: HashCache::new_from_env_size(),
-            code_analysis_cache_steppable: CodeAnalysisCache::new_from_env_size(),
-            code_analysis_cache_non_steppable: CodeAnalysisCache::new_from_env_size(),
+            hash_cache: HashCache::default(),
+            code_analysis_cache_steppable: CodeAnalysisCache::default(),
+            code_analysis_cache_non_steppable: CodeAnalysisCache::default(),
         }
     }
 
@@ -62,10 +62,25 @@ impl EvmcVm for EvmRs {
         }
     }
 
-    fn set_option(&mut self, key: &str, value: &str) -> Result<(), evmc_vm::SetOptionError> {
+    fn set_option(&mut self, key: &str, value: &str) -> Result<(), SetOptionError> {
         match (key, value) {
             ("logging", "true") => self.observer_type = ObserverType::Logging,
             ("logging", "false") => self.observer_type = ObserverType::NoOp,
+            ("code-analysis-cache-size", size) => {
+                if let Ok(size) = size.parse::<usize>() {
+                    self.code_analysis_cache_steppable = CodeAnalysisCache::new(size);
+                    self.code_analysis_cache_non_steppable = CodeAnalysisCache::new(size);
+                } else {
+                    return Err(SetOptionError::InvalidValue);
+                }
+            }
+            ("hash-cache-size", size) => {
+                if let Ok(size) = size.parse::<usize>() {
+                    self.hash_cache = HashCache::new(size);
+                } else {
+                    return Err(SetOptionError::InvalidValue);
+                }
+            }
             _ => (),
         }
         Ok(())

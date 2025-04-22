@@ -12,7 +12,7 @@ use evmc_vm::{
     },
 };
 
-use crate::evmc::EvmRs;
+use crate::evmrs::EvmRs;
 
 static EVM_RS_NAME: &CStr = c"evmrs";
 static EVM_RS_VERSION: &CStr = c"0.1.0";

@@ -10,7 +10,7 @@ use ::evmc_vm::{
 };
 
 use crate::{
-    evmc::EvmRs,
+    evmrs::EvmRs,
     ffi::evmc_vm::{self, EVMC_CAPABILITY},
 };
 
