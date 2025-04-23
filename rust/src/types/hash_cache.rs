@@ -65,4 +65,16 @@ impl HashCache {
         #[cfg(not(feature = "hash-cache"))]
         Self::sha3(data)
     }
+
+    #[cfg(test)]
+    #[allow(clippy::unused_self)]
+    pub fn capacity(&self) -> usize {
+        #[cfg(feature = "hash-cache")]
+        {
+            assert_eq!(self.hash_cache_32.capacity(), self.hash_cache_64.capacity());
+            self.hash_cache_32.capacity()
+        }
+        #[cfg(not(feature = "hash-cache"))]
+        0
+    }
 }

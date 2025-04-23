@@ -153,3 +153,40 @@ impl SteppableEvmcVm for EvmRs {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use evmc_vm::EvmcVm;
+
+    use crate::evmrs::EvmRs;
+
+    #[test]
+    fn set_option_with_cache_sizes_correctly_handles_input() {
+        let mut evm = EvmRs::init();
+
+        assert!(evm.set_option("code-analysis-cache-size", "100").is_ok());
+        #[cfg(feature = "code-analysis-cache")]
+        {
+            assert_eq!(evm.code_analysis_cache_steppable.capacity(), 100);
+            assert_eq!(evm.code_analysis_cache_non_steppable.capacity(), 100);
+        }
+
+        assert!(
+            evm.set_option("code-analysis-cache-size", "invalid")
+                .is_err()
+        );
+        #[cfg(feature = "code-analysis-cache")]
+        {
+            assert_eq!(evm.code_analysis_cache_steppable.capacity(), 100);
+            assert_eq!(evm.code_analysis_cache_non_steppable.capacity(), 100);
+        }
+
+        assert!(evm.set_option("hash-cache-size", "100").is_ok());
+        #[cfg(feature = "hash-cache")]
+        assert_eq!(evm.hash_cache.capacity(), 100);
+
+        assert!(evm.set_option("hash-cache-size", "invalid").is_err());
+        #[cfg(feature = "hash-cache")]
+        assert_eq!(evm.hash_cache.capacity(), 100);
+    }
+}

@@ -63,6 +63,15 @@ impl<const STEPPABLE: bool> CodeAnalysisCache<STEPPABLE> {
         #[cfg(not(feature = "code-analysis-cache"))]
         return Self();
     }
+
+    #[cfg(test)]
+    #[allow(clippy::unused_self)]
+    pub fn capacity(&self) -> usize {
+        #[cfg(feature = "code-analysis-cache")]
+        return self.0.capacity();
+        #[cfg(not(feature = "code-analysis-cache"))]
+        return 0;
+    }
 }
 
 #[derive(Debug)]

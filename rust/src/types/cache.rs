@@ -42,4 +42,9 @@ where
     {
         self.0.lock().unwrap().get_or_insert_ref(key, f).clone()
     }
+
+    #[cfg(test)]
+    pub fn capacity(&self) -> usize {
+        self.0.lock().unwrap().cap().into()
+    }
 }
