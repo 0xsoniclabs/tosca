@@ -272,13 +272,17 @@ func (a *runContextAdapter) Call(kind tosca.CallKind, parameter tosca.CallParame
 		defer func() { debugCallEnd(result, reserr) }()
 	}
 
-	gas := encodeReadOnlyInGas(uint64(parameter.Gas), parameter.CodeAddress, a.readOnly)
+	rules := a.evm.ChainConfig().Rules(a.evm.Context.BlockNumber, a.evm.Context.Random != nil, a.evm.Context.Time)
+	revision, err := convertRevision(rules)
+	if err != nil {
+		return tosca.CallResult{}, fmt.Errorf("unsupported revision: %w", err)
+	}
+	gas := encodeReadOnlyInGas(uint64(parameter.Gas), parameter.CodeAddress, revision, a.readOnly)
 
 	// Documentation of the parameters can be found here: t.ly/yhxC
 	toAddr := common.Address(parameter.Recipient)
 
 	var (
-		err            error
 		output         []byte
 		returnGas      uint64
 		createdAddress tosca.Address
@@ -334,8 +338,8 @@ func (a *runContextAdapter) Call(kind tosca.CallKind, parameter tosca.CallParame
 // on a new interpreter per transaction call (for proper) scoping
 // which is not a desired trait for Tosca interpreter implementations.
 // With this trick, this requirement is circumvented.
-func encodeReadOnlyInGas(gas uint64, recipient tosca.Address, readOnly bool) uint64 {
-	if !isPrecompiledContract(recipient) {
+func encodeReadOnlyInGas(gas uint64, recipient tosca.Address, revision tosca.Revision, readOnly bool) uint64 {
+	if !isPrecompiledContract(recipient, revision) {
 		if readOnly {
 			gas += (1 << 63)
 		}
@@ -621,12 +625,19 @@ func bigIntToWord(value *big.Int) (tosca.Word, error) {
 	return tosca.Word(res), err
 }
 
-func isPrecompiledContract(recipient tosca.Address) bool {
-	// the addresses 1-9 are precompiled contracts
-	for i := 0; i < 18; i++ {
-		if recipient[i] != 0 {
-			return false
-		}
+func isPrecompiledContract(recipient tosca.Address, revision tosca.Revision) bool {
+	var precompiles map[common.Address]geth.PrecompiledContract
+	switch revision {
+	case tosca.R14_Prague:
+		precompiles = geth.PrecompiledContractsPrague
+	case tosca.R13_Cancun:
+		precompiles = geth.PrecompiledContractsCancun
+	case tosca.R12_Shanghai, tosca.R11_Paris, tosca.R10_London, tosca.R09_Berlin:
+		precompiles = geth.PrecompiledContractsBerlin
+	default: // Istanbul is the oldest revision supported by Sonic
+		precompiles = geth.PrecompiledContractsIstanbul
 	}
-	return 1 <= recipient[19] && recipient[19] <= 9
+
+	_, ok := precompiles[common.Address(recipient)]
+	return ok
 }
