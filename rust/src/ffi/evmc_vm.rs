@@ -127,7 +127,7 @@ extern "C" fn __evmc_execute(
     }
 
     // SAFETY:
-    // `message`` is not null. The caller must make sure it points to a valid `ExecutionMessage`.
+    // `message` is not null. The caller must make sure it points to a valid `ExecutionMessage`.
     let execution_message = ExecutionMessage::from(unsafe { ref_from_ptr_scoped(message, &token) });
 
     let code_ref = if code.is_null() {
