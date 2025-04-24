@@ -299,14 +299,19 @@ func TestRunContextAdapter_Call(t *testing.T) {
 	canTransfer := func(geth.StateDB, common.Address, *uint256.Int) bool { return true }
 	transfer := func(geth.StateDB, common.Address, common.Address, *uint256.Int) {}
 
+	chainConfig := &params.ChainConfig{
+		ChainID:       big.NewInt(42),
+		IstanbulBlock: big.NewInt(24),
+	}
+	blockContext := geth.BlockContext{
+		CanTransfer: canTransfer,
+		Transfer:    transfer,
+		BlockNumber: big.NewInt(24),
+	}
+	evm := geth.NewEVM(blockContext, stateDb, chainConfig, geth.Config{})
+
 	runContextAdapter := &runContextAdapter{
-		evm: &geth.EVM{
-			StateDB: stateDb,
-			Context: geth.BlockContext{
-				CanTransfer: canTransfer,
-				Transfer:    transfer,
-			},
-		},
+		evm:    evm,
 		caller: address,
 	}
 
@@ -738,7 +743,7 @@ func TestAdapter_ReadOnlyIsSetAndResetCorrectly(t *testing.T) {
 	gas := uint64(42)
 	for name, readOnly := range tests {
 		t.Run(name, func(t *testing.T) {
-			setGas := encodeReadOnlyInGas(gas, recipient, readOnly)
+			setGas := encodeReadOnlyInGas(gas, recipient, tosca.R07_Istanbul, readOnly)
 			gotReadOnly, unsetGas := decodeReadOnlyFromGas(depth, readOnly, setGas)
 
 			if unsetGas != gas {
@@ -792,4 +797,56 @@ func TestGethInterpreterAdapter_RefundShiftIsReverted(t *testing.T) {
 			undoRefundShift(stateDb, test.err, shift)
 		})
 	}
+}
+
+func TestGethAdapter_IsPrecompiledContractDependsOnRevision(t *testing.T) {
+	tests := map[string]struct {
+		revision        tosca.Revision
+		lastPrecompiled int
+	}{
+		"istanbul": {
+			revision:        tosca.R07_Istanbul,
+			lastPrecompiled: 9,
+		},
+		"berlin": {
+			revision:        tosca.R09_Berlin,
+			lastPrecompiled: 9,
+		},
+		"london": {
+			revision:        tosca.R10_London,
+			lastPrecompiled: 9,
+		},
+		"paris": {
+			revision:        tosca.R11_Paris,
+			lastPrecompiled: 9,
+		},
+		"shanghai": {
+			revision:        tosca.R12_Shanghai,
+			lastPrecompiled: 9,
+		},
+		"cancun": {
+			revision:        tosca.R13_Cancun,
+			lastPrecompiled: 10,
+		},
+		"prague": {
+			revision:        tosca.R14_Prague,
+			lastPrecompiled: 17,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			for i := 1; i < 100; i++ {
+				address := uint256.NewInt(uint64(i)).Bytes20()
+				got := isPrecompiledContract(address, test.revision)
+				if i <= test.lastPrecompiled && !got {
+					t.Errorf("Expected %v to be precompiled, got %v", address, got)
+				}
+				if i > test.lastPrecompiled && got {
+					t.Errorf("Expected %v to not be precompiled, got %v", address, got)
+				}
+			}
+		})
+	}
+
 }
