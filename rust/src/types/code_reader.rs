@@ -4,9 +4,7 @@ use std::{self, ops::Deref};
 
 #[cfg(feature = "fn-ptr-conversion-dispatch")]
 use crate::interpreter::OpFn;
-use crate::types::{
-    AnalysisContainer, CodeAnalysis, CodeAnalysisCache, CodeByteType, FailStatus, u256,
-};
+use crate::types::{CodeAnalysis, CodeAnalysisCache, CodeByteType, FailStatus, u256};
 
 #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
 struct PushDataLen<const N: usize>;
@@ -19,7 +17,7 @@ impl<const N: usize> PushDataLen<N> {
 #[derive(Debug)]
 pub struct CodeReader<'a, const STEPPABLE: bool> {
     code: &'a [u8],
-    code_analysis: AnalysisContainer<CodeAnalysis<STEPPABLE>>,
+    code_analysis: CodeAnalysis<STEPPABLE>,
     pc: usize,
 }
 

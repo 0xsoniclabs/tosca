@@ -74,6 +74,7 @@ impl<const STEPPABLE: bool> Debug for OpFnData<STEPPABLE> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("OpFnData")
             .field("func", &self.func.map(|f| f as *const u8))
+            .field("pc", &self.pc)
             .field("data", &self.data)
             .finish()
     }
