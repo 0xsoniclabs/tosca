@@ -46,7 +46,13 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
     ) -> Self {
         let code_analysis = CodeAnalysis::new(code, code_hash, cache);
         #[cfg(feature = "fn-ptr-conversion-dispatch")]
-        let pc = code_analysis.pc_map.to_converted(pc);
+        //let pc = code_analysis.pc_map.to_converted(pc);
+        let pc = code_analysis
+            .analysis
+            .iter()
+            .enumerate()
+            .find_map(|(i, a)| if a.get_pc() == pc { Some(i) } else { None })
+            .unwrap_or_else(|| code_analysis.analysis.len());
         Self {
             code,
             code_analysis,
@@ -142,7 +148,13 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
         #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
         return self.pc;
         #[cfg(feature = "fn-ptr-conversion-dispatch")]
-        return self.code_analysis.pc_map.to_ct(self.pc);
+        //return self.code_analysis.pc_map.to_ct(self.pc);
+        return self
+            .code_analysis
+            .analysis
+            .get(self.pc)
+            .map(|a| a.get_pc())
+            .unwrap_or_else(|| self.code.len());
     }
 }
 
