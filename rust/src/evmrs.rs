@@ -18,8 +18,10 @@ use crate::{
 pub struct EvmRs {
     observer_type: ObserverType,
     hash_cache: HashCache,
-    code_analysis_cache_steppable: CodeAnalysisCache<true>,
-    code_analysis_cache_non_steppable: CodeAnalysisCache<false>,
+    code_analysis_cache_steppable_tailcall: CodeAnalysisCache<true, true>,
+    code_analysis_cache_non_steppable_tailcall: CodeAnalysisCache<false, true>,
+    code_analysis_cache_steppable_no_tailcall: CodeAnalysisCache<true, false>,
+    code_analysis_cache_non_steppable_no_tailcall: CodeAnalysisCache<false, false>,
 }
 
 impl EvmcVm for EvmRs {
@@ -27,8 +29,10 @@ impl EvmcVm for EvmRs {
         EvmRs {
             observer_type: ObserverType::NoOp,
             hash_cache: HashCache::default(),
-            code_analysis_cache_steppable: CodeAnalysisCache::default(),
-            code_analysis_cache_non_steppable: CodeAnalysisCache::default(),
+            code_analysis_cache_steppable_tailcall: CodeAnalysisCache::default(),
+            code_analysis_cache_non_steppable_tailcall: CodeAnalysisCache::default(),
+            code_analysis_cache_steppable_no_tailcall: CodeAnalysisCache::default(),
+            code_analysis_cache_non_steppable_no_tailcall: CodeAnalysisCache::default(),
         }
     }
 
@@ -48,17 +52,36 @@ impl EvmcVm for EvmRs {
             // If this is not the case it violates the EVMC spec and is an irrecoverable error.
             process::abort();
         };
-        let interpreter = Interpreter::new(
-            revision,
-            message,
-            context,
-            code,
-            &self.code_analysis_cache_non_steppable,
-            &self.hash_cache,
-        );
-        match self.observer_type {
-            ObserverType::NoOp => interpreter.run(&mut NoOpObserver()),
-            ObserverType::Logging => interpreter.run(&mut LoggingObserver::new(std::io::stdout())),
+        if message.gas < 10000 {
+            let interpreter = Interpreter::<false, true>::new(
+                revision,
+                message,
+                context,
+                code,
+                &self.code_analysis_cache_non_steppable_tailcall,
+                &self.hash_cache,
+            );
+            match self.observer_type {
+                ObserverType::NoOp => interpreter.run(&mut NoOpObserver()),
+                ObserverType::Logging => {
+                    interpreter.run(&mut LoggingObserver::new(std::io::stdout()))
+                }
+            }
+        } else {
+            let interpreter = Interpreter::<false, false>::new(
+                revision,
+                message,
+                context,
+                code,
+                &self.code_analysis_cache_non_steppable_no_tailcall,
+                &self.hash_cache,
+            );
+            match self.observer_type {
+                ObserverType::NoOp => interpreter.run(&mut NoOpObserver()),
+                ObserverType::Logging => {
+                    interpreter.run(&mut LoggingObserver::new(std::io::stdout()))
+                }
+            }
         }
     }
 
@@ -68,8 +91,11 @@ impl EvmcVm for EvmRs {
             ("logging", "false") => self.observer_type = ObserverType::NoOp,
             ("code-analysis-cache-size", size) => {
                 if let Ok(size) = size.parse::<usize>() {
-                    self.code_analysis_cache_steppable = CodeAnalysisCache::new(size);
-                    self.code_analysis_cache_non_steppable = CodeAnalysisCache::new(size);
+                    self.code_analysis_cache_steppable_tailcall = CodeAnalysisCache::new(size);
+                    self.code_analysis_cache_non_steppable_tailcall = CodeAnalysisCache::new(size);
+                    self.code_analysis_cache_steppable_no_tailcall = CodeAnalysisCache::new(size);
+                    self.code_analysis_cache_non_steppable_no_tailcall =
+                        CodeAnalysisCache::new(size);
                 } else {
                     return Err(SetOptionError::InvalidValue);
                 }
@@ -133,23 +159,48 @@ impl SteppableEvmcVm for EvmRs {
         };
         let stack = Stack::new(&stack.iter().map(|i| u256::from(*i)).collect::<Vec<_>>());
         let memory = Memory::new(memory);
-        let interpreter = Interpreter::new_steppable(
-            revision,
-            message,
-            context,
-            code,
-            pc as usize,
-            gas_refund,
-            stack,
-            memory,
-            Box::from(last_call_return_data),
-            Some(steps),
-            &self.code_analysis_cache_steppable,
-            &self.hash_cache,
-        );
-        match self.observer_type {
-            ObserverType::NoOp => interpreter.run(&mut NoOpObserver()),
-            ObserverType::Logging => interpreter.run(&mut LoggingObserver::new(std::io::stdout())),
+        if message.gas < 10000 {
+            let interpreter = Interpreter::<true, true>::new_steppable(
+                revision,
+                message,
+                context,
+                code,
+                pc as usize,
+                gas_refund,
+                stack,
+                memory,
+                Box::from(last_call_return_data),
+                Some(steps),
+                &self.code_analysis_cache_steppable_tailcall,
+                &self.hash_cache,
+            );
+            match self.observer_type {
+                ObserverType::NoOp => interpreter.run(&mut NoOpObserver()),
+                ObserverType::Logging => {
+                    interpreter.run(&mut LoggingObserver::new(std::io::stdout()))
+                }
+            }
+        } else {
+            let interpreter = Interpreter::<true, false>::new_steppable(
+                revision,
+                message,
+                context,
+                code,
+                pc as usize,
+                gas_refund,
+                stack,
+                memory,
+                Box::from(last_call_return_data),
+                Some(steps),
+                &self.code_analysis_cache_steppable_no_tailcall,
+                &self.hash_cache,
+            );
+            match self.observer_type {
+                ObserverType::NoOp => interpreter.run(&mut NoOpObserver()),
+                ObserverType::Logging => {
+                    interpreter.run(&mut LoggingObserver::new(std::io::stdout()))
+                }
+            }
         }
     }
 }

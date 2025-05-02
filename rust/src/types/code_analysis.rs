@@ -28,22 +28,24 @@ impl std::hash::Hash for u256Hash {
 }
 
 #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
-pub type AnalysisItem<const STEPPABLE: bool> = CodeByteType;
+pub type AnalysisItem<const STEPPABLE: bool, const TAILCALL: bool> = CodeByteType;
 #[cfg(feature = "fn-ptr-conversion-dispatch")]
-pub type AnalysisItem<const STEPPABLE: bool> = OpFnData<STEPPABLE>;
+pub type AnalysisItem<const STEPPABLE: bool, const TAILCALL: bool> = OpFnData<STEPPABLE, TAILCALL>;
 
-pub struct CodeAnalysisCache<const STEPPABLE: bool>(
+pub struct CodeAnalysisCache<const STEPPABLE: bool, const TAILCALL: bool>(
     #[cfg(feature = "code-analysis-cache")]
-    Cache<u256Hash, CodeAnalysis<STEPPABLE>, BuildNoHashHasher<u64>>,
+    Cache<u256Hash, CodeAnalysis<STEPPABLE, TAILCALL>, BuildNoHashHasher<u64>>,
 );
 
-impl<const STEPPABLE: bool> Default for CodeAnalysisCache<STEPPABLE> {
+impl<const STEPPABLE: bool, const TAILCALL: bool> Default
+    for CodeAnalysisCache<STEPPABLE, TAILCALL>
+{
     fn default() -> Self {
         Self::new(Self::DEFAULT_CACHE_SIZE)
     }
 }
 
-impl<const STEPPABLE: bool> CodeAnalysisCache<STEPPABLE> {
+impl<const STEPPABLE: bool, const TAILCALL: bool> CodeAnalysisCache<STEPPABLE, TAILCALL> {
     #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
     const DEFAULT_CACHE_SIZE: usize = 1 << 16; // value taken from evmzero
     // 48B for OpFnData + 2*8B for entries in PcMap = 64B -> reduce size from 2^16 to 2^16 / 64 =
@@ -71,14 +73,18 @@ impl<const STEPPABLE: bool> CodeAnalysisCache<STEPPABLE> {
 }
 
 #[derive(Debug, Clone)]
-pub struct CodeAnalysis<const STEPPABLE: bool>(
-    #[cfg(feature = "code-analysis-cache")] Arc<[AnalysisItem<STEPPABLE>]>,
-    #[cfg(not(feature = "code-analysis-cache"))] Vec<AnalysisItem<STEPPABLE>>,
+pub struct CodeAnalysis<const STEPPABLE: bool, const TAILCALL: bool>(
+    #[cfg(feature = "code-analysis-cache")] Arc<[AnalysisItem<STEPPABLE, TAILCALL>]>,
+    #[cfg(not(feature = "code-analysis-cache"))] Vec<AnalysisItem<STEPPABLE, TAILCALL>>,
 );
 
-impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
+impl<const STEPPABLE: bool, const TAILCALL: bool> CodeAnalysis<STEPPABLE, TAILCALL> {
     #[allow(unused_variables)]
-    pub fn new(code: &[u8], code_hash: Option<u256>, cache: &CodeAnalysisCache<STEPPABLE>) -> Self {
+    pub fn new(
+        code: &[u8],
+        code_hash: Option<u256>,
+        cache: &CodeAnalysisCache<STEPPABLE, TAILCALL>,
+    ) -> Self {
         #[cfg(feature = "code-analysis-cache")]
         match code_hash {
             Some(code_hash) if code_hash != u256::ZERO => cache
@@ -173,8 +179,8 @@ impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
     }
 }
 
-impl<const STEPPABLE: bool> Deref for CodeAnalysis<STEPPABLE> {
-    type Target = [AnalysisItem<STEPPABLE>];
+impl<const STEPPABLE: bool, const TAILCALL: bool> Deref for CodeAnalysis<STEPPABLE, TAILCALL> {
+    type Target = [AnalysisItem<STEPPABLE, TAILCALL>];
 
     fn deref(&self) -> &Self::Target {
         &self.0

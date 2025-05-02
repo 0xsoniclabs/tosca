@@ -15,11 +15,13 @@ use crate::{
 
 type OpResult = Result<(), FailStatus>;
 
-pub type OpFn<const STEPPABLE: bool> = fn(&mut Interpreter<STEPPABLE>) -> OpResult;
+pub type OpFn<const STEPPABLE: bool, const TAILCALL: bool> =
+    fn(&mut Interpreter<STEPPABLE, TAILCALL>) -> OpResult;
 
 // The closures here are necessary because methods capture the lifetime of the type which we
 // want to avoid.
-const fn gen_jumptable<const STEPPABLE: bool>() -> [OpFn<STEPPABLE>; 256] {
+const fn gen_jumptable<const STEPPABLE: bool, const TAILCALL: bool>()
+-> [OpFn<STEPPABLE, TAILCALL>; 256] {
     [
         |i| i.stop(),
         |i| i.add(),
@@ -286,34 +288,62 @@ const fn gen_jumptable<const STEPPABLE: bool>() -> [OpFn<STEPPABLE>; 256] {
     ]
 }
 
-pub const fn get_jumptable<const STEPPABLE: bool>() -> &'static [OpFn<STEPPABLE>; 256] {
-    static JUMPTABLE_STEPPABLE: [OpFn<true>; 256] = gen_jumptable();
-    static JUMPTABLE_NON_STEPPABLE: [OpFn<false>; 256] = gen_jumptable();
-    if STEPPABLE {
-        // SAFETY:
-        // STEPPABLE is true
-        unsafe {
-            std::mem::transmute::<&'static [OpFn<true>; 256], &'static [OpFn<STEPPABLE>; 256]>(
-                &JUMPTABLE_STEPPABLE,
-            )
+pub const fn get_jumptable<const STEPPABLE: bool, const TAILCALL: bool>()
+-> &'static [OpFn<STEPPABLE, TAILCALL>; 256] {
+    static JUMPTABLE_STEPPABLE_TAILCALL: [OpFn<true, true>; 256] = gen_jumptable();
+    static JUMPTABLE_NON_STEPPABLE_TAILCALL: [OpFn<false, true>; 256] = gen_jumptable();
+    static JUMPTABLE_STEPPABLE_NO_TAILCALL: [OpFn<true, false>; 256] = gen_jumptable();
+    static JUMPTABLE_NON_STEPPABLE_NO_TAILCALL: [OpFn<false, false>; 256] = gen_jumptable();
+    match (STEPPABLE, TAILCALL) {
+        (true, true) => {
+            // SAFETY:
+            // STEPPABLE is true
+            unsafe {
+                std::mem::transmute::<
+                    &'static [OpFn<true, true>; 256],
+                    &'static [OpFn<STEPPABLE, TAILCALL>; 256],
+                >(&JUMPTABLE_STEPPABLE_TAILCALL)
+            }
         }
-    } else {
-        // SAFETY:
-        // STEPPABLE is false
-        unsafe {
-            std::mem::transmute::<&'static [OpFn<false>; 256], &'static [OpFn<STEPPABLE>; 256]>(
-                &JUMPTABLE_NON_STEPPABLE,
-            )
+        (false, true) => {
+            // SAFETY:
+            // STEPPABLE is false
+            unsafe {
+                std::mem::transmute::<
+                    &'static [OpFn<false, true>; 256],
+                    &'static [OpFn<STEPPABLE, TAILCALL>; 256],
+                >(&JUMPTABLE_NON_STEPPABLE_TAILCALL)
+            }
+        }
+        (true, false) => {
+            // SAFETY:
+            // STEPPABLE is true
+            unsafe {
+                std::mem::transmute::<
+                    &'static [OpFn<true, false>; 256],
+                    &'static [OpFn<STEPPABLE, TAILCALL>; 256],
+                >(&JUMPTABLE_STEPPABLE_NO_TAILCALL)
+            }
+        }
+        (false, false) => {
+            // SAFETY:
+            // STEPPABLE is false
+            unsafe {
+                std::mem::transmute::<
+                    &'static [OpFn<false, false>; 256],
+                    &'static [OpFn<STEPPABLE, TAILCALL>; 256],
+                >(&JUMPTABLE_NON_STEPPABLE_NO_TAILCALL)
+            }
         }
     }
 }
 
-pub struct Interpreter<'a, const STEPPABLE: bool> {
+pub struct Interpreter<'a, const STEPPABLE: bool, const TAILCALL: bool> {
     pub exec_status: ExecStatus,
     pub message: &'a ExecutionMessage<'a>,
     pub context: &'a mut dyn ExecutionContextTrait,
     pub revision: Revision,
-    pub code_reader: CodeReader<'a, STEPPABLE>,
+    pub code_reader: CodeReader<'a, STEPPABLE, TAILCALL>,
     pub gas_left: Gas,
     pub gas_refund: GasRefund,
     pub output: Box<[u8]>,
@@ -324,13 +354,13 @@ pub struct Interpreter<'a, const STEPPABLE: bool> {
     pub hash_cache: &'a HashCache,
 }
 
-impl<'a> Interpreter<'a, false> {
+impl<'a, const TAILCALL: bool> Interpreter<'a, false, TAILCALL> {
     pub fn new(
         revision: Revision,
         message: &'a ExecutionMessage,
         context: &'a mut dyn ExecutionContextTrait,
         code: &'a [u8],
-        code_analysis_cache: &'a CodeAnalysisCache<false>,
+        code_analysis_cache: &'a CodeAnalysisCache<false, TAILCALL>,
         hash_cache: &'a HashCache,
     ) -> Self {
         Self {
@@ -356,7 +386,7 @@ impl<'a> Interpreter<'a, false> {
     }
 }
 
-impl<'a> Interpreter<'a, true> {
+impl<'a, const TAILCALL: bool> Interpreter<'a, true, TAILCALL> {
     #[allow(clippy::too_many_arguments)]
     pub fn new_steppable(
         revision: Revision,
@@ -369,7 +399,7 @@ impl<'a> Interpreter<'a, true> {
         memory: Memory,
         last_call_return_data: Box<[u8]>,
         steps: Option<i32>,
-        code_analysis_cache: &'a CodeAnalysisCache<true>,
+        code_analysis_cache: &'a CodeAnalysisCache<true, TAILCALL>,
         hash_cache: &'a HashCache,
     ) -> Self {
         Self {
@@ -395,12 +425,11 @@ impl<'a> Interpreter<'a, true> {
     }
 }
 
-impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
+impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE, false> {
     /// R is expected to be [ExecutionResult] or [StepResult].
-    #[cfg(not(feature = "tail-call"))]
     pub fn run<O, R>(mut self, observer: &mut O) -> R
     where
-        O: Observer<STEPPABLE>,
+        O: Observer<STEPPABLE, false>,
         R: From<Self> + From<FailStatus>,
     {
         loop {
@@ -434,12 +463,14 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
         self.into()
     }
+}
+
+impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE, true> {
     /// R is expected to be [ExecutionResult] or [StepResult].
-    #[cfg(feature = "tail-call")]
     #[inline(always)]
     pub fn run<O, R>(mut self, observer: &mut O) -> R
     where
-        O: Observer<STEPPABLE>,
+        O: Observer<STEPPABLE, true>,
         R: From<Self> + From<FailStatus>,
     {
         observer.log("feature \"tail-call\" does not support logging".into());
@@ -448,7 +479,18 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         }
         self.into()
     }
-    #[cfg(feature = "tail-call")]
+}
+
+impl<const STEPPABLE: bool, const TAILCALL: bool> Interpreter<'_, STEPPABLE, TAILCALL> {
+    #[cfg(feature = "fn-ptr-conversion-dispatch")]
+    fn run_op(&mut self, op: OpFn<STEPPABLE, TAILCALL>) -> OpResult {
+        op(self)
+    }
+    #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
+    fn run_op(&mut self, op: u8) -> OpResult {
+        get_jumptable()[op as usize](self)
+    }
+
     #[inline(always)]
     pub fn next(&mut self) -> OpResult {
         if STEPPABLE {
@@ -471,22 +513,10 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.run_op(op)
     }
 
-    #[cfg(feature = "fn-ptr-conversion-dispatch")]
-    fn run_op(&mut self, op: OpFn<STEPPABLE>) -> OpResult {
-        op(self)
-    }
-    #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
-    fn run_op(&mut self, op: u8) -> OpResult {
-        get_jumptable()[op as usize](self)
-    }
-
     #[allow(clippy::unused_self)]
     #[inline(always)]
     fn return_from_op(&mut self) -> OpResult {
-        #[cfg(not(feature = "tail-call"))]
-        return Ok(());
-        #[cfg(feature = "tail-call")]
-        return self.next();
+        if TAILCALL { self.next() } else { Ok(()) }
     }
 
     #[allow(clippy::unused_self)]
@@ -1620,8 +1650,10 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 }
 
-impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for StepResult {
-    fn from(value: Interpreter<STEPPABLE>) -> Self {
+impl<const STEPPABLE: bool, const TAILCALL: bool> From<Interpreter<'_, STEPPABLE, TAILCALL>>
+    for StepResult
+{
+    fn from(value: Interpreter<STEPPABLE, TAILCALL>) -> Self {
         let stack = value
             .stack
             .as_slice()
@@ -1644,8 +1676,10 @@ impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for StepResult {
     }
 }
 
-impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for ExecutionResult {
-    fn from(value: Interpreter<STEPPABLE>) -> Self {
+impl<const STEPPABLE: bool, const TAILCALL: bool> From<Interpreter<'_, STEPPABLE, TAILCALL>>
+    for ExecutionResult
+{
+    fn from(value: Interpreter<STEPPABLE, TAILCALL>) -> Self {
         Self {
             status_code: value.exec_status.into(),
             gas_left: value.gas_left.as_u64() as i64,

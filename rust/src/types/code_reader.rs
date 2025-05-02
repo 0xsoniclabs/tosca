@@ -17,13 +17,13 @@ impl<const N: usize> PushDataLen<N> {
 }
 
 #[derive(Debug)]
-pub struct CodeReader<'a, const STEPPABLE: bool> {
+pub struct CodeReader<'a, const STEPPABLE: bool, const TAILCALL: bool> {
     code: &'a [u8],
-    code_analysis: CodeAnalysis<STEPPABLE>,
+    code_analysis: CodeAnalysis<STEPPABLE, TAILCALL>,
     pc: usize,
 }
 
-impl<const STEPPABLE: bool> Deref for CodeReader<'_, STEPPABLE> {
+impl<const STEPPABLE: bool, const TAILCALL: bool> Deref for CodeReader<'_, STEPPABLE, TAILCALL> {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
@@ -37,12 +37,12 @@ pub enum GetOpcodeError {
     Invalid,
 }
 
-impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
+impl<'a, const STEPPABLE: bool, const TAILCALL: bool> CodeReader<'a, STEPPABLE, TAILCALL> {
     pub fn new(
         code: &'a [u8],
         code_hash: Option<u256>,
         pc: usize,
-        cache: &CodeAnalysisCache<STEPPABLE>,
+        cache: &CodeAnalysisCache<STEPPABLE, TAILCALL>,
     ) -> Self {
         let code_analysis = CodeAnalysis::new(code, code_hash, cache);
         #[cfg(feature = "fn-ptr-conversion-dispatch")]
@@ -81,7 +81,7 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
         }
     }
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
-    pub fn get(&self) -> Result<OpFn<STEPPABLE>, GetOpcodeError> {
+    pub fn get(&self) -> Result<OpFn<STEPPABLE, TAILCALL>, GetOpcodeError> {
         self.code_analysis
             .get(self.pc)
             .ok_or(GetOpcodeError::OutOfRange)

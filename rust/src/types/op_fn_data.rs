@@ -8,13 +8,13 @@ use crate::{
 };
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct OpFnData<const STEPPABLE: bool> {
-    func: Option<OpFn<STEPPABLE>>,
+pub struct OpFnData<const STEPPABLE: bool, const TAILCALL: bool> {
+    func: Option<OpFn<STEPPABLE, TAILCALL>>,
     orig_idx: usize,
     data: u256,
 }
 
-impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
+impl<const STEPPABLE: bool, const TAILCALL: bool> OpFnData<STEPPABLE, TAILCALL> {
     pub fn data(data: u256) -> Self {
         Self {
             func: None,
@@ -47,7 +47,8 @@ impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
             Some(func) => {
                 if std::ptr::fn_addr_eq(
                     func,
-                    interpreter::get_jumptable::<STEPPABLE>()[Opcode::JumpDest as u8 as usize],
+                    interpreter::get_jumptable::<STEPPABLE, TAILCALL>()
+                        [Opcode::JumpDest as u8 as usize],
                 ) {
                     CodeByteType::JumpDest
                 } else {
@@ -57,7 +58,7 @@ impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
         }
     }
 
-    pub fn get_func(&self) -> Option<OpFn<STEPPABLE>> {
+    pub fn get_func(&self) -> Option<OpFn<STEPPABLE, TAILCALL>> {
         self.func
     }
 
@@ -70,7 +71,7 @@ impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
     }
 }
 
-impl<const STEPPABLE: bool> Debug for OpFnData<STEPPABLE> {
+impl<const STEPPABLE: bool, const TAILCALL: bool> Debug for OpFnData<STEPPABLE, TAILCALL> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("OpFnData")
             .field("func", &self.func.map(|f| f as *const u8))
