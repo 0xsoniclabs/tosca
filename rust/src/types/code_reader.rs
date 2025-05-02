@@ -4,9 +4,9 @@ use std::{self, ops::Deref};
 
 #[cfg(feature = "fn-ptr-conversion-dispatch")]
 use crate::interpreter::OpFn;
-use crate::types::{
-    AnalysisContainer, CodeAnalysis, CodeAnalysisCache, CodeByteType, FailStatus, u256,
-};
+#[cfg(feature = "fn-ptr-conversion-dispatch")]
+use crate::types::OpFnData;
+use crate::types::{CodeAnalysis, CodeAnalysisCache, CodeByteType, FailStatus, u256};
 
 #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
 struct PushDataLen<const N: usize>;
@@ -19,7 +19,7 @@ impl<const N: usize> PushDataLen<N> {
 #[derive(Debug)]
 pub struct CodeReader<'a, const STEPPABLE: bool> {
     code: &'a [u8],
-    code_analysis: AnalysisContainer<CodeAnalysis<STEPPABLE>>,
+    code_analysis: CodeAnalysis<STEPPABLE>,
     pc: usize,
 }
 
@@ -46,13 +46,20 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
     ) -> Self {
         let code_analysis = CodeAnalysis::new(code, code_hash, cache);
         #[cfg(feature = "fn-ptr-conversion-dispatch")]
-        //let pc = code_analysis.pc_map.to_converted(pc);
+        // pc on data is undefined behavior, so we can ignore it
+        // this means that we expect the pc to be on an opcode
+        // every opcode was mapped to a OpFnData which contains the original index
         let pc = code_analysis
-            .analysis
             .iter()
             .enumerate()
-            .find_map(|(i, a)| if a.get_pc() == pc { Some(i) } else { None })
-            .unwrap_or_else(|| code_analysis.analysis.len());
+            .find_map(|(idx, op_fn_data)| {
+                if op_fn_data.get_orig_idx() == pc {
+                    Some(idx)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_else(|| code_analysis.len());
         Self {
             code,
             code_analysis,
@@ -63,7 +70,7 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
     #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
     pub fn get(&self) -> Result<u8, GetOpcodeError> {
         if let Some(op) = self.code.get(self.pc) {
-            let analysis = self.code_analysis.analysis[self.pc];
+            let analysis = self.code_analysis[self.pc];
             if analysis == CodeByteType::DataOrInvalid {
                 Err(GetOpcodeError::Invalid)
             } else {
@@ -76,7 +83,6 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     pub fn get(&self) -> Result<OpFn<STEPPABLE>, GetOpcodeError> {
         self.code_analysis
-            .analysis
             .get(self.pc)
             .ok_or(GetOpcodeError::OutOfRange)
             .and_then(|analysis| analysis.get_func().ok_or(GetOpcodeError::Invalid))
@@ -88,7 +94,7 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
 
     pub fn try_jump(&mut self, dest: u256) -> Result<(), FailStatus> {
         let dest = u64::try_from(dest).map_err(|_| FailStatus::BadJumpDestination)? as usize;
-        if !self.code_analysis.analysis.get(dest).is_some_and(|c| {
+        if !self.code_analysis.get(dest).is_some_and(|c| {
             #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
             return *c == CodeByteType::JumpDest;
 
@@ -126,9 +132,9 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
         // Calling those and then calling get_push_data makes semantically no sense.
         #[cfg(feature = "unsafe-hints")]
         unsafe {
-            std::hint::assert_unchecked(self.pc < self.code_analysis.analysis.len());
+            std::hint::assert_unchecked(self.pc < self.code_analysis.len());
         }
-        let res = self.code_analysis.analysis[self.pc].get_data();
+        let res = self.code_analysis[self.pc].get_data();
         self.pc += 1;
         res
     }
@@ -136,9 +142,7 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     pub fn jump_to(&mut self) {
         #[cfg(feature = "fn-ptr-conversion-dispatch")]
-        let offset = self.code_analysis.analysis[self.pc]
-            .get_data()
-            .into_u64_saturating();
+        let offset = self.code_analysis[self.pc].get_data().into_u64_saturating();
         #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
         let offset = u32::from_ne_bytes(self.code_analysis.analysis[self.pc].get_data());
         self.pc += offset as usize;
@@ -148,12 +152,10 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
         #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
         return self.pc;
         #[cfg(feature = "fn-ptr-conversion-dispatch")]
-        //return self.code_analysis.pc_map.to_ct(self.pc);
         return self
             .code_analysis
-            .analysis
             .get(self.pc)
-            .map(|a| a.get_pc())
+            .map(OpFnData::get_orig_idx)
             .unwrap_or_else(|| self.code.len());
     }
 }
