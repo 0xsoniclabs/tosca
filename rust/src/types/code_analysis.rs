@@ -27,11 +27,6 @@ impl std::hash::Hash for u256Hash {
     }
 }
 
-#[cfg(not(feature = "code-analysis-cache"))]
-pub type AnalysisContainer<T> = T;
-#[cfg(feature = "code-analysis-cache")]
-pub type AnalysisContainer<T> = Arc<T>;
-
 #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
 pub type AnalysisItem<const STEPPABLE: bool> = CodeByteType;
 #[cfg(feature = "fn-ptr-conversion-dispatch")]
@@ -39,7 +34,7 @@ pub type AnalysisItem<const STEPPABLE: bool> = OpFnData<STEPPABLE>;
 
 pub struct CodeAnalysisCache<const STEPPABLE: bool>(
     #[cfg(feature = "code-analysis-cache")]
-    Cache<u256Hash, AnalysisContainer<CodeAnalysis<STEPPABLE>>, BuildNoHashHasher<u64>>,
+    Cache<u256Hash, CodeAnalysis<STEPPABLE>, BuildNoHashHasher<u64>>,
 );
 
 impl<const STEPPABLE: bool> Default for CodeAnalysisCache<STEPPABLE> {
@@ -75,8 +70,11 @@ impl<const STEPPABLE: bool> CodeAnalysisCache<STEPPABLE> {
     }
 }
 
-#[derive(Debug)]
-pub struct CodeAnalysis<const STEPPABLE: bool>(Vec<AnalysisItem<STEPPABLE>>);
+#[derive(Debug, Clone)]
+pub struct CodeAnalysis<const STEPPABLE: bool>(
+    #[cfg(feature = "code-analysis-cache")] Arc<[AnalysisItem<STEPPABLE>]>,
+    #[cfg(not(feature = "code-analysis-cache"))] Vec<AnalysisItem<STEPPABLE>>,
+);
 
 impl<const STEPPABLE: bool> Deref for CodeAnalysis<STEPPABLE> {
     type Target = [AnalysisItem<STEPPABLE>];
@@ -88,19 +86,13 @@ impl<const STEPPABLE: bool> Deref for CodeAnalysis<STEPPABLE> {
 
 impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
     #[allow(unused_variables)]
-    pub fn new(
-        code: &[u8],
-        code_hash: Option<u256>,
-        cache: &CodeAnalysisCache<STEPPABLE>,
-    ) -> AnalysisContainer<Self> {
+    pub fn new(code: &[u8], code_hash: Option<u256>, cache: &CodeAnalysisCache<STEPPABLE>) -> Self {
         #[cfg(feature = "code-analysis-cache")]
         match code_hash {
-            Some(code_hash) if code_hash != u256::ZERO => {
-                cache.0.get_or_insert(u256Hash(code_hash), || {
-                    AnalysisContainer::new(CodeAnalysis::analyze_code(code))
-                })
-            }
-            _ => AnalysisContainer::new(Self::analyze_code(code)),
+            Some(code_hash) if code_hash != u256::ZERO => cache
+                .0
+                .get_or_insert(u256Hash(code_hash), || Self::analyze_code(code)),
+            _ => Self::analyze_code(code),
         }
         #[cfg(not(feature = "code-analysis-cache"))]
         Self::analyze_code(code)
@@ -159,7 +151,12 @@ impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
             };
         }
 
-        CodeAnalysis(analysis)
+        CodeAnalysis(
+            #[cfg(feature = "fn-ptr-conversion-dispatch")]
+            Arc::from(analysis.as_slice()),
+            #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
+            analysis,
+        )
     }
 }
 

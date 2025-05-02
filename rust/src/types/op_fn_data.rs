@@ -10,7 +10,7 @@ use crate::{
 #[derive(Clone, PartialEq, Eq)]
 pub struct OpFnData<const STEPPABLE: bool> {
     func: Option<OpFn<STEPPABLE>>,
-    pc: usize,
+    orig_idx: usize,
     data: u256,
 }
 
@@ -18,7 +18,7 @@ impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
     pub fn data(data: u256) -> Self {
         Self {
             func: None,
-            pc: 0,
+            orig_idx: 0,
             data,
         }
     }
@@ -29,16 +29,16 @@ impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
         std::iter::once(skip_no_ops).chain(std::iter::repeat_with(gen_no_ops).take(count - 1))
     }
 
-    pub fn func(op: u8, pc: usize, data: u256) -> Self {
+    pub fn func(op: u8, orig_idx: usize, data: u256) -> Self {
         Self {
             func: Some(interpreter::get_jumptable()[op as usize]),
-            pc,
+            orig_idx,
             data,
         }
     }
 
-    pub fn jump_dest(pc: usize) -> Self {
-        Self::func(Opcode::JumpDest as u8, pc, u256::ZERO)
+    pub fn jump_dest(orig_idx: usize) -> Self {
+        Self::func(Opcode::JumpDest as u8, orig_idx, u256::ZERO)
     }
 
     pub fn code_byte_type(&self) -> CodeByteType {
@@ -65,8 +65,8 @@ impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
         self.data
     }
 
-    pub fn get_pc(&self) -> usize {
-        self.pc
+    pub fn get_orig_idx(&self) -> usize {
+        self.orig_idx
     }
 }
 
@@ -74,6 +74,7 @@ impl<const STEPPABLE: bool> Debug for OpFnData<STEPPABLE> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("OpFnData")
             .field("func", &self.func.map(|f| f as *const u8))
+            .field("orig_idx", &self.orig_idx)
             .field("data", &self.data)
             .finish()
     }

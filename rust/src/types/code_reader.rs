@@ -6,9 +6,7 @@ use std::{self, ops::Deref};
 use crate::interpreter::OpFn;
 #[cfg(feature = "fn-ptr-conversion-dispatch")]
 use crate::types::OpFnData;
-use crate::types::{
-    AnalysisContainer, CodeAnalysis, CodeAnalysisCache, CodeByteType, FailStatus, u256,
-};
+use crate::types::{CodeAnalysis, CodeAnalysisCache, CodeByteType, FailStatus, u256};
 
 #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
 struct PushDataLen<const N: usize>;
@@ -21,7 +19,7 @@ impl<const N: usize> PushDataLen<N> {
 #[derive(Debug)]
 pub struct CodeReader<'a, const STEPPABLE: bool> {
     code: &'a [u8],
-    code_analysis: AnalysisContainer<CodeAnalysis<STEPPABLE>>,
+    code_analysis: CodeAnalysis<STEPPABLE>,
     pc: usize,
 }
 
@@ -48,10 +46,19 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
     ) -> Self {
         let code_analysis = CodeAnalysis::new(code, code_hash, cache);
         #[cfg(feature = "fn-ptr-conversion-dispatch")]
+        // pc on data is undefined behavior, so we can ignore it
+        // this means that we expect the pc to be on an opcode
+        // every opcode was mapped to a OpFnData which contains the original index
         let pc = code_analysis
             .iter()
             .enumerate()
-            .find_map(|(i, a)| if a.get_pc() == pc { Some(i) } else { None })
+            .find_map(|(idx, op_fn_data)| {
+                if op_fn_data.get_orig_idx() == pc {
+                    Some(idx)
+                } else {
+                    None
+                }
+            })
             .unwrap_or_else(|| code_analysis.len());
         Self {
             code,
@@ -148,7 +155,7 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
         return self
             .code_analysis
             .get(self.pc)
-            .map(OpFnData::get_pc)
+            .map(OpFnData::get_orig_idx)
             .unwrap_or_else(|| self.code.len());
     }
 }
