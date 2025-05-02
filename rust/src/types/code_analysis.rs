@@ -113,8 +113,14 @@ impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
     }
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     fn analyze_code(code: &[u8]) -> Self {
-        let mut analysis = Vec::with_capacity(code.len());
+        use std::mem::MaybeUninit;
 
+        use crate::Opcode;
+
+        let mut analysis_arc = Arc::new_uninit_slice(code.len());
+        let analysis = Arc::get_mut(&mut analysis_arc).unwrap();
+
+        let mut analysis_init = 0;
         let mut pc = 0;
         let mut no_ops = 0;
         while let Some(op) = code.get(pc).copied() {
@@ -124,10 +130,14 @@ impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
             match code_byte_type {
                 CodeByteType::JumpDest => {
                     if no_ops > 0 {
-                        analysis.extend(OpFnData::skip_no_ops_iter(no_ops));
+                        for op_fn in OpFnData::skip_no_ops_iter(no_ops) {
+                            analysis[analysis_init] = MaybeUninit::new(op_fn);
+                            analysis_init += 1;
+                        }
                     }
                     no_ops = 0;
-                    analysis.push(OpFnData::jump_dest(pc - 1));
+                    analysis[analysis_init] = MaybeUninit::new(OpFnData::jump_dest(pc - 1));
+                    analysis_init += 1;
                 }
                 CodeByteType::Push => {
                     let mut data = [0; 32];
@@ -135,28 +145,39 @@ impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
                     data[32 - data_len..32 - data_len + avail]
                         .copy_from_slice(&code[pc..pc + avail]);
                     let data = u256::from_be_bytes(data);
-                    analysis.push(OpFnData::func(op, pc - 1, data));
+                    analysis[analysis_init] = MaybeUninit::new(OpFnData::func(op, pc - 1, data));
+                    analysis_init += 1;
 
                     no_ops += data_len;
                     pc += data_len;
                 }
                 CodeByteType::Opcode => {
-                    analysis.push(OpFnData::func(op, pc - 1, u256::ZERO));
+                    analysis[analysis_init] =
+                        MaybeUninit::new(OpFnData::func(op, pc - 1, u256::ZERO));
+                    analysis_init += 1;
                 }
                 CodeByteType::DataOrInvalid => {
                     // This should only be the case if an invalid opcode was not preceded by a push.
                     // In this case we don't care what the data contains.
-                    analysis.push(OpFnData::data(u256::ZERO));
+                    analysis[analysis_init] = MaybeUninit::new(OpFnData::data(u256::ZERO));
+                    analysis_init += 1;
                 }
             };
         }
 
-        CodeAnalysis(
-            #[cfg(feature = "fn-ptr-conversion-dispatch")]
-            Arc::from(analysis.as_slice()),
-            #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
-            analysis,
-        )
+        while analysis_init < analysis.len() {
+            analysis[analysis_init] = MaybeUninit::new(OpFnData::func(
+                Opcode::Stop as u8,
+                analysis.len(),
+                u256::ZERO,
+            ));
+            analysis_init += 1;
+        }
+
+        // SAFETY:
+        // All elements have been initialized.
+        let analysis = unsafe { analysis_arc.assume_init() };
+        CodeAnalysis(analysis)
     }
 }
 
@@ -320,6 +341,7 @@ mod tests {
             [
                 OpFnData::<false>::func(Opcode::Push1 as u8, 0, (Opcode::Add as u8).into()),
                 OpFnData::<false>::func(Opcode::Add as u8, 2, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 3, u256::ZERO),
             ]
         );
         assert_eq!(
@@ -327,6 +349,7 @@ mod tests {
             [
                 OpFnData::<false>::func(Opcode::Push1 as u8, 0, (Opcode::Add as u8).into()),
                 OpFnData::data(u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 3, u256::ZERO),
             ]
         );
         assert_eq!(
@@ -340,6 +363,7 @@ mod tests {
                 OpFnData::<false>::func(Opcode::Push1 as u8, 0, (Opcode::Add as u8).into()),
                 OpFnData::data(u256::ZERO),
                 OpFnData::<false>::func(Opcode::Add as u8, 3, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 4, u256::ZERO),
             ]
         );
         assert_eq!(
@@ -356,6 +380,8 @@ mod tests {
                     (((Opcode::Add as u8 as u64) << 8) + Opcode::Add as u8 as u64).into()
                 ),
                 OpFnData::<false>::func(Opcode::Add as u8, 3, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 4, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 4, u256::ZERO),
             ]
         );
         assert_eq!(
@@ -372,6 +398,8 @@ mod tests {
                     (((Opcode::Add as u8 as u64) << 8) + Opcode::Add as u8 as u64).into()
                 ),
                 OpFnData::data(u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 4, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 4, u256::ZERO),
             ]
         );
         let mut code = [0; 23];
@@ -388,6 +416,27 @@ mod tests {
                     (u256::ONE << u256::from(8 * 20u8)) + u256::from(2u8)
                 ),
                 OpFnData::<false>::func(Opcode::Add as u8, 22, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 23, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 23, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 23, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 23, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 23, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 23, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 23, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 23, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 23, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 23, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 23, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 23, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 23, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 23, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 23, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 23, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 23, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 23, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 23, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 23, u256::ZERO),
+                OpFnData::<false>::func(Opcode::Stop as u8, 23, u256::ZERO),
             ]
         );
     }
