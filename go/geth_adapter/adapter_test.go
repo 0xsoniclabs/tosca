@@ -804,3 +804,99 @@ func TestGethInterpreterAdapter_RefundShiftIsReverted(t *testing.T) {
 		})
 	}
 }
+
+func TestGethAdapter_isPrecompiledContractCancun_rightNumberOfPrecompiles(t *testing.T) {
+	for i := range 10000 {
+		address := uint256.NewInt(uint64(i)).Bytes20()
+		got := isPrecompiledContractCancun(address)
+		if got {
+			if i < 0x01 || i > 0x0a {
+				t.Errorf("Got wrong result %v, expected %v", got, false)
+			}
+		} else {
+			if i >= 0x01 && i <= 0x0a {
+				t.Errorf("Got wrong result %v, expected %v", got, true)
+			}
+		}
+	}
+
+}
+
+func TestGethAdapter_isPrecompiledContractCancun_findsAllPrecompiles(t *testing.T) {
+	tests := map[string]struct {
+		address uint64
+		want    bool
+	}{
+		"create": {
+			address: 0x00,
+			want:    false,
+		},
+		"ecRecover": {
+			address: 0x01,
+			want:    true,
+		},
+		"sha2-256": {
+			address: 0x02,
+			want:    true,
+		},
+		"ripemd-160": {
+			address: 0x03,
+			want:    true,
+		},
+		"identity": {
+			address: 0x04,
+			want:    true,
+		},
+		"modExp": {
+			address: 0x05,
+			want:    true,
+		},
+		"ecAdd": {
+			address: 0x06,
+			want:    true,
+		},
+		"ecMul": {
+			address: 0x07,
+			want:    true,
+		},
+		"ecPairing": {
+			address: 0x08,
+			want:    true,
+		},
+		"blake2f": {
+			address: 0x09,
+			want:    true,
+		},
+		"point evaluation": {
+			address: 0x0a,
+			want:    true,
+		},
+		"no precompile": {
+			address: 0x0b,
+			want:    false,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			address := uint256.NewInt(test.address).Bytes20()
+			got := isPrecompiledContractCancun(address)
+			if got != test.want {
+				t.Errorf("Got wrong result %v, expected %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestGethAdapter_isPrecompiledContractCancun_AllAddressBytesAreConsidered(t *testing.T) {
+
+	for i := range 20 {
+		precompileAddress := uint256.NewInt(uint64(0x01)).Bytes20()
+		precompileAddress[i] = 0x01
+		isPrecompiled := isPrecompiledContractCancun(precompileAddress)
+
+		if i != 19 && isPrecompiled {
+			t.Errorf("Got wrong result %v, expected %v", isPrecompiled, false)
+		}
+	}
+}
