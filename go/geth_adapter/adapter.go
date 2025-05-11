@@ -318,9 +318,13 @@ func (a *runContextAdapter) Call(kind tosca.CallKind, parameter tosca.CallParame
 		return gethToVMErrors(err, parameter.Gas)
 	}
 
+	// Safe-guard against accidental introduction of gas. The lower limit needs
+	// to be checked since tosca.Gas is a signed value.
+	gasLeft := max(0, min(tosca.Gas(returnGas), parameter.Gas))
+
 	return tosca.CallResult{
 		Output:         output,
-		GasLeft:        tosca.Gas(returnGas),
+		GasLeft:        gasLeft,
 		GasRefund:      0, // refunds of nested calls are managed by the geth EVM and this adapter
 		CreatedAddress: createdAddress,
 		Success:        err == nil,
