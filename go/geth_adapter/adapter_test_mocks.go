@@ -26,11 +26,133 @@ import (
 	stateless "github.com/ethereum/go-ethereum/core/stateless"
 	tracing "github.com/ethereum/go-ethereum/core/tracing"
 	types "github.com/ethereum/go-ethereum/core/types"
+	vm "github.com/ethereum/go-ethereum/core/vm"
 	params "github.com/ethereum/go-ethereum/params"
 	utils "github.com/ethereum/go-ethereum/trie/utils"
 	uint256 "github.com/holiman/uint256"
 	gomock "go.uber.org/mock/gomock"
 )
+
+// MockCallContextInterceptor is a mock of CallContextInterceptor interface.
+type MockCallContextInterceptor struct {
+	ctrl     *gomock.Controller
+	recorder *MockCallContextInterceptorMockRecorder
+}
+
+// MockCallContextInterceptorMockRecorder is the mock recorder for MockCallContextInterceptor.
+type MockCallContextInterceptorMockRecorder struct {
+	mock *MockCallContextInterceptor
+}
+
+// NewMockCallContextInterceptor creates a new mock instance.
+func NewMockCallContextInterceptor(ctrl *gomock.Controller) *MockCallContextInterceptor {
+	mock := &MockCallContextInterceptor{ctrl: ctrl}
+	mock.recorder = &MockCallContextInterceptorMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockCallContextInterceptor) EXPECT() *MockCallContextInterceptorMockRecorder {
+	return m.recorder
+}
+
+// Call mocks base method.
+func (m *MockCallContextInterceptor) Call(env *vm.EVM, me vm.ContractRef, addr common.Address, data []byte, gas uint64, value *uint256.Int) ([]byte, uint64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Call", env, me, addr, data, gas, value)
+	ret0, _ := ret[0].([]byte)
+	ret1, _ := ret[1].(uint64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// Call indicates an expected call of Call.
+func (mr *MockCallContextInterceptorMockRecorder) Call(env, me, addr, data, gas, value any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Call", reflect.TypeOf((*MockCallContextInterceptor)(nil).Call), env, me, addr, data, gas, value)
+}
+
+// CallCode mocks base method.
+func (m *MockCallContextInterceptor) CallCode(env *vm.EVM, me vm.ContractRef, addr common.Address, data []byte, gas uint64, value *uint256.Int) ([]byte, uint64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CallCode", env, me, addr, data, gas, value)
+	ret0, _ := ret[0].([]byte)
+	ret1, _ := ret[1].(uint64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// CallCode indicates an expected call of CallCode.
+func (mr *MockCallContextInterceptorMockRecorder) CallCode(env, me, addr, data, gas, value any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CallCode", reflect.TypeOf((*MockCallContextInterceptor)(nil).CallCode), env, me, addr, data, gas, value)
+}
+
+// Create mocks base method.
+func (m *MockCallContextInterceptor) Create(env *vm.EVM, me vm.ContractRef, data []byte, gas uint64, value *uint256.Int) ([]byte, common.Address, uint64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Create", env, me, data, gas, value)
+	ret0, _ := ret[0].([]byte)
+	ret1, _ := ret[1].(common.Address)
+	ret2, _ := ret[2].(uint64)
+	ret3, _ := ret[3].(error)
+	return ret0, ret1, ret2, ret3
+}
+
+// Create indicates an expected call of Create.
+func (mr *MockCallContextInterceptorMockRecorder) Create(env, me, data, gas, value any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockCallContextInterceptor)(nil).Create), env, me, data, gas, value)
+}
+
+// Create2 mocks base method.
+func (m *MockCallContextInterceptor) Create2(env *vm.EVM, me vm.ContractRef, code []byte, gas uint64, value, salt *uint256.Int) ([]byte, common.Address, uint64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Create2", env, me, code, gas, value, salt)
+	ret0, _ := ret[0].([]byte)
+	ret1, _ := ret[1].(common.Address)
+	ret2, _ := ret[2].(uint64)
+	ret3, _ := ret[3].(error)
+	return ret0, ret1, ret2, ret3
+}
+
+// Create2 indicates an expected call of Create2.
+func (mr *MockCallContextInterceptorMockRecorder) Create2(env, me, code, gas, value, salt any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create2", reflect.TypeOf((*MockCallContextInterceptor)(nil).Create2), env, me, code, gas, value, salt)
+}
+
+// DelegateCall mocks base method.
+func (m *MockCallContextInterceptor) DelegateCall(env *vm.EVM, me vm.ContractRef, addr common.Address, data []byte, gas uint64) ([]byte, uint64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DelegateCall", env, me, addr, data, gas)
+	ret0, _ := ret[0].([]byte)
+	ret1, _ := ret[1].(uint64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// DelegateCall indicates an expected call of DelegateCall.
+func (mr *MockCallContextInterceptorMockRecorder) DelegateCall(env, me, addr, data, gas any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DelegateCall", reflect.TypeOf((*MockCallContextInterceptor)(nil).DelegateCall), env, me, addr, data, gas)
+}
+
+// StaticCall mocks base method.
+func (m *MockCallContextInterceptor) StaticCall(env *vm.EVM, me vm.ContractRef, addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StaticCall", env, me, addr, input, gas)
+	ret0, _ := ret[0].([]byte)
+	ret1, _ := ret[1].(uint64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// StaticCall indicates an expected call of StaticCall.
+func (mr *MockCallContextInterceptorMockRecorder) StaticCall(env, me, addr, input, gas any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StaticCall", reflect.TypeOf((*MockCallContextInterceptor)(nil).StaticCall), env, me, addr, input, gas)
+}
 
 // MockStateDb is a mock of StateDb interface.
 type MockStateDb struct {

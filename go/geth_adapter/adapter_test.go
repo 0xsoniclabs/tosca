@@ -14,6 +14,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"reflect"
 	"slices"
@@ -31,6 +32,10 @@ import (
 )
 
 //go:generate mockgen -source adapter_test.go -destination adapter_test_mocks.go -package geth_adapter
+
+type CallContextInterceptor interface {
+	geth.CallContextInterceptor
+}
 
 type StateDb interface {
 	geth.StateDB
@@ -344,6 +349,62 @@ func TestRunContextAdapter_Call(t *testing.T) {
 	}
 	if result.GasLeft != gas {
 		t.Errorf("Call has the wrong amount of gas left: %v, expected: %v", result.GasLeft, gas)
+	}
+}
+
+func TestRunContextAdapter_Call_LeftGasIsConstraintByZeroAndInputGas(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	calls := NewMockCallContextInterceptor(ctrl)
+	for gasIn := tosca.Gas(-100); gasIn < tosca.Gas(100); gasIn++ {
+		for gasOut := tosca.Gas(-100); gasOut < tosca.Gas(100); gasOut++ {
+			any := gomock.Any()
+			calls.EXPECT().Call(any, any, any, any, uint64(gasIn), any).Return(
+				nil, uint64(gasOut), nil,
+			)
+
+			adapter := &runContextAdapter{evm: &geth.EVM{CallInterceptor: calls}}
+			result, err := adapter.Call(tosca.Call, tosca.CallParameters{
+				Gas: gasIn,
+			})
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			want := max(0, min(gasIn, gasOut))
+			if got := result.GasLeft; got != want {
+				t.Fatalf("Gas left should be equal to %v, got %v", want, got)
+			}
+		}
+	}
+}
+
+func TestRunContextAdapter_Call_LeftGasOverflowLeadsToZeroGas(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	calls := NewMockCallContextInterceptor(ctrl)
+
+	overflows := []uint64{
+		math.MaxInt64 + 1,
+		math.MaxInt64 + 2,
+		math.MaxUint64 - 1,
+		math.MaxUint64,
+	}
+
+	for _, gasOut := range overflows {
+		any := gomock.Any()
+		calls.EXPECT().Call(any, any, any, any, any, any).Return(
+			nil, gasOut, nil,
+		)
+
+		adapter := &runContextAdapter{evm: &geth.EVM{CallInterceptor: calls}}
+		result, err := adapter.Call(tosca.Call, tosca.CallParameters{
+			Gas: 42,
+		})
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if want, got := tosca.Gas(0), result.GasLeft; want != got {
+			t.Fatalf("Gas left should be equal to %v, got %v", want, got)
+		}
 	}
 }
 
