@@ -836,7 +836,7 @@ func TestGethAdapter_IsPrecompiledContractDependsOnRevision(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			for i := range test.lastPrecompiled + 100 {
+			for i := range test.lastPrecompiled + 256 {
 				address := uint256.NewInt(uint64(i)).Bytes20()
 				got := isPrecompiledContract(address, test.revision)
 				if !got && (i > 0 && i <= test.lastPrecompiled) {
