@@ -349,7 +349,9 @@ func TestRunContextAdapter_Call_LeftGasIsConstraintByZeroAndInputGas(t *testing.
 				nil, uint64(gasOut), nil,
 			)
 
-			adapter := &runContextAdapter{evm: &geth.EVM{CallInterceptor: calls}}
+			evm := newEVMWithPassingChainConfig()
+			evm.CallInterceptor = calls
+			adapter := &runContextAdapter{evm: evm}
 			result, err := adapter.Call(tosca.Call, tosca.CallParameters{
 				Gas: gasIn,
 			})
@@ -382,7 +384,9 @@ func TestRunContextAdapter_Call_LeftGasOverflowLeadsToZeroGas(t *testing.T) {
 			nil, gasOut, nil,
 		)
 
-		adapter := &runContextAdapter{evm: &geth.EVM{CallInterceptor: calls}}
+		evm := newEVMWithPassingChainConfig()
+		evm.CallInterceptor = calls
+		adapter := &runContextAdapter{evm: evm}
 		result, err := adapter.Call(tosca.Call, tosca.CallParameters{
 			Gas: 42,
 		})
@@ -393,6 +397,17 @@ func TestRunContextAdapter_Call_LeftGasOverflowLeadsToZeroGas(t *testing.T) {
 			t.Fatalf("Gas left should be equal to %v, got %v", want, got)
 		}
 	}
+}
+
+func newEVMWithPassingChainConfig() *geth.EVM {
+	chainConfig := &params.ChainConfig{
+		ChainID:       big.NewInt(42),
+		IstanbulBlock: big.NewInt(24),
+	}
+	blockContext := geth.BlockContext{
+		BlockNumber: big.NewInt(24),
+	}
+	return geth.NewEVM(blockContext, nil, chainConfig, geth.Config{})
 }
 
 func TestRunContextAdapter_getPrevRandaoReturnsHashBasedOnRevision(t *testing.T) {
