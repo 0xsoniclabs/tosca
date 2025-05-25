@@ -250,37 +250,6 @@ func NewFPush(op F) *FSetStateU256 {
 }
 
 ////////////////////////////////////////////////////////////
-// Unary Function U256
-
-type UnaryOpU256 func(common.U256) common.U256
-
-type FUnaryU256 struct {
-	name string
-	fun  UnaryOpU256
-	op   F
-	F
-}
-
-func NewFUnaryU256(name string, fun UnaryOpU256, op F) *FUnaryU256 {
-	return &FUnaryU256{name: name, fun: fun, op: op}
-}
-
-func (f *FUnaryU256) Apply(state *st.State) F {
-	var constOp FConstU256
-	var ok bool
-	fOp := f.op.Apply(state)
-	if constOp, ok = fOp.(FConstU256); !ok {
-		panic("Expected U256 constant in parameter")
-	}
-	result := f.fun(constOp.Get())
-	return NewFConstU256(&result)
-}
-
-func (f *FUnaryU256) String() string {
-	return f.name + "(" + f.op.String() + ")"
-}
-
-////////////////////////////////////////////////////////////
 // Binary Function U256
 
 type BinaryOpU256 func(common.U256, common.U256) common.U256
@@ -313,30 +282,6 @@ func (f *FBinaryU256) Apply(state *st.State) F {
 
 func (f *FBinaryU256) String() string {
 	return f.name + "(" + f.left.String() + "," + f.right.String() + ")"
-}
-
-////////////////////////////////////////////////////////////
-// INT64 Constant Function
-
-type FConstI64 struct {
-	value int64
-	F
-}
-
-func NewFConstI64(value int64) *FConstI64 {
-	return &FConstI64{value: value}
-}
-
-func (f FConstI64) Apply(state *st.State) F {
-	return f
-}
-
-func (f FConstI64) Get() int64 {
-	return f.value
-}
-
-func (f FConstI64) String() string {
-	return "INT64(" + strconv.FormatInt(f.value, 10) + ")"
 }
 
 // //////////////////////////////////////////////////////////
