@@ -171,7 +171,7 @@ func (i *TestCaseEnumerationInfo) String() string {
 	}
 	if i.effect != nil {
 		builder.WriteString("Effect:\n")
-		builder.WriteString("\t" + i.effect.String())
+		builder.WriteString(fmt.Sprintf("\t%v\n", i.effect.String()))
 	}
 	builder.WriteString(fmt.Sprintf("Total number of cases: %d\n", i.TotalNumberOfCases()))
 	return builder.String()
