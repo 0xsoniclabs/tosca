@@ -100,7 +100,7 @@ func (f FConstU256) Get() common.U256 {
 }
 
 func (f FConstU256) String() string {
-	return f.value.String() + ":U256"
+	return "U256(" + f.value.String() + ")"
 }
 
 ////////////////////////////////////////////////////////////
@@ -158,12 +158,12 @@ func (f *FGetStateU256) Apply(state *st.State) F {
 }
 
 func (f *FGetStateU256) String() string {
-	return f.name + ":State->U256"
+	return f.name
 }
 
 // state specificy getter
 func NewFPeekStack(pos int) *FGetStateU256 {
-	return NewFGetStateU256("peek("+strconv.Itoa(pos)+")", func(state *st.State) common.U256 {
+	return NewFGetStateU256("peek-"+strconv.Itoa(pos), func(state *st.State) common.U256 {
 		return state.Stack.Get(pos)
 	})
 }
@@ -189,7 +189,7 @@ func (f *FSetState) Apply(state *st.State) F {
 }
 
 func (f *FSetState) String() string {
-	return f.name + ":State->State"
+	return f.name
 }
 
 // state specific setters
@@ -237,7 +237,7 @@ func (f *FSetStateU256) Apply(state *st.State) F {
 }
 
 func (f *FSetStateU256) String() string {
-	return f.name + ":State->State"
+	return f.name + "(" + f.op.String() + ")"
 }
 
 // state specificy getter
@@ -277,7 +277,7 @@ func (f *FUnaryU256) Apply(state *st.State) F {
 }
 
 func (f *FUnaryU256) String() string {
-	return f.name + ":U256->U256(" + f.op.String() + ")"
+	return f.name + "(" + f.op.String() + ")"
 }
 
 ////////////////////////////////////////////////////////////
@@ -312,7 +312,7 @@ func (f *FBinaryU256) Apply(state *st.State) F {
 }
 
 func (f *FBinaryU256) String() string {
-	return f.name + ":U256xU256->U256(" + f.left.String() + "," + f.right.String() + ")"
+	return f.name + "(" + f.left.String() + "," + f.right.String() + ")"
 }
 
 ////////////////////////////////////////////////////////////
@@ -336,7 +336,7 @@ func (f FConstI64) Get() int64 {
 }
 
 func (f FConstI64) String() string {
-	return strconv.FormatInt(f.value, 10) + ":U256"
+	return "INT64(" + strconv.FormatInt(f.value, 10) + ")"
 }
 
 // //////////////////////////////////////////////////////////

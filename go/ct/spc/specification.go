@@ -2393,9 +2393,7 @@ func rulesFor(i instruction) []Rule {
 		localConditions = append(localConditions, AnyKnownRevision())
 	}
 
-	if fEffect, ok := i.effect.(FChange); ok {
-		effect := NewFChange(NewFSeq(NewFDecGas(i.staticGas), NewFIncPC(), fEffect.Get()))
-		fmt.Printf("\t%v\n", effect.String())
+	if fEffect, ok := i.effect.(*FChange); ok {
 		res = append(res, Rule{
 			Name:      fmt.Sprintf("%s_regular%v", strings.ToLower(i.op.String()), i.name),
 			Condition: And(localConditions...),
