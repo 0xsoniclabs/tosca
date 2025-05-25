@@ -46,9 +46,9 @@ type instruction struct {
 	staticGas  tosca.Gas
 	pops       int
 	pushes     int
-	conditions []Condition       // conditions for the regular case
-	parameters []Parameter       // parameters for the regular case
-	effect     func(s *st.State) // effect for the regular case
+	conditions []Condition // conditions for the regular case
+	parameters []Parameter // parameters for the regular case
+	effect     Effect      // effect for the regular case
 	name       string
 }
 
@@ -260,7 +260,7 @@ func getAllRules() []Rule {
 			MemoryOffsetParameter{},
 			SizeParameter{},
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			offsetU256 := s.Stack.Pop()
 			sizeU256 := s.Stack.Pop()
 
@@ -280,7 +280,7 @@ func getAllRules() []Rule {
 
 			hash := s.Memory.Hash(offset, size)
 			s.Stack.Push(NewU256FromBytes(hash[:]...))
-		},
+		}),
 	})...)
 
 	// --- BALANCE ---
@@ -298,11 +298,11 @@ func getAllRules() []Rule {
 		parameters: []Parameter{
 			AddressParameter{},
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			address := NewAddress(s.Stack.Pop())
 			s.Stack.Push(s.Accounts.GetBalance(address))
 			s.Accounts.MarkWarm(address)
-		},
+		}),
 		name: "_cold",
 	})...)
 
@@ -319,10 +319,10 @@ func getAllRules() []Rule {
 		parameters: []Parameter{
 			AddressParameter{},
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			address := NewAddress(s.Stack.Pop())
 			s.Stack.Push(s.Accounts.GetBalance(address))
-		},
+		}),
 		name: "_warm",
 	})...)
 
@@ -338,10 +338,10 @@ func getAllRules() []Rule {
 		parameters: []Parameter{
 			AddressParameter{},
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			address := NewAddress(s.Stack.Pop())
 			s.Stack.Push(s.Accounts.GetBalance(address))
-		},
+		}),
 		name: "_preBerlin",
 	})...)
 
@@ -355,7 +355,7 @@ func getAllRules() []Rule {
 		parameters: []Parameter{
 			MemoryOffsetParameter{},
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			offsetU256 := s.Stack.Pop()
 
 			cost, offset, _ := s.Memory.ExpansionCosts(offsetU256, NewU256(32))
@@ -367,7 +367,7 @@ func getAllRules() []Rule {
 
 			value := NewU256FromBytes(s.Memory.Read(offset, 32)...)
 			s.Stack.Push(value)
-		},
+		}),
 	})...)
 
 	// --- MSTORE ---
@@ -381,7 +381,7 @@ func getAllRules() []Rule {
 			MemoryOffsetParameter{},
 			NumericParameter{},
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			offsetU256 := s.Stack.Pop()
 			value := s.Stack.Pop()
 
@@ -394,7 +394,7 @@ func getAllRules() []Rule {
 
 			bytes := value.Bytes32be()
 			s.Memory.Write(bytes[:], offset)
-		},
+		}),
 	})...)
 
 	// --- MSTORE8 ---
@@ -408,7 +408,7 @@ func getAllRules() []Rule {
 			MemoryOffsetParameter{},
 			NumericParameter{},
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			offsetU256 := s.Stack.Pop()
 			value := s.Stack.Pop()
 
@@ -421,7 +421,7 @@ func getAllRules() []Rule {
 
 			s.Memory.Write([]byte{value.Bytes32be()[31]}, offset)
 
-		},
+		}),
 	})...)
 
 	// --- SLOAD ---
@@ -439,11 +439,11 @@ func getAllRules() []Rule {
 		parameters: []Parameter{
 			NumericParameter{},
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			key := s.Stack.Pop()
 			s.Stack.Push(s.Storage.GetCurrent(key))
 			s.Storage.MarkWarm(key)
-		},
+		}),
 		name: "_cold",
 	})...)
 
@@ -460,10 +460,10 @@ func getAllRules() []Rule {
 		parameters: []Parameter{
 			NumericParameter{},
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			key := s.Stack.Pop()
 			s.Stack.Push(s.Storage.GetCurrent(key))
-		},
+		}),
 		name: "_warm",
 	})...)
 
@@ -479,10 +479,10 @@ func getAllRules() []Rule {
 		parameters: []Parameter{
 			NumericParameter{},
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			key := s.Stack.Pop()
 			s.Stack.Push(s.Storage.GetCurrent(key))
-		},
+		}),
 		name: "_pre_berlin",
 	})...)
 
@@ -572,10 +572,10 @@ func getAllRules() []Rule {
 			IsCode(Param(0)),
 			Eq(Op(Param(0)), vm.JUMPDEST),
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			target := s.Stack.Pop()
 			s.Pc = uint16(target.Uint64())
-		},
+		}),
 	})...)
 
 	rules = append(rules, []Rule{
@@ -626,11 +626,11 @@ func getAllRules() []Rule {
 			Eq(Op(Param(0)), vm.JUMPDEST),
 			Ne(Param(1), NewU256(0)),
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			target := s.Stack.Pop()
 			s.Stack.Pop()
 			s.Pc = uint16(target.Uint64())
-		},
+		}),
 	})...)
 
 	rules = append(rules, []Rule{
@@ -693,9 +693,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			s.Stack.Push(NewU256(uint64(s.Pc) - 1))
-		},
+		}),
 	})...)
 
 	// --- MSIZE ---
@@ -705,9 +705,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			s.Stack.Push(NewU256(uint64(s.Memory.Size())))
-		},
+		}),
 	})...)
 
 	// --- GAS ---
@@ -717,9 +717,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			s.Stack.Push(NewU256(uint64(s.Gas)))
-		},
+		}),
 	})...)
 
 	// --- JUMPDEST ---
@@ -729,7 +729,7 @@ func getAllRules() []Rule {
 		staticGas: 1,
 		pops:      0,
 		pushes:    0,
-		effect:    NoEffect().Apply,
+		effect:    NoEffect(),
 	})...)
 
 	// --- TLOAD ---
@@ -746,11 +746,11 @@ func getAllRules() []Rule {
 			RevisionBounds(tosca.R13_Cancun, NewestSupportedRevision),
 			BindTransientStorageToNonZero(Param(0)),
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			key := s.Stack.Pop()
 			value := s.TransientStorage.Get(key)
 			s.Stack.Push(value)
-		},
+		}),
 	})...)
 
 	rules = append(rules, rulesFor(instruction{
@@ -765,10 +765,10 @@ func getAllRules() []Rule {
 			RevisionBounds(tosca.R13_Cancun, NewestSupportedRevision),
 			BindTransientStorageToZero(Param(0)),
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			s.Stack.Pop()
 			s.Stack.Push(NewU256(0))
-		},
+		}),
 	})...)
 
 	rules = append(rules, Rule{
@@ -797,11 +797,11 @@ func getAllRules() []Rule {
 			Eq(ReadOnly(), false),
 			BindTransientStorageToNonZero(Param(0)),
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			key := s.Stack.Pop()
 			value := s.Stack.Pop()
 			s.TransientStorage.Set(key, value)
-		},
+		}),
 	})...)
 
 	rules = append(rules, rulesFor(instruction{
@@ -818,11 +818,11 @@ func getAllRules() []Rule {
 			Eq(ReadOnly(), false),
 			BindTransientStorageToZero(Param(0)),
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			key := s.Stack.Pop()
 			value := s.Stack.Pop()
 			s.TransientStorage.Set(key, value)
-		},
+		}),
 	})...)
 
 	rules = append(rules, Rule{
@@ -856,9 +856,9 @@ func getAllRules() []Rule {
 		conditions: []Condition{
 			RevisionBounds(tosca.R12_Shanghai, NewestSupportedRevision),
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			s.Stack.Push(NewU256(0))
-		},
+		}),
 	})...)
 
 	rules = append(rules, []Rule{
@@ -890,7 +890,7 @@ func getAllRules() []Rule {
 		conditions: []Condition{
 			RevisionBounds(tosca.R13_Cancun, NewestSupportedRevision),
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			destOffsetU256 := s.Stack.Pop()
 			offsetU256 := s.Stack.Pop()
 			sizeU256 := s.Stack.Pop()
@@ -909,7 +909,7 @@ func getAllRules() []Rule {
 
 			value := s.Memory.Read(srcOffset, size)
 			s.Memory.Write(value, destOffset)
-		},
+		}),
 	})...)
 
 	rules = append(rules, []Rule{
@@ -937,9 +937,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      1,
 		pushes:    0,
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			s.Stack.Pop()
-		},
+		}),
 	})...)
 
 	// --- Stack DUP ---
@@ -967,9 +967,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			s.Stack.Push(NewU256FromBytes(s.CallContext.AccountAddress[:]...))
-		},
+		}),
 	})...)
 
 	// --- ORIGIN ---
@@ -979,9 +979,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			s.Stack.Push(NewU256FromBytes(s.TransactionContext.OriginAddress[:]...))
-		},
+		}),
 	})...)
 
 	// --- CALLER ---
@@ -991,9 +991,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			s.Stack.Push(NewU256FromBytes(s.CallContext.CallerAddress[:]...))
-		},
+		}),
 	})...)
 
 	// --- CALLVALUE ---
@@ -1003,9 +1003,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			s.Stack.Push(s.CallContext.Value)
-		},
+		}),
 	})...)
 
 	// --- NUMBER ---
@@ -1015,9 +1015,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			s.Stack.Push(NewU256(s.BlockContext.BlockNumber))
-		},
+		}),
 	})...)
 
 	// --- BLOCKHASH ---
@@ -1031,12 +1031,12 @@ func getAllRules() []Rule {
 			InRange256FromCurrentBlock(Param(0)),
 		},
 		parameters: []Parameter{NumericParameter{}},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			targetBlockNumber := s.Stack.Pop()
 			index := s.BlockContext.BlockNumber - targetBlockNumber.Uint64()
 			hash := s.RecentBlockHashes.Get(index - 1)
 			s.Stack.Push(NewU256FromBytes(hash[:]...))
-		},
+		}),
 	})...)
 
 	rules = append(rules, rulesFor(instruction{
@@ -1049,10 +1049,10 @@ func getAllRules() []Rule {
 			OutOfRange256FromCurrentBlock(Param(0)),
 		},
 		parameters: []Parameter{NumericParameter{}},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			s.Stack.Pop()
 			s.Stack.Push(NewU256(0))
-		},
+		}),
 	})...)
 
 	// --- COINBASE ---
@@ -1062,9 +1062,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			s.Stack.Push(NewU256FromBytes(s.BlockContext.CoinBase[:]...))
-		},
+		}),
 	})...)
 
 	// --- GASLIMIT ---
@@ -1074,9 +1074,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			s.Stack.Push(NewU256(s.BlockContext.GasLimit))
-		},
+		}),
 	})...)
 
 	// --- DIFFICULTY / PREVRANDAO ---
@@ -1086,9 +1086,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			s.Stack.Push(s.BlockContext.PrevRandao)
-		},
+		}),
 	})...)
 
 	// --- GASPRICE ---
@@ -1098,9 +1098,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			s.Stack.Push(s.BlockContext.GasPrice)
-		},
+		}),
 	})...)
 
 	// --- EXTCODESIZE ---
@@ -1118,12 +1118,12 @@ func getAllRules() []Rule {
 		parameters: []Parameter{
 			AddressParameter{},
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			address := NewAddress(s.Stack.Pop())
 			size := s.Accounts.GetCode(address).Length()
 			s.Stack.Push(NewU256(uint64(size)))
 			s.Accounts.MarkWarm(address)
-		},
+		}),
 		name: "_cold",
 	})...)
 
@@ -1140,11 +1140,11 @@ func getAllRules() []Rule {
 		parameters: []Parameter{
 			AddressParameter{},
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			address := NewAddress(s.Stack.Pop())
 			size := s.Accounts.GetCode(address).Length()
 			s.Stack.Push(NewU256(uint64(size)))
-		},
+		}),
 		name: "_warm",
 	})...)
 
@@ -1160,11 +1160,11 @@ func getAllRules() []Rule {
 		parameters: []Parameter{
 			AddressParameter{},
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			address := NewAddress(s.Stack.Pop())
 			size := s.Accounts.GetCode(address).Length()
 			s.Stack.Push(NewU256(uint64(size)))
-		},
+		}),
 		name: "_preBerlin",
 	})...)
 
@@ -1185,9 +1185,9 @@ func getAllRules() []Rule {
 			MemoryOffsetParameter{},
 			DataOffsetParameter{},
 			SizeParameter{}},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			extCodeCopyEffect(s, true)
-		},
+		}),
 		name: "_cold",
 	})...)
 
@@ -1206,9 +1206,9 @@ func getAllRules() []Rule {
 			MemoryOffsetParameter{},
 			DataOffsetParameter{},
 			SizeParameter{}},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			extCodeCopyEffect(s, false)
-		},
+		}),
 		name: "_warm",
 	})...)
 
@@ -1226,9 +1226,9 @@ func getAllRules() []Rule {
 			MemoryOffsetParameter{},
 			DataOffsetParameter{},
 			SizeParameter{}},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			extCodeCopyEffect(s, false)
-		},
+		}),
 		name: "_preBerlin",
 	})...)
 
@@ -1239,9 +1239,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			s.Stack.Push(NewU256(s.BlockContext.TimeStamp))
-		},
+		}),
 	})...)
 
 	// --- BASEFEE ---
@@ -1252,9 +1252,9 @@ func getAllRules() []Rule {
 		pops:       0,
 		pushes:     1,
 		conditions: []Condition{RevisionBounds(tosca.R10_London, NewestSupportedRevision)},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			s.Stack.Push(s.BlockContext.BaseFee)
-		},
+		}),
 	})...)
 	rules = append(rules, []Rule{
 		{
@@ -1280,10 +1280,10 @@ func getAllRules() []Rule {
 			HasBlobHash(Param(0)),
 		},
 		parameters: []Parameter{NumericParameter{}},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			indexU256 := s.Stack.Pop()
 			s.Stack.Push(NewU256FromBytes(s.TransactionContext.BlobHashes[indexU256.Uint64()][:]...))
-		},
+		}),
 	})...)
 
 	rules = append(rules, rulesFor(instruction{
@@ -1297,10 +1297,10 @@ func getAllRules() []Rule {
 			HasNoBlobHash(Param(0)),
 		},
 		parameters: []Parameter{NumericParameter{}},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			s.Stack.Pop()
 			s.Stack.Push(NewU256(0))
-		},
+		}),
 	})...)
 
 	rules = append(rules, []Rule{
@@ -1323,9 +1323,9 @@ func getAllRules() []Rule {
 		pops:       0,
 		pushes:     1,
 		conditions: []Condition{RevisionBounds(tosca.R13_Cancun, NewestSupportedRevision)},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			s.Stack.Push(s.BlockContext.BlobBaseFee)
-		},
+		}),
 	})...)
 
 	rules = append(rules, []Rule{
@@ -1380,7 +1380,7 @@ func getAllRules() []Rule {
 					parameters: []Parameter{
 						AddressParameter{},
 					},
-					effect: func(s *st.State) {
+					effect: Change(func(s *st.State) {
 						address := NewAddress(s.Stack.Pop())
 						if s.Accounts.IsEmpty(address) {
 							s.Stack.Push(NewU256(0))
@@ -1391,7 +1391,7 @@ func getAllRules() []Rule {
 						if revision >= tosca.R09_Berlin && !warm {
 							s.Accounts.MarkWarm(address)
 						}
-					},
+					}),
 				})...)
 			}
 		}
@@ -1404,9 +1404,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			s.Stack.Push(s.BlockContext.ChainID)
-		},
+		}),
 	})...)
 
 	// --- CODESIZE ---
@@ -1416,9 +1416,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			s.Stack.Push(NewU256(uint64(s.Code.Length())))
-		},
+		}),
 	})...)
 
 	// --- CODECOPY ---
@@ -1432,7 +1432,7 @@ func getAllRules() []Rule {
 			MemoryOffsetParameter{},
 			DataOffsetParameter{},
 			SizeParameter{}},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			destOffsetU256 := s.Stack.Pop()
 			offsetU256 := s.Stack.Pop()
 			sizeU256 := s.Stack.Pop()
@@ -1455,7 +1455,7 @@ func getAllRules() []Rule {
 			_ = s.Code.CopyCodeSlice(int(start), int(end), codeCopy)
 
 			s.Memory.Write(codeCopy, destOffset)
-		},
+		}),
 	})...)
 
 	// --- CALLDATASIZE ---
@@ -1465,9 +1465,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			s.Stack.Push(NewU256(uint64(s.CallData.Length())))
-		},
+		}),
 	})...)
 
 	// --- CALLDATALOAD ---
@@ -1478,7 +1478,7 @@ func getAllRules() []Rule {
 		pops:       1,
 		pushes:     1,
 		parameters: []Parameter{MemoryOffsetParameter{}},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			offsetU256 := s.Stack.Pop()
 			pushData := NewU256(0)
 
@@ -1494,7 +1494,7 @@ func getAllRules() []Rule {
 			}
 
 			s.Stack.Push(pushData)
-		},
+		}),
 	})...)
 
 	// --- CALLDATACOPY ---
@@ -1508,7 +1508,7 @@ func getAllRules() []Rule {
 			MemoryOffsetParameter{},
 			DataOffsetParameter{},
 			SizeParameter{}},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			destOffsetU256 := s.Stack.Pop()
 			offsetU256 := s.Stack.Pop()
 			sizeU256 := s.Stack.Pop()
@@ -1529,7 +1529,7 @@ func getAllRules() []Rule {
 			end := min(start+size, uint64(len))
 			dataBuffer := RightPadSlice(s.CallData.Get(start, end), int(size))
 			s.Memory.Write(dataBuffer, destOffset)
-		},
+		}),
 	})...)
 
 	// --- SELFBALANCE ---
@@ -1539,11 +1539,11 @@ func getAllRules() []Rule {
 		staticGas: 5,
 		pops:      0,
 		pushes:    1,
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			address := s.CallContext.AccountAddress
 			balance := s.Accounts.GetBalance(address)
 			s.Stack.Push(balance)
-		},
+		}),
 	})...)
 
 	// --- RETURNDATASIZE ---
@@ -1553,9 +1553,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			s.Stack.Push(NewU256(uint64(s.LastCallReturnData.Length())))
-		},
+		}),
 	})...)
 
 	// --- RETURNDATACOPY ---
@@ -1569,7 +1569,7 @@ func getAllRules() []Rule {
 			MemoryOffsetParameter{},
 			DataOffsetParameter{},
 			SizeParameter{}},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			memOffsetU256 := s.Stack.Pop()
 			dataOffsetU256 := s.Stack.Pop()
 			sizeU256 := s.Stack.Pop()
@@ -1592,7 +1592,7 @@ func getAllRules() []Rule {
 			s.Gas -= expansionCost
 
 			s.Memory.Write(s.LastCallReturnData.Get(dataOffset, readUntil), memOffset)
-		},
+		}),
 	})...)
 
 	// --- RETURN ---
@@ -1605,7 +1605,7 @@ func getAllRules() []Rule {
 		parameters: []Parameter{
 			MemoryOffsetParameter{},
 			SizeParameter{}},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			offsetU256 := s.Stack.Pop()
 			sizeU256 := s.Stack.Pop()
 
@@ -1618,7 +1618,7 @@ func getAllRules() []Rule {
 
 			s.ReturnData = NewBytes(s.Memory.Read(offset, size))
 			s.Status = st.Stopped
-		},
+		}),
 	})...)
 
 	// --- REVERT ---
@@ -1631,7 +1631,7 @@ func getAllRules() []Rule {
 		parameters: []Parameter{
 			MemoryOffsetParameter{},
 			SizeParameter{}},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			offsetU256 := s.Stack.Pop()
 			sizeU256 := s.Stack.Pop()
 
@@ -1644,7 +1644,7 @@ func getAllRules() []Rule {
 
 			s.ReturnData = NewBytes(s.Memory.Read(offset, size))
 			s.Status = st.Reverted
-		},
+		}),
 	})...)
 
 	// --- CALL, CALLCODE, STATICCALL and DELEGATECALL ---
@@ -1680,7 +1680,7 @@ func getAllRules() []Rule {
 			Eq(ReadOnly(), true),
 			AnyKnownRevision(),
 		},
-		effect: FailEffect().Apply,
+		effect: FailEffect(),
 	})...)
 
 	// --- CREATE ---
@@ -1699,7 +1699,7 @@ func getAllRules() []Rule {
 			MemoryOffsetParameter{},
 			SizeParameter{},
 		},
-		effect: FailEffect().Apply,
+		effect: FailEffect(),
 	})...)
 
 	rules = append(rules, rulesFor(instruction{
@@ -1715,9 +1715,9 @@ func getAllRules() []Rule {
 			MemoryOffsetParameter{},
 			SizeParameter{},
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			createEffect(s, tosca.Create)
-		},
+		}),
 	})...)
 
 	// --- CREATE2 ---
@@ -1737,7 +1737,7 @@ func getAllRules() []Rule {
 			SizeParameter{},
 			NumericParameter{},
 		},
-		effect: FailEffect().Apply,
+		effect: FailEffect(),
 	})...)
 
 	rules = append(rules, rulesFor(instruction{
@@ -1754,9 +1754,9 @@ func getAllRules() []Rule {
 			SizeParameter{},
 			NumericParameter{},
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			createEffect(s, tosca.Create2)
-		},
+		}),
 	})...)
 
 	// --- End ---
@@ -1855,7 +1855,7 @@ func binaryOpWithDynamicCost(
 			NumericParameter{},
 			NumericParameter{},
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			a := s.Stack.Pop()
 			b := s.Stack.Pop()
 			dynamicCost := dynamicCost(a, b)
@@ -1866,16 +1866,25 @@ func binaryOpWithDynamicCost(
 			}
 			s.Gas -= dynamicCost
 			s.Stack.Push(effect(a, b))
-		},
+		}),
 	})
 }
 
 func binaryOp(
 	op vm.OpCode,
 	costs tosca.Gas,
-	effect func(a, b U256) U256,
-) []Rule {
-	return binaryOpWithDynamicCost(op, costs, effect, func(_, _ U256) tosca.Gas { return 0 })
+	effect func(a, b U256) U256) []Rule {
+	return rulesFor(instruction{
+		op:        op,
+		staticGas: costs,
+		pops:      2,
+		pushes:    1,
+		parameters: []Parameter{
+			NumericParameter{},
+			NumericParameter{},
+		},
+		effect: FChange(NewFSeq(NewFPush(NewFBinaryU256(op.String(), effect, NewFPeekStack(0), NewFPeekStack(1))), NewFPop(2))),
+	})
 }
 
 func trinaryOp(
@@ -1893,12 +1902,12 @@ func trinaryOp(
 			NumericParameter{},
 			NumericParameter{},
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			a := s.Stack.Pop()
 			b := s.Stack.Pop()
 			c := s.Stack.Pop()
 			s.Stack.Push(effect(a, b, c))
-		},
+		}),
 	})
 }
 
@@ -1915,10 +1924,10 @@ func unaryOp(
 		parameters: []Parameter{
 			NumericParameter{},
 		},
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			a := s.Stack.Pop()
 			s.Stack.Push(effect(a))
-		},
+		}),
 	})
 }
 
@@ -1929,7 +1938,7 @@ func pushOp(n int) []Rule {
 		staticGas: 3,
 		pops:      0,
 		pushes:    1,
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			data := make([]byte, n)
 			for i := 0; i < n; i++ {
 				b, err := s.Code.GetData(int(s.Pc) + i)
@@ -1942,7 +1951,7 @@ func pushOp(n int) []Rule {
 			}
 			s.Stack.Push(NewU256FromBytes(data...))
 			s.Pc += uint16(n)
-		},
+		}),
 	})
 }
 
@@ -1955,9 +1964,9 @@ func dupOp(n int) []Rule {
 		staticGas: 3,
 		pops:      n,
 		pushes:    n + 1,
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			s.Stack.Push(s.Stack.Get(n - 1))
-		},
+		}),
 	})
 }
 
@@ -1970,12 +1979,12 @@ func swapOp(n int) []Rule {
 		staticGas: 3,
 		pops:      n + 1,
 		pushes:    n + 1,
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			a := s.Stack.Get(0)
 			b := s.Stack.Get(n)
 			s.Stack.Set(0, b)
 			s.Stack.Set(n, a)
-		},
+		}),
 	})
 }
 
@@ -2150,7 +2159,7 @@ func logOp(n int) []Rule {
 		pushes:     0,
 		conditions: conditions,
 		parameters: parameter,
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			offsetU256 := s.Stack.Pop()
 			sizeU256 := s.Stack.Pop()
 
@@ -2173,7 +2182,7 @@ func logOp(n int) []Rule {
 			s.Gas -= tosca.Gas(8 * size)
 
 			s.Logs.AddLog(s.Memory.Read(offset, size), topics...)
-		},
+		}),
 	})
 
 	// Read only mode
@@ -2255,7 +2264,7 @@ func makeSelfDestructRules(
 			beneficiaryWarm,
 		},
 		parameters: []Parameter{AddressParameter{}},
-		effect:     selfDestructEffect,
+		effect:     Change(selfDestructEffect),
 	}
 
 	return rulesFor(instruction)
@@ -2391,7 +2400,7 @@ func rulesFor(i instruction) []Rule {
 		Effect: Change(func(s *st.State) {
 			s.Gas -= i.staticGas
 			s.Pc++
-			i.effect(s)
+			i.effect.Apply(s)
 		}),
 	})
 	return res
@@ -2515,9 +2524,9 @@ func getRulesForCall(op vm.OpCode, revision tosca.Revision, warm, zeroValue bool
 		pushes:     1,
 		conditions: callConditions,
 		parameters: parameters,
-		effect: func(s *st.State) {
+		effect: Change(func(s *st.State) {
 			opEffect(s, addressAccessCost, op)
-		},
+		}),
 	})
 }
 
