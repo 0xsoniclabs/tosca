@@ -1883,7 +1883,7 @@ func binaryOp(
 			NumericParameter{},
 			NumericParameter{},
 		},
-		effect: FChange(NewFSeq(NewFPush(NewFBinaryU256(op.String(), effect, NewFPeekStack(0), NewFPeekStack(1))), NewFPop(2))),
+		effect: NewFChange(NewFSeq(NewFPush(NewFBinaryU256(op.String(), effect, NewFPeekStack(0), NewFPeekStack(1))), NewFPop(2))),
 	})
 }
 
@@ -2393,16 +2393,26 @@ func rulesFor(i instruction) []Rule {
 		localConditions = append(localConditions, AnyKnownRevision())
 	}
 
-	res = append(res, Rule{
-		Name:      fmt.Sprintf("%s_regular%v", strings.ToLower(i.op.String()), i.name),
-		Condition: And(localConditions...),
-		Parameter: i.parameters,
-		Effect: Change(func(s *st.State) {
-			s.Gas -= i.staticGas
-			s.Pc++
-			i.effect.Apply(s)
-		}),
-	})
+	effect := i.effect
+	if fEffect, ok := effect.(FChange); ok {
+		res = append(res, Rule{
+			Name:      fmt.Sprintf("%s_regular%v", strings.ToLower(i.op.String()), i.name),
+			Condition: And(localConditions...),
+			Parameter: i.parameters,
+			Effect:    NewFChange(NewFSeq(NewFDecGas(i.staticGas), NewFIncPC(), fEffect.Get())),
+		})
+	} else {
+		res = append(res, Rule{
+			Name:      fmt.Sprintf("%s_regular%v", strings.ToLower(i.op.String()), i.name),
+			Condition: And(localConditions...),
+			Parameter: i.parameters,
+			Effect: Change(func(s *st.State) {
+				s.Gas -= i.staticGas
+				s.Pc++
+				i.effect.Apply(s)
+			}),
+		})
+	}
 	return res
 }
 

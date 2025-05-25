@@ -12,11 +12,11 @@ package rlz
 
 import (
 	"fmt"
-	"math/big"
 	"strconv"
 
 	"github.com/Fantom-foundation/Tosca/go/ct/common"
 	"github.com/Fantom-foundation/Tosca/go/ct/st"
+	"github.com/Fantom-foundation/Tosca/go/tosca"
 )
 
 type Effect interface {
@@ -48,26 +48,26 @@ func (c *change) String() string {
 ////////////////////////////////////////////////////////////
 // FChange as a functional side-effect
 
-type fchange struct {
+type FChange struct { // TODO: make it private after everything is a function term
 	fun F
 	Effect
 }
 
-func FChange(fun F) Effect {
-	return &fchange{fun: fun}
+func NewFChange(fun F) Effect {
+	return &FChange{fun: fun}
 }
 
-func (c *fchange) Apply(state *st.State) {
+func (c FChange) Apply(state *st.State) {
 	if r := c.fun.Apply(state); r != nil {
 		panic("Function return a result")
 	}
 }
 
-func (c *fchange) String() string {
+func (c FChange) String() string {
 	return c.fun.String()
 }
 
-func (c *fchange) Get() F {
+func (c FChange) Get() F {
 	return c.fun
 }
 
@@ -127,7 +127,7 @@ func (f FSeq) Apply(state *st.State) F {
 func (f FSeq) String() string {
 	sz := len(f.stmts)
 	if sz > 0 {
-		str := f.stmts[1].String()
+		str := f.stmts[0].String()
 		for i := 1; i < sz; i++ {
 			str += ";" + f.stmts[i].String()
 		}
@@ -169,6 +169,47 @@ func NewFPeekStack(pos int) *FGetStateU256 {
 }
 
 ////////////////////////////////////////////////////////////
+// State setter / no functional arguments
+
+type Setter func(*st.State)
+
+type FSetState struct {
+	name string
+	fun  Setter
+	F
+}
+
+func NewFSetState(name string, fun Setter) *FSetState {
+	return &FSetState{name: name, fun: fun}
+}
+
+func (f *FSetState) Apply(state *st.State) F {
+	f.fun(state)
+	return nil
+}
+
+func (f *FSetState) String() string {
+	return f.name + ":State->State"
+}
+
+// state specific setters
+
+// pop "num" elements from the stack
+func NewFPop(num int) *FSetState {
+	return NewFSetState("pop-"+strconv.Itoa(num), func(state *st.State) { state.Stack.Resize(state.Stack.Size() - num) })
+}
+
+// increment pc in state
+func NewFIncPC() *FSetState {
+	return NewFSetState("inc-pc", func(state *st.State) { state.Pc++ })
+}
+
+// decrement gas by constant "gas"
+func NewFDecGas(gas tosca.Gas) *FSetState {
+	return NewFSetState("dec-gas-"+strconv.FormatInt(int64(gas), 10), func(state *st.State) { state.Gas -= gas })
+}
+
+////////////////////////////////////////////////////////////
 // State setter for U256
 
 type SetterU256 func(*st.State, common.U256)
@@ -200,17 +241,12 @@ func (f *FSetStateU256) String() string {
 }
 
 // state specificy getter
+
+// push an argument (as a function) onto the stack
 func NewFPush(op F) *FSetStateU256 {
 	return NewFSetStateU256("push", func(state *st.State, value common.U256) {
 		state.Stack.Push(value)
 	}, op)
-}
-
-// state specificy getter
-func NewFPop(num int) *FSetStateU256 {
-	two, _ := new(big.Int).SetString(strconv.Itoa(num), 10)
-	twoU256 := common.NewU256FromBigInt(two)
-	return NewFSetStateU256("pop", func(state *st.State, value common.U256) { state.Stack.Push(value) }, NewFConstU256(&twoU256))
 }
 
 ////////////////////////////////////////////////////////////
