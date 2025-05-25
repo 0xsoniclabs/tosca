@@ -1883,7 +1883,7 @@ func binaryOp(
 			NumericParameter{},
 			NumericParameter{},
 		},
-		effect: NewFChange(NewFSeq(NewFPush(NewFBinaryU256(op.String(), effect, NewFPeekStack(0), NewFPeekStack(1))), NewFPop(2))),
+		effect: NewFChange(NewFSeq(NewFPopPush(2, NewFBinaryU256(op.String(), effect, NewFPeekStack(0), NewFPeekStack(1))))),
 	})
 }
 

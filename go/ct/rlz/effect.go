@@ -194,11 +194,6 @@ func (f *FSetState) String() string {
 
 // state specific setters
 
-// pop "num" elements from the stack
-func NewFPop(num int) *FSetState {
-	return NewFSetState("pop-"+strconv.Itoa(num), func(state *st.State) { state.Stack.Resize(state.Stack.Size() - num) })
-}
-
 // increment pc in state
 func NewFIncPC() *FSetState {
 	return NewFSetState("inc-pc", func(state *st.State) { state.Pc++ })
@@ -242,9 +237,10 @@ func (f *FSetStateU256) String() string {
 
 // state specificy getter
 
-// push an argument (as a function) onto the stack
-func NewFPush(op F) *FSetStateU256 {
-	return NewFSetStateU256("push", func(state *st.State, value common.U256) {
+// pop "num" elements form stack and push an argument (as a function) onto the stack
+func NewFPopPush(num int, op F) *FSetStateU256 {
+	return NewFSetStateU256("pop-"+strconv.Itoa(num)+"-push", func(state *st.State, value common.U256) {
+		state.Stack.Resize(state.Stack.Size() - 2)
 		state.Stack.Push(value)
 	}, op)
 }
