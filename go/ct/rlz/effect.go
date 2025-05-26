@@ -15,6 +15,7 @@ import (
 	"strconv"
 
 	"github.com/Fantom-foundation/Tosca/go/ct/common"
+
 	"github.com/Fantom-foundation/Tosca/go/ct/st"
 	"github.com/Fantom-foundation/Tosca/go/tosca"
 )
@@ -282,12 +283,9 @@ func (f *FBinaryU256) String() string {
 
 // //////////////////////////////////////////////////////////
 func NoEffect() Effect {
-	return Change(func(*st.State) {})
+	return NewFChange(NewFSetState("identity", func(*st.State) {}))
 }
 
 func FailEffect() Effect {
-	return Change(func(s *st.State) {
-		s.Status = st.Failed
-		s.Gas = 0
-	})
+	return NewFChange(NewFSeq(NewFSetState("set-status-failed", func(s *st.State) { s.Status = st.Failed }), NewFSetState("reset-gas", func(s *st.State) { s.Gas = 0 })))
 }

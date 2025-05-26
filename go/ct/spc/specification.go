@@ -128,11 +128,11 @@ func getAllRules() []Rule {
 			Eq(Status(), st.Running),
 			Eq(Op(Pc()), vm.STOP),
 		),
-		Effect: Change(func(s *st.State) {
+		Effect: NewFChange(NewFSetState("stop-interpreter", func(s *st.State) {
 			s.Status = st.Stopped
 			s.ReturnData = Bytes{}
 			s.Pc++
-		}),
+		})),
 	})
 
 	// --- Arithmetic ---
@@ -298,11 +298,11 @@ func getAllRules() []Rule {
 		parameters: []Parameter{
 			AddressParameter{},
 		},
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("balance", func(s *st.State) {
 			address := NewAddress(s.Stack.Pop())
 			s.Stack.Push(s.Accounts.GetBalance(address))
 			s.Accounts.MarkWarm(address)
-		}),
+		})),
 		name: "_cold",
 	})...)
 
@@ -319,10 +319,11 @@ func getAllRules() []Rule {
 		parameters: []Parameter{
 			AddressParameter{},
 		},
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("balance", func(s *st.State) {
 			address := NewAddress(s.Stack.Pop())
 			s.Stack.Push(s.Accounts.GetBalance(address))
-		}),
+			s.Accounts.MarkWarm(address)
+		})),
 		name: "_warm",
 	})...)
 
@@ -338,10 +339,11 @@ func getAllRules() []Rule {
 		parameters: []Parameter{
 			AddressParameter{},
 		},
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("balance", func(s *st.State) {
 			address := NewAddress(s.Stack.Pop())
 			s.Stack.Push(s.Accounts.GetBalance(address))
-		}),
+			s.Accounts.MarkWarm(address)
+		})),
 		name: "_preBerlin",
 	})...)
 
@@ -439,11 +441,11 @@ func getAllRules() []Rule {
 		parameters: []Parameter{
 			NumericParameter{},
 		},
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("SLOAD-warm", func(s *st.State) {
 			key := s.Stack.Pop()
 			s.Stack.Push(s.Storage.GetCurrent(key))
 			s.Storage.MarkWarm(key)
-		}),
+		})),
 		name: "_cold",
 	})...)
 
@@ -460,10 +462,10 @@ func getAllRules() []Rule {
 		parameters: []Parameter{
 			NumericParameter{},
 		},
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("SLOAD-cold", func(s *st.State) {
 			key := s.Stack.Pop()
 			s.Stack.Push(s.Storage.GetCurrent(key))
-		}),
+		})),
 		name: "_warm",
 	})...)
 
@@ -479,10 +481,10 @@ func getAllRules() []Rule {
 		parameters: []Parameter{
 			NumericParameter{},
 		},
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("SLOAD-cold", func(s *st.State) {
 			key := s.Stack.Pop()
 			s.Stack.Push(s.Storage.GetCurrent(key))
-		}),
+		})),
 		name: "_pre_berlin",
 	})...)
 
@@ -572,10 +574,10 @@ func getAllRules() []Rule {
 			IsCode(Param(0)),
 			Eq(Op(Param(0)), vm.JUMPDEST),
 		},
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("JUMP", func(s *st.State) {
 			target := s.Stack.Pop()
 			s.Pc = uint16(target.Uint64())
-		}),
+		})),
 	})...)
 
 	rules = append(rules, []Rule{
@@ -626,11 +628,11 @@ func getAllRules() []Rule {
 			Eq(Op(Param(0)), vm.JUMPDEST),
 			Ne(Param(1), NewU256(0)),
 		},
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("JUMPDEST", func(s *st.State) {
 			target := s.Stack.Pop()
 			s.Stack.Pop()
 			s.Pc = uint16(target.Uint64())
-		}),
+		})),
 	})...)
 
 	rules = append(rules, []Rule{
@@ -644,12 +646,12 @@ func getAllRules() []Rule {
 				Ge(StackSize(), 2),
 				Eq(Param(1), NewU256(0)),
 			),
-			Effect: Change(func(s *st.State) {
+			Effect: NewFChange(NewFSetState("JUMPI", func(s *st.State) {
 				s.Gas -= 10
 				s.Stack.Pop()
 				s.Stack.Pop()
 				s.Pc += 1
-			}),
+			})),
 		},
 
 		{
@@ -693,9 +695,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("PC", func(s *st.State) {
 			s.Stack.Push(NewU256(uint64(s.Pc) - 1))
-		}),
+		})),
 	})...)
 
 	// --- MSIZE ---
@@ -705,9 +707,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("MSIZE", func(s *st.State) {
 			s.Stack.Push(NewU256(uint64(s.Memory.Size())))
-		}),
+		})),
 	})...)
 
 	// --- GAS ---
@@ -717,9 +719,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("GAS", func(s *st.State) {
 			s.Stack.Push(NewU256(uint64(s.Gas)))
-		}),
+		})),
 	})...)
 
 	// --- JUMPDEST ---
@@ -746,11 +748,11 @@ func getAllRules() []Rule {
 			RevisionBounds(tosca.R13_Cancun, NewestSupportedRevision),
 			BindTransientStorageToNonZero(Param(0)),
 		},
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("TLOAD", func(s *st.State) {
 			key := s.Stack.Pop()
 			value := s.TransientStorage.Get(key)
 			s.Stack.Push(value)
-		}),
+		})),
 	})...)
 
 	rules = append(rules, rulesFor(instruction{
@@ -765,10 +767,10 @@ func getAllRules() []Rule {
 			RevisionBounds(tosca.R13_Cancun, NewestSupportedRevision),
 			BindTransientStorageToZero(Param(0)),
 		},
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("TLOAD-unsupported", func(s *st.State) {
 			s.Stack.Pop()
 			s.Stack.Push(NewU256(0))
-		}),
+		})),
 	})...)
 
 	rules = append(rules, Rule{
@@ -797,11 +799,11 @@ func getAllRules() []Rule {
 			Eq(ReadOnly(), false),
 			BindTransientStorageToNonZero(Param(0)),
 		},
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("TSTORE", func(s *st.State) {
 			key := s.Stack.Pop()
 			value := s.Stack.Pop()
 			s.TransientStorage.Set(key, value)
-		}),
+		})),
 	})...)
 
 	rules = append(rules, rulesFor(instruction{
@@ -818,11 +820,11 @@ func getAllRules() []Rule {
 			Eq(ReadOnly(), false),
 			BindTransientStorageToZero(Param(0)),
 		},
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("TSTORE", func(s *st.State) {
 			key := s.Stack.Pop()
 			value := s.Stack.Pop()
 			s.TransientStorage.Set(key, value)
-		}),
+		})),
 	})...)
 
 	rules = append(rules, Rule{
@@ -856,9 +858,9 @@ func getAllRules() []Rule {
 		conditions: []Condition{
 			RevisionBounds(tosca.R12_Shanghai, NewestSupportedRevision),
 		},
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("PUSH0", func(s *st.State) {
 			s.Stack.Push(NewU256(0))
-		}),
+		})),
 	})...)
 
 	rules = append(rules, []Rule{
@@ -937,9 +939,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      1,
 		pushes:    0,
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("POP", func(s *st.State) {
 			s.Stack.Pop()
-		}),
+		})),
 	})...)
 
 	// --- Stack DUP ---
@@ -967,9 +969,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("ADDRESS", func(s *st.State) {
 			s.Stack.Push(NewU256FromBytes(s.CallContext.AccountAddress[:]...))
-		}),
+		})),
 	})...)
 
 	// --- ORIGIN ---
@@ -979,9 +981,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("ORIGIN", func(s *st.State) {
 			s.Stack.Push(NewU256FromBytes(s.TransactionContext.OriginAddress[:]...))
-		}),
+		})),
 	})...)
 
 	// --- CALLER ---
@@ -991,9 +993,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("CALLER", func(s *st.State) {
 			s.Stack.Push(NewU256FromBytes(s.CallContext.CallerAddress[:]...))
-		}),
+		})),
 	})...)
 
 	// --- CALLVALUE ---
@@ -1003,9 +1005,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("CALLVALUE", func(s *st.State) {
 			s.Stack.Push(s.CallContext.Value)
-		}),
+		})),
 	})...)
 
 	// --- NUMBER ---
@@ -1015,9 +1017,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("NUMBER", func(s *st.State) {
 			s.Stack.Push(NewU256(s.BlockContext.BlockNumber))
-		}),
+		})),
 	})...)
 
 	// --- BLOCKHASH ---
@@ -1031,12 +1033,12 @@ func getAllRules() []Rule {
 			InRange256FromCurrentBlock(Param(0)),
 		},
 		parameters: []Parameter{NumericParameter{}},
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("BLOCKHASH", func(s *st.State) {
 			targetBlockNumber := s.Stack.Pop()
 			index := s.BlockContext.BlockNumber - targetBlockNumber.Uint64()
 			hash := s.RecentBlockHashes.Get(index - 1)
 			s.Stack.Push(NewU256FromBytes(hash[:]...))
-		}),
+		})),
 	})...)
 
 	rules = append(rules, rulesFor(instruction{
@@ -1049,10 +1051,10 @@ func getAllRules() []Rule {
 			OutOfRange256FromCurrentBlock(Param(0)),
 		},
 		parameters: []Parameter{NumericParameter{}},
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("BLOCKHASH-out-of-range", func(s *st.State) {
 			s.Stack.Pop()
 			s.Stack.Push(NewU256(0))
-		}),
+		})),
 	})...)
 
 	// --- COINBASE ---
@@ -1062,9 +1064,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("COINBASE", func(s *st.State) {
 			s.Stack.Push(NewU256FromBytes(s.BlockContext.CoinBase[:]...))
-		}),
+		})),
 	})...)
 
 	// --- GASLIMIT ---
@@ -1074,9 +1076,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("GASLIMIT", func(s *st.State) {
 			s.Stack.Push(NewU256(s.BlockContext.GasLimit))
-		}),
+		})),
 	})...)
 
 	// --- DIFFICULTY / PREVRANDAO ---
@@ -1086,9 +1088,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("PREVRANDAO", func(s *st.State) {
 			s.Stack.Push(s.BlockContext.PrevRandao)
-		}),
+		})),
 	})...)
 
 	// --- GASPRICE ---
@@ -1098,9 +1100,9 @@ func getAllRules() []Rule {
 		staticGas: 2,
 		pops:      0,
 		pushes:    1,
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("GASPRICE", func(s *st.State) {
 			s.Stack.Push(s.BlockContext.GasPrice)
-		}),
+		})),
 	})...)
 
 	// --- EXTCODESIZE ---
@@ -1118,12 +1120,12 @@ func getAllRules() []Rule {
 		parameters: []Parameter{
 			AddressParameter{},
 		},
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("EXTCODESIZE-cold", func(s *st.State) {
 			address := NewAddress(s.Stack.Pop())
 			size := s.Accounts.GetCode(address).Length()
 			s.Stack.Push(NewU256(uint64(size)))
 			s.Accounts.MarkWarm(address)
-		}),
+		})),
 		name: "_cold",
 	})...)
 
@@ -1140,11 +1142,11 @@ func getAllRules() []Rule {
 		parameters: []Parameter{
 			AddressParameter{},
 		},
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("EXTCODESIZE-warm", func(s *st.State) {
 			address := NewAddress(s.Stack.Pop())
 			size := s.Accounts.GetCode(address).Length()
 			s.Stack.Push(NewU256(uint64(size)))
-		}),
+		})),
 		name: "_warm",
 	})...)
 
@@ -1160,11 +1162,11 @@ func getAllRules() []Rule {
 		parameters: []Parameter{
 			AddressParameter{},
 		},
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("EXTCODESIZE-cold", func(s *st.State) {
 			address := NewAddress(s.Stack.Pop())
 			size := s.Accounts.GetCode(address).Length()
 			s.Stack.Push(NewU256(uint64(size)))
-		}),
+		})),
 		name: "_preBerlin",
 	})...)
 
@@ -1185,9 +1187,9 @@ func getAllRules() []Rule {
 			MemoryOffsetParameter{},
 			DataOffsetParameter{},
 			SizeParameter{}},
-		effect: Change(func(s *st.State) {
+		effect: NewFChange(NewFSetState("EXTCODECOPY", func(s *st.State) {
 			extCodeCopyEffect(s, true)
-		}),
+		})),
 		name: "_cold",
 	})...)
 
@@ -1883,7 +1885,12 @@ func binaryOp(
 			NumericParameter{},
 			NumericParameter{},
 		},
-		effect: NewFChange(NewFSeq(NewFPopPush(2, NewFBinaryU256(op.String(), effect, NewFPeekStack(0), NewFPeekStack(1))))),
+		// effect: NewFChange(NewFSeq(NewFPopPush(2, NewFBinaryU256(op.String(), effect, NewFPeekStack(0), NewFPeekStack(1))))),
+		effect: NewFChange(NewFSetState(op.String(), func(s *st.State) {
+			a := s.Stack.Pop()
+			b := s.Stack.Pop()
+			s.Stack.Push(effect(a, b))
+		})),
 	})
 }
 
