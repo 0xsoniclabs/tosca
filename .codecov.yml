@@ -19,3 +19,5 @@ ignore:
   - go/ct/driver/ # entry points, logic should be tested elsewhere.
   - go/examples # examples are not tested.
   - third_party/ # exclude all files in `third_party` directory
+  - cpp/ # exclude all files in `cpp` directory
+  - rust/ # exclude all files in `rust` directory

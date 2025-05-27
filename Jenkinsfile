@@ -76,8 +76,12 @@ pipeline {
         }
 
         stage('Run Go tests') {
+            environment {
+                CODECOV_TOKEN = credentials('codecov-uploader-0xsoniclabs-global')
+            }
             steps {
                 sh 'make test-go'
+                sh ('codecov upload-process -r 0xsoniclabs/tosca -f ./cover.out -t ${CODECOV_TOKEN}')
             }
         }
 
