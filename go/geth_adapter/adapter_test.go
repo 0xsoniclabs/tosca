@@ -607,6 +607,14 @@ func TestGethAdapter_CorruptValuesReturnErrors(t *testing.T) {
 }
 
 func TestGethAdapter_CallForwardsToTheRightKind(t *testing.T) {
+	sender := common.Address{0x42}
+	recipient := common.Address{0x43}
+	codeAddress := common.Address{0x44}
+	input := []byte{0x01, 0x02, 0x03}
+	gas := uint64(1000)
+	value := uint256.NewInt(100)
+	salt := uint256.NewInt(200)
+
 	any := gomock.Any()
 	tests := map[string]struct {
 		kind  tosca.CallKind
@@ -615,50 +623,38 @@ func TestGethAdapter_CallForwardsToTheRightKind(t *testing.T) {
 		"call": {
 			kind: tosca.Call,
 			setup: func(mock *MockCallContextInterceptor) {
-				mock.EXPECT().Call(any, any, any, any, any, any).Return(
-					nil, uint64(0), nil,
-				)
+				mock.EXPECT().Call(any, sender, recipient, input, gas, value)
 			},
 		},
 		"delegateCall": {
 			kind: tosca.DelegateCall,
 			setup: func(mock *MockCallContextInterceptor) {
-				mock.EXPECT().DelegateCall(any, any, any, any, any).Return(
-					nil, uint64(0), nil,
-				)
+				mock.EXPECT().DelegateCall(any, sender, codeAddress, input, gas)
 			},
 		},
 		"staticCall": {
 			kind: tosca.StaticCall,
 			setup: func(mock *MockCallContextInterceptor) {
-				mock.EXPECT().StaticCall(any, any, any, any, any).Return(
-					nil, uint64(0), nil,
-				)
+				mock.EXPECT().StaticCall(any, sender, recipient, input, gas)
 			},
 		},
 		"callCode": {
 			kind: tosca.CallCode,
 			setup: func(mock *MockCallContextInterceptor) {
-				mock.EXPECT().CallCode(any, any, any, any, any, any).Return(
-					nil, uint64(0), nil,
-				)
+				mock.EXPECT().CallCode(any, sender, codeAddress, input, gas, value)
 			},
 		},
 
 		"create": {
 			kind: tosca.Create,
 			setup: func(mock *MockCallContextInterceptor) {
-				mock.EXPECT().Create(any, any, any, any, any).Return(
-					nil, common.Address{}, uint64(0), nil,
-				)
+				mock.EXPECT().Create(any, sender, input, gas, value)
 			},
 		},
 		"create2": {
 			kind: tosca.Create2,
 			setup: func(mock *MockCallContextInterceptor) {
-				mock.EXPECT().Create2(any, any, any, any, any, any).Return(
-					nil, common.Address{}, uint64(0), nil,
-				)
+				mock.EXPECT().Create2(any, sender, input, gas, value, salt)
 			},
 		},
 	}
@@ -671,11 +667,19 @@ func TestGethAdapter_CallForwardsToTheRightKind(t *testing.T) {
 
 			evm := newEVMWithPassingChainConfig()
 			evm.CallInterceptor = calls
-			adapter := &runContextAdapter{evm: evm}
-			_, err := adapter.Call(test.kind, tosca.CallParameters{})
-			if err != nil {
-				t.Fatalf("Unexpected error: %v", err)
+			adapter := &runContextAdapter{evm: evm, caller: sender}
+
+			callArguments := tosca.CallParameters{
+				Recipient:   tosca.Address(recipient),
+				Sender:      tosca.Address(sender),
+				Input:       input,
+				Gas:         tosca.Gas(gas),
+				Value:       tosca.NewValue(value.Uint64()),
+				Salt:        tosca.Hash(tosca.NewValue(salt.Uint64())),
+				CodeAddress: tosca.Address(codeAddress),
 			}
+			_, err := adapter.Call(test.kind, callArguments)
+			require.NoError(t, err, "call should not return an error")
 		})
 	}
 }
@@ -707,9 +711,7 @@ func TestGethAdapter_UnknownErrorsFromCallAreForwarded(t *testing.T) {
 	evm.CallInterceptor = calls
 	adapter := &runContextAdapter{evm: evm}
 	_, err := adapter.Call(tosca.Call, tosca.CallParameters{})
-	if err == nil {
-		t.Errorf("Expected error, got nil")
-	}
+	require.Error(t, err, "call should return an error")
 }
 
 func TestRunContextAdapter_bigIntToValue(t *testing.T) {
