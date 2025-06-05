@@ -60,7 +60,7 @@ func (b ImmutableHashArray) MarshalJSON() ([]byte, error) {
 	return json.Marshal(b.data)
 }
 
-func (h *ImmutableHashArray) UnmarshalJSON(data []byte) error {
+func (b *ImmutableHashArray) UnmarshalJSON(data []byte) error {
 	// Unmarshal the JSON array into a slice of tosca.Hash
 	var hashes [256]tosca.Hash
 	err := json.Unmarshal(data, &hashes)
@@ -70,9 +70,9 @@ func (h *ImmutableHashArray) UnmarshalJSON(data []byte) error {
 
 	// Copy the slice into the ImmutableHashArray data
 	if string(data) == "null" {
-		h.data = nil
+		b.data = nil
 	} else {
-		h.data = &hashes
+		b.data = &hashes
 	}
 	return nil
 }

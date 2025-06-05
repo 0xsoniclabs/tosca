@@ -83,22 +83,22 @@ func enumerateParameters(pos int, params []Parameter, state *st.State, consume f
 	return ConsumeContinue
 }
 
-func (r *Rule) GetTestCaseEnumerationInfo() TestCaseEnumerationInfo {
+func (rule *Rule) GetTestCaseEnumerationInfo() TestCaseEnumerationInfo {
 	res := TestCaseEnumerationInfo{}
-	conditions := getConditions(r.Condition)
+	conditions := getConditions(rule.Condition)
 	for _, condition := range conditions {
 		res.conditions = append(res.conditions, condition.String())
 	}
 	res.propertyDomains = make(map[Property][]string)
-	for property, domain := range getPropertyTestValues(r.Condition) {
+	for property, domain := range getPropertyTestValues(rule.Condition) {
 		list := make([]string, 0, len(domain))
 		for _, cur := range domain {
 			list = append(list, cur.String())
 		}
 		res.propertyDomains[property] = list
 	}
-	res.parameterDomainSizes = make([]int, 0, len(r.Parameter))
-	for _, parameter := range r.Parameter {
+	res.parameterDomainSizes = make([]int, 0, len(rule.Parameter))
+	for _, parameter := range rule.Parameter {
 		res.parameterDomainSizes = append(res.parameterDomainSizes, len(parameter.Samples())+1)
 	}
 	return res

@@ -97,28 +97,28 @@ func MaxU256() (result U256) {
 	return
 }
 
-func (i U256) IsZero() bool {
-	return i.internal.IsZero()
+func (a U256) IsZero() bool {
+	return a.internal.IsZero()
 }
 
-func (i U256) IsUint64() bool {
-	return i.internal.IsUint64()
+func (a U256) IsUint64() bool {
+	return a.internal.IsUint64()
 }
 
-func (i U256) Uint64() uint64 {
-	return i.internal.Uint64()
+func (a U256) Uint64() uint64 {
+	return a.internal.Uint64()
 }
 
-func (i U256) Uint256() uint256.Int {
-	return i.internal
+func (a U256) Uint256() uint256.Int {
+	return a.internal
 }
 
-func (i U256) Bytes32be() [32]byte {
-	return i.internal.Bytes32()
+func (a U256) Bytes32be() [32]byte {
+	return a.internal.Bytes32()
 }
 
-func (i U256) Bytes20be() [20]byte {
-	return i.internal.Bytes20()
+func (a U256) Bytes20be() [20]byte {
+	return a.internal.Bytes20()
 }
 
 func (a U256) Eq(b U256) bool {
@@ -245,19 +245,19 @@ func (a U256) Srsh(b U256) (z U256) {
 	return
 }
 
-func (i U256) String() string {
-	return fmt.Sprintf("%016x %016x %016x %016x", i.internal[3], i.internal[2], i.internal[1], i.internal[0])
+func (a U256) String() string {
+	return fmt.Sprintf("%016x %016x %016x %016x", a.internal[3], a.internal[2], a.internal[1], a.internal[0])
 }
 
-func (i U256) DecimalString() string {
-	return i.internal.String()
+func (a U256) DecimalString() string {
+	return a.internal.String()
 }
 
-func (i U256) MarshalText() ([]byte, error) {
-	return []byte(i.String()), nil
+func (a U256) MarshalText() ([]byte, error) {
+	return []byte(a.String()), nil
 }
 
-func (i *U256) UnmarshalText(text []byte) error {
+func (a *U256) UnmarshalText(text []byte) error {
 	r := regexp.MustCompile("^([[:xdigit:]]{16}) ([[:xdigit:]]{16}) ([[:xdigit:]]{16}) ([[:xdigit:]]{16})$")
 	match := r.FindSubmatch(text)
 
@@ -267,7 +267,7 @@ func (i *U256) UnmarshalText(text []byte) error {
 
 	for j := 0; j < 4; j++ {
 		var err error
-		i.internal[j], err = strconv.ParseUint(string(match[4-j]), 16, 64)
+		a.internal[j], err = strconv.ParseUint(string(match[4-j]), 16, 64)
 		if err != nil {
 			return fmt.Errorf("failed to parse U256 (%v): %s", err, text)
 		}
@@ -276,6 +276,6 @@ func (i *U256) UnmarshalText(text []byte) error {
 }
 
 // ToBigInt returns a bigInt version of i
-func (i U256) ToBigInt() *big.Int {
-	return i.internal.ToBig()
+func (a U256) ToBigInt() *big.Int {
+	return a.internal.ToBig()
 }

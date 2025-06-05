@@ -66,19 +66,19 @@ func (t *TransactionContext) Diff(other *TransactionContext) []string {
 	return ret
 }
 
-func (c *TransactionContext) String() string {
+func (t *TransactionContext) String() string {
 	const maxHashesToPrint = 5
 
 	BlobHashString := "Blob Hashes: "
-	if len(c.BlobHashes) > maxHashesToPrint {
-		BlobHashString += fmt.Sprintf("%v, ...", c.BlobHashes[:maxHashesToPrint])
+	if len(t.BlobHashes) > maxHashesToPrint {
+		BlobHashString += fmt.Sprintf("%v, ...", t.BlobHashes[:maxHashesToPrint])
 	} else {
-		BlobHashString += fmt.Sprintf("%v", c.BlobHashes)
+		BlobHashString += fmt.Sprintf("%v", t.BlobHashes)
 	}
 
 	return fmt.Sprintf(
 		"Transaction Context:"+
 			"\n\t    Origin Address: %v\n"+
 			"\n\t    %v\n",
-		c.OriginAddress, BlobHashString)
+		t.OriginAddress, BlobHashString)
 }

@@ -119,12 +119,12 @@ func newVm(config config) (*lfvm, error) {
 // Defines the newest supported revision for this interpreter implementation
 const newestSupportedRevision = tosca.R14_Prague
 
-func (v *lfvm) Run(params tosca.Parameters) (tosca.Result, error) {
+func (e *lfvm) Run(params tosca.Parameters) (tosca.Result, error) {
 	if params.Revision > newestSupportedRevision {
 		return tosca.Result{}, &tosca.ErrUnsupportedRevision{Revision: params.Revision}
 	}
 
-	converted, err := v.converter.Convert(
+	converted, err := e.converter.Convert(
 		params.Code,
 		params.CodeHash,
 	)
@@ -132,7 +132,7 @@ func (v *lfvm) Run(params tosca.Parameters) (tosca.Result, error) {
 		return tosca.Result{}, fmt.Errorf("failed to convert code: %w", err)
 	}
 
-	return run(v.config, params, converted)
+	return run(e.config, params, converted)
 }
 
 func (e *lfvm) DumpProfile() {

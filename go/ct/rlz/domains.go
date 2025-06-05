@@ -470,7 +470,7 @@ func (DelegationDesignatorDomain) Successor(a DelegationDesignatorState) Delegat
 	panic("not useful")
 }
 
-func (ddd DelegationDesignatorDomain) SomethingNotEqual(a DelegationDesignatorState) DelegationDesignatorState {
+func (d DelegationDesignatorDomain) SomethingNotEqual(a DelegationDesignatorState) DelegationDesignatorState {
 	if a < ColdDelegationDesignation {
 		return a + 1
 	}

@@ -106,18 +106,18 @@ func (s *Stack) Pop() U256 {
 }
 
 // Eq returns true if the two stacks are equal.
-func (a *Stack) Eq(b *Stack) bool {
-	return slices.Equal(a.stack, b.stack)
+func (s *Stack) Eq(other *Stack) bool {
+	return slices.Equal(s.stack, other.stack)
 }
 
 // Diff returns a list of differences between the two stacks.
-func (a *Stack) Diff(b *Stack) (res []string) {
-	if a.Size() != b.Size() {
-		res = append(res, fmt.Sprintf("Different stack size: %v vs %v", a.Size(), b.Size()))
+func (s *Stack) Diff(other *Stack) (res []string) {
+	if s.Size() != other.Size() {
+		res = append(res, fmt.Sprintf("Different stack size: %v vs %v", s.Size(), other.Size()))
 		return
 	}
-	for i := 0; i < a.Size(); i++ {
-		if aValue, bValue := a.Get(i), b.Get(i); !aValue.Eq(bValue) {
+	for i := 0; i < s.Size(); i++ {
+		if aValue, bValue := s.Get(i), other.Get(i); !aValue.Eq(bValue) {
 			res = append(res, fmt.Sprintf("Different stack value at position %d:\n    %v\n    vs\n    %v\n", i, aValue, bValue))
 		}
 	}

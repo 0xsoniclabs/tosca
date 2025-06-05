@@ -160,18 +160,18 @@ func (m *Memory) Hash(offset, size uint64) (hash [32]byte) {
 }
 
 // Eq returns true if the two memory instances are equal.
-func (a *Memory) Eq(b *Memory) bool {
-	return slices.Equal(a.mem, b.mem)
+func (m *Memory) Eq(other *Memory) bool {
+	return slices.Equal(m.mem, other.mem)
 }
 
 // Diff returns a list of differences between the two memory instance.
-func (a *Memory) Diff(b *Memory) (res []string) {
-	if a.Size() != b.Size() {
-		res = append(res, fmt.Sprintf("Different memory size: %v vs %v", a.Size(), b.Size()))
+func (m *Memory) Diff(other *Memory) (res []string) {
+	if m.Size() != other.Size() {
+		res = append(res, fmt.Sprintf("Different memory size: %v vs %v", m.Size(), other.Size()))
 		return
 	}
-	for i := 0; i < a.Size(); i++ {
-		if aValue, bValue := a.mem[i], b.mem[i]; aValue != bValue {
+	for i := 0; i < m.Size(); i++ {
+		if aValue, bValue := m.mem[i], other.mem[i]; aValue != bValue {
 			res = append(res, fmt.Sprintf("Different memory value at offset %d: %v vs %v", i, aValue, bValue))
 		}
 	}

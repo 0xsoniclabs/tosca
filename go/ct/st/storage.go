@@ -155,10 +155,10 @@ func mapEqualIgnoringZeroValues[K comparable](a map[K]U256, b map[K]U256) bool {
 	return true
 }
 
-func (a *Storage) Eq(b *Storage) bool {
-	return mapEqualIgnoringZeroValues(a.current, b.current) &&
-		maps.Equal(a.original, b.original) &&
-		maps.Equal(a.warm, b.warm)
+func (s *Storage) Eq(other *Storage) bool {
+	return mapEqualIgnoringZeroValues(s.current, other.current) &&
+		maps.Equal(s.original, other.original) &&
+		maps.Equal(s.warm, other.warm)
 }
 
 func mapDiffIgnoringZeroValues[K comparable](a map[K]U256, b map[K]U256, name string) (res []string) {
@@ -179,17 +179,17 @@ func mapDiffIgnoringZeroValues[K comparable](a map[K]U256, b map[K]U256, name st
 	return
 }
 
-func (a *Storage) Diff(b *Storage) (res []string) {
-	res = append(res, mapDiffIgnoringZeroValues(a.current, b.current, "current")...)
-	res = append(res, mapDiffIgnoringZeroValues(a.original, b.original, "original")...)
+func (s *Storage) Diff(other *Storage) (res []string) {
+	res = append(res, mapDiffIgnoringZeroValues(s.current, other.current, "current")...)
+	res = append(res, mapDiffIgnoringZeroValues(s.original, other.original, "original")...)
 
-	for key := range a.warm {
-		if _, contained := b.warm[key]; !contained {
+	for key := range s.warm {
+		if _, contained := other.warm[key]; !contained {
 			res = append(res, fmt.Sprintf("Different warm entry: %v vs missing", key))
 		}
 	}
-	for key := range b.warm {
-		if _, contained := a.warm[key]; !contained {
+	for key := range other.warm {
+		if _, contained := s.warm[key]; !contained {
 			res = append(res, fmt.Sprintf("Different warm entry: missing vs %v", key))
 		}
 	}

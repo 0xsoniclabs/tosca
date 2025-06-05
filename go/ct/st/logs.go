@@ -45,12 +45,12 @@ func (l *Logs) AddLog(data []byte, topics ...U256) {
 	})
 }
 
-func (a *Logs) Eq(b *Logs) bool {
-	if len(a.Entries) != len(b.Entries) {
+func (l *Logs) Eq(other *Logs) bool {
+	if len(l.Entries) != len(other.Entries) {
 		return false
 	}
-	for i, aEntry := range a.Entries {
-		bEntry := b.Entries[i]
+	for i, aEntry := range l.Entries {
+		bEntry := other.Entries[i]
 		if !slices.Equal(aEntry.Topics, bEntry.Topics) {
 			return false
 		}
@@ -61,18 +61,18 @@ func (a *Logs) Eq(b *Logs) bool {
 	return true
 }
 
-func (a *Logs) Diff(b *Logs) (res []string) {
-	if len(a.Entries) != len(b.Entries) {
-		res = append(res, fmt.Sprintf("Different log count: %v vs %v", len(a.Entries), len(b.Entries)))
+func (l *Logs) Diff(other *Logs) (res []string) {
+	if len(l.Entries) != len(other.Entries) {
+		res = append(res, fmt.Sprintf("Different log count: %v vs %v", len(l.Entries), len(other.Entries)))
 	}
 
-	minLength := len(a.Entries)
-	if len(b.Entries) < minLength {
-		minLength = len(b.Entries)
+	minLength := len(l.Entries)
+	if len(other.Entries) < minLength {
+		minLength = len(other.Entries)
 	}
 
 	for i := 0; i < minLength; i++ {
-		aEntry, bEntry := a.Entries[i], b.Entries[i]
+		aEntry, bEntry := l.Entries[i], other.Entries[i]
 		if !slices.Equal(aEntry.Topics, bEntry.Topics) {
 			res = append(res, fmt.Sprintf("Different topics for log entry %d:\n\t%x\n\tvs\n\t%x\n", i, aEntry.Topics, bEntry.Topics))
 		}

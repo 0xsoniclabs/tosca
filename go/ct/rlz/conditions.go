@@ -346,7 +346,7 @@ func (c *revisionBounds) Restrict(generator *gen.StateGenerator) {
 	generator.AddRevisionBounds(c.min, c.max)
 }
 
-func (e *revisionBounds) GetTestValues() []TestValue {
+func (c *revisionBounds) GetTestValues() []TestValue {
 	property := Property("revision")
 	domain := revisionDomain{}
 	restrict := func(generator *gen.StateGenerator, revision tosca.Revision) {
@@ -355,8 +355,8 @@ func (e *revisionBounds) GetTestValues() []TestValue {
 	res := []TestValue{}
 	// If the revision is set to a specific value, only test this value,
 	// except if it is the unknown next revision.
-	if e.min == e.max && e.min != R99_UnknownNextRevision {
-		res = append(res, NewTestValue(property, domain, e.min, restrict))
+	if c.min == c.max && c.min != R99_UnknownNextRevision {
+		res = append(res, NewTestValue(property, domain, c.min, restrict))
 		return res
 	}
 

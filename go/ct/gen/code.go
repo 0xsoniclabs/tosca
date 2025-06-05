@@ -335,43 +335,43 @@ func newVarCodeConstraintSolver(codeSize int, constOps []constOpConstraint, assi
 
 // solve is the entry point for varCodeConstraintSolver, other functions are
 // considered internal.
-func (s *varCodeConstraintSolver) solve(
+func (solver *varCodeConstraintSolver) solve(
 	varOps []varOpConstraint,
 	varIsCodeConstraints []varIsCodeConstraint,
 	varIsDataConstraints []varIsDataConstraint) ([]constOpConstraint, error) {
 
-	err := s.solveVarOps(varOps)
+	err := solver.solveVarOps(varOps)
 	if err != nil {
 		return nil, err
 	}
 
-	err = s.solveIsCode(varIsCodeConstraints)
+	err = solver.solveIsCode(varIsCodeConstraints)
 	if err != nil {
 		return nil, err
 	}
 
-	err = s.solveIsData(varIsDataConstraints)
+	err = solver.solveIsData(varIsDataConstraints)
 	if err != nil {
 		return nil, err
 	}
 
-	return s.ops, nil
+	return solver.ops, nil
 }
 
-func (s *varCodeConstraintSolver) markUsed(pos int, op vm.OpCode) {
-	s.usedPositions[pos] = isCode
+func (solver *varCodeConstraintSolver) markUsed(pos int, op vm.OpCode) {
+	solver.usedPositions[pos] = isCode
 	for i := 1; i <= op.Width()-1; i++ {
-		s.usedPositions[pos+i] = isData
+		solver.usedPositions[pos+i] = isData
 	}
 }
 
 // fits returns true iff the op can be placed at pos.
-func (s *varCodeConstraintSolver) fits(pos int, op vm.OpCode) bool {
-	if op.Width() > s.codeSize-pos {
+func (solver *varCodeConstraintSolver) fits(pos int, op vm.OpCode) bool {
+	if op.Width() > solver.codeSize-pos {
 		return false
 	}
 	for i := 0; i <= op.Width()-1; i++ {
-		if s.usedPositions[pos+i] != isUnused {
+		if solver.usedPositions[pos+i] != isUnused {
 			return false
 		}
 	}
@@ -380,19 +380,19 @@ func (s *varCodeConstraintSolver) fits(pos int, op vm.OpCode) bool {
 
 // largestFit returns the number of subsequent unused slots starting at pos. The
 // maximum is 33 since this is the largest instruction we have.
-func (s *varCodeConstraintSolver) largestFit(pos int) int {
+func (solver *varCodeConstraintSolver) largestFit(pos int) int {
 	n := 0
-	for ; n < 33 && pos+n < s.codeSize; n++ {
-		if s.usedPositions[pos+n] != isUnused {
+	for ; n < 33 && pos+n < solver.codeSize; n++ {
+		if solver.usedPositions[pos+n] != isUnused {
 			break
 		}
 	}
 	return n
 }
 
-func (s *varCodeConstraintSolver) assign(v Variable, pos int) {
-	if s.assignment != nil {
-		s.assignment[v] = NewU256(uint64(pos))
+func (solver *varCodeConstraintSolver) assign(v Variable, pos int) {
+	if solver.assignment != nil {
+		solver.assignment[v] = NewU256(uint64(pos))
 	}
 }
 
