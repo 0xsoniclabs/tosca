@@ -14,7 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 )
 
-// Create arguments for the interpreter that outline the worst case when calling the
+// GetStaticOverheadExample creates arguments for the interpreter that outline the worst case when calling the
 // interpreter with short running contracts. In particular those arguments try to trigger
 // all possible allocations that happen when using an evmc interpreter which needs to copy data
 // into new allocations.

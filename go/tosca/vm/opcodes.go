@@ -176,7 +176,7 @@ func (op OpCode) Width() int {
 	}
 }
 
-// OpCodesNoPush returns a slice of valid op codes, but no PUSH instruction.
+// ValidOpCodesNoPush returns a slice of valid op codes, but no PUSH instruction.
 func ValidOpCodesNoPush() []OpCode {
 	res := make([]OpCode, 0, 256)
 	for i := 0; i < 256; i++ {

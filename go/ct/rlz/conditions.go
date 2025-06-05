@@ -1061,7 +1061,7 @@ type containsDelegationDesignation struct {
 	state   DelegationDesignatorState
 }
 
-// DelegationDesignatorState is a condition where the Code of the account
+// ConstraintDelegationDesignator is a condition where the Code of the account
 // at the given address has designator to a warm delegate, a cold delegate or
 // no delegate at all.
 // see https://eips.ethereum.org/EIPS/eip-7702

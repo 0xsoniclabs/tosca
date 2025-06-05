@@ -142,7 +142,7 @@ func (g *StateGenerator) BindPc(pc Variable) {
 	}
 }
 
-// BindToAccountAddress constraints the given variable to be mapped to the
+// BindToSelfAddress constraints the given variable to be mapped to the
 // address of the account that is executing the code.
 func (g *StateGenerator) BindToSelfAddress(address Variable) {
 	if !slices.Contains(g.selfAddressBindings, address) {
@@ -271,13 +271,13 @@ func (g *StateGenerator) BindToAddressOfNonEmptyAccount(address Variable) {
 	g.accountsGen.BindToAddressOfNonEmptyAccount(address)
 }
 
-// AddMinimumBalance adds a constraint restricting the balance of the account
+// AddBalanceLowerBound adds a constraint restricting the balance of the account
 // identified by the given variable to be at least the given value.
 func (g *StateGenerator) AddBalanceLowerBound(address Variable, value U256) {
 	g.accountsGen.AddBalanceLowerBound(address, value)
 }
 
-// AddMinimumBalance adds a constraint restricting the balance of the account
+// AddBalanceUpperBound adds a constraint restricting the balance of the account
 // identified by the given variable to be at most the given value.
 func (g *StateGenerator) AddBalanceUpperBound(address Variable, value U256) {
 	g.accountsGen.AddBalanceUpperBound(address, value)

@@ -44,7 +44,7 @@ func (a *storageConfigConstraint) Less(b *storageConfigConstraint) bool {
 	return a.newValue < b.newValue
 }
 
-// Check checks if the given storage configuration (org,cur,new) corresponds to
+// CheckStorageStatusConfig checks if the given storage configuration (org,cur,new) corresponds to
 // the wanted config.
 func CheckStorageStatusConfig(config tosca.StorageStatus, org, cur, new U256) bool {
 	return config == tosca.GetStorageStatus(

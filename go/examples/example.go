@@ -100,7 +100,7 @@ func (e *Example) RunOnProcessor(processor tosca.Processor, argument int,
 	}, nil
 }
 
-// RunRef runs the reference function of this example to produce the expected result.
+// RunReference runs the reference function of this example to produce the expected result.
 func (e *Example) RunReference(argument int) int {
 	return e.reference(argument)
 }
