@@ -19,7 +19,7 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-// Structure for dynamic gas instruction test
+// DynGasTest is a structure for dynamic gas instruction test
 type DynGasTest struct {
 	testName       string                  // test name
 	stackValues    []*big.Int              // values to be put on stack
@@ -29,7 +29,7 @@ type DynGasTest struct {
 	memValues      []*big.Int
 }
 
-// Structure for dynamic gas instruction test
+// FailGasTest is a structure for dynamic gas instruction test
 type FailGasTest struct {
 	testName    string                  // test name
 	instruction vm.OpCode               // tested instruction opcode

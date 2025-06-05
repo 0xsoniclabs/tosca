@@ -194,7 +194,7 @@ const (
 	numRevisions int = iota
 )
 
-// Error for runs with unsupported Revision
+// ErrUnsupportedRevision is an error for runs with unsupported Revision
 type ErrUnsupportedRevision struct {
 	Revision Revision
 }

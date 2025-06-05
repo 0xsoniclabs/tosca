@@ -46,7 +46,7 @@ type Expression[T any] interface {
 	fmt.Stringer
 }
 
-// Bindable is an Expression that can be referenced as a Variable.
+// BindableExpression is an Expression that can be referenced as a Variable.
 type BindableExpression[T any] interface {
 	// GetVariable returns the variable referring to this Expression.
 	GetVariable() gen.Variable
