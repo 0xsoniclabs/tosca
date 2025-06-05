@@ -187,7 +187,7 @@ func (g *CodeGenerator) Generate(assignment Assignment, rnd *rand.Rand) (*st.Cod
 	// Build random code incrementally.
 	for i := 0; i < size; i++ {
 		// Pick the next operation.
-		op := vm.INVALID
+		var op vm.OpCode
 		nextFixedPosition := ops[0].pos
 		if nextFixedPosition < i {
 			return nil, fmt.Errorf(

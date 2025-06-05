@@ -2279,7 +2279,7 @@ func selfDestructEffect(s *st.State) {
 		s.Accounts.MarkWarm(beneficiaryAccount)
 	}
 
-	// Add costs for transfering the remaining balance.
+	// Add costs for transferring the remaining balance.
 	if !originatorBalance.IsZero() {
 		// If the target account is empty, the account creation fee is added.
 		if s.Accounts.IsEmpty(beneficiaryAccount) {
