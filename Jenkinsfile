@@ -49,17 +49,9 @@ pipeline {
             }
         }
 
-        stage('Check Go sources formatting') {
+        stage('Check Go formatting and lint Go sources') {
             steps {
-                sh "gofmt -s -d go"
-            }
-        }
-
-        stage('Lint Go sources') {
-            steps {
-                withEnv(["PATH+GOPATH=${env.HOME}/go/bin"]) {
                     sh 'make lint-go'
-                }
             }
         }
 
