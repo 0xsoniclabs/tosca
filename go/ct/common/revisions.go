@@ -16,7 +16,7 @@ import (
 	"github.com/0xsoniclabs/tosca/go/tosca"
 )
 
-// NewestSupportedRevision tosca.Revision currently supported by the CT specification
+// NewestSupportedRevision is the newest tosca.Revision currently supported by the CT specification.
 const NewestSupportedRevision = tosca.R14_Prague
 const NewestFullySupportedRevision = tosca.R14_Prague
 
