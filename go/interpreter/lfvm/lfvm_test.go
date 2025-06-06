@@ -25,7 +25,7 @@ func TestNewInterpreter_ProducesInstanceWithSanctionedProperties(t *testing.T) {
 	if lfvm.config.WithShaCache != true {
 		t.Fatalf("LFVM is not configured with sha cache")
 	}
-	if lfvm.config.ConversionConfig.WithSuperInstructions != false {
+	if lfvm.config.WithSuperInstructions != false {
 		t.Fatalf("LFVM is configured with super instructions")
 	}
 }
@@ -42,7 +42,7 @@ func TestLfvm_OfficialConfigurationHasSanctionedProperties(t *testing.T) {
 	if lfvm.config.WithShaCache != true {
 		t.Fatalf("lfvm is not configured with sha cache")
 	}
-	if lfvm.config.ConversionConfig.WithSuperInstructions != false {
+	if lfvm.config.WithSuperInstructions != false {
 		t.Fatalf("lfvm is configured with super instructions")
 	}
 }
