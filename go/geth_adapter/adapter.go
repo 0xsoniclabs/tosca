@@ -109,7 +109,7 @@ func (a *gethInterpreterAdapter) Run(contract *geth.Contract, input []byte, read
 	if err != nil {
 		return nil, fmt.Errorf("could not convert blob-base fee: %v", err)
 	}
-	gasPrice, err := bigIntToValue(a.evm.TxContext.GasPrice)
+	gasPrice, err := bigIntToValue(a.evm.GasPrice)
 	if err != nil {
 		return nil, fmt.Errorf("could not convert gas price: %v", err)
 	}
