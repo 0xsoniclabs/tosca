@@ -12,7 +12,7 @@ package test_utils
 
 import "github.com/0xsoniclabs/tosca/go/tosca"
 
-// valid input for point evaluation taken from geth
+// ValidPointEvaluationInput input for point evaluation taken from geth
 var ValidPointEvaluationInput = []byte{1, 231, 152, 21, 71, 8, 254, 119, 137, 66, 150, 52, 5, 60, 191, 159,
 	153, 182, 25, 249, 240, 132, 4, 137, 39, 51, 63, 206, 99, 127, 84, 155, 86, 76,
 	10, 17, 160, 247, 4, 244, 252, 62, 138, 207, 224, 248, 36, 95, 10, 209, 52, 123,

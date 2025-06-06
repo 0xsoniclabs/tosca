@@ -22,7 +22,8 @@ import (
 	"github.com/0xsoniclabs/tosca/go/tosca/vm"
 )
 
-// Upper bound for gas, this limit is required since evmc defines a signed type for gas.
+// MaxGasUsedByCt is an upper bound for gas, this limit is required since
+// evmc defines a signed type for gas.
 // Limiting gas also solves issue 293 regarding out of memory failures,
 // discussed here: https://github.com/0xsoniclabs/tosca/issues/293
 // The costs for buying memory in an EVM instance is defined by
