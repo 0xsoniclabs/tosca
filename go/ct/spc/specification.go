@@ -2521,7 +2521,7 @@ func getRulesForCall(op vm.OpCode, revision tosca.Revision, warm, zeroValue bool
 		valueZeroConditionName,
 		delegationDesignator.String(),
 	}, "_")
-	name = strings.Replace(name, "__", "_", -1)
+	name = strings.ReplaceAll(name, "__", "_")
 
 	return rulesFor(instruction{
 		op:         op,
