@@ -58,11 +58,12 @@ func RegisterExperimentalInterpreterConfigurations() error {
 					WithShaCache: shaCache != "-no-sha-cache",
 				}
 
-				if mode == "-stats" {
+				switch mode {
+				case "-stats":
 					config.runner = &statisticRunner{
 						stats: newStatistics(),
 					}
-				} else if mode == "-logging" {
+				case "-logging":
 					config.runner = loggingRunner{
 						log: os.Stdout,
 					}
