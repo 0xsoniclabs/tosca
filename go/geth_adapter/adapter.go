@@ -542,10 +542,8 @@ func (a *runContextAdapter) SelfDestruct(addr tosca.Address, beneficiary tosca.A
 	}
 
 	stateDb := a.evm.StateDB
-	selfdestructed := true
-	if stateDb.HasSelfDestructed(common.Address(addr)) {
-		selfdestructed = false
-	}
+	selfdestructed := !stateDb.HasSelfDestructed(common.Address(addr))
+
 	balance := stateDb.GetBalance(a.caller)
 	stateDb.AddBalance(common.Address(beneficiary), balance, tracing.BalanceDecreaseSelfdestruct)
 
