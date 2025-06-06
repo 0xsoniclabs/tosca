@@ -59,7 +59,7 @@ func RegisterExperimentalInterpreterConfigurations() error {
 				}
 
 				switch mode {
-				case "=stats":
+				case "-stats":
 					config.runner = &statisticRunner{
 						stats: newStatistics(),
 					}
