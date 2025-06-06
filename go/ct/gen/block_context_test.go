@@ -283,7 +283,7 @@ func TestBlockContextGenerator_CanProduceSatisfyingBlockNumbersForConstraints(t 
 				a["a"] = common.NewU256(800)
 			},
 			check: func(t *testing.T, res st.BlockContext, a Assignment) {
-				if !(800 < res.BlockNumber && res.BlockNumber < 1000) {
+				if res.BlockNumber < 801 || 1000 < res.BlockNumber {
 					t.Errorf("expected block number to be in range 801-1000, got %d", res.BlockNumber)
 				}
 			},
@@ -299,8 +299,8 @@ func TestBlockContextGenerator_CanProduceSatisfyingBlockNumbersForConstraints(t 
 				} else if !value.IsUint64() {
 					// this is fine, the value is out of range
 				} else {
-					value := value.Uint64()
-					if !(res.BlockNumber-value > 256 || res.BlockNumber-value < 1) {
+					want := res.BlockNumber - value.Uint64()
+					if 1 <= want && want <= 256 {
 						t.Errorf("unexpected distance between variable 'a' and block number, got block number %d and assignment %d", res.BlockNumber, value)
 					}
 				}

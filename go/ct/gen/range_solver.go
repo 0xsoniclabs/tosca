@@ -60,7 +60,7 @@ func (s *RangeSolver[T]) AddEqualityConstraint(value T) {
 }
 
 func (s *RangeSolver[T]) IsSatisfiable() bool {
-	return !(s.min > s.max)
+	return s.min <= s.max
 }
 
 func (s *RangeSolver[T]) Clone() *RangeSolver[T] {

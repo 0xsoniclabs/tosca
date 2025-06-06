@@ -262,7 +262,7 @@ func (c *gt[T]) Check(s *st.State) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return !(domain.Less(lhs, c.rhs) || domain.Equal(lhs, c.rhs)), nil
+	return !domain.Less(lhs, c.rhs) && !domain.Equal(lhs, c.rhs), nil
 }
 
 func (c *gt[T]) Restrict(generator *gen.StateGenerator) {
