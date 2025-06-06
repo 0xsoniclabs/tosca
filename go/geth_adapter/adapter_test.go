@@ -489,18 +489,18 @@ func TestRunContextAdapter_Run(t *testing.T) {
 			interpreter.EXPECT().Run(gomock.Any()).DoAndReturn(func(params tosca.Parameters) (tosca.Result, error) {
 				// The parameters save the context as a pointer, its value can
 				// not be predicted during the setup phase of the mock.
-				if expectedParams.BlockParameters.ChainID != params.BlockParameters.ChainID ||
-					expectedParams.BlockParameters.BlockNumber != params.BlockParameters.BlockNumber ||
-					expectedParams.BlockParameters.Timestamp != params.BlockParameters.Timestamp ||
-					expectedParams.BlockParameters.Coinbase != params.BlockParameters.Coinbase ||
-					expectedParams.BlockParameters.GasLimit != params.BlockParameters.GasLimit ||
-					expectedParams.BlockParameters.PrevRandao != params.BlockParameters.PrevRandao ||
-					expectedParams.BlockParameters.BaseFee != params.BlockParameters.BaseFee ||
-					expectedParams.BlockParameters.BlobBaseFee != params.BlockParameters.BlobBaseFee ||
-					expectedParams.BlockParameters.Revision != params.BlockParameters.Revision ||
-					expectedParams.TransactionParameters.Origin != params.TransactionParameters.Origin ||
-					expectedParams.TransactionParameters.GasPrice != params.TransactionParameters.GasPrice ||
-					!slices.Equal(expectedParams.TransactionParameters.BlobHashes, params.TransactionParameters.BlobHashes) ||
+				if expectedParams.ChainID != params.ChainID ||
+					expectedParams.BlockNumber != params.BlockNumber ||
+					expectedParams.Timestamp != params.Timestamp ||
+					expectedParams.Coinbase != params.Coinbase ||
+					expectedParams.GasLimit != params.GasLimit ||
+					expectedParams.PrevRandao != params.PrevRandao ||
+					expectedParams.BaseFee != params.BaseFee ||
+					expectedParams.BlobBaseFee != params.BlobBaseFee ||
+					expectedParams.Revision != params.Revision ||
+					expectedParams.Origin != params.Origin ||
+					expectedParams.GasPrice != params.GasPrice ||
+					!slices.Equal(expectedParams.BlobHashes, params.BlobHashes) ||
 					expectedParams.Kind != params.Kind ||
 					expectedParams.Static != params.Static ||
 					expectedParams.Depth != params.Depth ||

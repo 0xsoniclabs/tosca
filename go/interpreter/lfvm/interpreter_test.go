@@ -507,7 +507,7 @@ func TestSteps_StaticContextViolation(t *testing.T) {
 				Code:   []byte{0x0},
 			}
 			ctxt.code = []Instruction{{test.op, 0}}
-			ctxt.params.BlockParameters.Revision = test.minRevision
+			ctxt.params.Revision = test.minRevision
 
 			if len(test.stack) == 0 {
 				// add enough stack elements to pass stack bounds check
@@ -558,7 +558,7 @@ func TestInterpreter_InstructionsFailWhenExecutedInRevisionsEarlierThanIntroduce
 			t.Run(fmt.Sprintf("%v/%v", op, revision), func(t *testing.T) {
 				ctxt := getEmptyContext()
 				ctxt.code = []Instruction{{op, 0}}
-				ctxt.params.BlockParameters.Revision = revision
+				ctxt.params.Revision = revision
 				ctxt.stack.stackPointer = 20
 
 				_, err := steps(&ctxt, false)
