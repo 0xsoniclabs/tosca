@@ -31,9 +31,9 @@ type Rule struct {
 }
 
 // GenerateSatisfyingState produces an st.State satisfying this Rule.
-func (rule *Rule) GenerateSatisfyingState(rnd *rand.Rand) (*st.State, error) {
+func (r *Rule) GenerateSatisfyingState(rnd *rand.Rand) (*st.State, error) {
 	generator := gen.NewStateGenerator()
-	rule.Condition.Restrict(generator)
+	r.Condition.Restrict(generator)
 	return generator.Generate(rnd)
 }
 
@@ -41,9 +41,9 @@ func (rule *Rule) GenerateSatisfyingState(rnd *rand.Rand) (*st.State, error) {
 // Each valid st.State is passed to the given consume function. consume must
 // *not* modify the provided state.  An error is returned if the enumeration
 // process fails due to an unexpected internal state generation error.
-func (rule *Rule) EnumerateTestCases(rnd *rand.Rand, consume func(*st.State) ConsumerResult) error {
+func (r *Rule) EnumerateTestCases(rnd *rand.Rand, consume func(*st.State) ConsumerResult) error {
 	var enumError error
-	enumerateTestCases(rule.Condition, gen.NewStateGenerator(), func(generator *gen.StateGenerator) ConsumerResult {
+	enumerateTestCases(r.Condition, gen.NewStateGenerator(), func(generator *gen.StateGenerator) ConsumerResult {
 		state, err := generator.Generate(rnd)
 		if errors.Is(err, gen.ErrUnsatisfiable) {
 			return ConsumeContinue // ignored
@@ -52,7 +52,7 @@ func (rule *Rule) EnumerateTestCases(rnd *rand.Rand, consume func(*st.State) Con
 			enumError = err
 			return ConsumeAbort
 		}
-		res := enumerateParameters(0, rule.Parameter, state, consume)
+		res := enumerateParameters(0, r.Parameter, state, consume)
 		state.Release()
 		return res
 	})
@@ -83,22 +83,22 @@ func enumerateParameters(pos int, params []Parameter, state *st.State, consume f
 	return ConsumeContinue
 }
 
-func (rule *Rule) GetTestCaseEnumerationInfo() TestCaseEnumerationInfo {
+func (r *Rule) GetTestCaseEnumerationInfo() TestCaseEnumerationInfo {
 	res := TestCaseEnumerationInfo{}
-	conditions := getConditions(rule.Condition)
+	conditions := getConditions(r.Condition)
 	for _, condition := range conditions {
 		res.conditions = append(res.conditions, condition.String())
 	}
 	res.propertyDomains = make(map[Property][]string)
-	for property, domain := range getPropertyTestValues(rule.Condition) {
+	for property, domain := range getPropertyTestValues(r.Condition) {
 		list := make([]string, 0, len(domain))
 		for _, cur := range domain {
 			list = append(list, cur.String())
 		}
 		res.propertyDomains[property] = list
 	}
-	res.parameterDomainSizes = make([]int, 0, len(rule.Parameter))
-	for _, parameter := range rule.Parameter {
+	res.parameterDomainSizes = make([]int, 0, len(r.Parameter))
+	for _, parameter := range r.Parameter {
 		res.parameterDomainSizes = append(res.parameterDomainSizes, len(parameter.Samples())+1)
 	}
 	return res

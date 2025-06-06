@@ -335,43 +335,43 @@ func newVarCodeConstraintSolver(codeSize int, constOps []constOpConstraint, assi
 
 // solve is the entry point for varCodeConstraintSolver, other functions are
 // considered internal.
-func (solver *varCodeConstraintSolver) solve(
+func (s *varCodeConstraintSolver) solve(
 	varOps []varOpConstraint,
 	varIsCodeConstraints []varIsCodeConstraint,
 	varIsDataConstraints []varIsDataConstraint) ([]constOpConstraint, error) {
 
-	err := solver.solveVarOps(varOps)
+	err := s.solveVarOps(varOps)
 	if err != nil {
 		return nil, err
 	}
 
-	err = solver.solveIsCode(varIsCodeConstraints)
+	err = s.solveIsCode(varIsCodeConstraints)
 	if err != nil {
 		return nil, err
 	}
 
-	err = solver.solveIsData(varIsDataConstraints)
+	err = s.solveIsData(varIsDataConstraints)
 	if err != nil {
 		return nil, err
 	}
 
-	return solver.ops, nil
+	return s.ops, nil
 }
 
-func (solver *varCodeConstraintSolver) markUsed(pos int, op vm.OpCode) {
-	solver.usedPositions[pos] = isCode
+func (s *varCodeConstraintSolver) markUsed(pos int, op vm.OpCode) {
+	s.usedPositions[pos] = isCode
 	for i := 1; i <= op.Width()-1; i++ {
-		solver.usedPositions[pos+i] = isData
+		s.usedPositions[pos+i] = isData
 	}
 }
 
 // fits returns true iff the op can be placed at pos.
-func (solver *varCodeConstraintSolver) fits(pos int, op vm.OpCode) bool {
-	if op.Width() > solver.codeSize-pos {
+func (s *varCodeConstraintSolver) fits(pos int, op vm.OpCode) bool {
+	if op.Width() > s.codeSize-pos {
 		return false
 	}
 	for i := 0; i <= op.Width()-1; i++ {
-		if solver.usedPositions[pos+i] != isUnused {
+		if s.usedPositions[pos+i] != isUnused {
 			return false
 		}
 	}
@@ -380,23 +380,23 @@ func (solver *varCodeConstraintSolver) fits(pos int, op vm.OpCode) bool {
 
 // largestFit returns the number of subsequent unused slots starting at pos. The
 // maximum is 33 since this is the largest instruction we have.
-func (solver *varCodeConstraintSolver) largestFit(pos int) int {
+func (s *varCodeConstraintSolver) largestFit(pos int) int {
 	n := 0
-	for ; n < 33 && pos+n < solver.codeSize; n++ {
-		if solver.usedPositions[pos+n] != isUnused {
+	for ; n < 33 && pos+n < s.codeSize; n++ {
+		if s.usedPositions[pos+n] != isUnused {
 			break
 		}
 	}
 	return n
 }
 
-func (solver *varCodeConstraintSolver) assign(v Variable, pos int) {
-	if solver.assignment != nil {
-		solver.assignment[v] = NewU256(uint64(pos))
+func (s *varCodeConstraintSolver) assign(v Variable, pos int) {
+	if s.assignment != nil {
+		s.assignment[v] = NewU256(uint64(pos))
 	}
 }
 
-func (solver *varCodeConstraintSolver) solveVarOps(varOps []varOpConstraint) error {
+func (s *varCodeConstraintSolver) solveVarOps(varOps []varOpConstraint) error {
 	boundVariables := make(map[Variable]vm.OpCode)
 	for _, cur := range varOps {
 		if op, found := boundVariables[cur.variable]; found {
@@ -407,37 +407,37 @@ func (solver *varCodeConstraintSolver) solveVarOps(varOps []varOpConstraint) err
 		}
 
 		// Select a suitable code position for the current variable constraint.
-		pos := int(solver.rnd.Int31n(int32(solver.codeSize)))
+		pos := int(s.rnd.Int31n(int32(s.codeSize)))
 		startPos := pos
-		for !solver.fits(pos, cur.op) {
+		for !s.fits(pos, cur.op) {
 			pos++
-			if pos >= solver.codeSize {
+			if pos >= s.codeSize {
 				pos = 0
 			}
 			if pos == startPos {
-				return fmt.Errorf("%w, unable to fit operations in given code size %d, (%d=%d)", ErrUnsatisfiable, solver.codeSize, pos, startPos)
+				return fmt.Errorf("%w, unable to fit operations in given code size %d, (%d=%d)", ErrUnsatisfiable, s.codeSize, pos, startPos)
 			}
 		}
 
 		boundVariables[cur.variable] = cur.op
 
-		solver.markUsed(pos, cur.op)
-		solver.ops = append(solver.ops, constOpConstraint{pos, cur.op})
+		s.markUsed(pos, cur.op)
+		s.ops = append(s.ops, constOpConstraint{pos, cur.op})
 
-		solver.assign(cur.variable, pos)
+		s.assign(cur.variable, pos)
 	}
 	return nil
 }
 
-func (solver *varCodeConstraintSolver) solveIsCode(varIsCodeConstraints []varIsCodeConstraint) error {
+func (s *varCodeConstraintSolver) solveIsCode(varIsCodeConstraints []varIsCodeConstraint) error {
 	for _, cur := range varIsCodeConstraints {
 		// Check if the variable is already assigned and points to a slot marked
 		// as code.
-		if pos, isAssigned := solver.assignment[cur.variable]; isAssigned {
-			if !pos.Lt(NewU256(uint64(solver.codeSize))) {
+		if pos, isAssigned := s.assignment[cur.variable]; isAssigned {
+			if !pos.Lt(NewU256(uint64(s.codeSize))) {
 				return fmt.Errorf("%w, unable to satisfy isCode[%v], out-of-bounds", ErrUnsatisfiable, cur.variable)
 			}
-			if solver.usedPositions[int(pos.Uint64())] == isCode {
+			if s.usedPositions[int(pos.Uint64())] == isCode {
 				continue // already satisfied
 			}
 		}
@@ -445,11 +445,11 @@ func (solver *varCodeConstraintSolver) solveIsCode(varIsCodeConstraints []varIsC
 		// For the remaining variables, find a position and either populate an
 		// unused slot, or use a slot with code in it. Code position 0 is
 		// guaranteed to be either unused or contain code.
-		pos := int(solver.rnd.Int31n(int32(solver.codeSize)))
+		pos := int(s.rnd.Int31n(int32(s.codeSize)))
 		startPos := pos
-		for solver.usedPositions[pos] == isData {
+		for s.usedPositions[pos] == isData {
 			pos++
-			if pos >= solver.codeSize {
+			if pos >= s.codeSize {
 				pos = 0
 			}
 			if pos == startPos {
@@ -457,50 +457,50 @@ func (solver *varCodeConstraintSolver) solveIsCode(varIsCodeConstraints []varIsC
 			}
 		}
 
-		if solver.usedPositions[pos] == isUnused {
+		if s.usedPositions[pos] == isUnused {
 			// Pick a random op and lock it in.
 			randomOps := vm.ValidOpCodesNoPush()
-			op := randomOps[solver.rnd.Intn(len(randomOps))]
-			solver.markUsed(pos, op)
-			solver.ops = append(solver.ops, constOpConstraint{pos, op})
+			op := randomOps[s.rnd.Intn(len(randomOps))]
+			s.markUsed(pos, op)
+			s.ops = append(s.ops, constOpConstraint{pos, op})
 		}
 
-		solver.assign(cur.variable, pos)
+		s.assign(cur.variable, pos)
 	}
 	return nil
 }
 
-func (solver *varCodeConstraintSolver) solveIsData(varIsDataConstraints []varIsDataConstraint) error {
+func (s *varCodeConstraintSolver) solveIsData(varIsDataConstraints []varIsDataConstraint) error {
 	for _, cur := range varIsDataConstraints {
 		// Check if the variable is already assigned and points to a slot marked
 		// as code. If so, we cannot satisfy this constraint!
-		if pos, isAssigned := solver.assignment[cur.variable]; isAssigned {
-			if pos.Lt(NewU256(uint64(solver.codeSize))) && solver.usedPositions[int(pos.Uint64())] == isCode {
+		if pos, isAssigned := s.assignment[cur.variable]; isAssigned {
+			if pos.Lt(NewU256(uint64(s.codeSize))) && s.usedPositions[int(pos.Uint64())] == isCode {
 				return fmt.Errorf("%w, unable to satisfy isData[%v]", ErrUnsatisfiable, cur.variable)
 			}
 		}
 
 		// For the remaining variables, find a position and either populate an
 		// unused slot, or use a slot with data in it.
-		pos := int(solver.rnd.Int31n(int32(solver.codeSize)))
+		pos := int(s.rnd.Int31n(int32(s.codeSize)))
 		startPos := pos
 		pushOp := vm.PUSH1
 
 		for {
-			if solver.usedPositions[pos] == isData {
+			if s.usedPositions[pos] == isData {
 				break // using this pos
 			}
 
-			if solver.usedPositions[pos] == isUnused {
+			if s.usedPositions[pos] == isUnused {
 				// Pick a random PUSH op that fits here, if one fits at all.
-				if largestFit := solver.largestFit(pos); largestFit >= 2 {
-					pushOp = vm.OpCode(int(vm.PUSH1) + solver.rnd.Intn(largestFit-1))
+				if largestFit := s.largestFit(pos); largestFit >= 2 {
+					pushOp = vm.OpCode(int(vm.PUSH1) + s.rnd.Intn(largestFit-1))
 					break // picked one
 				}
 			}
 
 			pos++
-			if pos >= solver.codeSize {
+			if pos >= s.codeSize {
 				pos = 0
 			}
 			if pos == startPos {
@@ -508,17 +508,17 @@ func (solver *varCodeConstraintSolver) solveIsData(varIsDataConstraints []varIsD
 			}
 		}
 
-		if solver.usedPositions[pos] == isUnused {
+		if s.usedPositions[pos] == isUnused {
 			// set PUSH op
-			solver.markUsed(pos, pushOp)
-			solver.ops = append(solver.ops, constOpConstraint{pos, pushOp})
+			s.markUsed(pos, pushOp)
+			s.ops = append(s.ops, constOpConstraint{pos, pushOp})
 
 			// pick some data byte for the variable's value
-			pos = pos + 1 + solver.rnd.Intn(int(pushOp-vm.PUSH1)+1)
+			pos = pos + 1 + s.rnd.Intn(int(pushOp-vm.PUSH1)+1)
 
 		}
 
-		solver.assign(cur.variable, pos)
+		s.assign(cur.variable, pos)
 	}
 	return nil
 }
