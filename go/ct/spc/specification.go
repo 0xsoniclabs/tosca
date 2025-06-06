@@ -2438,19 +2438,18 @@ func getRulesForAllCallTypes() []Rule {
 func getRulesForCall(op vm.OpCode, revision tosca.Revision, warm, zeroValue bool, delegationDesignator DelegationDesignatorState, opEffect func(s *st.State, addrAccessCost tosca.Gas, op vm.OpCode), static bool) []Rule {
 
 	var staticGas tosca.Gas
+	var addressAccessCost tosca.Gas
+
 	if revision == tosca.R07_Istanbul {
 		staticGas = 700
-	} else if revision == tosca.R09_Berlin {
-		staticGas = 0
-	}
-
-	var addressAccessCost tosca.Gas
-	if revision == tosca.R07_Istanbul {
 		addressAccessCost = 0
-	} else if revision >= tosca.R09_Berlin && warm {
-		addressAccessCost = 100
-	} else if revision >= tosca.R09_Berlin && !warm {
-		addressAccessCost = 2600
+	} else if revision >= tosca.R09_Berlin {
+		staticGas = 0
+		if warm {
+			addressAccessCost = 100
+		} else {
+			addressAccessCost = 2600
+		}
 	}
 
 	var targetWarm Condition
@@ -2654,7 +2653,8 @@ func callEffect(s *st.State, addrAccessCost tosca.Gas, op vm.OpCode) {
 		sender = s.CallContext.CallerAddress
 		recipient = s.CallContext.AccountAddress
 		value = s.CallContext.Value
-	} else if op == vm.CALLCODE {
+	}
+	if op == vm.CALLCODE {
 		kind = tosca.CallCode
 		sender = s.CallContext.AccountAddress
 		recipient = s.CallContext.AccountAddress
