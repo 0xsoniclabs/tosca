@@ -38,7 +38,7 @@ func (l loggingRunner) run(c *context) (status, error) {
 				top = c.stack.peek().ToBig().String()
 			}
 			if l.log != nil {
-				_, err = l.log.Write([]byte(fmt.Sprintf("%v, %d, %v\n", c.code[c.pc].opcode, c.gas, top)))
+				_, err = fmt.Fprintf(l.log, "%v, %d, %v\n", c.code[c.pc].opcode, c.gas, top)
 				if err != nil {
 					return status, err
 				}
