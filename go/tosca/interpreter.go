@@ -103,13 +103,12 @@ type TransactionContext interface {
 
 	// -- legacy API needed by LFVM and Geth, to be removed in the future ---
 
-	// Deprecated: should not be needed when using result of SetStorage(..)
+	// TODO: split into two interfaces: ExtendedTransactionContext with the
+	// legacy methods and TransactionContext with the current methods
+
 	GetCommittedStorage(addr Address, key Key) Word
-	// Deprecated: should not be needed when using result of SetStorage(..)
 	IsAddressInAccessList(addr Address) bool
-	// Deprecated: should not be needed when using result of SetStorage(..)
 	IsSlotInAccessList(addr Address, key Key) (addressPresent, slotPresent bool)
-	// Deprecated: should not be needed
 	HasSelfDestructed(addr Address) bool
 }
 
