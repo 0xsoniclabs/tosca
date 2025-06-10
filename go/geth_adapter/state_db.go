@@ -132,8 +132,8 @@ func (s *StateDB) GetRefund() uint64 {
 	return s.refund
 }
 
+// GetCommittedState should only be used by geth_adapter
 func (s *StateDB) GetCommittedState(address common.Address, key common.Hash) common.Hash {
-	//lint:ignore SA1019 deprecated functions to be migrated
 	return common.Hash(s.context.GetCommittedStorage(tosca.Address(address), tosca.Key(key)))
 }
 
@@ -168,8 +168,8 @@ func (s *StateDB) SelfDestruct(address common.Address) uint256.Int {
 	return *balance.ToUint256()
 }
 
+// HasSelfDestructed should only be used by geth_adapter
 func (s *StateDB) HasSelfDestructed(address common.Address) bool {
-	//lint:ignore SA1019 deprecated functions to be migrated
 	return s.context.HasSelfDestructed(tosca.Address(address))
 }
 
@@ -189,13 +189,13 @@ func (s *StateDB) Empty(address common.Address) bool {
 		s.context.GetCodeSize(tosca.Address(address)) == 0
 }
 
+// AddressInAccessList should only be used by geth_adapter
 func (s *StateDB) AddressInAccessList(address common.Address) bool {
-	//lint:ignore SA1019 deprecated functions to be migrated
 	return s.context.IsAddressInAccessList(tosca.Address(address))
 }
 
+// SlotInAccessList should only be used by geth_adapter
 func (s *StateDB) SlotInAccessList(address common.Address, slot common.Hash) (addressOk bool, slotOk bool) {
-	//lint:ignore SA1019 deprecated functions to be migrated
 	return s.context.IsSlotInAccessList(tosca.Address(address), tosca.Key(slot))
 }
 
