@@ -486,7 +486,7 @@ func (s *varCodeConstraintSolver) solveIsData(varIsDataConstraints []varIsDataCo
 		startPos := pos
 		pushOp := vm.PUSH1
 
-		// if we are on data already, use this position
+		// if we are on data, use this position
 		for s.usedPositions[pos] != isData {
 
 			if s.usedPositions[pos] == isUnused {
