@@ -19,6 +19,11 @@ linters:
         # the type to the declaration improves readability.
         - "-ST1023" # Redundant type in variable declaration.
         - "-QF1011" # Omit redundant type from variable declaration.
+        # rule ST1001 reports mostly dot imports of the `common` package, which is broadly used
+        # in the codebase, so it improves readability to keep it.
+        # The other report is for package `rlz` in specification.go, which is broadly used
+        # in that file, so it improves readability to keep it.
+        - "-ST1001" # should not use dot imports
 
 
 formatters:
@@ -42,3 +47,5 @@ output:
     html:
       # for human consumption
       path: ./build/golangci-lint-report.html
+    tab:
+      path: stdout
