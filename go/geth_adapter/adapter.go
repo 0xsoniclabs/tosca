@@ -542,6 +542,7 @@ func (a *runContextAdapter) SelfDestruct(addr tosca.Address, beneficiary tosca.A
 	}
 
 	stateDb := a.evm.StateDB
+	// HasSelfDestructed only returns true if it is the first call to SelfDestruct
 	selfdestructed := !stateDb.HasSelfDestructed(common.Address(addr))
 
 	balance := stateDb.GetBalance(a.caller)
