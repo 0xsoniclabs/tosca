@@ -308,7 +308,7 @@ func (ctx *hostContext) Call(kind evmc.CallKind, recipient evmc.Address, sender 
 
 	result, err := ctx.context.Call(callKind, params)
 	if err != nil {
-		return nil, 0, 0, evmc.Address{}, err
+		return nil, 0, 0, evmc.Address{}, evmc.Failure
 	}
 	if !result.Success {
 		err = evmc.Revert
