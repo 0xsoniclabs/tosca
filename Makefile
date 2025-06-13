@@ -71,11 +71,11 @@ ct-coverage-geth: EXTRA_PACKAGES=github.com/ethereum/go-ethereum/core/vm/...
 ct-coverage-geth: ct-coverage-go
 
 ct-coverage-evmzero: tosca-cpp-coverage
-ct-coverage-evmzero: 
+ct-coverage-evmzero:
 	go run ./go/ct/driver run evmzero ; \
 	echo "Coverage report generated in cpp/build/coverage/index.html"
 	@cd cpp/build ; \
-	cmake --build .  --target coverage 
+	cmake --build .  --target coverage
 
 test: test-go test-cpp test-rust
 
@@ -94,15 +94,15 @@ test-cpp-asan: TOSCA_CPP_BUILD = Debug
 test-cpp-asan: TOSCA_CPP_ASAN = ON
 test-cpp-asan: test-cpp
 
-cpp-coverage-report: 
+cpp-coverage-report:
 	@cd cpp/build ; \
-	cmake --build .  --target coverage 
+	cmake --build .  --target coverage
 
 test-cpp-coverage: TOSCA_CPP_BUILD = Debug
 test-cpp-coverage: TOSCA_CPP_COVERAGE = ON
 test-cpp-coverage: test-cpp
 	@cd cpp/build ; \
-	cmake --build .  --target coverage 
+	cmake --build .  --target coverage
 
 bench: TOSCA_CPP_ASSERT = OFF
 bench: tosca-cpp bench-go
@@ -145,17 +145,6 @@ coverage-report:
 	@go install github.com/vladopajic/go-test-coverage/v2@v2.10.1
 	@go-test-coverage --config .testcoverage.yml
 
-# Linting
-
-vet:
-	go vet ./go/...
-
-staticcheck: 
-	@go install honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION)
-	staticcheck ./go/...
-
-errorcheck:
-	@go install github.com/kisielk/errcheck@$(ERRCHECK_VERSION)
-	errcheck ./go/...
-
-lint-go: vet staticcheck errorcheck
+lint-go:
+	@go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
+	@golangci-lint run ./go/...
