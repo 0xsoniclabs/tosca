@@ -523,6 +523,9 @@ func TestRunContextAdapter_Run(t *testing.T) {
 				stateDb.EXPECT().AddRefund(uint64(0))
 				stateDb.EXPECT().GetRefund().Return(refundShift)
 				stateDb.EXPECT().SubRefund(refundShift)
+			} else {
+				stateDb.EXPECT().GetRefund()
+				stateDb.EXPECT().SubRefund(uint64(0))
 			}
 
 			contract := geth.NewContract(common.Address(address), common.Address(address), nil, 0, nil)
@@ -595,6 +598,8 @@ func TestGethAdapter_CorruptValuesReturnErrors(t *testing.T) {
 			}
 
 			stateDb.EXPECT().AddRefund(gomock.Any())
+			stateDb.EXPECT().GetRefund()
+			stateDb.EXPECT().SubRefund(gomock.Any())
 
 			address := tosca.Address{0x42}
 			contract := geth.NewContract(common.Address(address), common.Address(address), nil, 0, nil)
@@ -1034,6 +1039,9 @@ func TestGethInterpreterAdapter_RefundShiftIsReverted(t *testing.T) {
 			if test.err == nil {
 				stateDb.EXPECT().GetRefund().Return(test.refund)
 				stateDb.EXPECT().SubRefund(expectedSub)
+			} else {
+				stateDb.EXPECT().GetRefund().Return(test.refund)
+				stateDb.EXPECT().SubRefund(test.refund)
 			}
 
 			undoRefundShift(stateDb, test.err, shift)
@@ -1090,7 +1098,89 @@ func TestGethAdapter_IsPrecompiledContractDependsOnRevision(t *testing.T) {
 			}
 		})
 	}
+}
 
+// stateDBMockWorkingRefund is a mock implementation of the StateDb interface
+// that simulates a working refund mechanism for testing purposes.
+type stateDBMockWorkingRefund struct {
+	*MockStateDb
+	refund uint64
+}
+
+func (s *stateDBMockWorkingRefund) GetRefund() uint64 {
+	return s.refund
+}
+
+func (s *stateDBMockWorkingRefund) AddRefund(refund uint64) {
+	s.refund += refund
+}
+
+func (s *stateDBMockWorkingRefund) SubRefund(refund uint64) {
+	if refund > s.refund {
+		s.refund = 0
+	} else {
+		s.refund -= refund
+	}
+}
+
+func TestGethAdapter_RefundShiftEndToEndTest(t *testing.T) {
+	tests := map[string]struct {
+		success   bool
+		gasRefund tosca.Gas
+		refund    uint64
+	}{
+		"success": {
+			success:   true,
+			gasRefund: 1000,
+			refund:    1000,
+		},
+		"successNegativeRefund": {
+			success:   true,
+			gasRefund: -1000,
+			refund:    0, // Negative refund should not be added
+		},
+		"failure": {
+			success:   false,
+			gasRefund: 1000,
+			refund:    0, // On failure, refund should be reset to 0
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			interpreter := tosca.NewMockInterpreter(ctrl)
+
+			stateDb := &stateDBMockWorkingRefund{
+				MockStateDb: NewMockStateDb(ctrl),
+				refund:      0,
+			}
+
+			chainId := int64(42)
+			blockNumber := int64(24)
+			address := tosca.Address{0x42}
+
+			blockParameters := geth.BlockContext{BlockNumber: big.NewInt(blockNumber)}
+			chainConfig := &params.ChainConfig{ChainID: big.NewInt(chainId), IstanbulBlock: big.NewInt(23)}
+			evm := geth.NewEVM(blockParameters, stateDb, chainConfig, geth.Config{})
+			adapter := &gethInterpreterAdapter{
+				evm:         evm,
+				interpreter: interpreter,
+			}
+
+			contract := geth.NewContract(common.Address(address), common.Address(address), nil, 0, nil)
+			interpreter.EXPECT().Run(gomock.Any()).Return(tosca.Result{Success: test.success, GasRefund: test.gasRefund}, nil)
+			_, err := adapter.Run(contract, []byte{}, false)
+			if test.success && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+
+			refund := stateDb.GetRefund()
+			if refund != test.refund {
+				t.Errorf("Expected refund %d, got %d", test.refund, refund)
+			}
+		})
+	}
 }
 
 func newEVMWithPassingChainConfig() *geth.EVM {

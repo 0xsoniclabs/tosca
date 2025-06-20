@@ -237,6 +237,9 @@ func undoRefundShift(stateDB geth.StateDB, err error, refundShift uint64) {
 			shift = cur
 		}
 		stateDB.SubRefund(shift)
+	} else {
+		// In the case of an error, the refund is set to zero
+		stateDB.SubRefund(stateDB.GetRefund())
 	}
 }
 
