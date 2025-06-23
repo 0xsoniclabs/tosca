@@ -40,8 +40,6 @@ func NewGethInterpreterFactory(interpreter tosca.Interpreter) geth.InterpreterFa
 	}
 }
 
-const adapterDebug = false
-
 type gethInterpreterAdapter struct {
 	interpreter tosca.Interpreter
 	evm         *geth.EVM
@@ -49,10 +47,6 @@ type gethInterpreterAdapter struct {
 
 func (a *gethInterpreterAdapter) Run(contract *geth.Contract, input []byte, readOnly bool) (ret []byte, err error) {
 	var result tosca.Result
-	if adapterDebug {
-		debugRunStart(input, readOnly)
-		defer func() { debugRunEnd(result) }()
-	}
 
 	// Tosca EVM implementations update the refund in the StateDB only at the
 	// end of a contract execution. As a result, it may happen that the refund
@@ -89,9 +83,6 @@ func (a *gethInterpreterAdapter) Run(contract *geth.Contract, input []byte, read
 	revision, err := convertRevision(rules)
 	if err != nil {
 		return nil, fmt.Errorf("unsupported revision: %w", err)
-	}
-	if adapterDebug {
-		fmt.Printf("Running revision %v\n", revision)
 	}
 
 	// Convert the value from big-int to tosca.Value.
@@ -212,20 +203,6 @@ func getPrevRandao(context *geth.BlockContext, revision tosca.Revision) (tosca.H
 	return prevRandao, nil
 }
 
-func debugRunStart(input []byte, readOnly bool) {
-	fmt.Printf("Begin of interpreter:\n")
-	fmt.Printf("\tInput:  %v\n", input)
-	fmt.Printf("\tStatic: %v\n", readOnly)
-}
-
-func debugRunEnd(res tosca.Result) {
-	fmt.Printf("End of interpreter:\n")
-	fmt.Printf("\tSuccess:  %v\n", res.Success)
-	fmt.Printf("\tOutput:   %v\n", res.Output)
-	fmt.Printf("\tGas Left: %v\n", res.GasLeft)
-	fmt.Printf("\tRefund:   %v\n", res.GasRefund)
-}
-
 func undoRefundShift(stateDB geth.StateDB, err error, refundShift uint64) {
 	if err == nil || err == geth.ErrExecutionReverted {
 		// In revert cases the accumulated refund to this point may be negative,
@@ -270,11 +247,6 @@ type runContextAdapter struct {
 }
 
 func (a *runContextAdapter) Call(kind tosca.CallKind, parameter tosca.CallParameters) (result tosca.CallResult, reserr error) {
-	if adapterDebug {
-		debugCallStart(kind, parameter)
-		defer func() { debugCallEnd(result, reserr) }()
-	}
-
 	rules := a.evm.ChainConfig().Rules(a.evm.Context.BlockNumber, a.evm.Context.Random != nil, a.evm.Context.Time)
 	revision, err := convertRevision(rules)
 	if err != nil {
@@ -409,31 +381,6 @@ func gethToVMErrors(err error, gas tosca.Gas) (tosca.CallResult, error) {
 	return tosca.CallResult{Success: false}, err
 }
 
-func debugCallStart(kind tosca.CallKind, parameter tosca.CallParameters) {
-	if adapterDebug {
-		fmt.Printf("Start of call:\n")
-		fmt.Printf("\tType:         %v\n", kind)
-		fmt.Printf("\tRecipient:    %v\n", parameter.Recipient)
-		fmt.Printf("\tSender:       %v\n", parameter.Sender)
-		fmt.Printf("\tGas:          %v\n", parameter.Gas)
-		fmt.Printf("\tInput:        %v\n", parameter.Input)
-		fmt.Printf("\tValue:        %v\n", parameter.Value)
-		fmt.Printf("\tSalt:         %v\n", parameter.Salt)
-		fmt.Printf("\tCode address: %v\n", parameter.CodeAddress)
-	}
-}
-
-func debugCallEnd(result tosca.CallResult, reserr error) {
-	if adapterDebug {
-		fmt.Printf("End of call:\n")
-		fmt.Printf("\tOutput:    %v\n", result.Output)
-		fmt.Printf("\tGasLeft:   %v\n", result.GasLeft)
-		fmt.Printf("\tGasRefund: %v\n", result.GasRefund)
-		fmt.Printf("\tSuccess:   %v\n", result.Success)
-		fmt.Printf("\tError:     %v\n", reserr)
-	}
-}
-
 func (a *runContextAdapter) CreateAccount(addr tosca.Address) {
 	if !a.evm.StateDB.Exist(common.Address(addr)) {
 		a.evm.StateDB.CreateAccount(common.Address(addr))
@@ -540,10 +487,6 @@ func (a *runContextAdapter) GetLogs() []tosca.Log {
 }
 
 func (a *runContextAdapter) SelfDestruct(addr tosca.Address, beneficiary tosca.Address) bool {
-	if adapterDebug {
-		fmt.Printf("SelfDestruct called with %v, %v\n", addr, beneficiary)
-	}
-
 	stateDb := a.evm.StateDB
 	// HasSelfDestructed only returns true if it is the first call to SelfDestruct
 	selfdestructed := !stateDb.HasSelfDestructed(common.Address(addr))
