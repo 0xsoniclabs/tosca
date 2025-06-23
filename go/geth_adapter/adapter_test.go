@@ -1125,29 +1125,29 @@ func (s *stateDBMockWorkingRefund) SubRefund(refund uint64) {
 
 func TestGethAdapter_RefundShiftIsAlwaysUndone(t *testing.T) {
 	tests := map[string]struct {
-		success   bool
-		gasRefund tosca.Gas
-		refund    uint64
+		success        bool
+		gasRefund      tosca.Gas
+		reportedRefund uint64
 	}{
 		"success": {
-			success:   true,
-			gasRefund: 1000,
-			refund:    1000,
+			success:        true,
+			gasRefund:      1000,
+			reportedRefund: 1000,
 		},
 		"successNegativeRefund": {
-			success:   true,
-			gasRefund: -1000,
-			refund:    0, // Negative refund should not be added
+			success:        true,
+			gasRefund:      -1000,
+			reportedRefund: 0, // Negative refund should not be added
 		},
 		"failure": {
-			success:   false,
-			gasRefund: 1000,
-			refund:    0, // On failure, refund should be reset to 0
+			success:        false,
+			gasRefund:      1000,
+			reportedRefund: 0, // On failure, refund should be reset to 0
 		},
 		"failureNegativeRefund": {
-			success:   false,
-			gasRefund: -1000,
-			refund:    0, // Negative refund on failure should also reset to 0
+			success:        false,
+			gasRefund:      -1000,
+			reportedRefund: 0, // Negative refund on failure should also reset to 0
 		},
 	}
 
@@ -1181,8 +1181,8 @@ func TestGethAdapter_RefundShiftIsAlwaysUndone(t *testing.T) {
 			}
 
 			refund := stateDb.GetRefund()
-			if refund != test.refund {
-				t.Errorf("Expected refund %d, got %d", test.refund, refund)
+			if refund != test.reportedRefund {
+				t.Errorf("Expected refund %d, got %d", test.reportedRefund, refund)
 			}
 		})
 	}
