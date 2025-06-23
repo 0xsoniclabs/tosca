@@ -1100,6 +1100,107 @@ func TestGethAdapter_IsPrecompiledContractDependsOnRevision(t *testing.T) {
 	}
 }
 
+func TestGethAdapter_InterpreterReturnsAreHandledCorrectly(t *testing.T) {
+	contractGas := tosca.Gas(100)
+	tests := map[string]struct {
+		returnedResult      tosca.Result
+		returnedError       error
+		expectedOutput      []byte
+		expectedError       error
+		expectedContractGas tosca.Gas
+	}{
+		"success positive gas": {
+			returnedResult: tosca.Result{
+				Success: true,
+				Output:  []byte{0x01, 0x02, 0x03},
+				GasLeft: 1000,
+			},
+			expectedOutput:      []byte{0x01, 0x02, 0x03},
+			expectedError:       nil,
+			expectedContractGas: 1000,
+		},
+		"success negative gas": {
+			returnedResult: tosca.Result{
+				Success: true,
+				Output:  []byte{0x01, 0x02, 0x03},
+				GasLeft: -1000,
+			},
+			expectedOutput:      []byte{0x01, 0x02, 0x03},
+			expectedError:       nil,
+			expectedContractGas: 0,
+		},
+		"revert": {
+			returnedResult: tosca.Result{
+				Success: false,
+				Output:  []byte{0x01, 0x02, 0x03},
+				GasLeft: 1000,
+			},
+			expectedOutput:      []byte{0x01, 0x02, 0x03},
+			expectedError:       fmt.Errorf("execution reverted"),
+			expectedContractGas: 1000,
+		},
+		"unsuccessful": {
+			returnedResult: tosca.Result{
+				Success: false,
+				Output:  []byte{},
+			},
+			expectedOutput:      nil,
+			expectedError:       fmt.Errorf("execution unsuccessful"),
+			expectedContractGas: 0,
+		},
+		"error": {
+			returnedResult: tosca.Result{
+				Success: false,
+				Output:  []byte{},
+				GasLeft: 1000,
+			},
+			returnedError:       fmt.Errorf("interpreter error"),
+			expectedOutput:      nil,
+			expectedError:       fmt.Errorf("interpreter error"),
+			expectedContractGas: 100,
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			interpreter := tosca.NewMockInterpreter(ctrl)
+			interpreter.EXPECT().Run(gomock.Any()).Return(test.returnedResult, test.returnedError)
+
+			stateDb := NewMockStateDb(ctrl)
+			refundShift := uint64(1 << 60)
+			stateDb.EXPECT().AddRefund(refundShift)
+			if test.returnedResult.Success {
+				stateDb.EXPECT().AddRefund(uint64(0))
+				stateDb.EXPECT().GetRefund().Return(refundShift)
+				stateDb.EXPECT().SubRefund(refundShift)
+			} else {
+				stateDb.EXPECT().GetRefund()
+				stateDb.EXPECT().SubRefund(uint64(0))
+			}
+
+			blockParameters := geth.BlockContext{BlockNumber: big.NewInt(int64(24))}
+			chainConfig := &params.ChainConfig{ChainID: big.NewInt(int64(42)), IstanbulBlock: big.NewInt(23)}
+			evm := geth.NewEVM(blockParameters, stateDb, chainConfig, geth.Config{})
+			adapter := &gethInterpreterAdapter{
+				evm:         evm,
+				interpreter: interpreter,
+			}
+
+			address := tosca.Address{0x42}
+			contract := geth.NewContract(common.Address(address), common.Address(address), nil, uint64(contractGas), nil)
+			result, err := adapter.Run(contract, []byte{}, false)
+
+			require.Equal(t, test.expectedOutput, result, "Output should match expected output")
+			if test.expectedError == nil {
+				require.Nil(t, err, "Error should be nil")
+			} else {
+				require.ErrorContains(t, err, test.expectedError.Error(), "Error should match expected error")
+			}
+			require.Equal(t, test.expectedContractGas, tosca.Gas(contract.Gas), "Contract gas should match expected value")
+		})
+	}
+}
+
 // stateDBMockWorkingRefund is a mock implementation of the StateDb interface
 // that simulates a working refund mechanism for testing purposes.
 type stateDBMockWorkingRefund struct {

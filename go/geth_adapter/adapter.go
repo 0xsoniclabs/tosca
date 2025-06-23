@@ -182,7 +182,7 @@ func (a *gethInterpreterAdapter) Run(contract *geth.Contract, input []byte, read
 		return result.Output, geth.ErrExecutionReverted
 	}
 	if !result.Success {
-		return nil, geth.ErrOutOfGas // < they are all handled equally
+		return nil, fmt.Errorf("execution unsuccessful")
 	}
 	return result.Output, nil
 }
