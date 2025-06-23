@@ -1129,7 +1129,7 @@ func TestGethAdapter_InterpreterReturnsAreHandledCorrectly(t *testing.T) {
 			expectedError:       nil,
 			expectedContractGas: 0,
 		},
-		"revert": {
+		"unsuccessful output gas": {
 			returnedResult: tosca.Result{
 				Success: false,
 				Output:  []byte{0x01, 0x02, 0x03},
@@ -1139,19 +1139,36 @@ func TestGethAdapter_InterpreterReturnsAreHandledCorrectly(t *testing.T) {
 			expectedError:       fmt.Errorf("execution reverted"),
 			expectedContractGas: 1000,
 		},
-		"unsuccessful": {
+		"unsuccessful no output no gas": {
 			returnedResult: tosca.Result{
 				Success: false,
-				Output:  []byte{},
 			},
 			expectedOutput:      nil,
 			expectedError:       fmt.Errorf("execution unsuccessful"),
 			expectedContractGas: 0,
 		},
+		"unsuccessful output no gas": {
+			returnedResult: tosca.Result{
+				Success: false,
+				Output:  []byte{0x01, 0x02, 0x03},
+			},
+			expectedOutput:      []byte{0x01, 0x02, 0x03},
+			expectedError:       fmt.Errorf("execution reverted"),
+			expectedContractGas: 0,
+		},
+		"unsuccessful no output gas": {
+			returnedResult: tosca.Result{
+				Success: false,
+				GasLeft: 1000,
+			},
+			expectedOutput:      nil,
+			expectedError:       fmt.Errorf("execution reverted"),
+			expectedContractGas: 1000,
+		},
 		"error": {
 			returnedResult: tosca.Result{
 				Success: false,
-				Output:  []byte{},
+				Output:  []byte{0x01, 0x02, 0x03},
 				GasLeft: 1000,
 			},
 			returnedError:       fmt.Errorf("interpreter error"),
