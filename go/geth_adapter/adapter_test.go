@@ -1123,7 +1123,7 @@ func (s *stateDBMockWorkingRefund) SubRefund(refund uint64) {
 	}
 }
 
-func TestGethAdapter_RefundShiftEndToEndTest(t *testing.T) {
+func TestGethAdapter_RefundShiftIsAlwaysUndone(t *testing.T) {
 	tests := map[string]struct {
 		success   bool
 		gasRefund tosca.Gas
@@ -1143,6 +1143,11 @@ func TestGethAdapter_RefundShiftEndToEndTest(t *testing.T) {
 			success:   false,
 			gasRefund: 1000,
 			refund:    0, // On failure, refund should be reset to 0
+		},
+		"failureNegativeRefund": {
+			success:   false,
+			gasRefund: -1000,
+			refund:    0, // Negative refund on failure should also reset to 0
 		},
 	}
 
