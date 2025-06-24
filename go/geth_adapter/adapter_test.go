@@ -130,28 +130,99 @@ func TestRunContextAdapter_SetAndGetCode(t *testing.T) {
 }
 
 func TestRunContextAdapter_SetAndGetStorage(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	stateDb := NewMockStateDb(ctrl)
-	adapter := &runContextAdapter{evm: &geth.EVM{StateDB: stateDb}}
+	tests := map[tosca.StorageStatus]struct {
+		current tosca.Word
+		future  tosca.Word
+	}{
+		tosca.StorageModified: {
+			current: tosca.Word{1},
+			future:  tosca.Word{2},
+		},
+		tosca.StorageAssigned: {
+			current: tosca.Word{1},
+			future:  tosca.Word{1},
+		},
+		// Only storageAssigned is handled in the adapter, all the others are
+		// handled by the tosca.GetStorageStatus function.
+	}
+	for status, test := range tests {
+		t.Run(status.String(), func(t *testing.T) {
 
-	address := tosca.Address{0x42}
-	key := tosca.Key{10}
-	original := tosca.Word{0}
-	current := tosca.Word{1}
-	future := tosca.Word{2}
+			ctrl := gomock.NewController(t)
+			stateDb := NewMockStateDb(ctrl)
+			adapter := &runContextAdapter{evm: &geth.EVM{StateDB: stateDb}}
 
-	stateDb.EXPECT().GetState(common.Address(address), common.Hash(key)).Return(common.Hash(current))
-	stateDb.EXPECT().GetCommittedState(common.Address(address), common.Hash(key)).Return(common.Hash(original))
-	stateDb.EXPECT().SetState(common.Address(address), common.Hash(key), common.Hash(future))
-	status := adapter.SetStorage(address, key, future)
-	if status != tosca.StorageAssigned {
-		t.Errorf("Storage status did not match expected, want %v, got %v", tosca.StorageAssigned, status)
+			address := tosca.Address{0x42}
+			key := tosca.Key{10}
+			original := tosca.Word{1}
+
+			stateDb.EXPECT().GetState(common.Address(address), common.Hash(key)).Return(common.Hash(test.current))
+			if test.current != test.future {
+				stateDb.EXPECT().GetCommittedState(common.Address(address), common.Hash(key)).Return(common.Hash(original))
+				stateDb.EXPECT().SetState(common.Address(address), common.Hash(key), common.Hash(test.future))
+			}
+
+			if got := adapter.SetStorage(address, key, test.future); got != status {
+				t.Errorf("Storage status did not match expected, want %v, got %v", tosca.StorageAssigned, status)
+			}
+
+			stateDb.EXPECT().GetState(common.Address(address), common.Hash(key)).Return(common.Hash(test.current))
+			if got := adapter.GetStorage(address, key); got != test.current {
+				t.Errorf("Got wrong storage value %v, expected %v", got, test.current)
+			}
+		})
+	}
+}
+
+func TestRunContextAdapter_AccessStorageDependsOnAccessList(t *testing.T) {
+	tests := map[tosca.AccessStatus]bool{
+		tosca.ColdAccess: false,
+		tosca.WarmAccess: true,
 	}
 
-	stateDb.EXPECT().GetState(common.Address(address), common.Hash(key)).Return(common.Hash(current))
-	got := adapter.GetStorage(address, key)
-	if got != current {
-		t.Errorf("Got wrong storage value %v, expected %v", got, current)
+	for accessStatus, inAccessList := range tests {
+		name := fmt.Sprintf("inAccessList%t", inAccessList)
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			stateDb := NewMockStateDb(ctrl)
+			adapter := &runContextAdapter{evm: &geth.EVM{StateDB: stateDb}}
+
+			address := tosca.Address{0x42}
+			key := tosca.Key{10}
+
+			stateDb.EXPECT().SlotInAccessList(common.Address(address), common.Hash(key)).Return(false, inAccessList)
+			stateDb.EXPECT().AddSlotToAccessList(common.Address(address), common.Hash(key))
+
+			accessType := adapter.AccessStorage(address, key)
+			if accessType != accessStatus {
+				t.Errorf("Got wrong access type %v, expected %v", accessType, accessStatus)
+			}
+		})
+	}
+}
+
+func TestRunContextAdapter_AccessAccountDependsOnAccessList(t *testing.T) {
+	tests := map[tosca.AccessStatus]bool{
+		tosca.ColdAccess: false,
+		tosca.WarmAccess: true,
+	}
+
+	for accessStatus, inAccessList := range tests {
+		name := fmt.Sprintf("inAccessList%t", inAccessList)
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			stateDb := NewMockStateDb(ctrl)
+			adapter := &runContextAdapter{evm: &geth.EVM{StateDB: stateDb}}
+			address := tosca.Address{0x42}
+
+			stateDb.EXPECT().AddressInAccessList(common.Address(address)).Return(inAccessList)
+			stateDb.EXPECT().AddAddressToAccessList(common.Address(address))
+
+			accessType := adapter.AccessAccount(address)
+			if accessType != accessStatus {
+				t.Errorf("Got wrong access type %v, expected %v", accessType, accessStatus)
+			}
+		})
 	}
 }
 
