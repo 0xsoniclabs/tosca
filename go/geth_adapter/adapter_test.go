@@ -338,83 +338,74 @@ func TestRunContextAdapter_GettersReturnTheCorrectStateDbValues(t *testing.T) {
 	}{
 		"nonce": {
 			primingMock: func(stateDb *MockStateDb) {
-				stateDb.EXPECT().GetNonce(gomock.Any()).Return(uint64(42))
+				stateDb.EXPECT().GetNonce(common.Address{0x42}).Return(uint64(42))
 			},
 			want: uint64(42),
 			functionCall: func(adapter *runContextAdapter) any {
-				return adapter.GetNonce(tosca.Address{})
+				return adapter.GetNonce(tosca.Address{0x42})
 			},
 		},
 		"storage": {
 			primingMock: func(stateDb *MockStateDb) {
-				stateDb.EXPECT().GetState(gomock.Any(), gomock.Any()).Return(common.Hash{1})
+				stateDb.EXPECT().GetState(common.Address{0x42}, common.Hash{0x10}).Return(common.Hash{1})
 			},
 			want: tosca.Word{1},
 			functionCall: func(adapter *runContextAdapter) any {
-				return adapter.GetStorage(tosca.Address{}, tosca.Key{})
+				return adapter.GetStorage(tosca.Address{0x42}, tosca.Key{0x10})
 			},
 		},
 		"committedState": {
 			primingMock: func(stateDb *MockStateDb) {
-				stateDb.EXPECT().GetCommittedState(gomock.Any(), gomock.Any()).Return(common.Hash{2})
+				stateDb.EXPECT().GetCommittedState(common.Address{0x42}, common.Hash{0x10}).Return(common.Hash{2})
 			},
 			want: tosca.Word{2},
 			functionCall: func(adapter *runContextAdapter) any {
-				return adapter.GetCommittedStorage(tosca.Address{}, tosca.Key{})
+				return adapter.GetCommittedStorage(tosca.Address{0x42}, tosca.Key{0x10})
 			},
 		},
 		"transientStorage": {
 			primingMock: func(stateDb *MockStateDb) {
-				stateDb.EXPECT().GetTransientState(gomock.Any(), gomock.Any()).Return(common.Hash{3})
+				stateDb.EXPECT().GetTransientState(common.Address{0x42}, common.Hash{0x10}).Return(common.Hash{3})
 			},
 			want: tosca.Word{3},
 			functionCall: func(adapter *runContextAdapter) any {
-				return adapter.GetTransientStorage(tosca.Address{}, tosca.Key{})
+				return adapter.GetTransientStorage(tosca.Address{0x42}, tosca.Key{0x10})
 			},
 		},
 		"balance": {
 			primingMock: func(stateDb *MockStateDb) {
-				stateDb.EXPECT().GetBalance(gomock.Any()).Return(uint256.NewInt(100))
+				stateDb.EXPECT().GetBalance(common.Address{0x42}).Return(uint256.NewInt(100))
 			},
 			want: tosca.NewValue(100),
 			functionCall: func(adapter *runContextAdapter) any {
-				return adapter.GetBalance(tosca.Address{})
+				return adapter.GetBalance(tosca.Address{0x42})
 			},
 		},
 		"codeSize": {
 			primingMock: func(stateDb *MockStateDb) {
-				stateDb.EXPECT().GetCodeSize(gomock.Any()).Return(42)
+				stateDb.EXPECT().GetCodeSize(common.Address{0x42}).Return(42)
 			},
 			want: 42,
 			functionCall: func(adapter *runContextAdapter) any {
-				return adapter.GetCodeSize(tosca.Address{})
+				return adapter.GetCodeSize(tosca.Address{0x42})
 			},
 		},
 		"codeHash": {
 			primingMock: func(stateDb *MockStateDb) {
-				stateDb.EXPECT().GetCodeHash(gomock.Any()).Return(common.Hash{4})
+				stateDb.EXPECT().GetCodeHash(common.Address{0x42}).Return(common.Hash{4})
 			},
 			want: tosca.Hash{4},
 			functionCall: func(adapter *runContextAdapter) any {
-				return adapter.GetCodeHash(tosca.Address{})
+				return adapter.GetCodeHash(tosca.Address{0x42})
 			},
 		},
 		"code": {
 			primingMock: func(stateDb *MockStateDb) {
-				stateDb.EXPECT().GetCode(gomock.Any()).Return(tosca.Code{5, 6, 7})
+				stateDb.EXPECT().GetCode(common.Address{0x42}).Return(tosca.Code{5, 6, 7})
 			},
 			want: tosca.Code{5, 6, 7},
 			functionCall: func(adapter *runContextAdapter) any {
-				return adapter.GetCode(tosca.Address{})
-			},
-		},
-		"committedStorage": {
-			primingMock: func(stateDb *MockStateDb) {
-				stateDb.EXPECT().GetCommittedState(gomock.Any(), gomock.Any()).Return(common.Hash{42})
-			},
-			want: tosca.Word{42},
-			functionCall: func(adapter *runContextAdapter) any {
-				return adapter.GetCommittedStorage(tosca.Address{}, tosca.Key{})
+				return adapter.GetCode(tosca.Address{0x42})
 			},
 		},
 	}
