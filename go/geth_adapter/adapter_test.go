@@ -181,7 +181,7 @@ func TestRunContextAdapter_AccessStorageDependsOnAccessList(t *testing.T) {
 	}
 
 	for accessStatus, inAccessList := range tests {
-		name := fmt.Sprintf("inAccessList%t", inAccessList)
+		name := fmt.Sprintf("inAccessList=%t", inAccessList)
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			stateDb := NewMockStateDb(ctrl)
