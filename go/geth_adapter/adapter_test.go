@@ -330,17 +330,17 @@ func TestRunContextAdapter_SnapshotHandling(t *testing.T) {
 	}
 }
 
-func TestRunContextAdapter_GettersAreReturningTheCorrectStateDbValues(t *testing.T) {
+func TestRunContextAdapter_GettersReturnTheCorrectStateDbValues(t *testing.T) {
 	tests := map[string]struct {
 		primingMock  func(stateDb *MockStateDb)
-		value        any
+		want         any
 		functionCall func(adapter *runContextAdapter) any
 	}{
 		"nonce": {
 			primingMock: func(stateDb *MockStateDb) {
 				stateDb.EXPECT().GetNonce(gomock.Any()).Return(uint64(42))
 			},
-			value: uint64(42),
+			want: uint64(42),
 			functionCall: func(adapter *runContextAdapter) any {
 				return adapter.GetNonce(tosca.Address{})
 			},
@@ -349,7 +349,7 @@ func TestRunContextAdapter_GettersAreReturningTheCorrectStateDbValues(t *testing
 			primingMock: func(stateDb *MockStateDb) {
 				stateDb.EXPECT().GetState(gomock.Any(), gomock.Any()).Return(common.Hash{1})
 			},
-			value: tosca.Word{1},
+			want: tosca.Word{1},
 			functionCall: func(adapter *runContextAdapter) any {
 				return adapter.GetStorage(tosca.Address{}, tosca.Key{})
 			},
@@ -358,7 +358,7 @@ func TestRunContextAdapter_GettersAreReturningTheCorrectStateDbValues(t *testing
 			primingMock: func(stateDb *MockStateDb) {
 				stateDb.EXPECT().GetCommittedState(gomock.Any(), gomock.Any()).Return(common.Hash{2})
 			},
-			value: tosca.Word{2},
+			want: tosca.Word{2},
 			functionCall: func(adapter *runContextAdapter) any {
 				return adapter.GetCommittedStorage(tosca.Address{}, tosca.Key{})
 			},
@@ -367,7 +367,7 @@ func TestRunContextAdapter_GettersAreReturningTheCorrectStateDbValues(t *testing
 			primingMock: func(stateDb *MockStateDb) {
 				stateDb.EXPECT().GetTransientState(gomock.Any(), gomock.Any()).Return(common.Hash{3})
 			},
-			value: tosca.Word{3},
+			want: tosca.Word{3},
 			functionCall: func(adapter *runContextAdapter) any {
 				return adapter.GetTransientStorage(tosca.Address{}, tosca.Key{})
 			},
@@ -376,7 +376,7 @@ func TestRunContextAdapter_GettersAreReturningTheCorrectStateDbValues(t *testing
 			primingMock: func(stateDb *MockStateDb) {
 				stateDb.EXPECT().GetBalance(gomock.Any()).Return(uint256.NewInt(100))
 			},
-			value: tosca.NewValue(100),
+			want: tosca.NewValue(100),
 			functionCall: func(adapter *runContextAdapter) any {
 				return adapter.GetBalance(tosca.Address{})
 			},
@@ -385,7 +385,7 @@ func TestRunContextAdapter_GettersAreReturningTheCorrectStateDbValues(t *testing
 			primingMock: func(stateDb *MockStateDb) {
 				stateDb.EXPECT().GetCodeSize(gomock.Any()).Return(42)
 			},
-			value: 42,
+			want: 42,
 			functionCall: func(adapter *runContextAdapter) any {
 				return adapter.GetCodeSize(tosca.Address{})
 			},
@@ -394,7 +394,7 @@ func TestRunContextAdapter_GettersAreReturningTheCorrectStateDbValues(t *testing
 			primingMock: func(stateDb *MockStateDb) {
 				stateDb.EXPECT().GetCodeHash(gomock.Any()).Return(common.Hash{4})
 			},
-			value: tosca.Hash{4},
+			want: tosca.Hash{4},
 			functionCall: func(adapter *runContextAdapter) any {
 				return adapter.GetCodeHash(tosca.Address{})
 			},
@@ -403,7 +403,7 @@ func TestRunContextAdapter_GettersAreReturningTheCorrectStateDbValues(t *testing
 			primingMock: func(stateDb *MockStateDb) {
 				stateDb.EXPECT().GetCode(gomock.Any()).Return(tosca.Code{5, 6, 7})
 			},
-			value: tosca.Code{5, 6, 7},
+			want: tosca.Code{5, 6, 7},
 			functionCall: func(adapter *runContextAdapter) any {
 				return adapter.GetCode(tosca.Address{})
 			},
@@ -412,7 +412,7 @@ func TestRunContextAdapter_GettersAreReturningTheCorrectStateDbValues(t *testing
 			primingMock: func(stateDb *MockStateDb) {
 				stateDb.EXPECT().GetCommittedState(gomock.Any(), gomock.Any()).Return(common.Hash{42})
 			},
-			value: tosca.Word{42},
+			want: tosca.Word{42},
 			functionCall: func(adapter *runContextAdapter) any {
 				return adapter.GetCommittedStorage(tosca.Address{}, tosca.Key{})
 			},
@@ -428,14 +428,14 @@ func TestRunContextAdapter_GettersAreReturningTheCorrectStateDbValues(t *testing
 			adapter := &runContextAdapter{evm: &geth.EVM{StateDB: stateDb}}
 			got := test.functionCall(adapter)
 
-			if !reflect.DeepEqual(got, test.value) {
-				t.Errorf("Got wrong value %v, expected %v", got, test.value)
+			if !reflect.DeepEqual(got, test.want) {
+				t.Errorf("Got wrong value %v, expected %v", got, test.want)
 			}
 		})
 	}
 }
 
-func TestRunContextAdapter_SettersAreForwardingTheCorrectStateDbValues(t *testing.T) {
+func TestRunContextAdapter_SettersForwardTheCorrectStateDbValues(t *testing.T) {
 	tests := map[string]struct {
 		primingMock  func(stateDb *MockStateDb)
 		functionCall func(adapter *runContextAdapter)
