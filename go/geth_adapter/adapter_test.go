@@ -20,6 +20,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/0xsoniclabs/tosca/go/interpreter/lfvm"
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/tracing"
@@ -43,6 +44,21 @@ type StateDb interface {
 
 func TestGethAdapter_RunContextAdapterImplementsRunContextInterface(t *testing.T) {
 	var _ tosca.RunContext = &runContextAdapter{}
+}
+
+func TestGethAdapter_NewGethInterpreterFactoryReturnsNonNilValues(t *testing.T) {
+	interpreter, err := lfvm.NewInterpreter(lfvm.Config{})
+	if err != nil {
+		t.Fatalf("Failed to create interpreter: %v", err)
+	}
+	factory := NewGethInterpreterFactory(interpreter)
+	if factory == nil {
+		t.Fatal("Factory should not be nil")
+	}
+	got := factory(&geth.EVM{})
+	if got == nil {
+		t.Fatal("Interpreter should not be nil")
+	}
 }
 
 func TestRunContextAdapter_SetBalanceHasCorrectEffect(t *testing.T) {
@@ -518,6 +534,80 @@ func TestRunContextAdapter_GetLogsIsNotSupportedInRunContextAdapter(t *testing.T
 	}
 }
 
+func TestRunContextAdapter_BooleanChecksReturnCorrectValues(t *testing.T) {
+	tests := map[string]struct {
+		primingMock  func(stateDb *MockStateDb)
+		want         bool
+		functionCall func(adapter *runContextAdapter) bool
+	}{
+		"hasEmptyStorage-empty": {
+			primingMock: func(stateDb *MockStateDb) {
+				stateDb.EXPECT().GetStorageRoot(common.Address{0x42}).Return(common.Hash{})
+			},
+			want: true,
+			functionCall: func(adapter *runContextAdapter) bool {
+				return adapter.HasEmptyStorage(tosca.Address{0x42})
+			},
+		},
+		"hasEmptyStorage-emptyHash": {
+			primingMock: func(stateDb *MockStateDb) {
+				stateDb.EXPECT().GetStorageRoot(common.Address{0x42}).Return(types.EmptyRootHash)
+			},
+			want: true,
+			functionCall: func(adapter *runContextAdapter) bool {
+				return adapter.HasEmptyStorage(tosca.Address{0x42})
+			},
+		},
+		"hasEmptyStorage-nonEmpty": {
+			primingMock: func(stateDb *MockStateDb) {
+				stateDb.EXPECT().GetStorageRoot(common.Address{0x42}).Return(common.Hash{0x01})
+			},
+			want: false,
+			functionCall: func(adapter *runContextAdapter) bool {
+				return adapter.HasEmptyStorage(tosca.Address{0x42})
+			},
+		},
+		"hasSelfdestructed": {
+			primingMock: func(stateDb *MockStateDb) {
+				stateDb.EXPECT().HasSelfDestructed(common.Address{0x42}).Return(true)
+			},
+			want: true,
+			functionCall: func(adapter *runContextAdapter) bool {
+				return adapter.HasSelfDestructed(tosca.Address{0x42})
+			},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			stateDb := NewMockStateDb(ctrl)
+			test.primingMock(stateDb)
+
+			adapter := &runContextAdapter{evm: &geth.EVM{StateDB: stateDb}}
+			got := test.functionCall(adapter)
+
+			if got != test.want {
+				t.Errorf("Got wrong value %v, expected %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestRunContextAdapter_GetBlockHashReturnsBasedOnBlockNumber(t *testing.T) {
+	getHashFunc := func(number uint64) common.Hash {
+		return common.BytesToHash(fmt.Appendf(nil, "blockhash of %d", number))
+	}
+	context := geth.BlockContext{GetHash: getHashFunc}
+	adapter := &runContextAdapter{evm: &geth.EVM{Context: context}}
+
+	blockNumber := uint64(42)
+	want := common.BytesToHash(fmt.Appendf(nil, "blockhash of %d", blockNumber))
+	if got := adapter.GetBlockHash(int64(blockNumber)); common.Hash(got) != want {
+		t.Errorf("Got wrong block hash %v, expected %v", got, want)
+	}
+}
+
 func TestRunContextAdapter_AccountOperations(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	stateDb := NewMockStateDb(ctrl)
@@ -737,6 +827,12 @@ func TestRunContextAdapter_Run(t *testing.T) {
 			blockParameters := geth.BlockContext{BlockNumber: big.NewInt(blockNumber)}
 			chainConfig := &params.ChainConfig{ChainID: big.NewInt(chainId), IstanbulBlock: big.NewInt(23)}
 			evm := geth.NewEVM(blockParameters, stateDb, chainConfig, geth.Config{})
+			blobHashes := []tosca.Hash{{0x01}, {0x02}}
+			gethBlobHashes := make([]common.Hash, len(blobHashes))
+			for i, hash := range blobHashes {
+				gethBlobHashes[i] = common.Hash(hash)
+			}
+			evm.BlobHashes = ([]common.Hash)(gethBlobHashes)
 			adapter := &gethInterpreterAdapter{
 				evm:         evm,
 				interpreter: interpreter,
@@ -746,12 +842,18 @@ func TestRunContextAdapter_Run(t *testing.T) {
 				ChainID:     tosca.Word(tosca.NewValue(uint64(chainId))),
 				BlockNumber: blockNumber,
 			}
+			codeHash := tosca.Hash{0x99}
+			transactionParameters := tosca.TransactionParameters{
+				BlobHashes: blobHashes,
+			}
 			expectedParams := tosca.Parameters{
-				BlockParameters: blockParams,
-				Kind:            tosca.Call,
-				Static:          false,
-				Recipient:       address,
-				Sender:          address,
+				BlockParameters:       blockParams,
+				TransactionParameters: transactionParameters,
+				Kind:                  tosca.Call,
+				Static:                false,
+				Recipient:             address,
+				Sender:                address,
+				CodeHash:              &codeHash,
 			}
 
 			interpreter.EXPECT().Run(gomock.Any()).DoAndReturn(func(params tosca.Parameters) (tosca.Result, error) {
@@ -777,7 +879,7 @@ func TestRunContextAdapter_Run(t *testing.T) {
 					expectedParams.Sender != params.Sender ||
 					!slices.Equal(expectedParams.Input, params.Input) ||
 					expectedParams.Value != params.Value ||
-					expectedParams.CodeHash != params.CodeHash ||
+					!bytes.Equal((*expectedParams.CodeHash)[:], params.CodeHash[:]) ||
 					!bytes.Equal(expectedParams.Code, params.Code) {
 					t.Errorf("Parameters did not match, expected %v, got %v", params, expectedParams)
 				}
@@ -797,6 +899,7 @@ func TestRunContextAdapter_Run(t *testing.T) {
 			}
 
 			contract := geth.NewContract(common.Address(address), common.Address(address), nil, 0, nil)
+			contract.CodeHash = common.Hash(codeHash)
 
 			_, err := adapter.Run(contract, []byte{}, false)
 			if success && err != nil {
