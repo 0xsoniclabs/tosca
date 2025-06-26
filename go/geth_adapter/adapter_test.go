@@ -809,6 +809,50 @@ func TestRunContextAdapter_Run(t *testing.T) {
 	}
 }
 
+func TestRunContextAdapter_MaximumCallDepthIsEnforced(t *testing.T) {
+	// Note that the call depth gets checked before it is incremented,
+	// therefore 1024 is still a valid call depth.
+	tests := map[string]int{
+		"first call":     0,
+		"last call":      1024,
+		"exceeding call": 1025,
+	}
+
+	for name, depth := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			interpreter := tosca.NewMockInterpreter(ctrl)
+			interpreter.EXPECT().Run(gomock.Any()).Return(tosca.Result{Success: true}, nil).AnyTimes()
+			stateDb := NewMockStateDb(ctrl)
+
+			refundShift := uint64(1 << 60)
+			stateDb.EXPECT().AddRefund(refundShift).AnyTimes()
+			stateDb.EXPECT().AddRefund(uint64(0)).AnyTimes()
+			stateDb.EXPECT().GetRefund().Return(refundShift).AnyTimes()
+			stateDb.EXPECT().SubRefund(refundShift).AnyTimes()
+
+			blockParameters := geth.BlockContext{BlockNumber: big.NewInt(int64(24))}
+			chainConfig := &params.ChainConfig{ChainID: big.NewInt(int64(42)), IstanbulBlock: big.NewInt(23)}
+			evm := geth.NewEVM(blockParameters, stateDb, chainConfig, geth.Config{})
+
+			// Set the call depth
+			evm.SetDepth(depth)
+
+			adapter := &gethInterpreterAdapter{
+				evm:         evm,
+				interpreter: interpreter,
+			}
+			contract := geth.NewContract(common.Address{}, common.Address{}, nil, 0, nil)
+			_, err := adapter.Run(contract, []byte{}, false)
+			if depth <= int(params.CallCreateDepth) {
+				require.NoError(t, err, "expected no error for depth %d", depth)
+			} else {
+				require.ErrorContains(t, err, "max call depth exceeded")
+			}
+		})
+	}
+}
+
 func TestGethAdapter_CorruptValuesReturnErrors(t *testing.T) {
 	tests := map[string]struct {
 		firstBlock  *big.Int

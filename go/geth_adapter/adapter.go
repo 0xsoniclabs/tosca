@@ -72,6 +72,10 @@ func (a *gethInterpreterAdapter) Run(contract *geth.Contract, input []byte, read
 	readOnly, contract.Gas = decodeReadOnlyFromGas(a.evm.GetDepth(), readOnly, contract.Gas)
 
 	// Track the recursive call depth of this Call within a transaction.
+	// A maximum limit of params.CallCreateDepth must be enforced.
+	if a.evm.GetDepth() > int(params.CallCreateDepth) {
+		return nil, geth.ErrDepth
+	}
 	a.evm.SetDepth(a.evm.GetDepth() + 1)
 	defer func() { a.evm.SetDepth(a.evm.GetDepth() - 1) }()
 
