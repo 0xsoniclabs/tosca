@@ -72,10 +72,6 @@ func (a *gethInterpreterAdapter) Run(contract *geth.Contract, input []byte, read
 	readOnly, contract.Gas = decodeReadOnlyFromGas(a.evm.GetDepth(), readOnly, contract.Gas)
 
 	// Track the recursive call depth of this Call within a transaction.
-	// A maximum limit of params.CallCreateDepth must be enforced.
-	if a.evm.GetDepth() > int(params.CallCreateDepth) {
-		return nil, geth.ErrDepth
-	}
 	a.evm.SetDepth(a.evm.GetDepth() + 1)
 	defer func() { a.evm.SetDepth(a.evm.GetDepth() - 1) }()
 
@@ -285,7 +281,7 @@ func (a *runContextAdapter) Call(kind tosca.CallKind, parameter tosca.CallParame
 		output, newAddr, returnGas, err = a.evm.Create2(a.caller, parameter.Input, gas, parameter.Value.ToUint256(), vmSalt)
 		createdAddress = tosca.Address(newAddr)
 	default:
-		panic(fmt.Sprintf("unsupported call kind: %v", kind))
+		return tosca.CallResult{}, fmt.Errorf("unknown call kind: %v", kind)
 	}
 
 	// revert errors are not an error in Tosca
@@ -482,8 +478,10 @@ func (a *runContextAdapter) EmitLog(log tosca.Log) {
 	})
 }
 
+// GetLogs is not supported by the runContextAdapter.
+// It returns nil to indicate that no logs are available.
 func (a *runContextAdapter) GetLogs() []tosca.Log {
-	panic("not implemented")
+	return nil
 }
 
 func (a *runContextAdapter) SelfDestruct(addr tosca.Address, beneficiary tosca.Address) bool {

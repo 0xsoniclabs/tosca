@@ -23,6 +23,7 @@ import (
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/tracing"
+	"github.com/ethereum/go-ethereum/core/types"
 	geth "github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
@@ -481,6 +482,42 @@ func TestRunContextAdapter_SettersForwardTheCorrectStateDbValues(t *testing.T) {
 	}
 }
 
+func TestRunContextAdapter_LogDataIsCastedCorrectly(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	stateDb := NewMockStateDb(ctrl)
+	blockNumber := big.NewInt(100)
+	evm := &geth.EVM{
+		Context: geth.BlockContext{BlockNumber: blockNumber},
+		StateDB: stateDb,
+	}
+	adapter := &runContextAdapter{evm: evm}
+
+	log := tosca.Log{
+		Address: tosca.Address{0x42},
+		Topics:  []tosca.Hash{{0x01}, {0x02}},
+		Data:    []byte{0x03, 0x04},
+	}
+
+	topics := make([]common.Hash, len(log.Topics))
+	for i, topic := range log.Topics {
+		topics[i] = common.Hash(topic)
+	}
+	stateDb.EXPECT().AddLog(&types.Log{
+		Address:     common.Address(log.Address),
+		Topics:      ([]common.Hash)(topics),
+		Data:        log.Data,
+		BlockNumber: blockNumber.Uint64(),
+	})
+	adapter.EmitLog(log)
+}
+
+func TestRunContextAdapter_GetLogsIsNotSupportedInRunContextAdapter(t *testing.T) {
+	adapter := &runContextAdapter{evm: &geth.EVM{}}
+	if logs := adapter.GetLogs(); logs != nil {
+		t.Errorf("GetLogs is not supported and should return nil, got %v", logs)
+	}
+}
+
 func TestRunContextAdapter_AccountOperations(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	stateDb := NewMockStateDb(ctrl)
@@ -620,6 +657,15 @@ func TestRunContextAdapter_Call_LeftGasOverflowLeadsToZeroGas(t *testing.T) {
 			t.Fatalf("Gas left should be equal to %v, got %v", want, got)
 		}
 	}
+}
+
+func TestRunContextAdapter_Call_ReturnsErrorForUnknownCallKind(t *testing.T) {
+	evm := newEVMWithPassingChainConfig()
+	adapter := &runContextAdapter{evm: evm}
+
+	callArguments := tosca.CallParameters{}
+	_, err := adapter.Call(tosca.CallKind(-1), callArguments)
+	require.ErrorContains(t, err, "unknown call kind")
 }
 
 func TestRunContextAdapter_getPrevRandaoReturnsHashBasedOnRevision(t *testing.T) {
