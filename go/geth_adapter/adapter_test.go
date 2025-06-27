@@ -48,9 +48,7 @@ func TestGethAdapter_RunContextAdapterImplementsRunContextInterface(t *testing.T
 
 func TestGethAdapter_NewGethInterpreterFactoryReturnsNonNilValues(t *testing.T) {
 	interpreter, err := lfvm.NewInterpreter(lfvm.Config{})
-	if err != nil {
-		t.Fatalf("Failed to create interpreter: %v", err)
-	}
+	require.NoError(t, err, "Failed to create interpreter")
 	factory := NewGethInterpreterFactory(interpreter)
 	require.NotNil(t, factory, "Factory should not be nil")
 
