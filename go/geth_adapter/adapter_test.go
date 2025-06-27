@@ -52,13 +52,10 @@ func TestGethAdapter_NewGethInterpreterFactoryReturnsNonNilValues(t *testing.T) 
 		t.Fatalf("Failed to create interpreter: %v", err)
 	}
 	factory := NewGethInterpreterFactory(interpreter)
-	if factory == nil {
-		t.Fatal("Factory should not be nil")
-	}
+	require.NotNil(t, factory, "Factory should not be nil")
+
 	got := factory(&geth.EVM{})
-	if got == nil {
-		t.Fatal("Interpreter should not be nil")
-	}
+	require.NotNil(t, got, "Interpreter should not be nil")
 }
 
 func TestRunContextAdapter_SetBalanceHasCorrectEffect(t *testing.T) {
@@ -567,11 +564,20 @@ func TestRunContextAdapter_BooleanChecksReturnCorrectValues(t *testing.T) {
 				return adapter.HasEmptyStorage(tosca.Address{0x42})
 			},
 		},
-		"hasSelfdestructed": {
+		"hasSelfdestructed-true": {
 			primingMock: func(stateDb *MockStateDb) {
 				stateDb.EXPECT().HasSelfDestructed(common.Address{0x42}).Return(true)
 			},
 			want: true,
+			functionCall: func(adapter *runContextAdapter) bool {
+				return adapter.HasSelfDestructed(tosca.Address{0x42})
+			},
+		},
+		"hasSelfdestructed-false": {
+			primingMock: func(stateDb *MockStateDb) {
+				stateDb.EXPECT().HasSelfDestructed(common.Address{0x42}).Return(false)
+			},
+			want: false,
 			functionCall: func(adapter *runContextAdapter) bool {
 				return adapter.HasSelfDestructed(tosca.Address{0x42})
 			},
