@@ -497,8 +497,9 @@ func TestRunContextAdapter_LogDataIsCastedCorrectly(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	stateDb := NewMockStateDb(ctrl)
 	blockNumber := big.NewInt(100)
+	timestamp := uint64(1234567890)
 	evm := &geth.EVM{
-		Context: geth.BlockContext{BlockNumber: blockNumber},
+		Context: geth.BlockContext{BlockNumber: blockNumber, Time: timestamp},
 		StateDB: stateDb,
 	}
 	adapter := &runContextAdapter{evm: evm}
@@ -514,10 +515,11 @@ func TestRunContextAdapter_LogDataIsCastedCorrectly(t *testing.T) {
 		topics[i] = common.Hash(topic)
 	}
 	stateDb.EXPECT().AddLog(&types.Log{
-		Address:     common.Address(log.Address),
-		Topics:      ([]common.Hash)(topics),
-		Data:        log.Data,
-		BlockNumber: blockNumber.Uint64(),
+		Address:        common.Address(log.Address),
+		Topics:         ([]common.Hash)(topics),
+		Data:           log.Data,
+		BlockNumber:    blockNumber.Uint64(),
+		BlockTimestamp: evm.Context.Time,
 	})
 	adapter.EmitLog(log)
 }
