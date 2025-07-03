@@ -475,10 +475,11 @@ func (a *runContextAdapter) EmitLog(log tosca.Log) {
 	}
 
 	a.evm.StateDB.AddLog(&types.Log{
-		Address:     common.Address(log.Address),
-		Topics:      ([]common.Hash)(topics),
-		Data:        log.Data,
-		BlockNumber: a.evm.Context.BlockNumber.Uint64(),
+		Address:        common.Address(log.Address),
+		Topics:         ([]common.Hash)(topics),
+		Data:           log.Data,
+		BlockNumber:    a.evm.Context.BlockNumber.Uint64(),
+		BlockTimestamp: a.evm.Context.Time,
 	})
 }
 
