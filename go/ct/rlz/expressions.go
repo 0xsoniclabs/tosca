@@ -44,6 +44,8 @@ type Expression[T any] interface {
 	Restrict(kind RestrictionKind, value T, generator *gen.StateGenerator)
 
 	fmt.Stringer
+
+	Py() string
 }
 
 // BindableExpression is an Expression that can be referenced as a Variable.
@@ -85,6 +87,10 @@ func (status) String() string {
 	return "status"
 }
 
+func (status) Py() string {
+	return "status"
+}
+
 ////////////////////////////////////////////////////////////
 // Program Counter
 
@@ -112,16 +118,20 @@ func (pc) Restrict(kind RestrictionKind, pc U256, generator *gen.StateGenerator)
 	generator.SetPc(uint16(pc.Uint64()))
 }
 
-func (pc) String() string {
-	return "PC"
-}
-
 func (pc) GetVariable() gen.Variable {
 	return gen.Variable("PC")
 }
 
 func (e pc) BindTo(generator *gen.StateGenerator) {
 	generator.BindPc(e.GetVariable())
+}
+
+func (pc) String() string {
+	return "PC"
+}
+
+func (pc) Py() string {
+	return "pc"
 }
 
 ////////////////////////////////////////////////////////////
@@ -160,6 +170,10 @@ func (gas) String() string {
 	return "Gas"
 }
 
+func (gas) Py() string {
+	return "gas"
+}
+
 ////////////////////////////////////////////////////////////
 // SelfAddress - the address of the called contract
 
@@ -184,16 +198,16 @@ func (selfAddress) Restrict(kind RestrictionKind, address tosca.Address, generat
 	generator.SetSelfAddress(address)
 }
 
-func (selfAddress) String() string {
-	return "Self"
-}
-
 func (selfAddress) GetVariable() gen.Variable {
 	return gen.Variable("self")
 }
 
 func (s selfAddress) BindTo(generator *gen.StateGenerator) {
 	generator.BindToSelfAddress(s.GetVariable())
+}
+
+func (selfAddress) Py() string {
+	return "self"
 }
 
 // //////////////////////////////////////////////////////////
@@ -220,6 +234,10 @@ func (readOnly) Restrict(kind RestrictionKind, isSet bool, generator *gen.StateG
 }
 
 func (readOnly) String() string {
+	return "readOnly"
+}
+
+func (readOnly) Py() string {
 	return "readOnly"
 }
 
@@ -269,6 +287,10 @@ func (b balance) String() string {
 	return fmt.Sprintf("balance(%v)", b.account)
 }
 
+func (b balance) Py() string {
+	return fmt.Sprintf("balance(%v)", b.account.Py())
+}
+
 ////////////////////////////////////////////////////////////
 // Code Operation
 
@@ -314,6 +336,10 @@ func (e op) String() string {
 	return fmt.Sprintf("code[%v]", e.position)
 }
 
+func (e op) Py() string {
+	return fmt.Sprintf("code(%v)", e.position.Py())
+}
+
 ////////////////////////////////////////////////////////////
 // Stack Size
 
@@ -347,6 +373,10 @@ func (stackSize) Restrict(kind RestrictionKind, size int, generator *gen.StateGe
 }
 
 func (stackSize) String() string {
+	return "stackSize"
+}
+
+func (stackSize) Py() string {
 	return "stackSize"
 }
 
@@ -387,16 +417,20 @@ func (p param) Restrict(kind RestrictionKind, value U256, generator *gen.StateGe
 	generator.SetStackValue(p.position, value)
 }
 
-func (p param) String() string {
-	return fmt.Sprintf("param[%v]", p.position)
-}
-
 func (p param) GetVariable() gen.Variable {
 	return gen.Variable(fmt.Sprintf("param_%d", p.position))
 }
 
 func (p param) BindTo(generator *gen.StateGenerator) {
 	generator.BindStackValue(p.position, p.GetVariable())
+}
+
+func (p param) String() string {
+	return fmt.Sprintf("param[%v]", p.position)
+}
+
+func (p param) Py() string {
+	return fmt.Sprintf("param(%v)", p.position.Py())
 }
 
 ////////////////////////////////////////////////////////////
@@ -427,13 +461,6 @@ func (c constant) Restrict(kind RestrictionKind, value U256, generator *gen.Stat
 	panic("not implemented")
 }
 
-func (c constant) String() string {
-	if c.value.IsUint64() {
-		return fmt.Sprintf("%d", c.value.Uint64())
-	}
-	return fmt.Sprintf("%v", c.value)
-}
-
 func (c constant) GetVariable() gen.Variable {
 	return gen.Variable(fmt.Sprintf("constant_%s", c.String()))
 }
@@ -441,6 +468,21 @@ func (c constant) GetVariable() gen.Variable {
 func (c constant) BindTo(generator *gen.StateGenerator) {
 	generator.BindValue(c.GetVariable(), c.value)
 }
+
+func (c constant) String() string {
+	if c.value.IsUint64() {
+		return fmt.Sprintf("%d", c.value.Uint64())
+	}
+	return fmt.Sprintf("%v", c.value)
+}
+
+func (c constant) Py() string {
+	if c.value.IsUint64() {
+		return fmt.Sprintf("%d", c.value.Uint64())
+	}
+	return fmt.Sprintf("%v", c.value)
+}
+
 
 ////////////////////////////////////////////////////////////
 // ToAddress
@@ -468,11 +510,6 @@ func (a toAddress) Eval(s *st.State) (tosca.Address, error) {
 func (a toAddress) Restrict(RestrictionKind, tosca.Address, *gen.StateGenerator) {
 	panic("should not be needed")
 }
-
-func (a toAddress) String() string {
-	return fmt.Sprintf("toAddress(%v)", a.expr)
-}
-
 func (a toAddress) GetVariable() gen.Variable {
 	return a.expr.GetVariable()
 }
@@ -480,3 +517,12 @@ func (a toAddress) GetVariable() gen.Variable {
 func (a toAddress) BindTo(generator *gen.StateGenerator) {
 	a.expr.BindTo(generator)
 }
+
+func (a toAddress) String() string {
+	return fmt.Sprintf("toAddress(%v)", a.expr)
+}
+
+func (a toAddress) Py() string {
+	return fmt.Sprintf("toAddress(%v)", a.expr.Py())
+}
+

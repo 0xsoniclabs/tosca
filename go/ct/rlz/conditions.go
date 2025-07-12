@@ -35,6 +35,8 @@ type Condition interface {
 	GetTestValues() []TestValue
 
 	fmt.Stringer
+
+	Py() string
 }
 
 ////////////////////////////////////////////////////////////
@@ -101,6 +103,26 @@ func (c *conjunction) String() string {
 	return builder.String()
 }
 
+func (c *conjunction) Py() string {
+	if len(c.conditions) == 0 {
+		return "true"
+	}
+	first := true
+	var builder strings.Builder
+	builder.WriteString("And(")
+	for _, cur := range c.conditions {
+		if !first {
+			builder.WriteString(",")
+		} else {
+			first = false
+		}
+		builder.WriteString(cur.Py())
+	}
+	builder.WriteString(")")
+	return builder.String()
+
+}
+
 ////////////////////////////////////////////////////////////
 // Equal
 
@@ -143,6 +165,10 @@ func (e *eq[T]) String() string {
 	return fmt.Sprintf("%s = %v", e.lhs, e.rhs)
 }
 
+func (e *eq[T]) Py() string {
+	return fmt.Sprintf("%s == %v", e.lhs.Py(), e.rhs.Py()) 
+}
+
 ////////////////////////////////////////////////////////////
 // Not Equal
 
@@ -175,6 +201,10 @@ func (e *ne[T]) GetTestValues() []TestValue {
 
 func (e *ne[T]) String() string {
 	return fmt.Sprintf("%s ≠ %v", e.lhs, e.rhs)
+}
+
+func (e *ne[T]) Py() string {
+	return fmt.Sprintf("%s != %v", e.lhs.Py(), e.rhs.Py())
 }
 
 ////////////////////////////////////////////////////////////
@@ -211,6 +241,11 @@ func (c *lt[T]) String() string {
 	return fmt.Sprintf("%s < %v", c.lhs, c.rhs)
 }
 
+func (c *lt[T]) Py() string {
+	return fmt.Sprintf("%s < %v", c.lhs.Py(), c.rhs.Py())
+}
+
+
 ////////////////////////////////////////////////////////////
 // Less Equal
 
@@ -242,6 +277,10 @@ func (c *le[T]) GetTestValues() []TestValue {
 
 func (c *le[T]) String() string {
 	return fmt.Sprintf("%s ≤ %v", c.lhs, c.rhs)
+}
+
+func (c *le[T]) Py() string {
+	return fmt.Sprintf("%s <= %v", c.lhs.Py(), c.rhs.Py())
 }
 
 ////////////////////////////////////////////////////////////
@@ -278,6 +317,10 @@ func (c *gt[T]) String() string {
 	return fmt.Sprintf("%s > %v", c.lhs, c.rhs)
 }
 
+func (c *gt[T]) Py() string {
+	return fmt.Sprintf("%s > %v", c.lhs.Py(), c.rhs.Py())
+}
+
 ////////////////////////////////////////////////////////////
 // Greater Equal
 
@@ -309,6 +352,10 @@ func (c *ge[T]) GetTestValues() []TestValue {
 
 func (c *ge[T]) String() string {
 	return fmt.Sprintf("%s ≥ %v", c.lhs, c.rhs)
+}
+
+func (c *ge[T]) Py() string {
+	return fmt.Sprintf("%s >= %v", c.lhs.Py(), c.rhs.Py())
 }
 
 ////////////////////////////////////////////////////////////
@@ -375,6 +422,14 @@ func (c *revisionBounds) String() string {
 	return fmt.Sprintf("revision(%v-%v)", c.min, c.max)
 }
 
+func (c *revisionBounds) Py() string {
+	if c.min == c.max {
+		return fmt.Sprintf("revision ==", c.min)
+	}
+	return fmt.Sprintf("And(%v <= revision, revision <= %v)", c.min, c.max)
+}
+
+
 ////////////////////////////////////////////////////////////
 // Is Code
 
@@ -425,6 +480,10 @@ func (c *isCode) String() string {
 	return fmt.Sprintf("isCode[%s]", c.position)
 }
 
+func (c *isCode) Py() string {
+	return fmt.Sprintf("isCode(%s)", c.position.Py)
+}
+
 ////////////////////////////////////////////////////////////
 // Is Data
 
@@ -459,6 +518,10 @@ func (c *isData) GetTestValues() []TestValue {
 
 func (c *isData) String() string {
 	return fmt.Sprintf("isData[%s]", c.position)
+}
+
+func (c *isData) Py() string {
+	return fmt.Sprintf("isData(%s)", c.position.Py())
 }
 
 ////////////////////////////////////////////////////////////
@@ -508,6 +571,10 @@ func (c *isStorageWarm) String() string {
 	return fmt.Sprintf("warm(%v)", c.key)
 }
 
+func (c *isStorageWarm) Py() string {
+	return fmt.Sprintf("warm(%v)", c.key.Py())
+}
+
 ////////////////////////////////////////////////////////////
 // Is Storage Cold
 
@@ -539,6 +606,10 @@ func (c *isStorageCold) GetTestValues() []TestValue {
 
 func (c *isStorageCold) String() string {
 	return fmt.Sprintf("cold(%v)", c.key)
+}
+
+func (c *isStorageCold) Py() string {
+	return fmt.Sprintf("cold(%v)", c.key.Py())
 }
 
 ////////////////////////////////////////////////////////////
@@ -591,6 +662,10 @@ func (c *storageConfiguration) String() string {
 	return fmt.Sprintf("StorageConfiguration(%v,%v,%v)", c.config, c.key, c.newValue)
 }
 
+func (c *storageConfiguration) Py() string {
+	return fmt.Sprintf("storageConf(%v,%v,%v)", c.config.Py(), c.key.Py(), c.newValue.Py())
+}
+
 ////////////////////////////////////////////////////////////
 // Bind Transient Storage to non zero value
 
@@ -638,6 +713,10 @@ func (c *bindTransientStorageToNonZero) String() string {
 	return fmt.Sprintf("Transient storage at [%v] is bound to non zero", c.key)
 }
 
+func (c *bindTransientStorageToNonZero) Py() string {
+	return fmt.Sprintf("tranStorageNonZero(%v)", c.key.Py())
+}
+
 ////////////////////////////////////////////////////////////
 // Bind Transient Storage to zero value
 
@@ -666,6 +745,10 @@ func (c *bindTransientStorageToZero) GetTestValues() []TestValue {
 
 func (c *bindTransientStorageToZero) String() string {
 	return fmt.Sprintf("Transient storage at [%v] is bound to zero", c.key)
+}
+
+func (c *bindTransientStorageToZero) String() string {
+	return fmt.Sprintf("tranStorageZero(%v)", c.key.Py())
 }
 
 ////////////////////////////////////////////////////////////
@@ -712,6 +795,10 @@ func (c *accountIsEmpty) String() string {
 	return fmt.Sprintf("account_empty(%v)", c.address)
 }
 
+func (c *accountIsEmpty) Py() string {
+	return fmt.Sprintf("account_empty(%v)", c.address.Py())
+}
+
 ////////////////////////////////////////////////////////////
 // Address not empty
 
@@ -740,6 +827,10 @@ func (c *accountIsNotEmpty) GetTestValues() []TestValue {
 
 func (c *accountIsNotEmpty) String() string {
 	return fmt.Sprintf("!account_empty(%v)", c.address)
+}
+
+func (c *accountIsNotEmpty) Py() string {
+	return fmt.Sprintf("Not(account_empty(%v))", c.address.Py())
 }
 
 ////////////////////////////////////////////////////////////
@@ -778,6 +869,10 @@ func (c *isAddressWarm) String() string {
 	return fmt.Sprintf("account warm(%v)", c.key)
 }
 
+func (c *isAddressWarm) Py() string {
+	return fmt.Sprintf("account_warm(%v)", c.key)
+}
+
 ////////////////////////////////////////////////////////////
 // Is Address Cold
 
@@ -807,10 +902,6 @@ func (c *isAddressCold) GetTestValues() []TestValue {
 	}
 }
 
-func (c *isAddressCold) String() string {
-	return fmt.Sprintf("account_cold(%v)", c.key)
-}
-
 func restrictAccountWarmCold(bindKey BindableExpression[U256]) func(generator *gen.StateGenerator, isWarm bool) {
 	return func(generator *gen.StateGenerator, isWarm bool) {
 		key := bindKey.GetVariable()
@@ -821,6 +912,14 @@ func restrictAccountWarmCold(bindKey BindableExpression[U256]) func(generator *g
 			generator.BindToColdAddress(key)
 		}
 	}
+}
+
+func (c *isAddressCold) String() string {
+	return fmt.Sprintf("account_cold(%v)", c.key)
+}
+
+func (c *isAddressCold) Py() string {
+	return fmt.Sprintf("account_cold(%v)", c.key.Py())
 }
 
 ////////////////////////////////////////////////////////////
@@ -861,6 +960,10 @@ func (c *hasSelfDestructed) String() string {
 	return "hasSelfDestructed()"
 }
 
+func (c *hasSelfDestructed) String() Py {
+	return "hasSelfDestructed()"
+}
+
 ////////////////////////////////////////////////////////////
 // Has Not Self-Destructed
 
@@ -885,6 +988,10 @@ func (c *hasNotSelfDestructed) GetTestValues() []TestValue {
 
 func (c *hasNotSelfDestructed) String() string {
 	return "hasNotSelfDestructed()"
+}
+
+func (c *hasNotSelfDestructed) Py() string {
+	return "Not(hasSelfDestructed())"
 }
 
 ////////////////////////////////////////////////////////////
@@ -940,6 +1047,10 @@ func (c *inRange256FromCurrentBlock) String() string {
 	return c.blockNumber.String()
 }
 
+func (c *inRange256FromCurrentBlock) Py() string {
+	return fmt.Sprintf("inRange256FromCurrentBlock(%v)", c.blockNumber.Py())
+}
+
 ////////////////////////////////////////////////////////////
 // Out Of Range 256 From Current Block
 
@@ -968,6 +1079,10 @@ func (c *outOfRange256FromCurrentBlock) GetTestValues() []TestValue {
 
 func (c *outOfRange256FromCurrentBlock) String() string {
 	return c.blockNumber.String()
+}
+
+func (c *outOfRange256FromCurrentBlock) Py() string {
+	return fmt.Sprintf("Not(inRange256FromCurrentBlock(%v))", c.blockNumber.Py())
 }
 
 ////////////////////////////////////////////////////////////
@@ -1023,6 +1138,10 @@ func (c *hasBlobHash) String() string {
 	return fmt.Sprintf("%v has BlobHash", c.index.String())
 }
 
+func (c *hasBlobHash) Py() string {
+	return fmt.Sprintf("hasBlobHash(%v)", c.index.Py())
+}
+
 ////////////////////////////////////////////////////////////
 // index does not have a blob hash
 
@@ -1051,6 +1170,10 @@ func (c *hasNoBlobHash) GetTestValues() []TestValue {
 
 func (c *hasNoBlobHash) String() string {
 	return fmt.Sprintf("%v does not have BlobHash", c.index.String())
+}
+
+func (c *hasNoBlobHash) Py() string {
+	return fmt.Sprintf("Not(hasBlobHash(%v))", c.index.Py())
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1128,5 +1251,18 @@ func (c *containsDelegationDesignation) String() string {
 		return fmt.Sprintf("%v is delegating code to a cold address", c.address)
 	default:
 		return "unknown DelegationDesignatorState"
+	}
+}
+
+func (c *containsDelegationDesignation) Py() string {
+	switch c.state {
+	case NoDelegationDesignation:
+		return fmt.Sprintf("NoDelegationDesignation(%v)", c.address.Py())
+	case WarmDelegationDesignation:
+		return fmt.Sprintf("WarmDelegationDesignation(%v)", c.address.Py())
+	case ColdDelegationDesignation:
+		return fmt.Sprintf("ColdDelegationDesignation(%v)", c.address.Py())
+	default:
+		return "n/a"  // should produce an error
 	}
 }
