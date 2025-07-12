@@ -206,6 +206,10 @@ func (s selfAddress) BindTo(generator *gen.StateGenerator) {
 	generator.BindToSelfAddress(s.GetVariable())
 }
 
+func (selfAddress) String() string {
+	return "self"
+}
+
 func (selfAddress) Py() string {
 	return "self"
 }
@@ -430,7 +434,7 @@ func (p param) String() string {
 }
 
 func (p param) Py() string {
-	return fmt.Sprintf("param(%v)", p.position.Py())
+	return fmt.Sprintf("param(%v)", p.position)
 }
 
 ////////////////////////////////////////////////////////////

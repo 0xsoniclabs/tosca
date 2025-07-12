@@ -166,7 +166,7 @@ func (e *eq[T]) String() string {
 }
 
 func (e *eq[T]) Py() string {
-	return fmt.Sprintf("%s == %v", e.lhs.Py(), e.rhs.Py()) 
+	return fmt.Sprintf("%s == %v", e.lhs.Py(), e.rhs) 
 }
 
 ////////////////////////////////////////////////////////////
@@ -204,7 +204,7 @@ func (e *ne[T]) String() string {
 }
 
 func (e *ne[T]) Py() string {
-	return fmt.Sprintf("%s != %v", e.lhs.Py(), e.rhs.Py())
+	return fmt.Sprintf("%s != %v", e.lhs.Py(), e.rhs)
 }
 
 ////////////////////////////////////////////////////////////
@@ -242,7 +242,7 @@ func (c *lt[T]) String() string {
 }
 
 func (c *lt[T]) Py() string {
-	return fmt.Sprintf("%s < %v", c.lhs.Py(), c.rhs.Py())
+	return fmt.Sprintf("%s < %v", c.lhs.Py(), c.rhs)
 }
 
 
@@ -280,7 +280,7 @@ func (c *le[T]) String() string {
 }
 
 func (c *le[T]) Py() string {
-	return fmt.Sprintf("%s <= %v", c.lhs.Py(), c.rhs.Py())
+	return fmt.Sprintf("%s <= %v", c.lhs.Py(), c.rhs)
 }
 
 ////////////////////////////////////////////////////////////
@@ -318,7 +318,7 @@ func (c *gt[T]) String() string {
 }
 
 func (c *gt[T]) Py() string {
-	return fmt.Sprintf("%s > %v", c.lhs.Py(), c.rhs.Py())
+	return fmt.Sprintf("%s > %v", c.lhs.Py(), c.rhs)
 }
 
 ////////////////////////////////////////////////////////////
@@ -355,7 +355,7 @@ func (c *ge[T]) String() string {
 }
 
 func (c *ge[T]) Py() string {
-	return fmt.Sprintf("%s >= %v", c.lhs.Py(), c.rhs.Py())
+	return fmt.Sprintf("%s >= %v", c.lhs.Py(), c.rhs)
 }
 
 ////////////////////////////////////////////////////////////
@@ -481,7 +481,7 @@ func (c *isCode) String() string {
 }
 
 func (c *isCode) Py() string {
-	return fmt.Sprintf("isCode(%s)", c.position.Py)
+	return fmt.Sprintf("isCode(%s)", c.position.Py())
 }
 
 ////////////////////////////////////////////////////////////
@@ -663,7 +663,7 @@ func (c *storageConfiguration) String() string {
 }
 
 func (c *storageConfiguration) Py() string {
-	return fmt.Sprintf("storageConf(%v,%v,%v)", c.config.Py(), c.key.Py(), c.newValue.Py())
+	return fmt.Sprintf("storageConf(%v, %v, %v)", c.config, c.key.Py(), c.newValue.Py())
 }
 
 ////////////////////////////////////////////////////////////
@@ -747,8 +747,8 @@ func (c *bindTransientStorageToZero) String() string {
 	return fmt.Sprintf("Transient storage at [%v] is bound to zero", c.key)
 }
 
-func (c *bindTransientStorageToZero) String() string {
-	return fmt.Sprintf("tranStorageZero(%v)", c.key.Py())
+func (c *bindTransientStorageToZero) Py() string {
+	return fmt.Sprintf("tranStorageToZero(%v)", c.key.Py())
 }
 
 ////////////////////////////////////////////////////////////
@@ -960,8 +960,8 @@ func (c *hasSelfDestructed) String() string {
 	return "hasSelfDestructed()"
 }
 
-func (c *hasSelfDestructed) String() Py {
-	return "hasSelfDestructed()"
+func (c *hasSelfDestructed) Py() string {
+	return "hasSelfDestructed"
 }
 
 ////////////////////////////////////////////////////////////
@@ -991,7 +991,7 @@ func (c *hasNotSelfDestructed) String() string {
 }
 
 func (c *hasNotSelfDestructed) Py() string {
-	return "Not(hasSelfDestructed())"
+	return "Not(hasSelfDestructed)"
 }
 
 ////////////////////////////////////////////////////////////
