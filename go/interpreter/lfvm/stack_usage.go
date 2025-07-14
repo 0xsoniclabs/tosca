@@ -49,7 +49,7 @@ func computeStackUsage(op OpCode) stackUsage {
 	}
 
 	switch op {
-	case JUMPDEST, JUMP_TO, STOP:
+	case JUMPDEST, STOP, NOOP:
 		return makeUsage(0, 0)
 	case PUSH0, MSIZE, ADDRESS, ORIGIN, CALLER, CALLVALUE, CALLDATASIZE,
 		CODESIZE, GASPRICE, COINBASE, TIMESTAMP, NUMBER,

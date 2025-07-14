@@ -219,29 +219,9 @@ const (
 const (
 	// long-form EVM special instructions
 
-	// JUMP_TO is a special instruction that is used to jump to the end of the
-	// current basic block.
-	//
-	// Since due to the usage of immediate arguments in instructions like PUSH2
-	// the code size of basic blocks can shrink compared to the original EVM,
-	// gaps can appear between the end of a basic block and the beginning of the
-	// next one indicated by a JUMPDEST instruction. Since all JUMPDEST
-	// instructions have to remain at the same position in the code as in the
-	// original EVM code, since jump-destinations of JUMP and JUMPI  operations
-	// are computed dynamically, these gaps have to be filled with NOOP
-	// instructions. To avoid having to process long sequences of NOOPs,
-	// JUMP_TO instructions are used to skip them in a single step.
-	//
-	// The following restrictions are imposed on JUMP_TO instructions:
-	//  - they must target the immediate succeeding JUMPDEST instruction
-	//  - all instructions between the JUMP_TO and the JUMPDEST must be NOOPs
-	//
-	// These restrictions are enforced during the EVM to LFVM code conversion.
-	JUMP_TO OpCode = iota + 0x100
-
 	// NOOP is a special instruction that does nothing. It is used as a filler
 	// instruction to pad basic blocks to the correct size.
-	NOOP
+	NOOP OpCode = iota + 0x100
 
 	// DATA is a special instruction that is used to extend the size of OpCodes
 	// that require more than the available 2-byte immediate arguments.
@@ -285,9 +265,8 @@ const (
 )
 
 var toString = map[OpCode]string{
-	DATA:    "DATA",
-	NOOP:    "NOOP",
-	JUMP_TO: "JUMP_TO",
+	DATA: "DATA",
+	NOOP: "NOOP",
 
 	SWAP2_SWAP1_POP_JUMP:  "SWAP2_SWAP1_POP_JUMP",
 	SWAP1_POP_SWAP2_SWAP1: "SWAP1_POP_SWAP2_SWAP1",
@@ -333,8 +312,6 @@ func (o OpCode) HasArgument() bool {
 	}
 	switch o {
 	case DATA:
-		return true
-	case JUMP_TO:
 		return true
 	}
 	if o.isSuperInstruction() {

@@ -67,11 +67,6 @@ func opJumpi(c *context) error {
 	return nil
 }
 
-func opJumpTo(c *context) {
-	// Update the PC to the jump destination -1 since interpreter will increase PC by 1 afterward.
-	c.pc = int32(c.code[c.pc].arg) - 1
-}
-
 func opPop(c *context) {
 	c.stack.pop()
 }

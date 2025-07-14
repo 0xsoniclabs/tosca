@@ -403,44 +403,6 @@ func TestConvert_PushOperationsUsePaddedImmediateData(t *testing.T) {
 	}
 }
 
-func TestConvert_AllJumpToOperationsPointToSubsequentJumpdest(t *testing.T) {
-	r := rand.New(rand.NewSource(int64(time.Now().Nanosecond())))
-
-	counter := 0
-	for i := 0; i < 1000; i++ {
-		code := make([]byte, 100)
-		r.Read(code)
-		res := convert(code, ConversionConfig{})
-
-		for i, instruction := range res {
-			if instruction.opcode == JUMP_TO {
-				counter++
-				trg := instruction.arg
-				if trg <= uint16(i) {
-					t.Errorf("JUMP_TO %d points to preceding position %d", trg, i)
-				}
-				if trg >= uint16(len(res)) {
-					t.Fatalf("JUMP_TO %d out of bounds", trg)
-				}
-				if res[trg].opcode != JUMPDEST {
-					t.Errorf("JUMP_TO %d does not point to JUMPDEST", trg)
-				}
-
-				// Everything from the JUMP_TO to to the jump destination is a
-				// NOOP instruction.
-				for pos := i + 1; pos < int(trg); pos++ {
-					if res[pos].opcode != NOOP {
-						t.Errorf("Expected NOOP at position %d, got %v", pos, res[pos].opcode)
-					}
-				}
-			}
-		}
-	}
-	if counter == 0 {
-		t.Errorf("No JUMP_TO operations found")
-	}
-}
-
 func TestConvert_SI_WhenEnabledSuperInstructionsAreUsed(t *testing.T) {
 	config := ConversionConfig{
 		WithSuperInstructions: true,

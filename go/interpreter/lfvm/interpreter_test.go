@@ -415,36 +415,10 @@ func TestRun_GenerateResult(t *testing.T) {
 	}
 }
 
-func TestStepsProperlyHandlesJUMP_TO(t *testing.T) {
-	ctxt := getEmptyContext()
-	instructions := []Instruction{
-		{JUMP_TO, 0x02},
-		{RETURN, 0},
-		{STOP, 0},
-	}
-
-	ctxt.params = tosca.Parameters{
-		Input:  []byte{},
-		Static: false,
-		Gas:    10,
-		Code:   []byte{0x0},
-	}
-	ctxt.code = instructions
-
-	status, err := steps(&ctxt, false)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-	if status != statusStopped {
-		t.Errorf("unexpected status: want STOPPED, got %v", status)
-	}
-}
-
 func TestSteps_DetectsNonExecutableCode(t *testing.T) {
 
 	nonExecutableOpCodes := []OpCode{
 		INVALID,
-		NOOP,
 		DATA,
 	}
 	undefinedOpCodeRegex := regexp.MustCompile(`^op\(0x[0-9a-fA-F]+\)`)
@@ -663,12 +637,6 @@ func generateCodeFor(op OpCode) Code {
 	}
 
 	if isJump(op) {
-		code = append(code, Instruction{JUMPDEST, 0})
-	}
-
-	if op == JUMP_TO {
-		// prevent endless loop by having jump to itself
-		code[0].arg = uint16(len(code))
 		code = append(code, Instruction{JUMPDEST, 0})
 	}
 

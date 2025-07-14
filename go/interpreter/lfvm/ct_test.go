@@ -251,7 +251,7 @@ func TestConvertToLfvm_Code(t *testing.T) {
 			Code{Instruction{PUSH1, 0x0400},
 				Instruction{JUMP, 0x0000},
 				Instruction{INVALID, 0x0000},
-				Instruction{JUMP_TO, 0x0004},
+				Instruction{NOOP, 0x0000},
 				Instruction{JUMPDEST, 0x0000}}}},
 		"jumpdest": {{[]byte{
 			byte(vm.PUSH3), 0x00, 0x00, 0x06,
@@ -262,7 +262,7 @@ func TestConvertToLfvm_Code(t *testing.T) {
 				Instruction{DATA, 0x0600},
 				Instruction{JUMP, 0x0000},
 				Instruction{INVALID, 0x0000},
-				Instruction{JUMP_TO, 0x0006},
+				Instruction{NOOP, 0x0000},
 				Instruction{NOOP, 0x0000},
 				Instruction{JUMPDEST, 0x0000}}}},
 		"push2": {{[]byte{byte(vm.PUSH2), 0xBA, 0xAD}, Code{Instruction{PUSH2, 0xBAAD}}}},

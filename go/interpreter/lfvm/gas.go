@@ -176,8 +176,8 @@ func getStaticGasPriceInternal(op OpCode) tosca.Gas {
 		return 10
 	case JUMPDEST:
 		return 1
-	case JUMP_TO:
-		return 0
+	case NOOP:
+		return 0 // No gas cost for NOOP, it is just a placeholder
 	case TLOAD:
 		return 100
 	case TSTORE:

@@ -149,11 +149,17 @@ func genPcMap(code []byte) *pcMap {
 	}
 	lfvmToEvm[len(res)] = uint16(len(code))
 
-	// Locations pointing to JUMP_TO instructions in LFVM need to be updated to
-	// the position of the jump target.
+	// Locations pointing to NOOP instructions in LFVM need to be updated to
+	// the position of the next other instruction.
 	for i := 0; i < len(res); i++ {
-		if res[i].opcode == JUMP_TO {
-			lfvmToEvm[i] = res[i].arg
+		if res[i].opcode == NOOP {
+			j := i + 1
+			for ; j < len(res); j++ {
+				if res[j].opcode != NOOP {
+					break
+				}
+			}
+			lfvmToEvm[i] = uint16(j)
 		}
 	}
 

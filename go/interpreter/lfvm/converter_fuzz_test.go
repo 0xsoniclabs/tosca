@@ -89,24 +89,5 @@ func FuzzLfvmConverter(f *testing.F) {
 				i += int(toscaOpCode-vm.PUSH1) + 1
 			}
 		}
-
-		// Check that JUMP_TO instructions point to their immediately succeeding JUMPDEST.
-		for i := 0; i < len(lfvmCode); i++ {
-			if lfvmCode[i].opcode == JUMP_TO {
-				trg := int(lfvmCode[i].arg)
-				if trg < i {
-					t.Errorf("invalid JUMP_TO target from %d to %d", i, trg)
-				}
-				if trg >= len(lfvmCode) || lfvmCode[trg].opcode != JUMPDEST {
-					t.Fatalf("JUMP_TO target %d is not a JUMPDEST", trg)
-				}
-				for j := i + 1; j < trg; j++ {
-					cur := lfvmCode[j].opcode
-					if cur != NOOP {
-						t.Errorf("found %v between JUMP_TO and JUMPDEST at %d", cur, j)
-					}
-				}
-			}
-		}
 	})
 }

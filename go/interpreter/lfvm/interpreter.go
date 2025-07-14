@@ -423,8 +423,8 @@ func steps(c *context, oneStepOnly bool) (status, error) {
 		case REVERT:
 			status = statusReverted
 			err = opEndWithResult(c)
-		case JUMP_TO:
-			opJumpTo(c)
+		case NOOP:
+			// nothing to do, just a placeholder
 		case SLOAD:
 			err = opSload(c)
 		case SSTORE:
