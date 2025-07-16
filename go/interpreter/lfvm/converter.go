@@ -163,6 +163,15 @@ func convertWithObserver(
 			continue
 		}
 
+		// Handle PC instructions
+		if code[i] == byte(vm.PC) {
+			res.padNoOpsUntil(i)
+			res.appendCode(PC)
+			observer(i, i)
+			i++
+			continue
+		}
+
 		// Convert instructions
 		observer(i, res.nextPos)
 		inc := appendInstructions(&res, i, code, options.WithSuperInstructions)
@@ -181,15 +190,6 @@ func appendInstructions(res *codeBuilder, pos int, code []byte, withSuperInstruc
 
 	// Convert individual instructions.
 	toscaOpCode := vm.OpCode(code[pos])
-
-	if toscaOpCode == vm.PC {
-		if pos > math.MaxUint16 {
-			res.appendCode(INVALID)
-			return 1
-		}
-		res.appendOp(PC, uint16(pos))
-		return 0
-	}
 
 	if vm.PUSH1 <= toscaOpCode && toscaOpCode <= vm.PUSH32 {
 		// Determine the number of bytes to be pushed.
