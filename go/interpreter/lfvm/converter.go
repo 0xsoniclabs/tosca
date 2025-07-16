@@ -158,7 +158,7 @@ func convertWithObserver(
 		if code[i] == byte(vm.JUMPDEST) {
 			// Jump to the next jump destination and fill space with noops
 			if res.length() < i {
-				res.appendOp(JUMP_TO, uint16(i))
+				res.appendOp(JUMP_TO, uint16(i-res.length()))
 			}
 			res.padNoOpsUntil(i)
 			res.appendCode(JUMPDEST)
@@ -171,7 +171,7 @@ func convertWithObserver(
 		if code[i] == byte(vm.PC) {
 			// Jump to the next jump destination and fill space with noops
 			if res.length() < i {
-				res.appendOp(JUMP_TO, uint16(i))
+				res.appendOp(JUMP_TO, uint16(i-res.length()))
 			}
 			res.padNoOpsUntil(i)
 			res.appendCode(PC)

@@ -395,7 +395,7 @@ func TestConvert_AllJumpToOperationsPointToSubsequentJumpdest(t *testing.T) {
 		for i, instruction := range res {
 			if instruction.opcode == JUMP_TO {
 				counter++
-				trg := instruction.arg
+				trg := uint16(i) + instruction.arg
 				if trg <= uint16(i) {
 					t.Errorf("JUMP_TO %d points to preceding position %d", trg, i)
 				}
@@ -403,7 +403,7 @@ func TestConvert_AllJumpToOperationsPointToSubsequentJumpdest(t *testing.T) {
 					t.Fatalf("JUMP_TO %d out of bounds", trg)
 				}
 				if res[trg].opcode != JUMPDEST && res[trg].opcode != PC {
-					t.Errorf("JUMP_TO %d does not point to JUMPDEST", trg)
+					t.Errorf("JUMP_TO %d does not point to JUMPDEST or PC", trg)
 				}
 
 				// Everything from the JUMP_TO to to the jump destination is a

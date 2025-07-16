@@ -153,7 +153,7 @@ func genPcMap(code []byte) *pcMap {
 	// the position of the jump target.
 	for i := 0; i < len(res); i++ {
 		if res[i].opcode == JUMP_TO {
-			lfvmToEvm[i] = res[i].arg
+			lfvmToEvm[i] = uint16(i) + res[i].arg
 		}
 	}
 
