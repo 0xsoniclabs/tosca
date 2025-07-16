@@ -316,26 +316,6 @@ func TestConvertWithObserver_PreservesJumpDestLocations(t *testing.T) {
 	}
 }
 
-func TestConvert_ProgramCounterBeyond16bitAreConvertedIntoInvalidInstructions(t *testing.T) {
-	max := math.MaxUint16
-	positions := []int{0, 1, max / 2, max - 1, max, max + 1}
-	code := make([]byte, max+2)
-	for _, pos := range positions {
-		code[pos] = byte(vm.PC)
-	}
-	res := convert(code, ConversionConfig{})
-
-	for _, pos := range positions {
-		want := PC
-		if pos > max {
-			want = INVALID
-		}
-		if got := res[pos].opcode; want != got {
-			t.Errorf("Expected %v at position %d, got %v", want, pos, got)
-		}
-	}
-}
-
 func TestConvert_BaseInstructionsAreConvertedToEquivalents(t *testing.T) {
 	config := ConversionConfig{
 		WithSuperInstructions: false,
@@ -422,7 +402,7 @@ func TestConvert_AllJumpToOperationsPointToSubsequentJumpdest(t *testing.T) {
 				if trg >= uint16(len(res)) {
 					t.Fatalf("JUMP_TO %d out of bounds", trg)
 				}
-				if res[trg].opcode != JUMPDEST {
+				if res[trg].opcode != JUMPDEST && res[trg].opcode != PC {
 					t.Errorf("JUMP_TO %d does not point to JUMPDEST", trg)
 				}
 

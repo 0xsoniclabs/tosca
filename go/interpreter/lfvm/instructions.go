@@ -31,7 +31,7 @@ func opEndWithResult(c *context) error {
 }
 
 func opPc(c *context) {
-	c.stack.pushUndefined().SetUint64(uint64(c.code[c.pc].arg))
+	c.stack.pushUndefined().SetUint64(uint64(c.pc))
 }
 
 func checkJumpDest(c *context) error {
