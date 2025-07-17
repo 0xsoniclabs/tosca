@@ -5,13 +5,13 @@ from cvc5.pythonic import *
 # the correctness of the CT specification. The CT specification
 # consists of a set of rules describing the transition from
 # one state of the virtual machine to a new state. A rule is
-# a triple consisting of name, condition, and effect.
+# a triple consisting of a name, condition, and effect.
 #
 # A state in the VM is denoted by "s" in the set of states "State".
 # A condition for rule "r" is a function cond_r: State -> Bool
 # that maps a state to a boolean value. The effect for a rule
 # "r" is a function effect_r: State -> State that generates
-# a new state assuming the that the condition of the rules hold.
+# a new state, assuming that the condition of the rule holds.
 #
 # For an input state s, we compute a new state s', using the
 # conditional functional construct:
@@ -21,11 +21,11 @@ from cvc5.pythonic import *
 #
 # The conditional functional construct and the relation format
 # of the specification lead to questions about correctness. For
-# example, what is if two or more conditions hold and their effect
-# differ leading to different output states after the transition.
+# example, what if two or more conditions hold and their effect
+# differ leading to different output states after the transition?
 # The virtual machine would lose its deterministic behaviour.
-# Another question arises related that for any virtual machine
-# state, we have at least one rule, which can be applied.
+# Another question arises whether for any virtual machine state,
+# we have at least one rule to apply. 
 #
 # For a specification, we would like to prove two properties:
 #
@@ -34,26 +34,27 @@ from cvc5.pythonic import *
 #
 # The first property ensures that a transition produces only
 # a single result state (rather than multiple ones). The second
-# transition ensures that for any state there exists a transition.
+# transition ensures that for any state, there exists a transition.
 #
-# The determinism can be expressed as:
+# The determinism property can be expressed as a first-order logic formula:
+#
 #   forall r<>r':
 #     exists s:
 #       cond_r(s) /\ cond_r'(s) => effect_r(s) = effect_r'(s)
 #
 # We simplify the property by abstraction. Instead of checking
-# the effect, we use an unique name for different effect functions
+# the effect, we use a unique name for different effect functions
 # of rules. If we have two rules with the same effect name,
 # we can assume that they have the same effect. If they have different
 # names, we assume that they have a different effect, i.e., there
-# exists a state such that the result state of both effect functions
+# exists a state such that the result states of both effect functions
 # are different.
 #
 # This helps because the existing CT framework encodes the effects
-# directly as GOLANG functions and we cannot export them as symbolic
+# directly as GOLANG functions, and we cannot export them as symbolic
 # functions at the moment. Another aspect of this modelling is that
-# property checking is substantially simplified since effect descriptions
-# can be quite complex.
+# property checking is substantially simplified since the effect descriptions
+# can be pretty complex.
 #
 # If we model effects by their name only, we have an underlying
 # reachability assumption. We assume that any VM state is reachable
