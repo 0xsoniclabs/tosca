@@ -30,7 +30,7 @@ func main() {
 			&RegressionsCmd,
 			&RunCmd,
 			&StatsCmd,
-			&SmtSolverCmd,
+			&SmtPrinterCmd,
 			&TestCmd,
 		},
 	}
