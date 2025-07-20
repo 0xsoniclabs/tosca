@@ -424,7 +424,7 @@ func (c *revisionBounds) String() string {
 
 func (c *revisionBounds) Py() string {
 	if c.min == c.max {
-		return fmt.Sprintf("revision ==", c.min)
+		return fmt.Sprintf("revision == %v", c.min)
 	}
 	return fmt.Sprintf("And(%v <= revision, revision <= %v)", c.min, c.max)
 }
@@ -574,7 +574,7 @@ func (c *isStorageWarm) String() string {
 }
 
 func (c *isStorageWarm) Py() string {
-	return fmt.Sprintf("warm(%v)", c.key.Py())
+	return fmt.Sprintf("Not(storage_cold(%v))", c.key.Py())
 }
 
 ////////////////////////////////////////////////////////////
@@ -611,7 +611,7 @@ func (c *isStorageCold) String() string {
 }
 
 func (c *isStorageCold) Py() string {
-	return fmt.Sprintf("cold(%v)", c.key.Py())
+	return fmt.Sprintf("storage_cold(%v)", c.key.Py())
 }
 
 ////////////////////////////////////////////////////////////
@@ -872,7 +872,7 @@ func (c *isAddressWarm) String() string {
 }
 
 func (c *isAddressWarm) Py() string {
-	return fmt.Sprintf("account_warm(%v)", c.key)
+	return fmt.Sprintf("account_warm(%v)", c.key.Py())
 }
 
 ////////////////////////////////////////////////////////////

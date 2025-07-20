@@ -39,9 +39,9 @@ func doSmtPrinter(context *cli.Context) error {
 	sort.Slice(rules, func(i, j int) bool { return rules[i].Name < rules[j].Name })
 	for i, rule := range rules {
 		if i > 0 {
-			fmt.Printf(", ")
+			fmt.Printf(",\n")
 		}
-		fmt.Printf("(\"%v\", %v, \"%v\")", rule.Name, rule.Condition.Py(), rule.Effect)
+		fmt.Printf(" (\"%v\", %v, \"%v\")", rule.Name, rule.Condition.Py(), rule.Effect)
 	}
 	fmt.Printf("]\n")
 	return nil

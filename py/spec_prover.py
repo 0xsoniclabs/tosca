@@ -105,6 +105,8 @@ from cvc5.pythonic import *
 # Construct VM State #
 ######################
 
+
+
 # Virtual Machine Status
 status = Int("status")
 running = 0
@@ -112,6 +114,74 @@ stopped = 1
 reverted = 2
 failed = 3
 NumStatusCodes = 4
+
+# Account State
+coldAccounts = Array("coldAccounts",IntSort(), BoolSort())
+def account_cold(x):
+    cold = Bool("cold_"+str(x))
+    cold = Select(coldAccounts, x)
+    return cold
+
+def account_warm(x):
+    return Not(account_cold(x))
+
+# Blob
+blob = Bool('blob')
+def hasBlobHash(x):
+    return blob
+
+# No delegation 
+def NoDelegationDesignation(x):
+    return True
+
+def WarmDelegationDesignation(x):
+    return True
+
+def ColdDelegationDesignation(x):
+    return False 
+
+def account_empty(x):
+    return True
+
+def balance(x):
+    return 0
+
+def tranStorageNonZero(x):
+    return False
+
+def tranStorageToZero(x):
+    return True
+
+
+self = Int('self')
+
+hasSelfDestructed = Bool('hasSelfDestructed')
+
+
+# in range of current block
+# (abstracted by a bool variable)
+inRange = Bool('inRange')
+def inRange256FromCurrentBlock(x):
+    return inRange
+
+def storage_cold(x):
+    return True
+
+def storageConf(x,y,z):
+    return False
+
+StorageAdded = 1
+StorageDeletedAdded = 2
+StorageAddedDeleted = 3
+StorageDeleted = 4
+StorageDeletedRestored = 5
+StorageAssigned = 6
+StorageModified = 7
+StorageModifiedDeleted = 8
+StorageModifiedRestored = 9
+
+# ReadOnly flag
+readOnly = Bool('readOnly')
 
 # Gas
 gas = Int("gas")
@@ -307,6 +377,10 @@ def isCode(x):
 
 def isData(x):
     return Not(isCode(x))
+
+# op for illegal operations
+def op(x):
+    return x
 
 
 # build solver that adds state constraints for constructing valid states

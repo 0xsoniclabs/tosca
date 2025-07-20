@@ -246,7 +246,11 @@ func (a U256) Srsh(b U256) (z U256) {
 }
 
 func (a U256) String() string {
-	return fmt.Sprintf("%016x %016x %016x %016x", a.internal[3], a.internal[2], a.internal[1], a.internal[0])
+	if !a.IsZero() {
+		return fmt.Sprintf("%016x %016x %016x %016x", a.internal[3], a.internal[2], a.internal[1], a.internal[0])
+	} else {
+		return fmt.Sprintf("0")
+	}
 }
 
 func (a U256) DecimalString() string {
