@@ -113,6 +113,30 @@ reverted = 2
 failed = 3
 NumStatusCodes = 4
 
+# Gas
+gas = Int("gas")
+
+# Stack variables 
+stackSize = Int("stackSize")
+stack = Array("stack", IntSort(), IntSort())
+
+def param(x):
+    sdata = Int("sdata_"+str(x))   # opcode variable needs to be unique (e.g. op_pc, etc.)
+    sdata = Select(stack, stackSize - x - 1)
+    return sdata
+
+# Revision
+revision = Int("revision")
+Istanbul = 0
+Berlin = 1
+London = 2
+Paris = 3
+Shanghai = 4
+Cancun = 5
+Prague = 6
+numRevisions = 7
+
+
 # Program Counter
 pc = Int("pc")
 MaxCodeLen = 16384 + 8192
@@ -273,27 +297,16 @@ SELFDESTRUCT    = 0xFF
 
 # Fetch operation on code block
 def code(x):
-    op = Int("op")
+    op = Int("op_"+str(x))   # opcode variable needs to be unique (e.g. op_pc, etc.)
     op = Select(code_block, x)
     return op
 
+# TBD: Fix later
+def isCode(x):
+    return True
 
-# Gas
-gas = Int("gas")
-
-# stackSize
-stackSize = Int("stackSize")
-
-# Revision
-revision = Int("revision")
-Istanbul = 0
-Berlin = 1
-London = 2
-Paris = 3
-Shanghai = 4
-Cancun = 5
-Prague = 6
-numRevisions = 7
+def isData(x):
+    return Not(isCode(x))
 
 
 # build solver that adds state constraints for constructing valid states

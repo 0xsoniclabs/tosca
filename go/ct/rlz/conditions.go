@@ -481,7 +481,8 @@ func (c *isCode) String() string {
 }
 
 func (c *isCode) Py() string {
-	return fmt.Sprintf("isCode(%s)", c.position.Py())
+	s := c.position.Py()
+	return fmt.Sprintf("And(0<=%s,%s<49152,isCode(%s))", s,s,s)
 }
 
 ////////////////////////////////////////////////////////////
@@ -521,7 +522,8 @@ func (c *isData) String() string {
 }
 
 func (c *isData) Py() string {
-	return fmt.Sprintf("isData(%s)", c.position.Py())
+	s := c.position.Py()
+	return fmt.Sprintf("Or(0>%s,%s>=49152,isData(%s))", s,s,s)
 }
 
 ////////////////////////////////////////////////////////////
