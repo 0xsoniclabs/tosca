@@ -123,36 +123,32 @@ reverted = 2
 failed = 3
 NumStatusCodes = 4
 
-# Cold account abstraction
-#  The map Account -> Bool for indicating whether
-#  it is cold or warm can be reduced to a single 
-#  boolean variable since per rule, there is only a single
-#  occurrence of the call to cold_account.
-
-cold_account = Bool('cold_accont_x')
+# Cold account
+cold_account_x = Bool('cold_accont_x')
 def account_cold(x):
-    return cold_account
+    return cold_account_x
 
 def account_warm(x):
     return Not(account_cold(x))
 
-# Blob
-blob = Bool('blob')
+# Blob check 
+has_blob_x = Bool('has_blob_x')
 def hasBlobHash(x):
-    return blob
+    return has_blob_x
 
-# No delegation 
-delDesig_x = Bool('delegation_designation')
+# Delegation designation
+deleg_desig_x = Bool('deleg_desig_x')
 def NoDelegationDesignation(x):
-    return Not(delDesig_x)
+    return Not(deleg_desig_x)
 
-warm_deleg_x = Bool('warm_deleg_x')
-def WarmDelegationDesignation(x):
-    return And(delDesig_x,warm_deleg_x)
-
+cold_deleg_x = Bool('cold_deleg_x')
 def ColdDelegationDesignation(x):
-    return And(delDesig_x,Not(warm_deleg_x))
+    return And(deleg_desig_x,cold_deleg_x)
 
+def WarmDelegationDesignation(x):
+    return And(deleg_desig_x,Not(cold_deleg_x))
+
+# Account empty check
 account_empty_x = Bool('account_empty_x')
 def account_empty(x):
     return account_empty_x
@@ -167,9 +163,10 @@ def tranStorageNonZero(x):
 def tranStorageToZero(x):
     return True
 
-
+# Self address (might not be used)
 self = Int('self')
 
+# Has self-destructed state
 hasSelfDestructed = Bool('hasSelfDestructed')
 
 inRange_x = Bool('inRange_x')
@@ -180,8 +177,11 @@ storage_cold_x = Bool('storage_cold_x')
 def storage_cold(x):
     return storage_cold_x
 
+
+# Storage configuration abstraction
+storage_conf_xyz = Bool('storage_conf_xyz')
 def storageConf(x,y,z):
-    return False
+    return storage_conf_xyz
 
 StorageAdded = 1
 StorageDeletedAdded = 2
@@ -193,7 +193,7 @@ StorageModified = 7
 StorageModifiedDeleted = 8
 StorageModifiedRestored = 9
 
-# ReadOnly flag
+# ReadOnly Flag for static call execution
 readOnly = Bool('readOnly')
 
 # Gas
