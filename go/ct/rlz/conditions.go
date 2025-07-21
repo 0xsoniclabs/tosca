@@ -424,7 +424,11 @@ func (c *revisionBounds) String() string {
 
 func (c *revisionBounds) Py() string {
 	if c.min == c.max {
-		return fmt.Sprintf("revision == %v", c.min)
+		if c.min != 99 {
+			return fmt.Sprintf("revision == %v", c.min)
+		} else {
+			return fmt.Sprintf("Or(revision < 0, revision >=numRevisions)")
+		}
 	}
 	return fmt.Sprintf("And(%v <= revision, revision <= %v)", c.min, c.max)
 }
