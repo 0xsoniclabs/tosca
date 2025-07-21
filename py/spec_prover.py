@@ -18,6 +18,10 @@ from cvc5.pythonic import *
 #
 #    for all r:
 #       if cond_r(s), then s'=effect_r(s)
+# 
+# More formally, we generate a set of states using the conditional construct:
+# 
+#   Out(s) = {effect_r(s)| for all r: cond_r(s))
 #
 # The conditional functional construct and the relation format
 # of the specification lead to questions about correctness. For
@@ -29,8 +33,12 @@ from cvc5.pythonic import *
 #
 # For a specification, we would like to prove two properties:
 #
-#   1) Determinism
-#   2) Completeness
+#   1) Determinism, i.e., forall s: |Out(s)| <= 1
+#   2) Completeness, i.e., forall s: |Out(s)| > 0 
+#
+# If determinism and completeness hold, we have 
+# 
+#  forall s: |Out(s)| = 1
 #
 # The first property ensures that a transition produces only
 # a single result state (rather than multiple ones). The second
@@ -115,12 +123,15 @@ reverted = 2
 failed = 3
 NumStatusCodes = 4
 
-# Account State
-coldAccounts = Array("coldAccounts",IntSort(), BoolSort())
+# Cold account abstraction
+#  The map Account -> Bool for indicating whether
+#  it is cold or warm can be reduced to a single 
+#  boolean variable since per rule, there is only a single
+#  occurrence of the call to cold_account.
+
+cold_account = Bool('cold_accont_x')
 def account_cold(x):
-    cold = Bool("cold_"+str(x))
-    cold = Select(coldAccounts, x)
-    return cold
+    return cold_account
 
 def account_warm(x):
     return Not(account_cold(x))
@@ -131,20 +142,24 @@ def hasBlobHash(x):
     return blob
 
 # No delegation 
+delDesig_x = Bool('delegation_designation')
 def NoDelegationDesignation(x):
-    return True
+    return Not(delDesig_x)
 
+warm_deleg_x = Bool('warm_deleg_x')
 def WarmDelegationDesignation(x):
-    return True
+    return And(delDesig_x,warm_deleg_x)
 
 def ColdDelegationDesignation(x):
-    return False 
+    return And(delDesig_x,Not(warm_deleg_x))
 
+account_empty_x = Bool('account_empty_x')
 def account_empty(x):
-    return True
+    return account_empty_x
 
+balance_x = Int('balance_x')
 def balance(x):
-    return 0
+    return balance_x
 
 def tranStorageNonZero(x):
     return False
@@ -157,15 +172,13 @@ self = Int('self')
 
 hasSelfDestructed = Bool('hasSelfDestructed')
 
-
-# in range of current block
-# (abstracted by a bool variable)
-inRange = Bool('inRange')
+inRange_x = Bool('inRange_x')
 def inRange256FromCurrentBlock(x):
-    return inRange
+    return inRange_x
 
+storage_cold_x = Bool('storage_cold_x')
 def storage_cold(x):
-    return True
+    return storage_cold_x
 
 def storageConf(x,y,z):
     return False
@@ -438,13 +451,11 @@ def check_determinism(rules):
             (name_j, cond_j, effect_j) = rules[j]
             if effect_i != effect_j:
                 if is_overlapping(cond_i, cond_j):
-                    print(
-                        "=> Rule "
-                        + name_i
-                        + " and rule "
-                        + name_j
-                        + " make specification indeterministic."
-                    )
+                    print("=> Check rules "
+                          + name_i
+                          + " and "
+                          + name_j)
+                    print("\tRules overlap and make specification indeterministic.")
                     deterministic = False
     return deterministic
 

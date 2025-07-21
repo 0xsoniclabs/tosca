@@ -105,7 +105,7 @@ func (c *conjunction) String() string {
 
 func (c *conjunction) Py() string {
 	if len(c.conditions) == 0 {
-		return "true"
+		return "True"
 	}
 	first := true
 	var builder strings.Builder
