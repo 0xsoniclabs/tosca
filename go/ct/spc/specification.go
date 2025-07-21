@@ -1681,7 +1681,7 @@ func getAllRules() []Rule {
 			Eq(ReadOnly(), true),
 			AnyKnownRevision(),
 		},
-		effect: FailEffect().Apply,
+		effect: nil,
 	})...)
 
 	// --- CREATE ---
@@ -1700,7 +1700,7 @@ func getAllRules() []Rule {
 			MemoryOffsetParameter{},
 			SizeParameter{},
 		},
-		effect: FailEffect().Apply,
+		effect: nil,
 	})...)
 
 	rules = append(rules, rulesFor(instruction{
@@ -1738,7 +1738,7 @@ func getAllRules() []Rule {
 			SizeParameter{},
 			NumericParameter{},
 		},
-		effect: FailEffect().Apply,
+		effect: nil, 
 	})...)
 
 	rules = append(rules, rulesFor(instruction{
@@ -2386,16 +2386,24 @@ func rulesFor(i instruction) []Rule {
 	}
 
 	name := fmt.Sprintf("%s_regular%v", strings.ToLower(i.op.String()), i.name)
+
+	var E Effect
+	if i.effect != nil { 
+		E =  Change(name, func(s *st.State) {
+			s.Gas -= i.staticGas
+			s.Pc++
+			i.effect(s)
+		})
+	} else {
+		E = FailEffect()
+	}
+
 	res = append(res, Rule{
 		Name:      name,
 		Condition: And(localConditions...),
 		Parameter: i.parameters,
-		Effect: Change(name, func(s *st.State) {
-			s.Gas -= i.staticGas
-			s.Pc++
-			i.effect(s)
-		}),
-	})
+		Effect:E,
+	       })
 	return res
 }
 
@@ -2404,10 +2412,6 @@ func getRulesForAllCallTypes() []Rule {
 	// NOTE: this rule only covers Istanbul, Berlin and London cases in a coarse-grained way.
 	// Follow-work is required to cover other revisions and situations,
 	// as well as special cases currently covered in the effect function.
-	callFailEffect := func(s *st.State, addrAccessCost tosca.Gas, op vm.OpCode) {
-		FailEffect().Apply(s)
-	}
-
 	res := []Rule{}
 	for _, op := range []vm.OpCode{vm.CALL, vm.CALLCODE, vm.STATICCALL, vm.DELEGATECALL} {
 		for rev := tosca.R07_Istanbul; rev <= NewestSupportedRevision; rev++ {
@@ -2424,7 +2428,7 @@ func getRulesForAllCallTypes() []Rule {
 
 							effect := callEffect
 							if op == vm.CALL && static && !zeroValue {
-								effect = callFailEffect
+								effect = nil
 							}
 							res = append(res, getRulesForCall(op, rev, warm, zeroValue, delegationDesignator, effect, static)...)
 						}
@@ -2525,6 +2529,13 @@ func getRulesForCall(op vm.OpCode, revision tosca.Revision, warm, zeroValue bool
 	}, "_")
 	name = strings.ReplaceAll(name, "__", "_")
 
+	var effect func(s *st.State) =nil
+	if opEffect != nil {
+	    effect = func(s *st.State) {
+		opEffect(s, addressAccessCost, op)
+	    }
+	}
+
 	return rulesFor(instruction{
 		op:         op,
 		name:       name,
@@ -2533,9 +2544,7 @@ func getRulesForCall(op vm.OpCode, revision tosca.Revision, warm, zeroValue bool
 		pushes:     1,
 		conditions: callConditions,
 		parameters: parameters,
-		effect: func(s *st.State) {
-			opEffect(s, addressAccessCost, op)
-		},
+		effect: effect,
 	})
 }
 
