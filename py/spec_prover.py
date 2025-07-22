@@ -109,10 +109,15 @@ from cvc5.pythonic import *
 # transit to subsequent state.
 #
 
-######################
-# Construct VM State #
-######################
-
+# Construct VM State as a symbolic state using predicate abstraction.
+# For some state description of the VM in the CT framework we find 
+# abstractions that are sufficient for the SMT-solving without loss
+# of precision. For example, an empty_account(x) predicate is abstracted
+# with a single boolean variable since in the scope of conditions it is 
+# the same whether to know whether a specific address is empty or whether
+# all addresses are empty. The reason why this abstraction works is 
+# because we the predicate only occurs once in a rule and does not inter-
+# act with other predications (i.e., there are no dependencies).
 
 
 # Virtual Machine Status
@@ -177,21 +182,20 @@ storage_cold_x = Bool('storage_cold_x')
 def storage_cold(x):
     return storage_cold_x
 
-
 # Storage configuration abstraction
-storage_conf_xyz = Bool('storage_conf_xyz')
-def storageConf(x,y,z):
-    return storage_conf_xyz
-
+StorageAssigned = 0
 StorageAdded = 1
-StorageDeletedAdded = 2
-StorageAddedDeleted = 3
-StorageDeleted = 4
-StorageDeletedRestored = 5
-StorageAssigned = 6
-StorageModified = 7
-StorageModifiedDeleted = 8
-StorageModifiedRestored = 9
+StorageDeleted = 2
+StorageModified = 3
+StorageDeletedAdded = 4
+StorageModifiedDeleted = 5
+StorageDeletedRestored = 6
+StorageAddedDeleted = 7
+StorageModifiedRestored = 8
+numStorageStatus = 9
+storage_conf_yz = Int('storage_conf_yz')
+def storageConf(x,y,z):
+    return storage_conf_yz == x
 
 # ReadOnly Flag for static call execution
 readOnly = Bool('readOnly')
@@ -384,9 +388,9 @@ def code(x):
     op = Select(code_block, x)
     return op
 
-# TBD: Fix later
+is_code_x = Bool('is_code_x')
 def isCode(x):
-    return True
+    return is_code_x
 
 def isData(x):
     return Not(isCode(x))
@@ -394,7 +398,6 @@ def isData(x):
 # op for illegal operations
 def op(x):
     return x
-
 
 # build solver that adds state constraints for constructing valid states
 def vm_state_solver():
