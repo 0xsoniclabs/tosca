@@ -29,6 +29,7 @@ import (
 	"github.com/0xsoniclabs/tosca/go/interpreter/evmzero"
 	"github.com/0xsoniclabs/tosca/go/interpreter/geth"
 	"github.com/0xsoniclabs/tosca/go/interpreter/lfvm"
+	"github.com/0xsoniclabs/tosca/go/interpreter/sfvm"
 	"github.com/0xsoniclabs/tosca/go/lib/cpp"
 	"github.com/0xsoniclabs/tosca/go/lib/rust"
 	"github.com/0xsoniclabs/tosca/go/tosca"
@@ -60,6 +61,7 @@ var evms = map[string]ct.Evm{
 	"geth":    geth.NewConformanceTestingTarget(),
 	"evmzero": evmzero.NewConformanceTestingTarget(),
 	"evmrs":   evmrs.NewConformanceTestingTarget(),
+	"sfvm":    sfvm.NewConformanceTestingTarget(),
 }
 
 func doRun(context *cli.Context) error {
