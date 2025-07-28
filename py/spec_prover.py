@@ -129,7 +129,7 @@ failed = 3
 NumStatusCodes = 4
 
 # Cold account
-cold_account_x = Bool('cold_accont_x')
+cold_account_x = Bool('cold_account_x')
 def account_cold(x):
     return cold_account_x
 
@@ -473,7 +473,7 @@ def check_completeness(rules):
     if len(rules) > 0:
         (_, cover, _) = rules[0]
         for i in range(1, len(rules)):
-            (_, cond, _) = rules[0]
+            (_, cond, _) = rules[i]
             cover = Or(cover, cond)
     else:
         cover = False
