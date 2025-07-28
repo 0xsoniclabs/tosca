@@ -459,6 +459,7 @@ def check_determinism(rules):
                           + " and "
                           + name_j)
                     print("\tRules overlap and make specification indeterministic.")
+                    print("\t"+str(cond_i)+"\t"+str(cond_j))
                     deterministic = False
     return deterministic
 

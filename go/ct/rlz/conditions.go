@@ -527,7 +527,7 @@ func (c *isData) String() string {
 
 func (c *isData) Py() string {
 	s := c.position.Py()
-	return fmt.Sprintf("Or(0>%s,%s>=49152,isData(%s))", s,s,s)
+	return fmt.Sprintf("Or(%s<0,%s>=49152,isData(%s))", s,s,s)
 }
 
 ////////////////////////////////////////////////////////////
