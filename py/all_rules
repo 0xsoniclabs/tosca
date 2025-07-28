@@ -1,4 +1,5 @@
 [ ("INVALID_invalid", And(status == running,code(pc) == INVALID,And(0<=pc,pc<49152,isCode(pc)),And(Istanbul <= revision, revision <= Prague)), "FailEffect"),
+  ("INVALID_invalid_x", And(status == running,Or(code(pc) < 0, code(pc) > 255),And(0<=pc,pc<49152,isCode(pc)),And(Istanbul <= revision, revision <= Prague)), "FailEffect"),
  ("add_regular", And(status == running,code(pc) == ADD,And(0<=pc,pc<49152,isCode(pc)),gas >= 3,stackSize >= 2,stackSize <= 1024,And(Istanbul <= revision, revision <= Prague)), "add_regular"),
  ("add_with_too_few_elements", And(And(Istanbul <= revision, revision <= Prague),status == running,code(pc) == ADD,And(0<=pc,pc<49152,isCode(pc)),stackSize < 2), "FailEffect"),
  ("add_with_too_little_gas", And(And(Istanbul <= revision, revision <= Prague),status == running,code(pc) == ADD,And(0<=pc,pc<49152,isCode(pc)),gas < 3), "FailEffect"),
@@ -2223,8 +2224,7 @@
  ("staticcall_with_too_little_gas_istanbul_warm_static_warm_delegation_designation", And(revision == Istanbul,account_warm(param(1)),readOnly == True,WarmDelegationDesignation(param(1)),And(Istanbul <= revision, revision <= Prague),status == running,code(pc) == STATICCALL,And(0<=pc,pc<49152,isCode(pc)),gas < 700), "FailEffect"),
  ("staticcall_with_too_little_gas_istanbul_warm_static_warm_delegation_designation", And(revision == Istanbul,account_warm(param(1)),readOnly == True,WarmDelegationDesignation(param(1)),And(Istanbul <= revision, revision <= Prague),status == running,code(pc) == STATICCALL,And(0<=pc,pc<49152,isCode(pc)),gas < 700), "FailEffect"),
  ("stop_terminates_interpreter", And(And(Istanbul <= revision, revision <= Prague),status == running,code(pc) == STOP,And(0<=pc,pc<49152,isCode(pc))), "stop_terminates_interpreter"),
- ("stopped_is_end", And(And(Istanbul <= revision, revision <= Prague),status == stopped), "NoEffect"),
- ("sub_regular", And(status == running,code(pc) == SUB,And(0<=pc,pc<49152,isCode(pc)),gas >= 3,stackSize >= 2,stackSize <= 1024,And(Istanbul <= revision, revision <= Prague)), "sub_regular"),
+ ("sub_regular", And(status == running, code(pc) == SUB,And(0<=pc,pc<49152,isCode(pc)),gas >= 3,stackSize >= 2,stackSize <= 1024,And(Istanbul <= revision, revision <= Prague)), "sub_regular"),
  ("sub_with_too_few_elements", And(And(Istanbul <= revision, revision <= Prague),status == running,code(pc) == SUB,And(0<=pc,pc<49152,isCode(pc)),stackSize < 2), "FailEffect"),
  ("sub_with_too_little_gas", And(And(Istanbul <= revision, revision <= Prague),status == running,code(pc) == SUB,And(0<=pc,pc<49152,isCode(pc)),gas < 3), "FailEffect"),
  ("swap10_regular", And(status == running,code(pc) == SWAP10,And(0<=pc,pc<49152,isCode(pc)),gas >= 3,stackSize >= 11,stackSize <= 1024,And(Istanbul <= revision, revision <= Prague)), "swap10_regular"),
@@ -2296,4 +2296,5 @@
  ("unknown_revision_is_end", Or(revision < 0, revision >=numRevisions), "FailEffect"),
  ("xor_regular", And(status == running,code(pc) == XOR,And(0<=pc,pc<49152,isCode(pc)),gas >= 3,stackSize >= 2,stackSize <= 1024,And(Istanbul <= revision, revision <= Prague)), "xor_regular"),
  ("xor_with_too_few_elements", And(And(Istanbul <= revision, revision <= Prague),status == running,code(pc) == XOR,And(0<=pc,pc<49152,isCode(pc)),stackSize < 2), "FailEffect"),
- ("xor_with_too_little_gas", And(And(Istanbul <= revision, revision <= Prague),status == running,code(pc) == XOR,And(0<=pc,pc<49152,isCode(pc)),gas < 3), "FailEffect")]
+ ("xor_with_too_little_gas", And(And(Istanbul <= revision, revision <= Prague),status == running,code(pc) == XOR,And(0<=pc,pc<49152,isCode(pc)),gas < 3), "FailEffect"),
+ ("stopped_is_end", status == 1, "NoEffect")]
