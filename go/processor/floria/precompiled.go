@@ -11,6 +11,8 @@
 package floria
 
 import (
+	"math"
+
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"github.com/ethereum/go-ethereum/common"
 	geth "github.com/ethereum/go-ethereum/core/vm"
@@ -27,6 +29,9 @@ func handlePrecompiledContract(revision tosca.Revision, input tosca.Data, addres
 		return tosca.CallResult{}, false
 	}
 	gasCost := contract.RequiredGas(input)
+	if gasCost > math.MaxInt64 {
+		return tosca.CallResult{}, true
+	}
 	if gas < tosca.Gas(gasCost) {
 		return tosca.CallResult{}, true
 	}

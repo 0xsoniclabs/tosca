@@ -75,7 +75,7 @@ func (r runContext) executeCall(kind tosca.CallKind, parameters tosca.CallParame
 
 	if kind == tosca.Call {
 		result, isStatePrecompiled := handleStateContract(
-			r, parameters.Sender, recipient, parameters.Input, parameters.Gas)
+			r, parameters.Sender, parameters.CodeAddress, parameters.Input, parameters.Gas)
 		if isStatePrecompiled {
 			if !result.Success {
 				r.RestoreSnapshot(snapshot)
@@ -86,7 +86,7 @@ func (r runContext) executeCall(kind tosca.CallKind, parameters tosca.CallParame
 	}
 
 	result, isPrecompiled := handlePrecompiledContract(
-		r.blockParameters.Revision, parameters.Input, recipient, parameters.Gas)
+		r.blockParameters.Revision, parameters.Input, parameters.CodeAddress, parameters.Gas)
 	if isPrecompiled {
 		if !result.Success {
 			r.RestoreSnapshot(snapshot)
