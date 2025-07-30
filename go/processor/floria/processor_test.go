@@ -39,6 +39,40 @@ func TestProcessorRegistry_InitProcessor(t *testing.T) {
 	}
 }
 
+func TestProcessor_Run_Passing(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	context := tosca.NewMockRunContext(ctrl)
+	interpreter := tosca.NewMockInterpreter(ctrl)
+
+	context.EXPECT().CreateSnapshot().AnyTimes()
+	context.EXPECT().GetNonce(gomock.Any()).AnyTimes()
+	context.EXPECT().GetCodeHash(gomock.Any()).AnyTimes()
+	context.EXPECT().GetBalance(gomock.Any()).AnyTimes()
+	context.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
+	context.EXPECT().SetNonce(gomock.Any(), gomock.Any()).AnyTimes()
+	context.EXPECT().Call(gomock.Any(), gomock.Any()).AnyTimes()
+	context.EXPECT().GetCode(gomock.Any()).AnyTimes()
+	interpreter.EXPECT().Run(gomock.Any()).Return(tosca.Result{Success: true}, nil).AnyTimes()
+	context.EXPECT().GetLogs().AnyTimes()
+
+	blockParameters := tosca.BlockParameters{}
+
+	transaction := tosca.Transaction{
+		Sender:    tosca.Address{1},
+		Recipient: &tosca.Address{2},
+		GasLimit:  tosca.Gas(1000000),
+	}
+
+	processor := newProcessor(interpreter)
+	result, err := processor.Run(blockParameters, transaction, context)
+	if err != nil {
+		t.Errorf("Run returned an error: %v", err)
+	}
+	if !result.Success {
+		t.Errorf("Run did not succeed")
+	}
+}
+
 func TestProcessor_HandleNonce(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	context := tosca.NewMockTransactionContext(ctrl)
@@ -89,12 +123,6 @@ func TestProcessor_GasPriceCalculation(t *testing.T) {
 			gasTipCap: 0,
 			expected:  10,
 		},
-		"lowCapHighTip": {
-			baseFee:   10,
-			gasFeeCap: 10,
-			gasTipCap: 100,
-			expected:  10,
-		},
 		"capTipEqual": {
 			baseFee:   10,
 			gasFeeCap: 10,
@@ -128,9 +156,29 @@ func TestProcessor_GasPriceCalculation(t *testing.T) {
 }
 
 func TestProcessor_GasPriceCalculationError(t *testing.T) {
-	_, err := calculateGasPrice(tosca.NewValue(10), tosca.NewValue(5), tosca.NewValue(10))
-	if err == nil {
-		t.Errorf("calculateGasPrice did not return an error")
+	tests := map[string]struct {
+		baseFee   uint64
+		gasFeeCap uint64
+		gasTipCap uint64
+	}{
+		"feeCapLowerThanBaseFee": {
+			baseFee:   100,
+			gasFeeCap: 10,
+			gasTipCap: 5,
+		},
+		"feeCapLowerThanTipCap": {
+			baseFee:   1,
+			gasFeeCap: 5,
+			gasTipCap: 100,
+		},
+	}
+	for testName, test := range tests {
+		t.Run(testName, func(t *testing.T) {
+			_, err := calculateGasPrice(tosca.NewValue(test.baseFee), tosca.NewValue(test.gasFeeCap), tosca.NewValue(test.gasTipCap))
+			if err == nil {
+				t.Errorf("calculateGasPrice did not return an error")
+			}
+		})
 	}
 }
 
@@ -169,26 +217,31 @@ func TestProcessor_EoaCheck(t *testing.T) {
 }
 
 func TestProcessor_BuyGas(t *testing.T) {
-	balance := uint64(1000)
+	balance := uint64(1000000)
 	gasLimit := uint64(100)
 	gasPrice := uint64(2)
+	blobBaseFee := uint64(1)
 
 	transaction := tosca.Transaction{
-		Sender:   tosca.Address{1},
-		GasLimit: tosca.Gas(gasLimit),
+		Sender:     tosca.Address{1},
+		GasLimit:   tosca.Gas(gasLimit),
+		BlobHashes: []tosca.Hash{{0x01}},
 	}
+
+	newValue := balance - (gasLimit*gasPrice +
+		blobBaseFee*uint64(len(transaction.BlobHashes))*BlobTxBlobGasPerBlob)
 
 	ctrl := gomock.NewController(t)
 	context := tosca.NewMockTransactionContext(ctrl)
 	context.EXPECT().GetBalance(transaction.Sender).Return(tosca.NewValue(balance))
-	context.EXPECT().SetBalance(transaction.Sender, tosca.NewValue(balance-gasLimit*gasPrice))
-	context.EXPECT().GetBalance(transaction.Sender).Return(tosca.NewValue(balance - gasLimit*gasPrice))
+	context.EXPECT().SetBalance(transaction.Sender, tosca.NewValue(newValue))
+	context.EXPECT().GetBalance(transaction.Sender).Return(tosca.NewValue(newValue))
 
-	err := buyGas(transaction, context, tosca.NewValue(gasPrice))
+	err := buyGas(transaction, context, tosca.NewValue(gasPrice), tosca.NewValue(blobBaseFee))
 	if err != nil {
 		t.Errorf("buyGas returned an error: %v", err)
 	}
-	if context.GetBalance(transaction.Sender).Cmp(tosca.NewValue(balance-gasLimit*gasPrice)) != 0 {
+	if context.GetBalance(transaction.Sender).Cmp(tosca.NewValue(newValue)) != 0 {
 		t.Errorf("Sender balance was not decremented correctly")
 	}
 }
@@ -207,7 +260,7 @@ func TestProcessor_BuyGasInsufficientBalance(t *testing.T) {
 	context := tosca.NewMockTransactionContext(ctrl)
 	context.EXPECT().GetBalance(transaction.Sender).Return(tosca.NewValue(balance))
 
-	err := buyGas(transaction, context, tosca.NewValue(gasPrice))
+	err := buyGas(transaction, context, tosca.NewValue(gasPrice), tosca.NewValue(0))
 	if err == nil {
 		t.Errorf("buyGas did not fail with insufficient balance")
 	}
@@ -382,6 +435,13 @@ func TestProcessor_SetupGasBilling(t *testing.T) {
 			},
 			expectedGasUsed: TxGas + TxAccessListAddressGas + 3*TxAccessListStorageKeyGas,
 		},
+		"create Shanghai": {
+			recipient:  nil,
+			input:      []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
+			accessList: nil,
+			expectedGasUsed: TxGasContractCreation + TxDataZeroGasEIP2028 +
+				9*TxDataNonZeroGasEIP2028 + InitCodeWordGas,
+		},
 	}
 
 	for name, test := range tests {
@@ -392,7 +452,7 @@ func TestProcessor_SetupGasBilling(t *testing.T) {
 				AccessList: test.accessList,
 			}
 
-			actualGasUsed := calculateSetupGas(transaction)
+			actualGasUsed := calculateSetupGas(transaction, tosca.R12_Shanghai)
 			if actualGasUsed != test.expectedGasUsed {
 				t.Errorf("setupGasBilling returned incorrect gas used, got: %d, want: %d", actualGasUsed, test.expectedGasUsed)
 			}
@@ -450,6 +510,7 @@ func TestProcessor_CallParameters(t *testing.T) {
 
 	transaction.Recipient = &tosca.Address{2}
 	want.Recipient = *transaction.Recipient
+	want.CodeAddress = *transaction.Recipient
 
 	got = callParameters(transaction, gas)
 	if !reflect.DeepEqual(got, want) {
@@ -465,6 +526,7 @@ func TestProcessor_SetUpAccessList(t *testing.T) {
 	sender := tosca.Address{1}
 	recipient := tosca.Address{2}
 	accessListAddress := tosca.Address{3}
+	coinbase := tosca.Address{0x42}
 
 	transaction := tosca.Transaction{
 		Sender:    sender,
@@ -477,7 +539,12 @@ func TestProcessor_SetUpAccessList(t *testing.T) {
 		},
 	}
 
-	for _, contract := range getPrecompiledAddresses(tosca.R09_Berlin) {
+	blockParameters := tosca.BlockParameters{
+		Revision: tosca.R13_Cancun,
+		Coinbase: coinbase,
+	}
+
+	for _, contract := range getPrecompiledAddresses(tosca.R13_Cancun) {
 		context.EXPECT().AccessAccount(contract)
 	}
 	context.EXPECT().AccessAccount(sender)
@@ -485,8 +552,9 @@ func TestProcessor_SetUpAccessList(t *testing.T) {
 	context.EXPECT().AccessAccount(accessListAddress)
 	context.EXPECT().AccessStorage(accessListAddress, tosca.Key{1})
 	context.EXPECT().AccessStorage(accessListAddress, tosca.Key{2})
+	context.EXPECT().AccessAccount(coinbase)
 
-	setUpAccessList(transaction, context, tosca.R09_Berlin)
+	setUpAccessList(transaction, context, blockParameters)
 }
 
 func TestProcessor_AccessListIsNotCreatedIfTransactionHasNone(t *testing.T) {
@@ -502,5 +570,77 @@ func TestProcessor_AccessListIsNotCreatedIfTransactionHasNone(t *testing.T) {
 		Recipient: &recipient,
 	}
 
-	setUpAccessList(transaction, context, tosca.R09_Berlin)
+	setUpAccessList(transaction, context, tosca.BlockParameters{Revision: tosca.R09_Berlin})
+}
+
+func TestProcessor_blobCheckReturnsErrors(t *testing.T) {
+	tests := map[string]struct {
+		transaction tosca.Transaction
+		blockParams tosca.BlockParameters
+		expectError bool
+	}{
+		"valid blob transaction pre cancun": {
+			transaction: tosca.Transaction{
+				Recipient:  &tosca.Address{1},
+				BlobHashes: []tosca.Hash{{1}},
+			},
+			blockParams: tosca.BlockParameters{Revision: tosca.R12_Shanghai},
+			expectError: false,
+		},
+		"valid blob transaction cancun": {
+			transaction: tosca.Transaction{
+				Recipient:  &tosca.Address{1},
+				BlobHashes: []tosca.Hash{{1}},
+			},
+			blockParams: tosca.BlockParameters{
+				Revision:    tosca.R13_Cancun,
+				BlobBaseFee: tosca.NewValue(1),
+			},
+			expectError: false,
+		},
+		"blob transaction without recipient": {
+			transaction: tosca.Transaction{
+				BlobHashes: []tosca.Hash{{1}},
+			},
+			blockParams: tosca.BlockParameters{Revision: tosca.R13_Cancun},
+			expectError: true,
+		},
+		"blob transaction with empty blob hashes": {
+			transaction: tosca.Transaction{
+				Recipient:  &tosca.Address{1},
+				BlobHashes: []tosca.Hash{},
+			},
+			blockParams: tosca.BlockParameters{Revision: tosca.R13_Cancun},
+			expectError: true,
+		},
+		"blob transaction with invalid version": {
+			transaction: tosca.Transaction{
+				Recipient:  &tosca.Address{1},
+				BlobHashes: []tosca.Hash{{5}},
+			},
+			blockParams: tosca.BlockParameters{Revision: tosca.R12_Shanghai},
+			expectError: true,
+		},
+		"blobGasFeeCap smaller than blobBaseFee": {
+			transaction: tosca.Transaction{
+				Recipient:     &tosca.Address{1},
+				BlobHashes:    []tosca.Hash{{1}},
+				BlobGasFeeCap: tosca.NewValue(100),
+			},
+			blockParams: tosca.BlockParameters{
+				Revision:    tosca.R13_Cancun,
+				BlobBaseFee: tosca.NewValue(200),
+			},
+			expectError: true,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := blobCheck(test.transaction, test.blockParams)
+			if (err != nil) != test.expectError {
+				t.Errorf("blobCheck returned error: %v, expected: %v", err, test.expectError)
+			}
+		})
+	}
 }
