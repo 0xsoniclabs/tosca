@@ -90,7 +90,7 @@ func (p *processor) Run(
 	}
 
 	runContext := runContext{
-		floriaContext{context, context.SelfDestruct},
+		floriaContext{context, blockParameters.Revision, context.SelfDestruct},
 		p.interpreter,
 		blockParameters,
 		transactionParameters,
@@ -138,19 +138,6 @@ func calculateGasPrice(baseFee, gasFeeCap, gasTipCap tosca.Value) (tosca.Value, 
 		return tosca.Value{}, fmt.Errorf("gasFeeCap %v is lower than baseFee %v", gasFeeCap, baseFee)
 	}
 	return tosca.Add(baseFee, tosca.Min(gasTipCap, tosca.Sub(gasFeeCap, baseFee))), nil
-}
-
-// floriaContext is a wrapper around the tosca.TransactionContext
-// that adds the balance transfer to the selfdestruct function
-type floriaContext struct {
-	tosca.TransactionContext
-	// the original selfdestruct function is saved here, as it still needs to be called
-	selfdestruct func(addr, beneficiary tosca.Address) bool
-}
-
-func (c floriaContext) SelfDestruct(addr tosca.Address, beneficiary tosca.Address) bool {
-	c.SetBalance(beneficiary, tosca.Add(c.GetBalance(beneficiary), c.GetBalance(addr)))
-	return c.selfdestruct(addr, beneficiary)
 }
 
 func nonceCheck(transactionNonce uint64, stateNonce uint64) error {
