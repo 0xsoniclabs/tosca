@@ -11,10 +11,13 @@
 package geth_processor
 
 import (
+	"bytes"
 	"math/big"
 	"testing"
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/holiman/uint256"
 	"go.uber.org/mock/gomock"
 )
 
@@ -92,5 +95,125 @@ func TestGethProcessor_ConfigAddsStateContract(t *testing.T) {
 	_, ok := config.StatePrecompiles[stateContractAddress]
 	if !ok {
 		t.Errorf("state contract not added to config")
+	}
+}
+
+func TestTransactionToMessage_BasicFields(t *testing.T) {
+	tx := tosca.Transaction{
+		Sender:        tosca.Address{0x01},
+		Recipient:     &tosca.Address{0x02},
+		Nonce:         42,
+		Value:         tosca.NewValue(1000),
+		GasLimit:      21000,
+		GasFeeCap:     tosca.NewValue(50),
+		GasTipCap:     tosca.NewValue(2),
+		Input:         []byte{0x42, 0x42},
+		BlobGasFeeCap: tosca.NewValue(0),
+	}
+	gasPrice := tosca.NewValue(50)
+	blobHashes := []common.Hash{{0xaa}}
+	msg := transactionToMessage(tx, gasPrice, blobHashes)
+
+	if msg.From != common.Address(tx.Sender) {
+		t.Errorf("From mismatch: got %x, want %x", msg.From, tx.Sender)
+	}
+	if msg.To == nil || *msg.To != common.Address(*tx.Recipient) {
+		t.Errorf("To mismatch: got %v, want %v", msg.To, tx.Recipient)
+	}
+	if msg.Nonce != tx.Nonce {
+		t.Errorf("Nonce mismatch: got %d, want %d", msg.Nonce, tx.Nonce)
+	}
+	if msg.Value.Cmp(tx.Value.ToBig()) != 0 {
+		t.Errorf("Value mismatch: got %v, want %v", msg.Value, tx.Value.ToBig())
+	}
+	if msg.GasLimit != uint64(tx.GasLimit) {
+		t.Errorf("GasLimit mismatch: got %d, want %d", msg.GasLimit, tx.GasLimit)
+	}
+	if msg.GasPrice.Cmp(gasPrice.ToBig()) != 0 {
+		t.Errorf("GasPrice mismatch: got %v, want %v", msg.GasPrice, gasPrice.ToBig())
+	}
+	if msg.GasFeeCap.Cmp(tx.GasFeeCap.ToBig()) != 0 {
+		t.Errorf("GasFeeCap mismatch: got %v, want %v", msg.GasFeeCap, tx.GasFeeCap.ToBig())
+	}
+	if msg.GasTipCap.Cmp(tx.GasTipCap.ToBig()) != 0 {
+		t.Errorf("GasTipCap mismatch: got %v, want %v", msg.GasTipCap, tx.GasTipCap.ToBig())
+	}
+	if !bytes.Equal(msg.Data, tx.Input) {
+		t.Errorf("Input mismatch: got %x, want %x", msg.Data, tx.Input)
+	}
+	if msg.BlobGasFeeCap.Cmp(tx.BlobGasFeeCap.ToBig()) != 0 {
+		t.Errorf("BlobGasFeeCap mismatch: got %v, want %v", msg.BlobGasFeeCap, tx.BlobGasFeeCap.ToBig())
+	}
+	if len(msg.BlobHashes) != 1 || msg.BlobHashes[0] != blobHashes[0] {
+		t.Errorf("BlobHashes mismatch: got %v, want %v", msg.BlobHashes, blobHashes)
+	}
+}
+
+func TestTransactionToMessage_AccessList(t *testing.T) {
+	tx := tosca.Transaction{
+		Sender: tosca.Address{0x01},
+		AccessList: []tosca.AccessTuple{
+			{
+				Address: tosca.Address{0x03},
+				Keys:    []tosca.Key{{0x42}, {0x43}},
+			},
+		},
+	}
+	gasPrice := tosca.NewValue(1)
+	msg := transactionToMessage(tx, gasPrice, nil)
+	if len(msg.AccessList) != 1 {
+		t.Fatalf("expected 1 access tuple, got %d", len(msg.AccessList))
+	}
+	if msg.AccessList[0].Address != common.Address(tx.AccessList[0].Address) {
+		t.Errorf("AccessList address mismatch")
+	}
+	if len(msg.AccessList[0].StorageKeys) != 2 {
+		t.Errorf("expected 2 storage keys, got %d", len(msg.AccessList[0].StorageKeys))
+	}
+	if msg.AccessList[0].StorageKeys[0] != common.Hash(tx.AccessList[0].Keys[0]) {
+		t.Errorf("StorageKey[0] mismatch")
+	}
+	if msg.AccessList[0].StorageKeys[1] != common.Hash(tx.AccessList[0].Keys[1]) {
+		t.Errorf("StorageKey[1] mismatch")
+	}
+}
+
+func TestTransactionToMessage_AuthorizationList(t *testing.T) {
+	tx := tosca.Transaction{
+		Sender: [20]byte{0x01},
+		AuthorizationList: []tosca.SetCodeAuthorization{
+			{
+				ChainID: tosca.Word(tosca.NewValue(0x01)),
+				Address: tosca.Address{0x02},
+				Nonce:   7,
+				V:       42,
+				R:       tosca.Word(tosca.NewValue(0x03)),
+				S:       tosca.Word(tosca.NewValue(0x04)),
+			},
+		},
+	}
+	gasPrice := tosca.NewValue(1)
+	msg := transactionToMessage(tx, gasPrice, nil)
+	if len(msg.SetCodeAuthorizations) != 1 {
+		t.Fatalf("expected 1 authorization, got %d", len(msg.SetCodeAuthorizations))
+	}
+	auth := msg.SetCodeAuthorizations[0]
+	if auth.ChainID.Cmp(uint256.NewInt(1)) != 0 {
+		t.Errorf("ChainID mismatch: got %v", auth.ChainID)
+	}
+	if auth.Address != common.Address(tx.AuthorizationList[0].Address) {
+		t.Errorf("Address mismatch")
+	}
+	if auth.Nonce != tx.AuthorizationList[0].Nonce {
+		t.Errorf("Nonce mismatch")
+	}
+	if auth.V != tx.AuthorizationList[0].V {
+		t.Errorf("V mismatch")
+	}
+	if auth.R.Cmp(uint256.NewInt(3)) != 0 {
+		t.Errorf("R mismatch: got %v", auth.R)
+	}
+	if auth.S.Cmp(uint256.NewInt(4)) != 0 {
+		t.Errorf("S mismatch: got %v", auth.S)
 	}
 }

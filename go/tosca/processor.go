@@ -24,18 +24,27 @@ type Processor interface {
 
 // Transaction summarizes the parameters of a transaction to be executed on a chain.
 type Transaction struct {
-	Sender        Address       // the sender of the transaction, paying for its execution
-	Recipient     *Address      // the receiver of a transaction, nil if a new contract is to be created
-	Nonce         uint64        // the nonce of the sender account, used to prevent replay attacks
-	Input         Data          // the input data for the transaction
-	Value         Value         // the amount of network currency to transfer to the recipient
-	GasLimit      Gas           // the maximum amount of gas that can be used by the transaction
-	GasFeeCap     Value         // the amount of network currency the sender is willing to pay for one gas unit
-	GasTipCap     Value         // the amount of network currency the sender is willing to pay for one unit as a priority fee
-	BlobGasFeeCap Value         // the amount of network currency the sender is willing to pay for blob gas
-	BlobHashes    []Hash        // the hashes of the blobs for this transaction
-	AccessList    []AccessTuple // the list of accounts and storage slots expected to be accessed
+	Sender            Address       // the sender of the transaction, paying for its execution
+	Recipient         *Address      // the receiver of a transaction, nil if a new contract is to be created
+	Nonce             uint64        // the nonce of the sender account, used to prevent replay attacks
+	Input             Data          // the input data for the transaction
+	Value             Value         // the amount of network currency to transfer to the recipient
+	GasLimit          Gas           // the maximum amount of gas that can be used by the transaction
+	GasFeeCap         Value         // the amount of network currency the sender is willing to pay for one gas unit
+	GasTipCap         Value         // the amount of network currency the sender is willing to pay for one unit as a priority fee
+	BlobGasFeeCap     Value         // the amount of network currency the sender is willing to pay for blob gas
+	BlobHashes        []Hash        // the hashes of the blobs for this transaction
+	AccessList        []AccessTuple // the list of accounts and storage slots expected to be accessed
+	AuthorizationList []SetCodeAuthorization
+}
 
+type SetCodeAuthorization struct {
+	ChainID Word
+	Address Address
+	Nonce   uint64
+	V       uint8
+	R       Word
+	S       Word
 }
 
 // AccessTuple lists a range of accounts and storage slots expected to be accessed

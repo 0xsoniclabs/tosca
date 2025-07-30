@@ -101,32 +101,34 @@ func (m *gethVm) Run(parameters tosca.Parameters) (tosca.Result, error) {
 // chainId needs to be prefilled as it may be accessed with the opcode CHAINID.
 // the fork-blocks and the fork-times are set to the respective values for the given revision.
 func MakeChainConfig(baseline params.ChainConfig, chainId *big.Int, targetRevision tosca.Revision) params.ChainConfig {
-	istanbulBlock := ct.GetForkBlock(tosca.R07_Istanbul)
-	berlinBlock := ct.GetForkBlock(tosca.R09_Berlin)
-	londonBlock := ct.GetForkBlock(tosca.R10_London)
-	parisBlock := ct.GetForkBlock(tosca.R11_Paris)
-	shanghaiTime := ct.GetForkTime(tosca.R12_Shanghai)
-	cancunTime := ct.GetForkTime(tosca.R13_Cancun)
-	pragueTime := ct.GetForkTime(tosca.R14_Prague)
+	maxUintBlock := big.NewInt(0).SetUint64(^uint64(0))
+	zeroTime := uint64(0)
 
 	chainConfig := baseline
 	chainConfig.ChainID = chainId
 	chainConfig.ByzantiumBlock = big.NewInt(0)
-	chainConfig.IstanbulBlock = big.NewInt(0).SetUint64(istanbulBlock)
-	chainConfig.BerlinBlock = big.NewInt(0).SetUint64(berlinBlock)
-	chainConfig.LondonBlock = big.NewInt(0).SetUint64(londonBlock)
+	chainConfig.IstanbulBlock = big.NewInt(0)
+	chainConfig.BerlinBlock = maxUintBlock
+	chainConfig.LondonBlock = maxUintBlock
+	chainConfig.MergeNetsplitBlock = maxUintBlock
 
+	if targetRevision >= tosca.R09_Berlin {
+		chainConfig.BerlinBlock = big.NewInt(0)
+	}
+	if targetRevision >= tosca.R10_London {
+		chainConfig.LondonBlock = big.NewInt(0)
+	}
 	if targetRevision >= tosca.R11_Paris {
-		chainConfig.MergeNetsplitBlock = big.NewInt(0).SetUint64(parisBlock)
+		chainConfig.MergeNetsplitBlock = big.NewInt(0)
 	}
 	if targetRevision >= tosca.R12_Shanghai {
-		chainConfig.ShanghaiTime = &shanghaiTime
+		chainConfig.ShanghaiTime = &zeroTime
 	}
 	if targetRevision >= tosca.R13_Cancun {
-		chainConfig.CancunTime = &cancunTime
+		chainConfig.CancunTime = &zeroTime
 	}
 	if targetRevision >= tosca.R14_Prague {
-		chainConfig.PragueTime = &pragueTime
+		chainConfig.PragueTime = &zeroTime
 	}
 
 	return chainConfig

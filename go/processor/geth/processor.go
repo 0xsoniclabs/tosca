@@ -230,18 +230,34 @@ func transactionToMessage(transaction tosca.Transaction, gasPrice tosca.Value, b
 		})
 	}
 
+	var authorizations []types.SetCodeAuthorization
+	if transaction.AuthorizationList != nil {
+		authorizations = make([]types.SetCodeAuthorization, len(transaction.AuthorizationList))
+		for idx, authorization := range transaction.AuthorizationList {
+			authorizations[idx] = types.SetCodeAuthorization{
+				ChainID: *uint256.NewInt(0).SetBytes(authorization.ChainID[:]),
+				Address: common.Address(authorization.Address),
+				Nonce:   authorization.Nonce,
+				V:       authorization.V,
+				R:       *uint256.NewInt(0).SetBytes(authorization.R[:]),
+				S:       *uint256.NewInt(0).SetBytes(authorization.S[:]),
+			}
+		}
+	}
+
 	return &core.Message{
-		From:          common.Address(transaction.Sender),
-		To:            (*common.Address)(transaction.Recipient),
-		Nonce:         transaction.Nonce,
-		Value:         transaction.Value.ToBig(),
-		GasLimit:      uint64(transaction.GasLimit),
-		GasPrice:      gasPrice.ToBig(),
-		GasFeeCap:     transaction.GasFeeCap.ToBig(),
-		GasTipCap:     transaction.GasTipCap.ToBig(),
-		Data:          transaction.Input,
-		AccessList:    accessList,
-		BlobGasFeeCap: transaction.BlobGasFeeCap.ToBig(),
-		BlobHashes:    blobHashes,
+		From:                  common.Address(transaction.Sender),
+		To:                    (*common.Address)(transaction.Recipient),
+		Nonce:                 transaction.Nonce,
+		Value:                 transaction.Value.ToBig(),
+		GasLimit:              uint64(transaction.GasLimit),
+		GasPrice:              gasPrice.ToBig(),
+		GasFeeCap:             transaction.GasFeeCap.ToBig(),
+		GasTipCap:             transaction.GasTipCap.ToBig(),
+		Data:                  transaction.Input,
+		AccessList:            accessList,
+		BlobGasFeeCap:         transaction.BlobGasFeeCap.ToBig(),
+		BlobHashes:            blobHashes,
+		SetCodeAuthorizations: authorizations,
 	}
 }
