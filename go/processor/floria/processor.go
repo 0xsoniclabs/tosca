@@ -71,7 +71,7 @@ func (p *processor) Run(
 	}
 
 	if err = blobCheck(transaction, blockParameters); err != nil {
-		return tosca.Receipt{}, err
+		return tosca.Receipt{}, nil
 	}
 
 	if err := buyGas(transaction, context, gasPrice, blockParameters.BlobBaseFee); err != nil {

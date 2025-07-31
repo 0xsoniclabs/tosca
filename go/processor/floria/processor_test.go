@@ -581,3 +581,30 @@ func TestProcessor_blobCheckReturnsErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestProcessor_Run_BlobTransactionWithoutBlobsIsUnsuccessful(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	context := tosca.NewMockRunContext(ctrl)
+	interpreter := tosca.NewMockInterpreter(ctrl)
+
+	context.EXPECT().GetNonce(gomock.Any())
+	context.EXPECT().GetCodeHash(gomock.Any())
+
+	blockParameters := tosca.BlockParameters{}
+
+	transaction := tosca.Transaction{
+		Sender:     tosca.Address{1},
+		Recipient:  &tosca.Address{2},
+		GasLimit:   tosca.Gas(1000000),
+		BlobHashes: []tosca.Hash{}, // No blobs but not nil
+	}
+
+	processor := newProcessor(interpreter)
+	result, err := processor.Run(blockParameters, transaction, context)
+	if err != nil {
+		t.Errorf("Run returned an error: %v", err)
+	}
+	if result.Success {
+		t.Errorf("Run should not succeed for blob transaction without blobs")
+	}
+}
