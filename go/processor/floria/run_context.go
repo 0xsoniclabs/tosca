@@ -69,7 +69,7 @@ func (r runContext) executeCall(kind tosca.CallKind, parameters tosca.CallParame
 		return tosca.CallResult{Success: true, GasLeft: parameters.Gas}, nil
 	}
 
-	if kind == tosca.Call {
+	if kind == tosca.Call || kind == tosca.CallCode {
 		transferValue(r, parameters.Value, parameters.Sender, recipient)
 	}
 
@@ -168,15 +168,11 @@ func (r runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallPara
 	}
 
 	if r.GetNonce(createdAddress) != 0 ||
-		!r.HasEmptyStorage(createdAddress) ||
 		(r.GetCodeHash(createdAddress) != (tosca.Hash{}) &&
 			r.GetCodeHash(createdAddress) != emptyCodeHash) {
 		return tosca.CallResult{}, nil
 	}
 	snapshot := r.CreateSnapshot()
-	if !r.AccountExists(createdAddress) {
-		r.CreateAccount(createdAddress)
-	}
 	r.SetNonce(createdAddress, 1)
 
 	transferValue(r, parameters.Value, parameters.Sender, createdAddress)
