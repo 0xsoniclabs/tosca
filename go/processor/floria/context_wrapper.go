@@ -17,8 +17,6 @@ import "github.com/0xsoniclabs/tosca/go/tosca"
 type floriaContext struct {
 	tosca.TransactionContext
 	revision tosca.Revision
-	// the original selfdestruct function is saved here, as it still needs to be called
-	selfdestruct func(addr, beneficiary tosca.Address) bool
 }
 
 func (c floriaContext) SelfDestruct(address tosca.Address, beneficiary tosca.Address) bool {
@@ -27,5 +25,5 @@ func (c floriaContext) SelfDestruct(address tosca.Address, beneficiary tosca.Add
 		c.SetBalance(address, tosca.Value{})
 	}
 	c.SetBalance(beneficiary, tosca.Add(c.GetBalance(beneficiary), balance))
-	return c.selfdestruct(address, beneficiary)
+	return c.TransactionContext.SelfDestruct(address, beneficiary)
 }
