@@ -159,8 +159,10 @@ func TestCall_TransferValueInCreate(t *testing.T) {
 	context.EXPECT().SetNonce(params.Sender, uint64(1))
 	context.EXPECT().GetNonce((params.Sender)).Return(uint64(1))
 	context.EXPECT().GetNonce(createdAddress).Return(uint64(0))
+	context.EXPECT().HasEmptyStorage(createdAddress).Return(true)
 	context.EXPECT().GetCodeHash(createdAddress).Return(tosca.Hash{})
 	context.EXPECT().CreateSnapshot()
+	context.EXPECT().CreateAccount(createdAddress)
 	context.EXPECT().SetNonce(createdAddress, uint64(1))
 	context.EXPECT().GetBalance(params.Sender).Return(tosca.NewValue(100))
 	context.EXPECT().GetBalance(createdAddress).Return(tosca.NewValue(0))
@@ -379,6 +381,98 @@ func TestIncrementNonce(t *testing.T) {
 			err := incrementNonce(context, tosca.Address{})
 			if test.err != nil && err == nil {
 				t.Errorf("incrementNonce returned an unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestRunContext_AccountIsOnlyCreatedIfItIsEmptyAndDoesNotExist(t *testing.T) {
+	tests := map[string]struct {
+		nonce        uint64
+		emptyStorage bool
+		codeHash     tosca.Hash
+		exists       bool
+		successful   bool
+	}{
+		"non empty with nonce": {
+			nonce:        1,
+			emptyStorage: true,
+			codeHash:     tosca.Hash{},
+			successful:   false,
+		},
+		"non empty with storage": {
+			nonce:        0,
+			emptyStorage: false,
+			codeHash:     tosca.Hash{},
+			successful:   false,
+		},
+		"non empty with code": {
+			nonce:        0,
+			emptyStorage: true,
+			codeHash:     tosca.Hash{1, 2, 3},
+			successful:   false,
+		},
+		"empty but exists": {
+			nonce:        0,
+			emptyStorage: true,
+			codeHash:     tosca.Hash{},
+			exists:       true,
+			successful:   true,
+		},
+		"empty and does not exist": {
+			nonce:        0,
+			emptyStorage: true,
+			codeHash:     tosca.Hash{},
+			exists:       false,
+			successful:   true,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			context := tosca.NewMockTransactionContext(ctrl)
+			interpreter := tosca.NewMockInterpreter(ctrl)
+			runContext := runContext{
+				context,
+				interpreter,
+				tosca.BlockParameters{},
+				tosca.TransactionParameters{},
+				0,
+				false,
+			}
+
+			params := tosca.CallParameters{
+				Sender: tosca.Address{1},
+				Gas:    1000,
+				Input:  []byte{},
+			}
+			code := tosca.Code{}
+			senderNonce := uint64(1)
+			createdAddress := tosca.Address(crypto.CreateAddress(common.Address(params.Sender), senderNonce))
+
+			context.EXPECT().GetNonce(params.Sender).Return(senderNonce)
+			context.EXPECT().SetNonce(params.Sender, senderNonce+1)
+			context.EXPECT().GetNonce((params.Sender)).Return(senderNonce + 1)
+
+			context.EXPECT().GetNonce(createdAddress).Return(test.nonce)
+			context.EXPECT().HasEmptyStorage(createdAddress).Return(test.emptyStorage).AnyTimes()
+			context.EXPECT().GetCodeHash(createdAddress).Return(test.codeHash).AnyTimes()
+			context.EXPECT().CreateSnapshot().AnyTimes()
+			context.EXPECT().AccountExists(createdAddress).Return(test.exists).AnyTimes()
+			context.EXPECT().CreateAccount(createdAddress).AnyTimes()
+
+			context.EXPECT().SetNonce(createdAddress, uint64(1)).AnyTimes()
+			context.EXPECT().SetCode(createdAddress, code).AnyTimes()
+
+			interpreter.EXPECT().Run(gomock.Any()).Return(tosca.Result{Success: true, Output: tosca.Data(code)}, nil).AnyTimes()
+
+			result, err := runContext.Call(tosca.Create, params)
+			if err != nil {
+				t.Errorf("transferValue returned an error: %v", err)
+			}
+			if result.Success != test.successful {
+				t.Errorf("transferValue was not successful")
 			}
 		})
 	}
