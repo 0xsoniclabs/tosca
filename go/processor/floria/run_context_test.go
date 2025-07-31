@@ -15,6 +15,7 @@ import (
 	"math"
 	"testing"
 
+	test_utils "github.com/0xsoniclabs/tosca/go/processor"
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -379,6 +380,60 @@ func TestIncrementNonce(t *testing.T) {
 			if test.err != nil && err == nil {
 				t.Errorf("incrementNonce returned an unexpected error: %v", err)
 			}
+		})
+	}
+}
+
+func TestCall_PrecompiledCheckDependsOnCodeAddress(t *testing.T) {
+	tests := map[string]struct {
+		codeAddress tosca.Address
+	}{
+		"precompiled":   {test_utils.NewAddress(0x01)},
+		"stateContract": {StateContractAddress()},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			context := tosca.NewMockTransactionContext(ctrl)
+
+			// No calls to the interpreter because the call is handled by the precompiled contract.
+			interpreter := tosca.NewMockInterpreter(ctrl)
+
+			sender := tosca.Address{1}
+			recipient := tosca.Address{2}
+
+			context.EXPECT().CreateSnapshot()
+			context.EXPECT().RestoreSnapshot(gomock.Any())
+
+			runContext := runContext{
+				context,
+				interpreter,
+				tosca.BlockParameters{},
+				tosca.TransactionParameters{},
+				0,
+				false,
+			}
+
+			result, err := runContext.executeCall(tosca.Call, tosca.CallParameters{
+				Sender:      sender,
+				Recipient:   recipient,
+				CodeAddress: test.codeAddress,
+				Value:       tosca.NewValue(0),
+				Gas:         1000,
+				Input:       []byte{},
+			})
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if result.Success {
+				t.Error("expected unsuccessful result, got success")
+			}
+			if result.GasLeft != 0 {
+				t.Errorf("failed calls should consume all gas, got %d gas left", result.GasLeft)
+			}
+
 		})
 	}
 }
