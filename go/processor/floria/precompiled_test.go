@@ -35,7 +35,7 @@ func TestPrecompiled_RightNumberOfContractsDependingOnRevision(t *testing.T) {
 		count := 0
 		for i := byte(0x01); i < byte(0x42); i++ {
 			address := test_utils.NewAddress(i)
-			_, isPrecompiled := getPrecompiledContract(address, test.revision)
+			isPrecompiled := isPrecompiled(address, test.revision)
 			if isPrecompiled {
 				count++
 			}
@@ -102,48 +102,5 @@ func TestPrecompiled_GasCostOverflowIsDetectedAndHandled(t *testing.T) {
 	}
 	if result.Success {
 		t.Errorf("expected failure, got success")
-	}
-}
-
-func TestIsPrecompiled(t *testing.T) {
-	tests := []struct {
-		name     string
-		revision tosca.Revision
-		address  tosca.Address
-		expected bool
-	}{
-		{
-			name:     "precompiled address in Istanbul",
-			revision: tosca.R07_Istanbul,
-			address:  test_utils.NewAddress(0x01),
-			expected: true,
-		},
-		{
-			name:     "non-precompiled address in Istanbul",
-			revision: tosca.R07_Istanbul,
-			address:  test_utils.NewAddress(0x20),
-			expected: false,
-		},
-		{
-			name:     "precompiled address in Cancun",
-			revision: tosca.R13_Cancun,
-			address:  test_utils.NewAddress(0x0a),
-			expected: true,
-		},
-		{
-			name:     "non-precompiled address in Cancun",
-			revision: tosca.R13_Cancun,
-			address:  test_utils.NewAddress(0x30),
-			expected: false,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := isPrecompiled(tc.address, tc.revision)
-			if got != tc.expected {
-				t.Errorf("isPrecompiled(%v, %v) = %v; want %v", tc.address, tc.revision, got, tc.expected)
-			}
-		})
 	}
 }
