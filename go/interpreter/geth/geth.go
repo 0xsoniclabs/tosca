@@ -101,16 +101,15 @@ func (m *gethVm) Run(parameters tosca.Parameters) (tosca.Result, error) {
 // chainId needs to be prefilled as it may be accessed with the opcode CHAINID.
 // the fork-blocks and the fork-times are set to the respective values for the given revision.
 func MakeChainConfig(baseline params.ChainConfig, chainId *big.Int, targetRevision tosca.Revision) params.ChainConfig {
-	maxUintBlock := big.NewInt(0).SetUint64(^uint64(0))
 	zeroTime := uint64(0)
 
 	chainConfig := baseline
 	chainConfig.ChainID = chainId
 	chainConfig.ByzantiumBlock = big.NewInt(0)
 	chainConfig.IstanbulBlock = big.NewInt(0)
-	chainConfig.BerlinBlock = maxUintBlock
-	chainConfig.LondonBlock = maxUintBlock
-	chainConfig.MergeNetsplitBlock = maxUintBlock
+	chainConfig.BerlinBlock = nil
+	chainConfig.LondonBlock = nil
+	chainConfig.MergeNetsplitBlock = nil
 
 	if targetRevision >= tosca.R09_Berlin {
 		chainConfig.BerlinBlock = big.NewInt(0)

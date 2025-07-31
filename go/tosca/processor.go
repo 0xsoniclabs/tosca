@@ -38,13 +38,19 @@ type Transaction struct {
 	AuthorizationList []SetCodeAuthorization
 }
 
+// SetCodeAuthorization contains the information required for EIP-7702 set code transactions to
+// enable externally owned accounts (EOAs) to reference code and execute within their own context.
 type SetCodeAuthorization struct {
-	ChainID Word
-	Address Address
-	Nonce   uint64
-	V       uint8
-	R       Word
-	S       Word
+	ChainID Word    // the chain ID for which this authorization is valid
+	Address Address // the target address of the delegation
+	Nonce   uint64  // the nonce of the signer, used to prevent replay
+
+	// Deprecated: signature V value required by the geth processor.
+	V uint8
+	// Deprecated: signature R value required by the geth processor.
+	R Word
+	// Deprecated: signature S value required by the geth processor.
+	S Word
 }
 
 // AccessTuple lists a range of accounts and storage slots expected to be accessed

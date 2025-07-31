@@ -207,7 +207,7 @@ func TestTransactionToMessage_AuthorizationList(t *testing.T) {
 	if auth.Nonce != tx.AuthorizationList[0].Nonce {
 		t.Errorf("Nonce mismatch")
 	}
-	if auth.V != tx.AuthorizationList[0].V {
+	if auth.V != tx.AuthorizationList[0].V { //nolint:all
 		t.Errorf("V mismatch")
 	}
 	if auth.R.Cmp(uint256.NewInt(3)) != 0 {

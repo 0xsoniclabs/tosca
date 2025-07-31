@@ -238,9 +238,10 @@ func transactionToMessage(transaction tosca.Transaction, gasPrice tosca.Value, b
 				ChainID: *uint256.NewInt(0).SetBytes(authorization.ChainID[:]),
 				Address: common.Address(authorization.Address),
 				Nonce:   authorization.Nonce,
-				V:       authorization.V,
-				R:       *uint256.NewInt(0).SetBytes(authorization.R[:]),
-				S:       *uint256.NewInt(0).SetBytes(authorization.S[:]),
+
+				V: authorization.V,                                 //nolint:all
+				R: *uint256.NewInt(0).SetBytes(authorization.R[:]), //nolint:all
+				S: *uint256.NewInt(0).SetBytes(authorization.S[:]), //nolint:all
 			}
 		}
 	}
