@@ -239,6 +239,7 @@ func transactionToMessage(transaction tosca.Transaction, gasPrice tosca.Value, b
 				Address: common.Address(authorization.Address),
 				Nonce:   authorization.Nonce,
 
+				// Ignore linting due to the deprecation of the V, R, S fields.
 				V: authorization.V,                                 //nolint:all
 				R: *uint256.NewInt(0).SetBytes(authorization.R[:]), //nolint:all
 				S: *uint256.NewInt(0).SetBytes(authorization.S[:]), //nolint:all
