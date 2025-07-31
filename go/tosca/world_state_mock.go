@@ -75,6 +75,18 @@ func (mr *MockWorldStateMockRecorder) CreateAccount(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAccount", reflect.TypeOf((*MockWorldState)(nil).CreateAccount), arg0)
 }
 
+// CreateContract mocks base method.
+func (m *MockWorldState) CreateContract(arg0 Address) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "CreateContract", arg0)
+}
+
+// CreateContract indicates an expected call of CreateContract.
+func (mr *MockWorldStateMockRecorder) CreateContract(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateContract", reflect.TypeOf((*MockWorldState)(nil).CreateContract), arg0)
+}
+
 // GetBalance mocks base method.
 func (m *MockWorldState) GetBalance(arg0 Address) Value {
 	m.ctrl.T.Helper()

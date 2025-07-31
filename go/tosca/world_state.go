@@ -21,6 +21,7 @@ type WorldState interface {
 	AccountExists(Address) bool
 
 	CreateAccount(Address)
+	CreateContract(Address)
 
 	GetBalance(Address) Value
 	SetBalance(Address, Value)
