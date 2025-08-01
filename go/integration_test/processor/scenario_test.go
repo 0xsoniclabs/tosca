@@ -260,3 +260,32 @@ func TestScenario_Clone(t *testing.T) {
 		})
 	}
 }
+
+func TestScenario_CreateAccountAndContractCreateAnEmptySlot(t *testing.T) {
+	address := tosca.Address{0x42}
+	functions := [2]func(c *scenarioContext){
+		func(c *scenarioContext) {
+			c.CreateAccount(address)
+		},
+		func(c *scenarioContext) {
+			c.CreateContract(address)
+		},
+	}
+
+	for _, function := range functions {
+		context := NewScenarioContext()
+		function(context)
+		nonce := context.GetNonce(address)
+		if want, got := uint64(0), nonce; want != got {
+			t.Errorf("unexpected nonce, want %v, got %v", want, got)
+		}
+		balance := context.GetBalance(address)
+		if want, got := (tosca.Value{}), balance; want != got {
+			t.Errorf("unexpected balance, want %v, got %v", want, got)
+		}
+		code := context.GetCode(address)
+		if want, got := (tosca.Code{}), code; !bytes.Equal(want, got) {
+			t.Errorf("unexpected code, want %x, got %x", want, got)
+		}
+	}
+}

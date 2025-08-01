@@ -336,3 +336,28 @@ func TestAdapter_ParameterConversion(t *testing.T) {
 		})
 	}
 }
+
+func TestAdapter_FunctionsNotRequiredByCTPanic(t *testing.T) {
+	functions := []func(*ctRunContext){
+		func(c *ctRunContext) { c.CreateAccount(tosca.Address{}) },
+		func(c *ctRunContext) { c.CreateContract(tosca.Address{}) },
+		func(c *ctRunContext) { c.HasEmptyStorage(tosca.Address{}) },
+		func(c *ctRunContext) { c.SetNonce(tosca.Address{}, 0) },
+		func(c *ctRunContext) { c.CreateSnapshot() },
+		func(c *ctRunContext) { c.RestoreSnapshot(tosca.Snapshot(0)) },
+		func(c *ctRunContext) { c.GetLogs() },
+	}
+
+	for _, function := range functions {
+		t.Run("should panic", func(t *testing.T) {
+			state := st.State{}
+			ctxt := &ctRunContext{state: &state}
+			defer func() {
+				if r := recover(); r == nil {
+					t.Errorf("expected panic, but did not happen")
+				}
+			}()
+			function(ctxt)
+		})
+	}
+}
