@@ -19,6 +19,8 @@ type floriaContext struct {
 	revision tosca.Revision
 }
 
+// SelfDestruct overrides the SelfDestruct method of the embedded TransactionContext and
+// performs the balance update according to the specified revision.
 func (c floriaContext) SelfDestruct(address tosca.Address, beneficiary tosca.Address) bool {
 	balance := c.GetBalance(address)
 	if c.revision >= tosca.R13_Cancun {
