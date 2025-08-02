@@ -492,36 +492,53 @@ def check_completeness(rules):
     else:
         return True
 
-
-print("Specification Checker")
-print("=====================\n")
-
 # open rule file and evaluate
 #
 # NB: a rule file can be generated with the following driver command:
 #   go run ./go/ct/driver/ smt-printer --filter 'add_regular|mul_regular' >py/rules
 # generating the successful add and mul operation.
 
-if len(sys.argv) != 2:
-    print("error: expect a rule file as argument.")
+# argument handling (TODO: replace with getopt style and help)
+determinism = False
+completeness = False
+if len(sys.argv) == 2:
+    determinism = True
+    completeness = True
+    fname = sys.argv[1]
+elif len(sys.argv) == 3:
+    fname = sys.argv[1]
+    if sys.argv[2] == "determinism":
+        determinism = True
+    elif sys.argv[2] == "completeness":
+        completeness = True
+    else:
+        print("Unknown type check")
+        exit(1)
+else:
+    print("error: expect a rule file (and type check [determinism|completeness) as arguments.")
     exit(1)
+
+# read rule file and convert it to a python object
 try:
-    with open(sys.argv[1], "r") as file:
+    print("Read specification ...")
+    with open(fname, "r") as file:
         data = file.read()
 except FileNotFoundError:
     print("error: rule file not found.")
 rules = eval(data)
 
 # perform determinism check
-print("Check determinism?")
-if check_determinism(rules):
-    print("\tSpecification is deterministic.")
-else:
-    print("\tSpecification is not deterministic.")
+if determinism: 
+    print("Check determinism ...")
+    if check_determinism(rules):
+        print("\tSpecification is deterministic.")
+    else:
+        print("\tSpecification is not deterministic.")
 
 # perform completness check
-print("\nCheck completeness?")
-if check_completeness(rules):
-    print("\tSpecification is complete.")
-else:
-    print("\tSpecification is not complete.")
+if completeness:
+    print("\nCheck completeness ...")
+    if check_completeness(rules):
+        print("\tSpecification is complete.")
+    else:
+        print("\tSpecification is not complete.")
