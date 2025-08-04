@@ -59,6 +59,7 @@ func (r runContext) executeCall(kind tosca.CallKind, parameters tosca.CallParame
 
 	if kind == tosca.StaticCall {
 		r.static = true
+		defer func() { r.static = false }()
 	}
 
 	isStateContract := isStateContract(parameters.CodeAddress)
