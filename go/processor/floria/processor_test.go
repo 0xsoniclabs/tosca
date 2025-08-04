@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -172,7 +173,7 @@ func TestProcessor_BuyGas(t *testing.T) {
 	balance := uint64(1000000)
 	gasLimit := uint64(100)
 	gasPrice := uint64(2)
-	blobBaseFee := uint64(1)
+	blobGasPrice := uint64(1)
 
 	transaction := tosca.Transaction{
 		Sender:     tosca.Address{1},
@@ -180,21 +181,17 @@ func TestProcessor_BuyGas(t *testing.T) {
 		BlobHashes: []tosca.Hash{{0x01}},
 	}
 
-	newValue := balance - (gasLimit*gasPrice +
-		blobBaseFee*uint64(len(transaction.BlobHashes))*BlobTxBlobGasPerBlob)
+	newBalance := balance - (gasLimit*gasPrice +
+		blobGasPrice*uint64(len(transaction.BlobHashes))*BlobTxBlobGasPerBlob)
 
 	ctrl := gomock.NewController(t)
 	context := tosca.NewMockTransactionContext(ctrl)
 	context.EXPECT().GetBalance(transaction.Sender).Return(tosca.NewValue(balance))
-	context.EXPECT().SetBalance(transaction.Sender, tosca.NewValue(newValue))
-	context.EXPECT().GetBalance(transaction.Sender).Return(tosca.NewValue(newValue))
+	context.EXPECT().SetBalance(transaction.Sender, tosca.NewValue(newBalance))
 
-	err := buyGas(transaction, context, tosca.NewValue(gasPrice), tosca.NewValue(blobBaseFee))
+	err := buyGas(transaction, context, tosca.NewValue(gasPrice), tosca.NewValue(blobGasPrice))
 	if err != nil {
 		t.Errorf("buyGas returned an error: %v", err)
-	}
-	if context.GetBalance(transaction.Sender).Cmp(tosca.NewValue(newValue)) != 0 {
-		t.Errorf("Sender balance was not decremented correctly")
 	}
 }
 
@@ -514,15 +511,15 @@ func TestProcessor_blobCheckReturnsErrors(t *testing.T) {
 	tests := map[string]struct {
 		transaction tosca.Transaction
 		blockParams tosca.BlockParameters
-		expectError bool
+		errorString string
 	}{
 		"valid blob transaction pre cancun": {
 			transaction: tosca.Transaction{
 				Recipient:  &tosca.Address{1},
-				BlobHashes: []tosca.Hash{{1}},
+				BlobHashes: nil,
 			},
 			blockParams: tosca.BlockParameters{Revision: tosca.R12_Shanghai},
-			expectError: false,
+			errorString: "",
 		},
 		"valid blob transaction cancun": {
 			transaction: tosca.Transaction{
@@ -533,14 +530,14 @@ func TestProcessor_blobCheckReturnsErrors(t *testing.T) {
 				Revision:    tosca.R13_Cancun,
 				BlobBaseFee: tosca.NewValue(1),
 			},
-			expectError: false,
+			errorString: "",
 		},
 		"blob transaction without recipient": {
 			transaction: tosca.Transaction{
 				BlobHashes: []tosca.Hash{{1}},
 			},
 			blockParams: tosca.BlockParameters{Revision: tosca.R13_Cancun},
-			expectError: true,
+			errorString: "blob transaction without recipient",
 		},
 		"blob transaction with empty blob hashes": {
 			transaction: tosca.Transaction{
@@ -548,15 +545,15 @@ func TestProcessor_blobCheckReturnsErrors(t *testing.T) {
 				BlobHashes: []tosca.Hash{},
 			},
 			blockParams: tosca.BlockParameters{Revision: tosca.R13_Cancun},
-			expectError: true,
+			errorString: "missing blob hashes",
 		},
-		"blob transaction with invalid version": {
+		"blob transaction with invalid hash version": {
 			transaction: tosca.Transaction{
 				Recipient:  &tosca.Address{1},
 				BlobHashes: []tosca.Hash{{5}},
 			},
 			blockParams: tosca.BlockParameters{Revision: tosca.R12_Shanghai},
-			expectError: true,
+			errorString: "blob with invalid hash version",
 		},
 		"blobGasFeeCap smaller than blobBaseFee": {
 			transaction: tosca.Transaction{
@@ -568,15 +565,17 @@ func TestProcessor_blobCheckReturnsErrors(t *testing.T) {
 				Revision:    tosca.R13_Cancun,
 				BlobBaseFee: tosca.NewValue(200),
 			},
-			expectError: true,
+			errorString: "blobGasFeeCap is lower than blobBaseFee",
 		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := blobCheck(test.transaction, test.blockParams)
-			if (err != nil) != test.expectError {
-				t.Errorf("blobCheck returned error: %v, expected: %v", err, test.expectError)
+			err := checkBlobs(test.transaction, test.blockParams)
+			if test.errorString != "" {
+				require.ErrorContains(t, err, test.errorString)
+			} else {
+				require.NoError(t, err, "checkBlobs should not return an error")
 			}
 		})
 	}

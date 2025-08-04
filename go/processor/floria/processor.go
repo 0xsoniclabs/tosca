@@ -28,7 +28,7 @@ const (
 	maxCodeSize          = 24576
 	maxInitCodeSize      = 2 * maxCodeSize
 
-	BlobTxBlobGasPerBlob = 1 << 17
+	BlobTxBlobGasPerBlob = 1 << 17 // Gas per blob, introduced in EIP-4844.
 
 	MaxRecursiveDepth = 1024 // Maximum depth of call/create stack.
 )
@@ -70,7 +70,7 @@ func (p *processor) Run(
 		return tosca.Receipt{}, nil
 	}
 
-	if err = blobCheck(transaction, blockParameters); err != nil {
+	if err = checkBlobs(transaction, blockParameters); err != nil {
 		return tosca.Receipt{}, nil
 	}
 
@@ -281,11 +281,11 @@ func calculateSetupGas(transaction tosca.Transaction) tosca.Gas {
 	return tosca.Gas(gas)
 }
 
-func buyGas(transaction tosca.Transaction, context tosca.TransactionContext, gasPrice tosca.Value, blobBaseFee tosca.Value) error {
+func buyGas(transaction tosca.Transaction, context tosca.TransactionContext, gasPrice tosca.Value, blobGasPrice tosca.Value) error {
 	gas := gasPrice.Scale(uint64(transaction.GasLimit))
 
 	if len(transaction.BlobHashes) > 0 {
-		blobFee := blobBaseFee.Scale(uint64(len(transaction.BlobHashes) * BlobTxBlobGasPerBlob))
+		blobFee := blobGasPrice.Scale(uint64(len(transaction.BlobHashes) * BlobTxBlobGasPerBlob))
 		gas = tosca.Add(gas, blobFee)
 	}
 
@@ -301,10 +301,10 @@ func buyGas(transaction tosca.Transaction, context tosca.TransactionContext, gas
 	return nil
 }
 
-func blobCheck(transaction tosca.Transaction, blockParameters tosca.BlockParameters) error {
+func checkBlobs(transaction tosca.Transaction, blockParameters tosca.BlockParameters) error {
 	if transaction.BlobHashes != nil {
 		if transaction.Recipient == nil {
-			return fmt.Errorf("blob transactions need to have a existing recipient")
+			return fmt.Errorf("blob transaction without recipient")
 		}
 		if len(transaction.BlobHashes) == 0 {
 			return fmt.Errorf("missing blob hashes")
@@ -323,7 +323,7 @@ func blobCheck(transaction tosca.Transaction, blockParameters tosca.BlockParamet
 			return nil // skip checks if no blob gas fee cap is set
 		}
 		if transaction.BlobGasFeeCap.Cmp(blockParameters.BlobBaseFee) < 0 {
-			return fmt.Errorf("blobGasFeeCap %v is lower than blobBaseFee %v", transaction.BlobGasFeeCap, blockParameters.BlobBaseFee)
+			return fmt.Errorf("blobGasFeeCap is lower than blobBaseFee")
 		}
 	}
 	return nil
