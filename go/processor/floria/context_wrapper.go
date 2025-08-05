@@ -24,6 +24,10 @@ type floriaContext struct {
 func (c floriaContext) SelfDestruct(address tosca.Address, beneficiary tosca.Address) bool {
 	balance := c.GetBalance(address)
 	if c.revision >= tosca.R13_Cancun {
+		// Starting with Cancun, eip-6780 changes the behavior of selfdestruct.
+		// The account is only deleted if selfdestruct is called within the same transaction
+		// it has been created. The balance is transferred to the beneficiary, therefore it
+		// has to be set to zero for the address being selfdestructed.
 		c.SetBalance(address, tosca.Value{})
 	}
 	c.SetBalance(beneficiary, tosca.Add(c.GetBalance(beneficiary), balance))

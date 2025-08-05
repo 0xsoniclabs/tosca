@@ -18,27 +18,35 @@ import (
 )
 
 func TestFloriaContext_SelfDestructPerformsTheBalanceUpdate(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	context := tosca.NewMockTransactionContext(ctrl)
+	revisions := tosca.GetAllKnownRevisions()
+	for _, revision := range revisions {
+		t.Run(revision.String(), func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			context := tosca.NewMockTransactionContext(ctrl)
 
-	beneficiary := tosca.Address{0x01}
-	address := tosca.Address{0x02}
-	balance := tosca.NewValue(1000)
-	beneficiaryBalance := tosca.NewValue(10)
+			beneficiary := tosca.Address{0x01}
+			address := tosca.Address{0x02}
+			balance := tosca.NewValue(1000)
+			beneficiaryBalance := tosca.NewValue(10)
 
-	context.EXPECT().GetBalance(address).Return(balance)
-	context.EXPECT().SetBalance(address, tosca.Value{})
-	context.EXPECT().GetBalance(beneficiary).Return(beneficiaryBalance)
-	context.EXPECT().SetBalance(beneficiary, tosca.Add(balance, beneficiaryBalance))
-	context.EXPECT().SelfDestruct(address, beneficiary).Return(true)
+			context.EXPECT().GetBalance(address).Return(balance)
+			if revision >= tosca.R13_Cancun {
+				// eip-6780, reset balance for the address being selfdestructed
+				context.EXPECT().SetBalance(address, tosca.Value{})
+			}
+			context.EXPECT().GetBalance(beneficiary).Return(beneficiaryBalance)
+			context.EXPECT().SetBalance(beneficiary, tosca.Add(balance, beneficiaryBalance))
+			context.EXPECT().SelfDestruct(address, beneficiary).Return(true)
 
-	floriaContext := floriaContext{
-		TransactionContext: context,
-		revision:           tosca.R13_Cancun,
-	}
+			floriaContext := floriaContext{
+				TransactionContext: context,
+				revision:           revision,
+			}
 
-	selfdestructed := floriaContext.SelfDestruct(address, beneficiary)
-	if !selfdestructed {
-		t.Errorf("SelfDestruct should return true, got false")
+			selfdestructed := floriaContext.SelfDestruct(address, beneficiary)
+			if !selfdestructed {
+				t.Errorf("SelfDestruct should return true, got false")
+			}
+		})
 	}
 }
