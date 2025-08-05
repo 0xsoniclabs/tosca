@@ -388,9 +388,19 @@ def code(x):
     op = Select(code_block, x)
     return op
 
-is_code_x = Bool('is_code_x')
+# TODO: A predicate abstraction for code is inadequate because for JUMP
+# instructions we have two isCode/isData predicates per rule. Instead of
+# a predicate abstraction, we need a variable abstraction. I.e., we need
+# a boolean variable is_code_pc for code(pc) and a boolean variable 
+# is_code_param_0 for code(param(0)).
+is_code_dict = {}
 def isCode(x):
-    return is_code_x
+    if str(x) in is_code_dict:
+        return is_code_dict[str(x)]
+    else:
+        var = Bool('is_code_'+str(x))
+        is_code_dict[str(x)] = var
+        return var
 
 def isData(x):
     return Not(isCode(x))
@@ -421,6 +431,9 @@ def vm_state_solver():
 
     # bound stack size
     s.add(stackSize >= 0, stackSize <= 1024)
+
+    # bound storage status
+    s.add(storage_conf_yz >= 0, storage_conf_yz < numStorageStatus)
 
     return s
 
