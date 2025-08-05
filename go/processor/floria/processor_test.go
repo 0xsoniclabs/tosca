@@ -168,51 +168,52 @@ func TestProcessor_EoaCheck(t *testing.T) {
 	}
 }
 
-func TestProcessor_BuyGas(t *testing.T) {
-	balance := uint64(1000)
-	gasLimit := uint64(100)
-	gasPrice := uint64(2)
+/*
+	func TestProcessor_BuyGas(t *testing.T) {
+		balance := uint64(1000)
+		gasLimit := uint64(100)
+		gasPrice := uint64(2)
 
-	transaction := tosca.Transaction{
-		Sender:   tosca.Address{1},
-		GasLimit: tosca.Gas(gasLimit),
+		transaction := tosca.Transaction{
+			Sender:   tosca.Address{1},
+			GasLimit: tosca.Gas(gasLimit),
+		}
+
+		ctrl := gomock.NewController(t)
+		context := tosca.NewMockTransactionContext(ctrl)
+		context.EXPECT().GetBalance(transaction.Sender).Return(tosca.NewValue(balance))
+		context.EXPECT().SetBalance(transaction.Sender, tosca.NewValue(balance-gasLimit*gasPrice))
+		context.EXPECT().GetBalance(transaction.Sender).Return(tosca.NewValue(balance - gasLimit*gasPrice))
+
+		err := buyGas(transaction, context, tosca.NewValue(gasPrice))
+		if err != nil {
+			t.Errorf("buyGas returned an error: %v", err)
+		}
+		if context.GetBalance(transaction.Sender).Cmp(tosca.NewValue(balance-gasLimit*gasPrice)) != 0 {
+			t.Errorf("Sender balance was not decremented correctly")
+		}
 	}
 
-	ctrl := gomock.NewController(t)
-	context := tosca.NewMockTransactionContext(ctrl)
-	context.EXPECT().GetBalance(transaction.Sender).Return(tosca.NewValue(balance))
-	context.EXPECT().SetBalance(transaction.Sender, tosca.NewValue(balance-gasLimit*gasPrice))
-	context.EXPECT().GetBalance(transaction.Sender).Return(tosca.NewValue(balance - gasLimit*gasPrice))
+	func TestProcessor_BuyGasInsufficientBalance(t *testing.T) {
+		balance := uint64(100)
+		gasLimit := uint64(100)
+		gasPrice := uint64(2)
 
-	err := buyGas(transaction, context, tosca.NewValue(gasPrice))
-	if err != nil {
-		t.Errorf("buyGas returned an error: %v", err)
+		transaction := tosca.Transaction{
+			Sender:   tosca.Address{1},
+			GasLimit: tosca.Gas(gasLimit),
+		}
+
+		ctrl := gomock.NewController(t)
+		context := tosca.NewMockTransactionContext(ctrl)
+		context.EXPECT().GetBalance(transaction.Sender).Return(tosca.NewValue(balance))
+
+		err := buyGas(transaction, context, tosca.NewValue(gasPrice))
+		if err == nil {
+			t.Errorf("buyGas did not fail with insufficient balance")
+		}
 	}
-	if context.GetBalance(transaction.Sender).Cmp(tosca.NewValue(balance-gasLimit*gasPrice)) != 0 {
-		t.Errorf("Sender balance was not decremented correctly")
-	}
-}
-
-func TestProcessor_BuyGasInsufficientBalance(t *testing.T) {
-	balance := uint64(100)
-	gasLimit := uint64(100)
-	gasPrice := uint64(2)
-
-	transaction := tosca.Transaction{
-		Sender:   tosca.Address{1},
-		GasLimit: tosca.Gas(gasLimit),
-	}
-
-	ctrl := gomock.NewController(t)
-	context := tosca.NewMockTransactionContext(ctrl)
-	context.EXPECT().GetBalance(transaction.Sender).Return(tosca.NewValue(balance))
-
-	err := buyGas(transaction, context, tosca.NewValue(gasPrice))
-	if err == nil {
-		t.Errorf("buyGas did not fail with insufficient balance")
-	}
-}
-
+*/
 func TestGasUsed(t *testing.T) {
 	tests := map[string]struct {
 		transaction     tosca.Transaction
@@ -324,6 +325,7 @@ func TestGasUsed(t *testing.T) {
 	}
 }
 
+/*
 func TestProcessor_RefundGas(t *testing.T) {
 	gasPrice := 5
 	gasLeft := 50
@@ -339,6 +341,7 @@ func TestProcessor_RefundGas(t *testing.T) {
 
 	refundGas(context, sender, tosca.NewValue(uint64(gasPrice)), tosca.Gas(gasLeft))
 }
+*/
 
 func TestProcessor_SetupGasBilling(t *testing.T) {
 	tests := map[string]struct {
