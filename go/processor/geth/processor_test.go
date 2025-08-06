@@ -110,7 +110,7 @@ func TestTransactionToMessage_BasicFields(t *testing.T) {
 		Input:         []byte{0x42, 0x42},
 		BlobGasFeeCap: tosca.NewValue(0),
 	}
-	gasPrice := tosca.NewValue(50)
+	gasPrice := tosca.NewValue(40)
 	blobHashes := []common.Hash{{0xaa}}
 	msg := transactionToMessage(tx, gasPrice, blobHashes)
 
@@ -207,7 +207,7 @@ func TestTransactionToMessage_AuthorizationList(t *testing.T) {
 	if auth.Nonce != tx.AuthorizationList[0].Nonce {
 		t.Errorf("Nonce mismatch")
 	}
-	if auth.V != tx.AuthorizationList[0].V { //nolint:all
+	if auth.V != tx.AuthorizationList[0].V {
 		t.Errorf("V mismatch")
 	}
 	if auth.R.Cmp(uint256.NewInt(3)) != 0 {
