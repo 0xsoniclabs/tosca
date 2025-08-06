@@ -375,10 +375,12 @@ func TestStateContract_HandleStatePrecompiled(t *testing.T) {
 			gas := tosca.Gas(1000000)
 			input := append(test.inputPrefix, test.input...)
 
-			result, isStatePrecompiled := handleStateContract(state, sender, test.recipient, input, gas)
+			isStatePrecompiled := isStateContract(test.recipient)
 			if isStatePrecompiled != test.isStatePrecompiled {
-				t.Errorf("wrong state precompiled address, want %v, got %v", test.isStatePrecompiled, isStatePrecompiled)
+				t.Fatalf("state contract address was not handled correctly")
 			}
+
+			result := runStateContract(state, sender, test.recipient, input, gas)
 			if isStatePrecompiled && result.Success != true {
 				t.Errorf("execution was not successful")
 			}
@@ -445,10 +447,12 @@ func TestStateContract_InvalidCallReportsFailure(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			state := tosca.NewMockWorldState(ctrl)
 
-			result, isStatePrecompiled := handleStateContract(state, test.sender, StateContractAddress(), test.input, 1000000)
-			if isStatePrecompiled != true {
-				t.Errorf("state contract address was not handled correctly")
+			isStateContract := isStateContract(StateContractAddress())
+			if !isStateContract {
+				t.Fatalf("state contract address was not handled correctly")
 			}
+
+			result := runStateContract(state, test.sender, StateContractAddress(), test.input, 1000000)
 			if result.Success != false {
 				t.Errorf("invalid execution was successful")
 			}

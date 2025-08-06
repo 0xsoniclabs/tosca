@@ -11,6 +11,7 @@
 package floria
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
@@ -23,26 +24,29 @@ func isPrecompiled(address tosca.Address, revision tosca.Revision) bool {
 	return ok
 }
 
-func handlePrecompiledContract(revision tosca.Revision, input tosca.Data, address tosca.Address, gas tosca.Gas) (tosca.CallResult, bool) {
+func runPrecompiledContract(revision tosca.Revision, input tosca.Data, address tosca.Address, gas tosca.Gas) (tosca.CallResult, error) {
 	contract, ok := getPrecompiledContract(address, revision)
 	if !ok {
-		return tosca.CallResult{}, false
+		return tosca.CallResult{}, fmt.Errorf("precompiled contract not found")
 	}
 	gasCost := contract.RequiredGas(input)
 	if gasCost > math.MaxInt64 {
-		return tosca.CallResult{}, true
+		return tosca.CallResult{}, fmt.Errorf("gas cost exceeds maximum limit")
 	}
 	if gas < tosca.Gas(gasCost) {
-		return tosca.CallResult{}, true
+		return tosca.CallResult{}, fmt.Errorf("insufficient gas")
 	}
 	gas -= tosca.Gas(gasCost)
 	output, err := contract.Run(input)
+	if err != nil {
+		return tosca.CallResult{}, fmt.Errorf("error executing precompiled contract: %w", err)
+	}
 
 	return tosca.CallResult{
-		Success: err == nil, // precompiled contracts only return errors on invalid input
+		Success: true,
 		Output:  output,
 		GasLeft: gas,
-	}, true
+	}, nil
 }
 
 func getPrecompiledContract(address tosca.Address, revision tosca.Revision) (geth.PrecompiledContract, bool) {
