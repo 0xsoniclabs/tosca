@@ -18,9 +18,14 @@ import "fmt"
 // The state of the chain is a collection of accounts, each with a balance, a nonce,
 // optional code and storage.
 type WorldState interface {
+	// AccountExists checks whether any account with the given address exists.
 	AccountExists(Address) bool
 
+	// CreateAccount creates a new account with the given address,
+	// used for both EOAs and smart contracts.
 	CreateAccount(Address)
+
+	// CreateContract creates a new smart contract account.
 	CreateContract(Address)
 
 	GetBalance(Address) Value
