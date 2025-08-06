@@ -396,15 +396,10 @@ func TestCall_PrecompiledCheckDependsOnCodeAddress(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			context := tosca.NewMockTransactionContext(ctrl)
+			context.EXPECT().CreateSnapshot()
 
 			// No calls to the interpreter because the call is handled by the precompiled contract.
 			interpreter := tosca.NewMockInterpreter(ctrl)
-
-			sender := tosca.Address{1}
-			recipient := tosca.Address{2}
-
-			context.EXPECT().CreateSnapshot()
-			context.EXPECT().RestoreSnapshot(gomock.Any())
 
 			runContext := runContext{
 				context,
@@ -415,25 +410,28 @@ func TestCall_PrecompiledCheckDependsOnCodeAddress(t *testing.T) {
 				false,
 			}
 
+			input := []byte{}
+			if name == "stateContract" {
+				// Use set balance method of state contract to create a successful call.
+				input = append([]byte{0xe3, 0x4, 0x43, 0xbc}, make([]byte, 64)...)
+				context.EXPECT().SetBalance(tosca.Address{}, tosca.Value{})
+			}
+
 			result, err := runContext.executeCall(tosca.Call, tosca.CallParameters{
-				Sender:      sender,
-				Recipient:   recipient,
+				Sender:      DriverAddress(),
+				Recipient:   tosca.Address{2},
 				CodeAddress: test.codeAddress,
 				Value:       tosca.NewValue(0),
-				Gas:         1000,
-				Input:       []byte{},
+				Gas:         100000,
+				Input:       input,
 			})
 
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
-			if result.Success {
-				t.Error("expected unsuccessful result, got success")
+			if !result.Success {
+				t.Error("expected successful call, got failure")
 			}
-			if result.GasLeft != 0 {
-				t.Errorf("failed calls should consume all gas, got %d gas left", result.GasLeft)
-			}
-
 		})
 	}
 }

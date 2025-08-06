@@ -16,6 +16,7 @@ import (
 
 	test_utils "github.com/0xsoniclabs/tosca/go/processor"
 	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPrecompiled_RightNumberOfContractsDependingOnRevision(t *testing.T) {
@@ -73,9 +74,14 @@ func TestPrecompiled_AddressesAreHandledCorrectly(t *testing.T) {
 				input = test_utils.ValidPointEvaluationInput
 			}
 
-			result, isPrecompiled := handlePrecompiledContract(test.revision, input, test.address, test.gas)
+			isPrecompiled := isPrecompiled(test.address, test.revision)
 			if isPrecompiled != test.isPrecompiled {
-				t.Errorf("unexpected precompiled, want %v, got %v", test.isPrecompiled, isPrecompiled)
+				t.Fatalf("unexpected precompiled, want %v, got %v", test.isPrecompiled, isPrecompiled)
+			}
+
+			result, err := runPrecompiledContract(test.revision, input, test.address, test.gas)
+			if test.success && err != nil {
+				t.Errorf("unexpected error, want nil, got %v", err)
 			}
 			if result.Success != test.success {
 				t.Errorf("unexpected success, want %v, got %v", test.success, result.Success)
@@ -85,6 +91,7 @@ func TestPrecompiled_AddressesAreHandledCorrectly(t *testing.T) {
 }
 
 func TestPrecompiled_GasCostOverflowIsDetectedAndHandled(t *testing.T) {
+	// Input data to produce a gas price which overflows int64 in the MODEXP precompiled contract.
 	data := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		0, 0, 0, 0, 0, 32, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
@@ -96,11 +103,7 @@ func TestPrecompiled_GasCostOverflowIsDetectedAndHandled(t *testing.T) {
 	}
 
 	modExpAddress := test_utils.NewAddress(0x05)
-	result, isPrecompiled := handlePrecompiledContract(tosca.R13_Cancun, tosca.Data(data), modExpAddress, 100)
-	if !isPrecompiled {
-		t.Errorf("expected precompiled contract, got none")
-	}
-	if result.Success {
-		t.Errorf("expected failure, got success")
-	}
+	result, err := runPrecompiledContract(tosca.R13_Cancun, tosca.Data(data), modExpAddress, 100)
+	require.ErrorContains(t, err, "gas cost exceeds maximum limit")
+	require.False(t, result.Success, "expected the result to be unsuccessful due to gas cost overflow")
 }

@@ -61,11 +61,11 @@ func (r runContext) executeCall(kind tosca.CallKind, parameters tosca.CallParame
 		r.static = true
 	}
 
-	if r.blockParameters.Revision >= tosca.R09_Berlin &&
-		!isPrecompiled(recipient, r.blockParameters.Revision) &&
-		!isStateContract(recipient) &&
-		!r.AccountExists(recipient) &&
-		parameters.Value.Cmp(tosca.Value{}) == 0 {
+	isStateContract := isStateContract(parameters.CodeAddress)
+	isPrecompiled := isPrecompiled(parameters.CodeAddress, r.blockParameters.Revision)
+
+	if kind == tosca.Call && r.blockParameters.Revision >= tosca.R09_Berlin && !isPrecompiled &&
+		!isStateContract && !r.AccountExists(parameters.Recipient) && parameters.Value.Cmp(tosca.Value{}) == 0 {
 		return tosca.CallResult{Success: true, GasLeft: parameters.Gas}, nil
 	}
 
@@ -73,24 +73,19 @@ func (r runContext) executeCall(kind tosca.CallKind, parameters tosca.CallParame
 		transferValue(r, parameters.Value, parameters.Sender, recipient)
 	}
 
-	if kind == tosca.Call {
-		result, isStatePrecompiled := handleStateContract(
-			r, parameters.Sender, parameters.CodeAddress, parameters.Input, parameters.Gas)
-		if isStatePrecompiled {
-			if !result.Success {
-				r.RestoreSnapshot(snapshot)
-				result.GasLeft = 0
-			}
-			return result, nil
-		}
-	}
-
-	result, isPrecompiled := handlePrecompiledContract(
-		r.blockParameters.Revision, parameters.Input, parameters.CodeAddress, parameters.Gas)
-	if isPrecompiled {
+	if kind == tosca.Call && isStateContract {
+		result := runStateContract(r, parameters.Sender, parameters.CodeAddress, parameters.Input, parameters.Gas)
 		if !result.Success {
 			r.RestoreSnapshot(snapshot)
 			result.GasLeft = 0
+		}
+		return result, nil
+	}
+
+	if isPrecompiled {
+		result, err := runPrecompiledContract(r.blockParameters.Revision, parameters.Input, parameters.CodeAddress, parameters.Gas)
+		if err != nil {
+			r.RestoreSnapshot(snapshot)
 		}
 		return result, nil
 	}

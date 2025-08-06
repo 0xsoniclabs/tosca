@@ -83,24 +83,24 @@ func isStateContract(address tosca.Address) bool {
 	return address == StateContractAddress()
 }
 
-// handleStateContract is a reworked version of the original function from the Opera client.
+// runStateContract is a reworked version of the original function from the Opera client.
 // It is used to handle epochs and allows to set balance, copy code, swap code, set storage, and increment nonce.
 // Source: https://github.com/Fantom-foundation/Sonic/blob/main/opera/contracts/evmwriter/evm_writer.go#L24
-func handleStateContract(
+func runStateContract(
 	state tosca.WorldState,
 	sender tosca.Address,
 	receiver tosca.Address,
 	input []byte,
 	gas tosca.Gas,
-) (tosca.CallResult, bool) {
+) tosca.CallResult {
 	if receiver != StateContractAddress() {
-		return tosca.CallResult{}, false
+		return tosca.CallResult{}
 	}
 	if sender != DriverAddress() {
-		return tosca.CallResult{}, true
+		return tosca.CallResult{}
 	}
 	if len(input) < 4 {
-		return tosca.CallResult{}, true
+		return tosca.CallResult{}
 	}
 
 	err := fmt.Errorf("invalid method ID")
@@ -124,7 +124,7 @@ func handleStateContract(
 		Success: err == nil,
 		Output:  nil,
 		GasLeft: gasLeft,
-	}, true
+	}
 }
 
 func executeStateSetBalance(state tosca.WorldState, sender tosca.Address, input []byte, gas tosca.Gas) (tosca.Gas, error) {
