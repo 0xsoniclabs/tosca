@@ -82,10 +82,50 @@ func TestPrecompiled_AddressesAreHandledCorrectly(t *testing.T) {
 			result, err := runPrecompiledContract(test.revision, input, test.address, test.gas)
 			if test.success && err != nil {
 				t.Errorf("unexpected error, want nil, got %v", err)
+				if !result.Success {
+					t.Errorf("expected success, but got %v", result.Success)
+				}
 			}
-			if result.Success != test.success {
-				t.Errorf("unexpected success, want %v, got %v", test.success, result.Success)
+			if !test.success && err == nil {
+				t.Errorf("expected an error, but got nil")
+				if result.Success {
+					t.Errorf("expected failure, but got success %v", result.Success)
+				}
 			}
+		})
+	}
+}
+
+func TestPrecompiled_ErrorsAreHandledCorrectly(t *testing.T) {
+	tests := map[string]struct {
+		address       tosca.Address
+		gas           tosca.Gas
+		expectedError string
+	}{
+		"nonPrecompiled": {
+			tosca.Address{0x20},
+			3000,
+			"precompiled contract not found",
+		},
+		"ecrecover-insufficientGas": {
+			test_utils.NewAddress(0x01), // ecrecover address
+			1,
+			"insufficient gas",
+		},
+		"failing-input": {
+			test_utils.NewAddress(0x0a), // point evaluation address
+			55000,
+			"error executing precompiled contract",
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			input := tosca.Data{}
+			result, err := runPrecompiledContract(tosca.R13_Cancun, input, test.address, test.gas)
+			require.ErrorContains(t, err, test.expectedError)
+			require.False(t, result.Success, "expected the result to be unsuccessful due to error")
+			require.Equal(t, tosca.Gas(0), result.GasLeft, "expected gas left to be zero on error")
 		})
 	}
 }

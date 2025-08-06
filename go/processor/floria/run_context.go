@@ -64,8 +64,12 @@ func (r runContext) executeCall(kind tosca.CallKind, parameters tosca.CallParame
 	isStateContract := isStateContract(parameters.CodeAddress)
 	isPrecompiled := isPrecompiled(parameters.CodeAddress, r.blockParameters.Revision)
 
-	if kind == tosca.Call && r.blockParameters.Revision >= tosca.R09_Berlin && !isPrecompiled &&
-		!isStateContract && !r.AccountExists(parameters.Recipient) && parameters.Value.Cmp(tosca.Value{}) == 0 {
+	if kind == tosca.Call &&
+		r.blockParameters.Revision >= tosca.R09_Berlin &&
+		!isPrecompiled &&
+		!isStateContract &&
+		!r.AccountExists(parameters.Recipient) &&
+		parameters.Value.Cmp(tosca.Value{}) == 0 {
 		return tosca.CallResult{Success: true, GasLeft: parameters.Gas}, nil
 	}
 
