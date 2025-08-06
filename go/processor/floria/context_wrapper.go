@@ -19,15 +19,15 @@ type floriaContext struct {
 	revision tosca.Revision
 }
 
-// SelfDestruct overrides the SelfDestruct method of the embedded TransactionContext and
-// performs the balance update according to the specified revision.
+// SelfDestruct overrides the SelfDestruct method to perform the balance update
+// based on the specified revision. Geth handles selfdestruct balance updates
+// within the interpreter, but in Tosca, the updates are managed by the processor
+// for consistency with calls and creates.
 func (c floriaContext) SelfDestruct(address tosca.Address, beneficiary tosca.Address) bool {
 	balance := c.GetBalance(address)
 	if c.revision >= tosca.R13_Cancun {
-		// Starting with Cancun, eip-6780 changes the behavior of selfdestruct.
-		// The account is only deleted if selfdestruct is called within the same transaction
-		// it has been created. The balance is transferred to the beneficiary, therefore it
-		// has to be set to zero for the address being selfdestructed.
+		// Pre Cancun selfdestructed accounts were deleted, this is no longer the case since eip-6780.
+		// To ensure no balance is left on the selfdestructed account, the balance is set to zero.
 		c.SetBalance(address, tosca.Value{})
 	}
 	c.SetBalance(beneficiary, tosca.Add(c.GetBalance(beneficiary), balance))
