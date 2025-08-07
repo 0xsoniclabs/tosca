@@ -83,7 +83,7 @@ func isStateContract(address tosca.Address) bool {
 	return address == StateContractAddress()
 }
 
-// runStateContract is a reworked version of the original function from the Opera client.
+// runStateContract has originally been introduced for the Fantom chain.
 // It is used to handle epochs and allows to set balance, copy code, swap code, set storage, and increment nonce.
 // Source: https://github.com/Fantom-foundation/Sonic/blob/main/opera/contracts/evmwriter/evm_writer.go#L24
 func runStateContract(

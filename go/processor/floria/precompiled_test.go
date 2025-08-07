@@ -80,17 +80,11 @@ func TestPrecompiled_AddressesAreHandledCorrectly(t *testing.T) {
 			}
 
 			result, err := runPrecompiledContract(test.revision, input, test.address, test.gas)
-			if test.success && err != nil {
-				t.Errorf("unexpected error, want nil, got %v", err)
-				if !result.Success {
-					t.Errorf("expected success, but got %v", result.Success)
-				}
-			}
-			if !test.success && err == nil {
-				t.Errorf("expected an error, but got nil")
-				if result.Success {
-					t.Errorf("expected failure, but got success %v", result.Success)
-				}
+			if test.success {
+				require.NoError(t, err)
+				require.True(t, result.Success)
+			} else {
+				require.Error(t, err)
 			}
 		})
 	}
