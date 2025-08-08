@@ -16,7 +16,6 @@ import "github.com/0xsoniclabs/tosca/go/tosca"
 // that adds the balance transfer to the selfdestruct function
 type floriaContext struct {
 	tosca.TransactionContext
-	revision tosca.Revision
 }
 
 // SelfDestruct overrides the SelfDestruct method to perform the balance update
@@ -25,11 +24,7 @@ type floriaContext struct {
 // for consistency with calls and creates.
 func (c floriaContext) SelfDestruct(address tosca.Address, beneficiary tosca.Address) bool {
 	balance := c.GetBalance(address)
-	if c.revision >= tosca.R13_Cancun {
-		// Pre Cancun selfdestructed accounts were deleted, this is no longer the case since eip-6780.
-		// To ensure no balance is left on the selfdestructed account, the balance is set to zero.
-		c.SetBalance(address, tosca.Value{})
-	}
+	c.SetBalance(address, tosca.Value{})
 	c.SetBalance(beneficiary, tosca.Add(c.GetBalance(beneficiary), balance))
 	return c.TransactionContext.SelfDestruct(address, beneficiary)
 }

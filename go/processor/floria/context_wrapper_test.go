@@ -30,17 +30,13 @@ func TestFloriaContext_SelfDestructPerformsTheBalanceUpdate(t *testing.T) {
 			beneficiaryBalance := tosca.NewValue(10)
 
 			context.EXPECT().GetBalance(address).Return(balance)
-			if revision >= tosca.R13_Cancun {
-				// eip-6780, reset balance for the address being selfdestructed
-				context.EXPECT().SetBalance(address, tosca.Value{})
-			}
+			context.EXPECT().SetBalance(address, tosca.Value{})
 			context.EXPECT().GetBalance(beneficiary).Return(beneficiaryBalance)
 			context.EXPECT().SetBalance(beneficiary, tosca.Add(balance, beneficiaryBalance))
 			context.EXPECT().SelfDestruct(address, beneficiary).Return(true)
 
 			floriaContext := floriaContext{
 				TransactionContext: context,
-				revision:           revision,
 			}
 
 			selfdestructed := floriaContext.SelfDestruct(address, beneficiary)
