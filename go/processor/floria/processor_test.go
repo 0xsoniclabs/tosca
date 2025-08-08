@@ -11,7 +11,6 @@
 package floria
 
 import (
-	"fmt"
 	"math"
 	"reflect"
 	"testing"
@@ -573,52 +572,12 @@ func TestProcessor_blobCheckReturnsErrors(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := checkBlobs(test.transaction, test.blockParams, false)
+			err := checkBlobs(test.transaction, test.blockParams)
 			if test.errorString != "" {
 				require.ErrorContains(t, err, test.errorString)
 			} else {
 				require.NoError(t, err, "checkBlobs should not return an error")
 			}
-		})
-	}
-}
-
-func TestProcessor_blobCheckSkipsFeeCheckIfNoBaseFeeIsTrue(t *testing.T) {
-	tests := map[string]struct {
-		noBaseFee     bool
-		blobBaseFee   tosca.Value
-		expectedError error
-	}{
-		"no base fee": {
-			noBaseFee:     true,
-			expectedError: nil,
-		},
-		"with base fee": {
-			noBaseFee:     false,
-			expectedError: fmt.Errorf("blobGasFeeCap is lower than blobBaseFee"),
-		},
-	}
-
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			blockParams := tosca.BlockParameters{
-				Revision:    tosca.R13_Cancun,
-				BlobBaseFee: tosca.NewValue(10),
-			}
-
-			transaction := tosca.Transaction{
-				Recipient:     &tosca.Address{1},
-				BlobHashes:    []tosca.Hash{{1}},
-				BlobGasFeeCap: tosca.NewValue(0),
-			}
-
-			err := checkBlobs(transaction, blockParams, test.noBaseFee)
-			if test.expectedError != nil {
-				require.ErrorContains(t, err, test.expectedError.Error())
-			} else {
-				require.NoError(t, err, "checkBlobs should not return an error")
-			}
-
 		})
 	}
 }

@@ -45,7 +45,6 @@ func newProcessor(interpreter tosca.Interpreter) tosca.Processor {
 
 type processor struct {
 	interpreter tosca.Interpreter
-	noBaseFee   bool // TODO: add config struct to pass this value and tracer flag
 }
 
 func (p *processor) Run(
@@ -71,7 +70,7 @@ func (p *processor) Run(
 		return tosca.Receipt{}, nil
 	}
 
-	if err = checkBlobs(transaction, blockParameters, p.noBaseFee); err != nil {
+	if err = checkBlobs(transaction, blockParameters); err != nil {
 		return tosca.Receipt{}, nil
 	}
 
@@ -302,7 +301,7 @@ func buyGas(transaction tosca.Transaction, context tosca.TransactionContext, gas
 	return nil
 }
 
-func checkBlobs(transaction tosca.Transaction, blockParameters tosca.BlockParameters, noBaseFee bool) error {
+func checkBlobs(transaction tosca.Transaction, blockParameters tosca.BlockParameters) error {
 	if transaction.BlobHashes != nil {
 		if transaction.Recipient == nil {
 			return fmt.Errorf("blob transaction without recipient")
@@ -320,9 +319,6 @@ func checkBlobs(transaction tosca.Transaction, blockParameters tosca.BlockParame
 	}
 
 	if blockParameters.Revision >= tosca.R13_Cancun && len(transaction.BlobHashes) > 0 {
-		if noBaseFee && transaction.BlobGasFeeCap == (tosca.Value{}) {
-			return nil // skip checks if no blob gas fee cap is set
-		}
 		if transaction.BlobGasFeeCap.Cmp(blockParameters.BlobBaseFee) < 0 {
 			return fmt.Errorf("blobGasFeeCap is lower than blobBaseFee")
 		}
