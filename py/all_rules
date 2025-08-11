@@ -6,7 +6,6 @@
  ("callcode_regular_cold", And(revision != 6,ColdDelegationDesignation(param(1)),status == running,code(pc) == CALLCODE,And(0<=pc,pc<49152,isCode(pc)),gas >= 0,stackSize >= 7,stackSize <= 1024), "callcode_regular_cold"),
  ("call_regular_cold", And(revision != 6,ColdDelegationDesignation(param(1)),status == running,code(pc) == CALL,And(0<=pc,pc<49152,isCode(pc)),gas >= 0,stackSize >= 7,stackSize <= 1024), "call_regular_cold"),
   ("INVALID_invalid", And(status == running,code(pc) == INVALID,And(0<=pc,pc<49152,isCode(pc)),And(Istanbul <= revision, revision <= Prague)), "FailEffect"),
-  ("INVALID_invalid_x", And(status == running,Or(code(pc) < 0, code(pc) > 255),And(0<=pc,pc<49152,isCode(pc)),And(Istanbul <= revision, revision <= Prague)), "FailEffect"),
  ("add_regular", And(status == running,code(pc) == ADD,And(0<=pc,pc<49152,isCode(pc)),gas >= 3,stackSize >= 2,stackSize <= 1024,And(Istanbul <= revision, revision <= Prague)), "add_regular"),
  ("add_with_too_few_elements", And(And(Istanbul <= revision, revision <= Prague),status == running,code(pc) == ADD,And(0<=pc,pc<49152,isCode(pc)),stackSize < 2), "FailEffect"),
  ("add_with_too_little_gas", And(And(Istanbul <= revision, revision <= Prague),status == running,code(pc) == ADD,And(0<=pc,pc<49152,isCode(pc)),gas < 3), "FailEffect"),

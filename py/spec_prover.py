@@ -435,6 +435,9 @@ def vm_state_solver():
     # bound storage status
     s.add(storage_conf_yz >= 0, storage_conf_yz < numStorageStatus)
 
+    # bound op-code to byte range
+    s.add(code(pc) >= 0, code(pc) <= 255)
+
     return s
 
 
