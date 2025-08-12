@@ -159,12 +159,8 @@ func TestProcessor_GasPriceCalculation(t *testing.T) {
 	for testName, test := range tests {
 		t.Run(testName, func(t *testing.T) {
 			gasPrice, err := calculateGasPrice(tosca.NewValue(test.baseFee), tosca.NewValue(test.gasFeeCap), tosca.NewValue(test.gasTipCap))
-			if err != nil {
-				t.Fatalf("calculateGasPrice returned an error: %v", err)
-			}
-			if gasPrice.Cmp(tosca.NewValue(test.expected)) != 0 {
-				t.Errorf("calculateGasPrice returned wrong result, want: %v, got: %v", test.expected, gasPrice)
-			}
+			require.NoError(t, err, "calculateGasPrice should not return an error")
+			require.Equal(t, tosca.NewValue(test.expected), gasPrice, "calculateGasPrice should return the expected gas price")
 		})
 	}
 }
@@ -839,27 +835,28 @@ func TestProcessor_BalanceCheckCalculatesCapGasCorrectly(t *testing.T) {
 	}
 }
 
-func TestProcessor_BuyGasUpdatesSenderBalance(t *testing.T) {
+func TestProcessor_BuyGas_AccountsForBlobs(t *testing.T) {
 	senderBalance := tosca.NewValue(uint64(1000))
 	gasPrice := tosca.NewValue(uint64(10))
 	blobGasPrice := tosca.NewValue(uint64(15))
 	gasLimit := tosca.Gas(10)
+	baseCost := gasPrice.Scale(uint64(gasLimit))
 
 	tests := map[string]struct {
 		blobHashes     []tosca.Hash
 		expectedUpdate tosca.Value
 	}{
-		"nil Blobs": {
+		"nil blobs": {
 			blobHashes:     nil,
-			expectedUpdate: gasPrice.Scale(uint64(gasLimit)),
+			expectedUpdate: baseCost,
 		},
-		"empty Blobs": {
+		"empty blobs": {
 			blobHashes:     []tosca.Hash{},
-			expectedUpdate: gasPrice.Scale(uint64(gasLimit)),
+			expectedUpdate: baseCost,
 		},
-		"withBlobs": {
+		"with blobs": {
 			blobHashes:     []tosca.Hash{{0x01}, {0x02}},
-			expectedUpdate: tosca.Add(gasPrice.Scale(uint64(gasLimit)), blobGasPrice.Scale(uint64(2)*BlobTxBlobGasPerBlob)),
+			expectedUpdate: tosca.Add(baseCost, blobGasPrice.Scale(uint64(2)*BlobTxBlobGasPerBlob)),
 		},
 	}
 

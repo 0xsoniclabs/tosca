@@ -177,6 +177,7 @@ func eoaCheck(sender tosca.Address, context tosca.TransactionContext) error {
 	return nil
 }
 
+// Checks if the sender has enough balance to cover the transaction gas limit and value.
 func balanceCheck(gasPrice tosca.Value, transaction tosca.Transaction, balance tosca.Value, ethCompatible bool) error {
 	checkValue := gasPrice.ToBig().Mul(gasPrice.ToBig(), big.NewInt(int64(transaction.GasLimit)))
 	if ethCompatible && transaction.GasFeeCap != (tosca.Value{}) {
@@ -207,6 +208,8 @@ func balanceCheck(gasPrice tosca.Value, transaction tosca.Transaction, balance t
 	return nil
 }
 
+// Decreases the sender balance by the transaction gas limit.
+// This function does not check for sufficient balance and requires the balance check to be performed in advance.
 func buyGas(transaction tosca.Transaction, gasPrice tosca.Value, blobGasPrice tosca.Value, context tosca.TransactionContext) {
 	gas := gasPrice.Scale(uint64(transaction.GasLimit))
 
