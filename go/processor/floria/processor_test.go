@@ -23,7 +23,7 @@ import (
 
 func TestProcessor_NewProcessorReturnsProcessor(t *testing.T) {
 	interpreter := tosca.NewMockInterpreter(gomock.NewController(t))
-	processor := newProcessor(interpreter)
+	processor := newFloriaProcessor(interpreter)
 	if processor == nil {
 		t.Errorf("newProcessor returned nil")
 	}
@@ -65,7 +65,7 @@ func TestProcessor_Run_SuccessfulExecution(t *testing.T) {
 		GasLimit:  tosca.Gas(1000000),
 	}
 
-	processor := newProcessor(interpreter)
+	processor := newFloriaProcessor(interpreter)
 	result, err := processor.Run(blockParameters, transaction, context)
 	if err != nil {
 		t.Errorf("Run returned an error: %v", err)
@@ -245,6 +245,7 @@ func TestGasUsed(t *testing.T) {
 		result          tosca.CallResult
 		revision        tosca.Revision
 		expectedGasLeft tosca.Gas
+		ethCompatible   bool
 	}{
 		"InternalTransaction": {
 			transaction: tosca.Transaction{
@@ -324,7 +325,7 @@ func TestGasUsed(t *testing.T) {
 			revision:        tosca.R10_London,
 			expectedGasLeft: 505,
 		},
-		"UnsuccessfulResult": {
+		"unsuccessfulResult": {
 			transaction: tosca.Transaction{
 				Sender:   tosca.Address{},
 				GasLimit: 1000,
@@ -337,11 +338,39 @@ func TestGasUsed(t *testing.T) {
 			revision:        tosca.R10_London,
 			expectedGasLeft: 0,
 		},
+		"ethereumCompatible": {
+			transaction: tosca.Transaction{
+				Sender:   tosca.Address{1},
+				GasLimit: 1000,
+			},
+			result: tosca.CallResult{
+				GasLeft:   500,
+				Success:   true,
+				GasRefund: 100,
+			},
+			revision:        tosca.R09_Berlin,
+			expectedGasLeft: 600,
+			ethCompatible:   true,
+		},
+		"nonEthereumCompatible": {
+			transaction: tosca.Transaction{
+				Sender:   tosca.Address{1},
+				GasLimit: 1000,
+			},
+			result: tosca.CallResult{
+				GasLeft:   500,
+				Success:   true,
+				GasRefund: 100,
+			},
+			revision:        tosca.R09_Berlin,
+			expectedGasLeft: 550,
+			ethCompatible:   false,
+		},
 	}
 
 	for testName, test := range tests {
 		t.Run(testName, func(t *testing.T) {
-			actualGasLeft := calculateGasLeft(test.transaction, test.result, test.revision)
+			actualGasLeft := calculateGasLeft(test.transaction, test.result, test.revision, test.ethCompatible)
 
 			if actualGasLeft != test.expectedGasLeft {
 				t.Errorf("gasUsed returned incorrect result, got: %d, want: %d", actualGasLeft, test.expectedGasLeft)
@@ -586,7 +615,7 @@ func TestProcessor_SnapshotIsRevertedInCaseOfErrorAfterGasIsBought(t *testing.T)
 				GasFeeCap: tosca.NewValue(1),
 			}
 
-			processor := newProcessor(interpreter)
+			processor := newFloriaProcessor(interpreter)
 			result, err := processor.Run(blockParameters, transaction, context)
 			if err != nil {
 				t.Errorf("Run returned an error: %v", err)
@@ -691,7 +720,7 @@ func TestProcessor_Run_BlobTransactionWithoutBlobsIsUnsuccessful(t *testing.T) {
 		BlobHashes: []tosca.Hash{}, // No blobs but not nil
 	}
 
-	processor := newProcessor(interpreter)
+	processor := newFloriaProcessor(interpreter)
 	result, err := processor.Run(blockParameters, transaction, context)
 	if err != nil {
 		t.Errorf("Run returned an error: %v", err)
@@ -876,6 +905,47 @@ func TestProcessor_BuyGas_AccountsForBlobs(t *testing.T) {
 			context.EXPECT().SetBalance(sender, tosca.Sub(senderBalance, test.expectedUpdate))
 
 			buyGas(transaction, gasPrice, blobGasPrice, context)
+		})
+	}
+}
+
+func TestProcessor_PaymentToCoinbase(t *testing.T) {
+	baseFee := tosca.NewValue(10)
+	tests := map[string]struct {
+		revision tosca.Revision
+		gasPrice tosca.Value
+		payment  tosca.Value
+	}{
+		"pre London tip is gasPrice": {
+			revision: tosca.R09_Berlin,
+			gasPrice: tosca.NewValue(12),
+			payment:  tosca.NewValue(12),
+		},
+		"post London tip is gasPrice minus baseFee": {
+			revision: tosca.R10_London,
+			gasPrice: tosca.NewValue(12),
+			payment:  tosca.NewValue(2), // 12 - 10
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			context := tosca.NewMockTransactionContext(ctrl)
+
+			initialBalance := tosca.NewValue(100)
+			coinbase := tosca.Address{42}
+			gasUsed := tosca.Gas(1)
+			blockParameters := tosca.BlockParameters{
+				Coinbase: coinbase,
+				BaseFee:  baseFee,
+				Revision: test.revision,
+			}
+
+			context.EXPECT().GetBalance(coinbase).Return(initialBalance)
+			context.EXPECT().SetBalance(coinbase, tosca.Add(initialBalance, test.payment))
+
+			paymentToCoinbase(test.gasPrice, gasUsed, blockParameters, context)
 		})
 	}
 }
