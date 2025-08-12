@@ -20,6 +20,9 @@ func init() {
 	tosca.RegisterProcessorFactory("floria-eth", newFloriaEthProcessor)
 }
 
+// newFloriaProcessor creates a new instance of the Floria processor with the given interpreter.
+// This version of Floria is compatible with the Ethereum blockchain, but does not support
+// Sonic.
 func newFloriaEthProcessor(interpreter tosca.Interpreter) tosca.Processor {
 	return &floria.Processor{
 		Interpreter:   interpreter,

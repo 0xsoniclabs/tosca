@@ -40,6 +40,13 @@ func init() {
 	tosca.RegisterProcessorFactory("floria", newFloriaProcessor)
 }
 
+// newFloriaProcessor creates a new instance of the Floria processor with the given interpreter.
+// This version of Floria is compatible with the Sonic blockchain, but does not support Ethereum.
+// There are 4 differences in the way transactions are handled:
+// - Ignore gasFeeCap
+// - Ignore value transfer in balance check on top level
+// - No update of the coinbase
+// - Consume 10% of the remaining gas
 func newFloriaProcessor(interpreter tosca.Interpreter) tosca.Processor {
 	return &Processor{
 		Interpreter:   interpreter,
@@ -47,6 +54,7 @@ func newFloriaProcessor(interpreter tosca.Interpreter) tosca.Processor {
 	}
 }
 
+// Processor implements the tosca.Processor interface for the Floria processor.
 type Processor struct {
 	Interpreter   tosca.Interpreter
 	EthCompatible bool
@@ -75,12 +83,11 @@ func (p *Processor) Run(
 		return tosca.Receipt{}, nil
 	}
 
-	if err = checkBlobs(transaction, blockParameters); err != nil {
+	if checkBlobs(transaction, blockParameters) != nil {
 		return tosca.Receipt{}, nil
 	}
 
-	// TODO pass eth compatibility flag.
-	if balanceCheck(gasPrice, transaction, context.GetBalance(transaction.Sender), false) != nil {
+	if balanceCheck(gasPrice, transaction, context.GetBalance(transaction.Sender), p.EthCompatible) != nil {
 		return tosca.Receipt{}, nil
 	}
 

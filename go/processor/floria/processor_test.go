@@ -247,7 +247,7 @@ func TestGasUsed(t *testing.T) {
 		expectedGasLeft tosca.Gas
 		ethCompatible   bool
 	}{
-		"InternalTransaction": {
+		"internalTransaction": {
 			transaction: tosca.Transaction{
 				Sender:   tosca.Address{},
 				GasLimit: 1000,
@@ -260,7 +260,7 @@ func TestGasUsed(t *testing.T) {
 			revision:        tosca.R10_London,
 			expectedGasLeft: 500,
 		},
-		"NonInternalTransaction": {
+		"nonInternalTransaction": {
 			transaction: tosca.Transaction{
 				Sender:   tosca.Address{1},
 				GasLimit: 1000,
@@ -273,7 +273,7 @@ func TestGasUsed(t *testing.T) {
 			revision:        tosca.R10_London,
 			expectedGasLeft: 450,
 		},
-		"RefundPreLondon": {
+		"refundPreLondon": {
 			transaction: tosca.Transaction{
 				Sender:   tosca.Address{},
 				GasLimit: 1000,
@@ -286,7 +286,7 @@ func TestGasUsed(t *testing.T) {
 			revision:        tosca.R09_Berlin,
 			expectedGasLeft: 750,
 		},
-		"RefundLondon": {
+		"refundLondon": {
 			transaction: tosca.Transaction{
 				Sender:   tosca.Address{},
 				GasLimit: 1000,
@@ -299,7 +299,7 @@ func TestGasUsed(t *testing.T) {
 			revision:        tosca.R10_London,
 			expectedGasLeft: 600,
 		},
-		"RefundPostLondon": {
+		"refundPostLondon": {
 			transaction: tosca.Transaction{
 				Sender:   tosca.Address{},
 				GasLimit: 1000,
