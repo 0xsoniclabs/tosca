@@ -11,6 +11,7 @@
 package floria
 
 import (
+	"fmt"
 	"math"
 	"reflect"
 	"testing"
@@ -112,35 +113,47 @@ func TestProcessor_GasPriceCalculation(t *testing.T) {
 		gasTipCap uint64
 		expected  uint64
 	}{
-		"zero": {
+		"all zero": {
 			baseFee:   0,
 			gasFeeCap: 0,
 			gasTipCap: 0,
 			expected:  0,
 		},
-		"highCapNoTip": {
+		"high cap no tip": {
 			baseFee:   10,
 			gasFeeCap: 100,
 			gasTipCap: 0,
 			expected:  10,
 		},
-		"capTipEqual": {
+		"equal base, cap and tip": {
 			baseFee:   10,
 			gasFeeCap: 10,
 			gasTipCap: 10,
 			expected:  10,
 		},
-		"capHigherThanFee": {
+		"cap higher than fee": {
 			baseFee:   10,
 			gasFeeCap: 20,
 			gasTipCap: 5,
 			expected:  15,
 		},
-		"partOfTip": {
+		"diff smaller than cap": {
 			baseFee:   10,
 			gasFeeCap: 12,
 			gasTipCap: 5,
 			expected:  12,
+		},
+		"equal cap and diff": {
+			baseFee:   10,
+			gasFeeCap: 15,
+			gasTipCap: 5,
+			expected:  15,
+		},
+		"diff bigger than cap": {
+			baseFee:   10,
+			gasFeeCap: 20,
+			gasTipCap: 15,
+			expected:  20,
 		},
 	}
 	for testName, test := range tests {
@@ -158,27 +171,40 @@ func TestProcessor_GasPriceCalculation(t *testing.T) {
 
 func TestProcessor_GasPriceCalculationError(t *testing.T) {
 	tests := map[string]struct {
-		baseFee   uint64
-		gasFeeCap uint64
-		gasTipCap uint64
+		baseFee     uint64
+		gasFeeCap   uint64
+		gasTipCap   uint64
+		errorString string
 	}{
-		"feeCapLowerThanBaseFee": {
-			baseFee:   100,
-			gasFeeCap: 10,
-			gasTipCap: 5,
+		"lower than baseFee": {
+			baseFee:     11,
+			gasFeeCap:   10,
+			gasTipCap:   1,
+			errorString: "lower than baseFee",
 		},
-		"feeCapLowerThanTipCap": {
-			baseFee:   1,
-			gasFeeCap: 5,
-			gasTipCap: 100,
+		"much lower than baseFee": {
+			baseFee:     10000,
+			gasFeeCap:   10,
+			gasTipCap:   1,
+			errorString: "lower than baseFee",
+		},
+		"lower than tipCap": {
+			baseFee:     1,
+			gasFeeCap:   1,
+			gasTipCap:   2,
+			errorString: "lower than tipCap",
+		},
+		"much lower than tipCap": {
+			baseFee:     1,
+			gasFeeCap:   1,
+			gasTipCap:   10000,
+			errorString: "lower than tipCap",
 		},
 	}
 	for testName, test := range tests {
 		t.Run(testName, func(t *testing.T) {
 			_, err := calculateGasPrice(tosca.NewValue(test.baseFee), tosca.NewValue(test.gasFeeCap), tosca.NewValue(test.gasTipCap))
-			if err == nil {
-				t.Errorf("calculateGasPrice did not return an error")
-			}
+			require.ErrorContains(t, err, test.errorString, "calculateGasPrice should return an error for invalid parameters")
 		})
 	}
 }
@@ -214,52 +240,6 @@ func TestProcessor_EoaCheck(t *testing.T) {
 				t.Errorf("eoaCheck returned wrong result: %v", err)
 			}
 		})
-	}
-}
-
-func TestProcessor_BuyGas(t *testing.T) {
-	balance := uint64(1000000)
-	gasLimit := uint64(100)
-	gasPrice := uint64(2)
-	blobGasPrice := uint64(1)
-
-	transaction := tosca.Transaction{
-		Sender:     tosca.Address{1},
-		GasLimit:   tosca.Gas(gasLimit),
-		BlobHashes: []tosca.Hash{{0x01}},
-	}
-
-	newBalance := balance - (gasLimit*gasPrice +
-		blobGasPrice*uint64(len(transaction.BlobHashes))*BlobTxBlobGasPerBlob)
-
-	ctrl := gomock.NewController(t)
-	context := tosca.NewMockTransactionContext(ctrl)
-	context.EXPECT().GetBalance(transaction.Sender).Return(tosca.NewValue(balance))
-	context.EXPECT().SetBalance(transaction.Sender, tosca.NewValue(newBalance))
-
-	err := buyGas(transaction, context, tosca.NewValue(gasPrice), tosca.NewValue(blobGasPrice))
-	if err != nil {
-		t.Errorf("buyGas returned an error: %v", err)
-	}
-}
-
-func TestProcessor_BuyGasInsufficientBalance(t *testing.T) {
-	balance := uint64(100)
-	gasLimit := uint64(100)
-	gasPrice := uint64(2)
-
-	transaction := tosca.Transaction{
-		Sender:   tosca.Address{1},
-		GasLimit: tosca.Gas(gasLimit),
-	}
-
-	ctrl := gomock.NewController(t)
-	context := tosca.NewMockTransactionContext(ctrl)
-	context.EXPECT().GetBalance(transaction.Sender).Return(tosca.NewValue(balance))
-
-	err := buyGas(transaction, context, tosca.NewValue(gasPrice), tosca.NewValue(0))
-	if err == nil {
-		t.Errorf("buyGas did not fail with insufficient balance")
 	}
 }
 
@@ -571,10 +551,6 @@ func TestProcessor_SnapshotIsRevertedInCaseOfErrorAfterGasIsBought(t *testing.T)
 		gasLimit tosca.Gas
 		initCode tosca.Data
 	}{
-		"buy gas": {
-			balance:  tosca.NewValue(10),
-			gasLimit: tosca.Gas(1000),
-		},
 		"calculate setup gas": {
 			balance:  tosca.NewValue(1000),
 			gasLimit: tosca.Gas(10),
@@ -598,7 +574,7 @@ func TestProcessor_SnapshotIsRevertedInCaseOfErrorAfterGasIsBought(t *testing.T)
 			context.EXPECT().CreateSnapshot().Return(snapshot)
 			context.EXPECT().GetNonce(sender)
 			context.EXPECT().GetCodeHash(sender)
-			context.EXPECT().GetBalance(sender).Return(test.balance)
+			context.EXPECT().GetBalance(sender).Return(test.balance).AnyTimes()
 			context.EXPECT().SetBalance(sender, gomock.Any()).AnyTimes()
 			context.EXPECT().RestoreSnapshot(snapshot)
 
@@ -726,5 +702,183 @@ func TestProcessor_Run_BlobTransactionWithoutBlobsIsUnsuccessful(t *testing.T) {
 	}
 	if result.Success {
 		t.Errorf("Run should not succeed for blob transaction without blobs")
+	}
+}
+
+func TestProcessor_BalanceCheckReturnsErrors(t *testing.T) {
+	tests := map[string]struct {
+		gasLimit      tosca.Gas
+		expectedError error
+	}{
+		"no error": {
+			gasLimit:      tosca.Gas(1),
+			expectedError: nil,
+		},
+		"gas overflow": {
+			gasLimit:      tosca.Gas(math.MaxInt64),
+			expectedError: fmt.Errorf("capGas overflow"),
+		},
+		"insufficient balance": {
+			gasLimit:      tosca.Gas(100),
+			expectedError: fmt.Errorf("insufficient balance"),
+		},
+	}
+
+	for testName, test := range tests {
+		t.Run(testName, func(t *testing.T) {
+			hugeValue := tosca.NewValue(math.MaxUint64/1000, math.MaxUint64, math.MaxUint64, math.MaxUint64)
+			transaction := tosca.Transaction{
+				GasFeeCap: hugeValue,
+				GasLimit:  test.gasLimit,
+			}
+			balance := hugeValue
+			gasPrice := tosca.NewValue(5)
+			err := balanceCheck(gasPrice, transaction, balance, true)
+			if test.expectedError == nil {
+				require.NoError(t, err, "balanceCheck should not return an error")
+			} else {
+				require.ErrorContains(t, err, test.expectedError.Error(), "balanceCheck should return the expected error")
+			}
+		})
+	}
+}
+
+func TestProcessor_NonEthCompatibleBalanceCheckIgnoresGasFeeCapAndValue(t *testing.T) {
+	tests := map[string]struct {
+		value         tosca.Value
+		gasFeeCap     tosca.Value
+		ethCompatible bool
+	}{
+		"value": {
+			value:         tosca.NewValue(100),
+			ethCompatible: false,
+		},
+		"value-eth": {
+			value:         tosca.NewValue(100),
+			ethCompatible: true,
+		},
+		"gasFeeCap": {
+			gasFeeCap:     tosca.NewValue(100),
+			ethCompatible: false,
+		},
+		"gasFeeCap-eth": {
+			gasFeeCap:     tosca.NewValue(100),
+			ethCompatible: true,
+		},
+	}
+
+	for testName, test := range tests {
+		t.Run(testName, func(t *testing.T) {
+			transaction := tosca.Transaction{
+				GasFeeCap: test.gasFeeCap,
+				GasLimit:  tosca.Gas(10),
+				Value:     test.value,
+			}
+
+			gasPrice := tosca.NewValue(1)
+			err := balanceCheck(gasPrice, transaction, tosca.NewValue(10), test.ethCompatible)
+			if test.ethCompatible {
+				require.ErrorContains(t, err, "insufficient balance")
+			} else {
+				require.NoError(t, err, "balanceCheck should not return an error")
+			}
+		})
+	}
+}
+
+func TestProcessor_BalanceCheckCalculatesCapGasCorrectly(t *testing.T) {
+	tests := map[string]struct {
+		gasFeeCap     tosca.Value
+		gasPrice      tosca.Value
+		value         tosca.Value
+		ethCompatible bool
+		blobHashes    []tosca.Hash
+		checkValue    tosca.Value
+	}{
+		"baseline": {
+			gasPrice:   tosca.NewValue(10),
+			value:      tosca.NewValue(10),
+			checkValue: tosca.NewValue(100),
+		},
+		"with gas fee cap": {
+			gasFeeCap:     tosca.NewValue(20),
+			ethCompatible: true,
+			checkValue:    tosca.NewValue(200),
+		},
+		"ethereum compatible": {
+			gasPrice:      tosca.NewValue(10),
+			value:         tosca.NewValue(10),
+			ethCompatible: true,
+			checkValue:    tosca.NewValue(110),
+		},
+		"with blobhashes": {
+			gasPrice:   tosca.NewValue(10),
+			blobHashes: []tosca.Hash{{0x01}, {0x02}},
+			checkValue: tosca.NewValue(262244),
+		},
+	}
+
+	for testName, test := range tests {
+		t.Run(testName, func(t *testing.T) {
+
+			transaction := tosca.Transaction{
+				GasFeeCap:     test.gasFeeCap,
+				BlobGasFeeCap: tosca.NewValue(1),
+				BlobHashes:    test.blobHashes,
+				GasLimit:      tosca.Gas(10),
+				Value:         test.value,
+			}
+			balance := tosca.NewValue(1)
+
+			err := balanceCheck(test.gasPrice, transaction, balance, test.ethCompatible)
+
+			// this test is using the error message to check that the gas cap was correctly calculated.
+			errorMessage := fmt.Sprintf("insufficient balance: 1 < %v", test.checkValue)
+			require.ErrorContains(t, err, errorMessage, "balanceCheck should return an error with the correct cap gas")
+		})
+	}
+}
+
+func TestProcessor_BuyGasUpdatesSenderBalance(t *testing.T) {
+	senderBalance := tosca.NewValue(uint64(1000))
+	gasPrice := tosca.NewValue(uint64(10))
+	blobGasPrice := tosca.NewValue(uint64(15))
+	gasLimit := tosca.Gas(10)
+
+	tests := map[string]struct {
+		blobHashes     []tosca.Hash
+		expectedUpdate tosca.Value
+	}{
+		"nil Blobs": {
+			blobHashes:     nil,
+			expectedUpdate: gasPrice.Scale(uint64(gasLimit)),
+		},
+		"empty Blobs": {
+			blobHashes:     []tosca.Hash{},
+			expectedUpdate: gasPrice.Scale(uint64(gasLimit)),
+		},
+		"withBlobs": {
+			blobHashes:     []tosca.Hash{{0x01}, {0x02}},
+			expectedUpdate: tosca.Add(gasPrice.Scale(uint64(gasLimit)), blobGasPrice.Scale(uint64(2)*BlobTxBlobGasPerBlob)),
+		},
+	}
+
+	for testName, test := range tests {
+		t.Run(testName, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			context := tosca.NewMockTransactionContext(ctrl)
+
+			sender := tosca.Address{1}
+			transaction := tosca.Transaction{
+				Sender:     sender,
+				GasLimit:   gasLimit,
+				BlobHashes: test.blobHashes,
+			}
+
+			context.EXPECT().GetBalance(sender).Return(senderBalance)
+			context.EXPECT().SetBalance(sender, tosca.Sub(senderBalance, test.expectedUpdate))
+
+			buyGas(transaction, gasPrice, blobGasPrice, context)
+		})
 	}
 }

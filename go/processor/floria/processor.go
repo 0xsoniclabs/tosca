@@ -12,8 +12,10 @@ package floria
 
 import (
 	"fmt"
+	"math/big"
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/holiman/uint256"
 )
 
 const (
@@ -75,12 +77,14 @@ func (p *processor) Run(
 		return tosca.Receipt{}, nil
 	}
 
-	if err := buyGas(transaction, context, gasPrice, blockParameters.BlobBaseFee); err != nil {
-		context.RestoreSnapshot(snapshot)
+	// TODO pass eth compatibility flag.
+	if balanceCheck(gasPrice, transaction, context.GetBalance(transaction.Sender), false) != nil {
 		return tosca.Receipt{}, nil
 	}
 
+	buyGas(transaction, gasPrice, blockParameters.BlobBaseFee, context)
 	gas := transaction.GasLimit
+
 	setupGas := calculateSetupGas(transaction, blockParameters.Revision)
 	if gas < setupGas {
 		context.RestoreSnapshot(snapshot)
@@ -149,7 +153,7 @@ func calculateGasPrice(baseFee, gasFeeCap, gasTipCap tosca.Value) (tosca.Value, 
 		return tosca.Value{}, fmt.Errorf("gasFeeCap %v is lower than baseFee %v", gasFeeCap, baseFee)
 	}
 	if gasFeeCap.Cmp(gasTipCap) < 0 {
-		return tosca.Value{}, fmt.Errorf("gasFeeCap %v is lower than gasTipCap %v", gasFeeCap, gasTipCap)
+		return tosca.Value{}, fmt.Errorf("gasFeeCap %v is lower than tipCap %v", gasFeeCap, gasTipCap)
 	}
 	return tosca.Add(baseFee, tosca.Min(gasTipCap, tosca.Sub(gasFeeCap, baseFee))), nil
 }
@@ -171,6 +175,49 @@ func eoaCheck(sender tosca.Address, context tosca.TransactionContext) error {
 		return fmt.Errorf("sender is not an EOA")
 	}
 	return nil
+}
+
+func balanceCheck(gasPrice tosca.Value, transaction tosca.Transaction, balance tosca.Value, ethCompatible bool) error {
+	checkValue := gasPrice.ToBig().Mul(gasPrice.ToBig(), big.NewInt(int64(transaction.GasLimit)))
+	if ethCompatible && transaction.GasFeeCap != (tosca.Value{}) {
+		checkValue = transaction.GasFeeCap.ToBig().Mul(transaction.GasFeeCap.ToBig(), big.NewInt(int64(transaction.GasLimit)))
+	}
+
+	if ethCompatible {
+		// Note: insufficient balance for **topmost** call isn't a consensus error in Opera, unlike Ethereum
+		// Such transaction will revert and consume sender's gas
+		checkValue = checkValue.Add(checkValue, transaction.Value.ToBig())
+	}
+
+	if len(transaction.BlobHashes) > 0 {
+		blobFee := transaction.BlobGasFeeCap.Scale(uint64(len(transaction.BlobHashes) * BlobTxBlobGasPerBlob))
+		checkValue = checkValue.Add(checkValue, blobFee.ToBig())
+	}
+
+	capGasU256, overflow := uint256.FromBig(checkValue)
+	if overflow {
+		return fmt.Errorf("capGas overflow")
+	}
+	capGasValue := tosca.ValueFromUint256(capGasU256)
+
+	if balance.Cmp(capGasValue) < 0 {
+		return fmt.Errorf("insufficient balance: %v < %v", balance, capGasValue)
+	}
+
+	return nil
+}
+
+func buyGas(transaction tosca.Transaction, gasPrice tosca.Value, blobGasPrice tosca.Value, context tosca.TransactionContext) {
+	gas := gasPrice.Scale(uint64(transaction.GasLimit))
+
+	if len(transaction.BlobHashes) > 0 {
+		blobFee := blobGasPrice.Scale(uint64(len(transaction.BlobHashes) * BlobTxBlobGasPerBlob))
+		gas = tosca.Add(gas, blobFee)
+	}
+
+	senderBalance := context.GetBalance(transaction.Sender)
+	senderBalance = tosca.Sub(senderBalance, gas)
+	context.SetBalance(transaction.Sender, senderBalance)
 }
 
 func setUpAccessList(transaction tosca.Transaction, context tosca.TransactionContext, revision tosca.Revision, coinBase tosca.Address) {
@@ -297,26 +344,6 @@ func calculateSetupGas(transaction tosca.Transaction, revision tosca.Revision) t
 	}
 
 	return tosca.Gas(gas)
-}
-
-func buyGas(transaction tosca.Transaction, context tosca.TransactionContext, gasPrice tosca.Value, blobGasPrice tosca.Value) error {
-	gas := gasPrice.Scale(uint64(transaction.GasLimit))
-
-	if len(transaction.BlobHashes) > 0 {
-		blobFee := blobGasPrice.Scale(uint64(len(transaction.BlobHashes) * BlobTxBlobGasPerBlob))
-		gas = tosca.Add(gas, blobFee)
-	}
-
-	// Buy gas
-	senderBalance := context.GetBalance(transaction.Sender)
-	if senderBalance.Cmp(gas) < 0 {
-		return fmt.Errorf("insufficient balance: %v < %v", senderBalance, gas)
-	}
-
-	senderBalance = tosca.Sub(senderBalance, gas)
-	context.SetBalance(transaction.Sender, senderBalance)
-
-	return nil
 }
 
 func checkBlobs(transaction tosca.Transaction, blockParameters tosca.BlockParameters) error {
