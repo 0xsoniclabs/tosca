@@ -205,7 +205,7 @@ func TestProcessor_GasPriceCalculationError(t *testing.T) {
 	}
 }
 
-func TestProcessor_EoaCheck(t *testing.T) {
+func TestProcessor_EOACheckCanHandleEmptyAndZeroHash(t *testing.T) {
 	tests := map[string]struct {
 		codeHash tosca.Hash
 		isEOA    bool
@@ -226,14 +226,56 @@ func TestProcessor_EoaCheck(t *testing.T) {
 
 	for testName, test := range tests {
 		t.Run(testName, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			context := tosca.NewMockTransactionContext(ctrl)
-
-			context.EXPECT().GetCodeHash(tosca.Address{1}).Return(test.codeHash)
-
-			err := eoaCheck(tosca.Address{1}, context)
+			err := eoaCheck(tosca.Address{1}, test.codeHash)
 			if test.isEOA && err == nil {
 				t.Errorf("eoaCheck returned wrong result: %v", err)
+			}
+		})
+	}
+}
+
+func TestProcessor_initCodeSizeCheckEnforcesMaximumCodeSize(t *testing.T) {
+	recipient := tosca.Address{1}
+	tests := map[string]struct {
+		revision    tosca.Revision
+		recipient   *tosca.Address
+		initCode    []byte
+		expectError bool
+	}{
+		"pre shanghai": {
+			revision:    tosca.R11_Paris,
+			initCode:    make([]byte, maxInitCodeSize+1),
+			expectError: false,
+		},
+		"shanghai": {
+			revision:    tosca.R12_Shanghai,
+			initCode:    make([]byte, maxInitCodeSize+1),
+			expectError: true,
+		},
+		"under minimum": {
+			revision:    tosca.R12_Shanghai,
+			initCode:    make([]byte, maxInitCodeSize),
+			expectError: false,
+		},
+		"call": {
+			revision:    tosca.R12_Shanghai,
+			recipient:   &recipient,
+			initCode:    make([]byte, maxInitCodeSize+1),
+			expectError: false,
+		},
+	}
+
+	for testName, test := range tests {
+		t.Run(testName, func(t *testing.T) {
+			transaction := tosca.Transaction{
+				Recipient: test.recipient,
+				Input:     test.initCode,
+			}
+			err := initCodeSizeCheck(test.revision, transaction)
+			if test.expectError {
+				require.ErrorContains(t, err, "init code too long")
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -570,20 +612,52 @@ func TestProcessor_AccessListIsNotCreatedIfTransactionHasNone(t *testing.T) {
 	setUpAccessList(transaction, context, tosca.R09_Berlin, tosca.Address{})
 }
 
-func TestProcessor_SnapshotIsRevertedInCaseOfErrorAfterGasIsBought(t *testing.T) {
+func TestProcessor_BeforeGasIsBoughtErrorsHaveNoEffect(t *testing.T) {
+	baseFee := tosca.NewValue(10)
+	gasLimit := tosca.Gas(100000)
+	balance := baseFee.Scale(uint64(gasLimit))
+	nonce := uint64(24)
 	tests := map[string]struct {
-		balance  tosca.Value
-		gasLimit tosca.Gas
-		initCode tosca.Data
+		gasFeeCap tosca.Value
+		nonce     uint64
+		codeHash  tosca.Hash
+		blobs     []tosca.Hash
+		initCode  tosca.Data
+		balance   tosca.Value
 	}{
-		"calculate setup gas": {
-			balance:  tosca.NewValue(1000),
-			gasLimit: tosca.Gas(10),
+		"failed to calculate gas price": {
+			gasFeeCap: tosca.NewValue(5),
 		},
-		"init code size": {
-			balance:  tosca.NewValue(500000),
-			gasLimit: tosca.Gas(270000),
-			initCode: make(tosca.Data, maxInitCodeSize+1),
+		"failed nonce check": {
+			gasFeeCap: tosca.NewValue(10),
+			nonce:     42,
+		},
+		"failed EOA check": {
+			gasFeeCap: tosca.NewValue(10),
+			nonce:     nonce,
+			codeHash:  tosca.Hash{1, 2, 3},
+		},
+		"failed blob check": {
+			gasFeeCap: tosca.NewValue(10),
+			nonce:     nonce,
+			blobs:     []tosca.Hash{{5}},
+		},
+		"failed init code size check": {
+			gasFeeCap: tosca.NewValue(10),
+			nonce:     nonce,
+			initCode:  make(tosca.Data, maxInitCodeSize+1),
+			balance:   balance,
+		},
+		"failed balance check": {
+			gasFeeCap: tosca.NewValue(10),
+			nonce:     nonce,
+			balance:   tosca.Sub(balance, tosca.NewValue(1)),
+		},
+		"insufficient gas for set up": {
+			gasFeeCap: tosca.NewValue(10),
+			nonce:     nonce,
+			balance:   balance,
+			initCode:  make(tosca.Data, maxInitCodeSize),
 		},
 	}
 
@@ -594,35 +668,29 @@ func TestProcessor_SnapshotIsRevertedInCaseOfErrorAfterGasIsBought(t *testing.T)
 			interpreter := tosca.NewMockInterpreter(ctrl)
 
 			sender := tosca.Address{1}
-			snapshot := tosca.Snapshot(42)
 
-			context.EXPECT().CreateSnapshot().Return(snapshot)
-			context.EXPECT().GetNonce(sender)
-			context.EXPECT().GetCodeHash(sender)
+			// Only read access to state, getters returning by value.
+			context.EXPECT().GetNonce(sender).Return(test.nonce).AnyTimes()
+			context.EXPECT().GetCodeHash(sender).Return(test.codeHash).AnyTimes()
 			context.EXPECT().GetBalance(sender).Return(test.balance).AnyTimes()
-			context.EXPECT().SetBalance(sender, gomock.Any()).AnyTimes()
-			context.EXPECT().RestoreSnapshot(snapshot)
 
 			blockParameters := tosca.BlockParameters{
-				BaseFee:  tosca.NewValue(1),
 				Revision: tosca.R12_Shanghai,
+				BaseFee:  baseFee,
 			}
 
 			transaction := tosca.Transaction{
-				Sender:    sender,
-				GasLimit:  test.gasLimit,
-				Input:     test.initCode,
-				GasFeeCap: tosca.NewValue(1),
+				Sender:     sender,
+				GasLimit:   gasLimit,
+				GasFeeCap:  test.gasFeeCap,
+				Nonce:      nonce,
+				BlobHashes: test.blobs,
+				Input:      test.initCode,
 			}
 
 			processor := newFloriaProcessor(interpreter)
-			result, err := processor.Run(blockParameters, transaction, context)
-			if err != nil {
-				t.Errorf("Run returned an error: %v", err)
-			}
-			if result.Success {
-				t.Errorf("Run should not have succeeded")
-			}
+			_, err := processor.Run(blockParameters, transaction, context)
+			require.ErrorContains(t, err, name)
 		})
 	}
 }
@@ -707,7 +775,6 @@ func TestProcessor_Run_BlobTransactionWithoutBlobsIsUnsuccessful(t *testing.T) {
 	context := tosca.NewMockRunContext(ctrl)
 	interpreter := tosca.NewMockInterpreter(ctrl)
 
-	context.EXPECT().CreateSnapshot()
 	context.EXPECT().GetNonce(gomock.Any())
 	context.EXPECT().GetCodeHash(gomock.Any())
 
@@ -721,13 +788,8 @@ func TestProcessor_Run_BlobTransactionWithoutBlobsIsUnsuccessful(t *testing.T) {
 	}
 
 	processor := newFloriaProcessor(interpreter)
-	result, err := processor.Run(blockParameters, transaction, context)
-	if err != nil {
-		t.Errorf("Run returned an error: %v", err)
-	}
-	if result.Success {
-		t.Errorf("Run should not succeed for blob transaction without blobs")
-	}
+	_, err := processor.Run(blockParameters, transaction, context)
+	require.ErrorContains(t, err, "missing blob hashes")
 }
 
 func TestProcessor_BalanceCheckReturnsErrors(t *testing.T) {

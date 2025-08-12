@@ -65,47 +65,38 @@ func (p *Processor) Run(
 	transaction tosca.Transaction,
 	context tosca.TransactionContext,
 ) (tosca.Receipt, error) {
-	errorReceipt := tosca.Receipt{
-		Success: false,
-		GasUsed: transaction.GasLimit,
-	}
-	snapshot := context.CreateSnapshot()
 	gasPrice, err := calculateGasPrice(blockParameters.BaseFee, transaction.GasFeeCap, transaction.GasTipCap)
 	if err != nil {
-		return errorReceipt, err
+		return tosca.Receipt{}, fmt.Errorf("failed to calculate gas price: %w", err)
 	}
 
-	if nonceCheck(transaction.Nonce, context.GetNonce(transaction.Sender)) != nil {
-		return tosca.Receipt{}, nil
+	if err = nonceCheck(transaction.Nonce, context.GetNonce(transaction.Sender)); err != nil {
+		return tosca.Receipt{}, fmt.Errorf("failed nonce check: %w", err)
 	}
 
-	if eoaCheck(transaction.Sender, context) != nil {
-		return tosca.Receipt{}, nil
+	if err = eoaCheck(transaction.Sender, context.GetCodeHash(transaction.Sender)); err != nil {
+		return tosca.Receipt{}, fmt.Errorf("failed EOA check: %w", err)
 	}
 
-	if checkBlobs(transaction, blockParameters) != nil {
-		return tosca.Receipt{}, nil
+	if err = checkBlobs(transaction, blockParameters); err != nil {
+		return tosca.Receipt{}, fmt.Errorf("failed blob check: %w", err)
 	}
 
-	if balanceCheck(gasPrice, transaction, context.GetBalance(transaction.Sender), p.EthCompatible) != nil {
-		return tosca.Receipt{}, nil
+	if err = initCodeSizeCheck(blockParameters.Revision, transaction); err != nil {
+		return tosca.Receipt{}, fmt.Errorf("failed init code size check: %w", err)
+	}
+
+	if err = balanceCheck(gasPrice, transaction, context.GetBalance(transaction.Sender), p.EthCompatible); err != nil {
+		return tosca.Receipt{}, fmt.Errorf("failed balance check: %w", err)
+	}
+
+	setupGas := calculateSetupGas(transaction, blockParameters.Revision)
+	if transaction.GasLimit < setupGas {
+		return tosca.Receipt{GasUsed: transaction.GasLimit}, fmt.Errorf("insufficient gas for set up: %w", err)
 	}
 
 	buyGas(transaction, gasPrice, blockParameters.BlobBaseFee, context)
-	gas := transaction.GasLimit
-
-	setupGas := calculateSetupGas(transaction, blockParameters.Revision)
-	if gas < setupGas {
-		context.RestoreSnapshot(snapshot)
-		return errorReceipt, nil
-	}
-	gas -= setupGas
-
-	if blockParameters.Revision >= tosca.R12_Shanghai && transaction.Recipient == nil &&
-		len(transaction.Input) > maxInitCodeSize {
-		context.RestoreSnapshot(snapshot)
-		return tosca.Receipt{}, nil
-	}
+	gas := transaction.GasLimit - setupGas
 
 	transactionParameters := tosca.TransactionParameters{
 		Origin:     transaction.Sender,
@@ -135,7 +126,7 @@ func (p *Processor) Run(
 
 	result, err := runContext.Call(kind, callParameters)
 	if err != nil {
-		return errorReceipt, err
+		return tosca.Receipt{GasUsed: transaction.GasLimit}, err
 	}
 
 	var createdAddress *tosca.Address
@@ -182,9 +173,8 @@ func nonceCheck(transactionNonce uint64, stateNonce uint64) error {
 }
 
 // Only accept transactions from externally owned accounts (EOAs) and not from contracts
-func eoaCheck(sender tosca.Address, context tosca.TransactionContext) error {
-	codehash := context.GetCodeHash(sender)
-	if codehash != (tosca.Hash{}) && codehash != emptyCodeHash {
+func eoaCheck(sender tosca.Address, codeHash tosca.Hash) error {
+	if codeHash != (tosca.Hash{}) && codeHash != emptyCodeHash {
 		return fmt.Errorf("sender is not an EOA")
 	}
 	return nil
@@ -218,6 +208,15 @@ func balanceCheck(gasPrice tosca.Value, transaction tosca.Transaction, balance t
 		return fmt.Errorf("insufficient balance: %v < %v", balance, capGasValue)
 	}
 
+	return nil
+}
+
+// initCodeSizeCheck checks the size of the init code for contract creation.
+func initCodeSizeCheck(revision tosca.Revision, transaction tosca.Transaction) error {
+	if revision >= tosca.R12_Shanghai && transaction.Recipient == nil &&
+		len(transaction.Input) > maxInitCodeSize {
+		return fmt.Errorf("init code too long")
+	}
 	return nil
 }
 
