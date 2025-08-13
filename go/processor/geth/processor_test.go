@@ -217,3 +217,28 @@ func TestTransactionToMessage_AuthorizationList(t *testing.T) {
 		t.Errorf("S mismatch: got %v", auth.S)
 	}
 }
+
+func TestProcessor_ReceiptIsDefaultInitializedInCaseOfError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	context := tosca.NewMockTransactionContext(ctrl)
+	context.EXPECT().CreateSnapshot()
+	context.EXPECT().GetNonce(gomock.Any())
+	context.EXPECT().GetCode(gomock.Any())
+	context.EXPECT().GetBalance(gomock.Any())
+	context.EXPECT().GetBalance(gomock.Any())
+	context.EXPECT().SetBalance(gomock.Any(), gomock.Any())
+	context.EXPECT().RestoreSnapshot(gomock.Any())
+
+	interpreter := tosca.NewMockInterpreter(ctrl)
+	processor := sonicProcessor(interpreter)
+	blockParams := tosca.BlockParameters{}
+	transaction := tosca.Transaction{}
+	receipt, err := processor.Run(blockParams, transaction, context)
+	if err == nil {
+		t.Errorf("expected error, got nil")
+	}
+	if receipt.Success || receipt.GasUsed != 0 || receipt.BlobGasUsed != 0 ||
+		receipt.Output != nil || receipt.ContractAddress != nil || len(receipt.Logs) != 0 {
+		t.Errorf("expected empty receipt, got %v", receipt)
+	}
+}
