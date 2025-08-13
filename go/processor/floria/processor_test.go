@@ -670,9 +670,9 @@ func TestProcessor_BeforeGasIsBoughtErrorsHaveNoEffect(t *testing.T) {
 			sender := tosca.Address{1}
 
 			// Only read access to state, getters returning by value.
-			context.EXPECT().GetNonce(sender).Return(test.nonce).AnyTimes()
-			context.EXPECT().GetCodeHash(sender).Return(test.codeHash).AnyTimes()
-			context.EXPECT().GetBalance(sender).Return(test.balance).AnyTimes()
+			context.EXPECT().GetNonce(sender).Return(test.nonce).MaxTimes(1)
+			context.EXPECT().GetCodeHash(sender).Return(test.codeHash).MaxTimes(1)
+			context.EXPECT().GetBalance(sender).Return(test.balance).MaxTimes(1)
 
 			blockParameters := tosca.BlockParameters{
 				Revision: tosca.R12_Shanghai,
