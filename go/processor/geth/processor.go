@@ -11,7 +11,6 @@
 package geth_processor
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
 
@@ -83,10 +82,7 @@ func (p *Processor) Run(
 	result, err := core.ApplyMessage(evm, msg, gasPool)
 	if err != nil {
 		context.RestoreSnapshot(snapshot)
-		if !p.EthereumCompatible && errors.Is(err, core.ErrInsufficientFunds) {
-			return tosca.Receipt{}, err
-		}
-		return tosca.Receipt{GasUsed: transaction.GasLimit}, err
+		return tosca.Receipt{}, err
 	}
 
 	createdAddress := (*tosca.Address)(stateDB.GetCreatedContract())

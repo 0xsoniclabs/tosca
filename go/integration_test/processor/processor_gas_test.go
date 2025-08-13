@@ -344,7 +344,7 @@ func exactSufficientAndInsufficientScenarios(exactScenario Scenario, name string
 	insufficient := exactScenario.Clone()
 	insufficient.Transaction.GasLimit -= 1
 	insufficient.Receipt.Success = false
-	insufficient.Receipt.GasUsed = insufficient.Transaction.GasLimit
+	insufficient.Receipt.GasUsed = 0
 	insufficient.OperaError = fmt.Errorf("gas too low")
 	// Reset world state in case of failure
 	beforeSender := insufficient.Before[insufficient.Transaction.Sender]

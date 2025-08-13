@@ -191,7 +191,7 @@ func (p *processor) Run(
 		return tosca.Receipt{}, err
 	}
 	if gas < intrinsicGasCosts {
-		return tosca.Receipt{GasUsed: transaction.GasLimit}, fmt.Errorf("%w: have %d, want %d", errIntrinsicGas, transaction.GasLimit, intrinsicGasCosts)
+		return tosca.Receipt{}, fmt.Errorf("%w: have %d, want %d", errIntrinsicGas, transaction.GasLimit, intrinsicGasCosts)
 	}
 	gas -= intrinsicGasCosts
 

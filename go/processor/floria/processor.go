@@ -92,7 +92,7 @@ func (p *Processor) Run(
 
 	setupGas := calculateSetupGas(transaction, blockParameters.Revision)
 	if transaction.GasLimit < setupGas {
-		return tosca.Receipt{GasUsed: transaction.GasLimit}, fmt.Errorf("insufficient gas for set up: %w", err)
+		return tosca.Receipt{}, fmt.Errorf("insufficient gas for set up: %w", err)
 	}
 
 	buyGas(transaction, gasPrice, blockParameters.BlobBaseFee, context)
