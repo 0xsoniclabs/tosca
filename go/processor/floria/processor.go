@@ -65,38 +65,94 @@ func (p *Processor) Run(
 	transaction tosca.Transaction,
 	context tosca.TransactionContext,
 ) (tosca.Receipt, error) {
+
+	if err := preCheck(blockParameters, transaction, context); err != nil {
+		return tosca.Receipt{}, err
+	}
+
+	gasPrice, gas, err := buyGas(blockParameters, transaction, context, p.EthCompatible)
+	if err != nil {
+		return tosca.Receipt{GasUsed: gas}, err
+	}
+
+	result, err := p.runTransaction(blockParameters, transaction, context, p.EthCompatible, gasPrice, gas)
+	if err != nil {
+		return tosca.Receipt{GasUsed: transaction.GasLimit}, err
+	}
+
+	gasUsed := refundGas(blockParameters, transaction, context, gasPrice, result, p.EthCompatible)
+
+	receipt := tosca.Receipt{
+		Success: result.Success,
+		GasUsed: gasUsed,
+		Output:  result.Output,
+		Logs:    context.GetLogs(),
+	}
+
+	if transaction.Recipient == nil {
+		receipt.ContractAddress = &result.CreatedAddress
+	}
+
+	return receipt, nil
+}
+
+func preCheck(
+	blockParameters tosca.BlockParameters,
+	transaction tosca.Transaction,
+	context tosca.TransactionContext,
+) error {
+	if err := nonceCheck(transaction.Nonce, context.GetNonce(transaction.Sender)); err != nil {
+		return fmt.Errorf("failed nonce check: %w", err)
+	}
+
+	if err := eoaCheck(transaction.Sender, context.GetCodeHash(transaction.Sender)); err != nil {
+		return fmt.Errorf("failed EOA check: %w", err)
+	}
+
+	if err := checkBlobs(transaction, blockParameters); err != nil {
+		return fmt.Errorf("failed blob check: %w", err)
+	}
+
+	if err := initCodeSizeCheck(blockParameters.Revision, transaction); err != nil {
+		return fmt.Errorf("failed init code size check: %w", err)
+	}
+
+	return nil
+}
+
+func buyGas(
+	blockParameters tosca.BlockParameters,
+	transaction tosca.Transaction,
+	context tosca.TransactionContext,
+	ethCompatible bool,
+) (tosca.Value, tosca.Gas, error) {
 	gasPrice, err := calculateGasPrice(blockParameters.BaseFee, transaction.GasFeeCap, transaction.GasTipCap)
 	if err != nil {
-		return tosca.Receipt{}, fmt.Errorf("failed to calculate gas price: %w", err)
+		return tosca.Value{}, 0, fmt.Errorf("failed to calculate gas price: %w", err)
 	}
 
-	if err = nonceCheck(transaction.Nonce, context.GetNonce(transaction.Sender)); err != nil {
-		return tosca.Receipt{}, fmt.Errorf("failed nonce check: %w", err)
-	}
-
-	if err = eoaCheck(transaction.Sender, context.GetCodeHash(transaction.Sender)); err != nil {
-		return tosca.Receipt{}, fmt.Errorf("failed EOA check: %w", err)
-	}
-
-	if err = checkBlobs(transaction, blockParameters); err != nil {
-		return tosca.Receipt{}, fmt.Errorf("failed blob check: %w", err)
-	}
-
-	if err = initCodeSizeCheck(blockParameters.Revision, transaction); err != nil {
-		return tosca.Receipt{}, fmt.Errorf("failed init code size check: %w", err)
-	}
-
-	if err = balanceCheck(gasPrice, transaction, context.GetBalance(transaction.Sender), p.EthCompatible); err != nil {
-		return tosca.Receipt{}, fmt.Errorf("failed balance check: %w", err)
+	if err = balanceCheck(gasPrice, transaction, context.GetBalance(transaction.Sender), ethCompatible); err != nil {
+		return tosca.Value{}, 0, fmt.Errorf("failed balance check: %w", err)
 	}
 
 	setupGas := calculateSetupGas(transaction, blockParameters.Revision)
 	if transaction.GasLimit < setupGas {
-		return tosca.Receipt{}, fmt.Errorf("insufficient gas for set up: %w", err)
+		return tosca.Value{}, transaction.GasLimit, fmt.Errorf("insufficient gas for set up: %w", err)
 	}
 
-	buyGas(transaction, gasPrice, blockParameters.BlobBaseFee, context)
+	buyGasInternal(transaction, gasPrice, blockParameters.BlobBaseFee, context)
 	gas := transaction.GasLimit - setupGas
+
+	return gasPrice, gas, nil
+}
+
+func (p *Processor) runTransaction(
+	blockParameters tosca.BlockParameters,
+	transaction tosca.Transaction,
+	context tosca.TransactionContext,
+	ethCompatible bool,
+	gasPrice tosca.Value,
+	gas tosca.Gas) (tosca.CallResult, error) {
 
 	transactionParameters := tosca.TransactionParameters{
 		Origin:     transaction.Sender,
@@ -124,32 +180,26 @@ func (p *Processor) Run(
 		context.SetNonce(transaction.Sender, context.GetNonce(transaction.Sender)+1)
 	}
 
-	result, err := runContext.Call(kind, callParameters)
-	if err != nil {
-		return tosca.Receipt{GasUsed: transaction.GasLimit}, err
+	return runContext.Call(kind, callParameters)
+}
+
+func refundGas(
+	blockParameters tosca.BlockParameters,
+	transaction tosca.Transaction,
+	context tosca.TransactionContext,
+	gasPrice tosca.Value,
+	result tosca.CallResult,
+	ethCompatible bool,
+) tosca.Gas {
+	gasLeft := calculateGasLeft(transaction, result, blockParameters.Revision, ethCompatible)
+	refundGasInternal(context, transaction.Sender, gasPrice, gasLeft)
+
+	gasUsed := transaction.GasLimit - gasLeft
+	if ethCompatible {
+		paymentToCoinbase(gasPrice, gasUsed, blockParameters, context)
 	}
 
-	var createdAddress *tosca.Address
-	if kind == tosca.Create {
-		createdAddress = &result.CreatedAddress
-	}
-
-	gasLeft := calculateGasLeft(transaction, result, blockParameters.Revision, p.EthCompatible)
-	refundGas(context, transaction.Sender, gasPrice, gasLeft)
-
-	if p.EthCompatible {
-		paymentToCoinbase(gasPrice, transaction.GasLimit-gasLeft, blockParameters, context)
-	}
-
-	logs := context.GetLogs()
-
-	return tosca.Receipt{
-		Success:         result.Success,
-		GasUsed:         transaction.GasLimit - gasLeft,
-		ContractAddress: createdAddress,
-		Output:          result.Output,
-		Logs:            logs,
-	}, nil
+	return gasUsed
 }
 
 func calculateGasPrice(baseFee, gasFeeCap, gasTipCap tosca.Value) (tosca.Value, error) {
@@ -222,7 +272,7 @@ func initCodeSizeCheck(revision tosca.Revision, transaction tosca.Transaction) e
 
 // Decreases the sender balance by the transaction gas limit.
 // This function does not check for sufficient balance and requires the balance check to be performed in advance.
-func buyGas(transaction tosca.Transaction, gasPrice tosca.Value, blobGasPrice tosca.Value, context tosca.TransactionContext) {
+func buyGasInternal(transaction tosca.Transaction, gasPrice tosca.Value, blobGasPrice tosca.Value, context tosca.TransactionContext) {
 	gas := gasPrice.Scale(uint64(transaction.GasLimit))
 
 	if len(transaction.BlobHashes) > 0 {
@@ -313,7 +363,7 @@ func calculateGasLeft(transaction tosca.Transaction, result tosca.CallResult, re
 	return gasLeft
 }
 
-func refundGas(context tosca.TransactionContext, sender tosca.Address, gasPrice tosca.Value, gasLeft tosca.Gas) {
+func refundGasInternal(context tosca.TransactionContext, sender tosca.Address, gasPrice tosca.Value, gasLeft tosca.Gas) {
 	refundValue := gasPrice.Scale(uint64(gasLeft))
 	senderBalance := context.GetBalance(sender)
 	senderBalance = tosca.Add(senderBalance, refundValue)

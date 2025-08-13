@@ -434,7 +434,7 @@ func TestProcessor_RefundGas(t *testing.T) {
 	context.EXPECT().GetBalance(sender).Return(tosca.NewValue(uint64(senderBalance)))
 	context.EXPECT().SetBalance(sender, tosca.NewValue(uint64(senderBalance+gasLeft*gasPrice)))
 
-	refundGas(context, sender, tosca.NewValue(uint64(gasPrice)), tosca.Gas(gasLeft))
+	refundGasInternal(context, sender, tosca.NewValue(uint64(gasPrice)), tosca.Gas(gasLeft))
 }
 
 func TestProcessor_SetupGasBilling(t *testing.T) {
@@ -627,6 +627,7 @@ func TestProcessor_BeforeGasIsBoughtErrorsHaveNoEffect(t *testing.T) {
 	}{
 		"failed to calculate gas price": {
 			gasFeeCap: tosca.NewValue(5),
+			nonce:     nonce,
 		},
 		"failed nonce check": {
 			gasFeeCap: tosca.NewValue(10),
@@ -642,7 +643,7 @@ func TestProcessor_BeforeGasIsBoughtErrorsHaveNoEffect(t *testing.T) {
 			nonce:     nonce,
 			blobs:     []tosca.Hash{{5}},
 		},
-		"failed init code size check": {
+		"init code too long": {
 			gasFeeCap: tosca.NewValue(10),
 			nonce:     nonce,
 			initCode:  make(tosca.Data, maxInitCodeSize+1),
@@ -966,7 +967,7 @@ func TestProcessor_BuyGas_AccountsForBlobs(t *testing.T) {
 			context.EXPECT().GetBalance(sender).Return(senderBalance)
 			context.EXPECT().SetBalance(sender, tosca.Sub(senderBalance, test.expectedUpdate))
 
-			buyGas(transaction, gasPrice, blobGasPrice, context)
+			buyGasInternal(transaction, gasPrice, blobGasPrice, context)
 		})
 	}
 }
