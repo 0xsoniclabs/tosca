@@ -27,11 +27,12 @@ type Effect interface {
 // Change
 
 type change struct {
-	fun func(*st.State)
+	name string
+	fun  func(*st.State)
 }
 
-func Change(fun func(*st.State)) Effect {
-	return &change{fun}
+func Change(name string, fun func(*st.State)) Effect {
+	return &change{name, fun}
 }
 
 func (c *change) Apply(state *st.State) {
@@ -39,17 +40,17 @@ func (c *change) Apply(state *st.State) {
 }
 
 func (c *change) String() string {
-	return "change"
+	return c.name
 }
 
 ////////////////////////////////////////////////////////////
 
 func NoEffect() Effect {
-	return Change(func(*st.State) {})
+	return Change("NoEffect", func(*st.State) {})
 }
 
 func FailEffect() Effect {
-	return Change(func(s *st.State) {
+	return Change("FailEffect", func(s *st.State) {
 		s.Status = st.Failed
 		s.Gas = 0
 	})

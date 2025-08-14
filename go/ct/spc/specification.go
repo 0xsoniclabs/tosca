@@ -120,15 +120,15 @@ func getAllRules() []Rule {
 	}...)
 
 	// --- STOP ---
-
+	name := "stop_terminates_interpreter"
 	rules = append(rules, Rule{
-		Name: "stop_terminates_interpreter",
+		Name: name,
 		Condition: And(
 			AnyKnownRevision(),
 			Eq(Status(), st.Running),
 			Eq(Op(Pc()), vm.STOP),
 		),
-		Effect: Change(func(s *st.State) {
+		Effect: Change(name, func(s *st.State) {
 			s.Status = st.Stopped
 			s.ReturnData = Bytes{}
 			s.Pc++
@@ -633,9 +633,10 @@ func getAllRules() []Rule {
 		},
 	})...)
 
+	name = "jumpi_not_taken"
 	rules = append(rules, []Rule{
 		{
-			Name: "jumpi_not_taken",
+			Name: name,
 			Condition: And(
 				AnyKnownRevision(),
 				Eq(Status(), st.Running),
@@ -644,7 +645,7 @@ func getAllRules() []Rule {
 				Ge(StackSize(), 2),
 				Eq(Param(1), NewU256(0)),
 			),
-			Effect: Change(func(s *st.State) {
+			Effect: Change(name, func(s *st.State) {
 				s.Gas -= 10
 				s.Stack.Pop()
 				s.Stack.Pop()
@@ -2051,7 +2052,7 @@ func sstoreOpRegular(params sstoreOpParams) Rule {
 			NumericParameter{},
 			NumericParameter{},
 		},
-		Effect: Change(func(s *st.State) {
+		Effect: Change(name, func(s *st.State) {
 			s.GasRefund += params.gasRefund
 			s.Gas -= params.gasCost
 			s.Pc++
@@ -2384,11 +2385,12 @@ func rulesFor(i instruction) []Rule {
 		localConditions = append(localConditions, AnyKnownRevision())
 	}
 
+	name := fmt.Sprintf("%s_regular%v", strings.ToLower(i.op.String()), i.name)
 	res = append(res, Rule{
-		Name:      fmt.Sprintf("%s_regular%v", strings.ToLower(i.op.String()), i.name),
+		Name:      name,
 		Condition: And(localConditions...),
 		Parameter: i.parameters,
-		Effect: Change(func(s *st.State) {
+		Effect: Change(name, func(s *st.State) {
 			s.Gas -= i.staticGas
 			s.Pc++
 			i.effect(s)
