@@ -78,7 +78,7 @@ func (p *Processor) Run(
 		return tosca.Receipt{}, err
 	}
 
-	result, err := p.runTransaction(blockParameters, transaction, context, p.EthCompatible, gasPrice, gas)
+	result, err := p.runTransaction(blockParameters, transaction, context, gasPrice, gas)
 	if err != nil {
 		// An error here is due to an implementation bug or runtime error, the state has already been modified.
 		return tosca.Receipt{GasUsed: transaction.GasLimit}, err
@@ -147,7 +147,7 @@ func calculateAvailableGas(
 
 	setupGas := calculateSetupGas(transaction, blockParameters.Revision)
 	if transaction.GasLimit < setupGas {
-		return tosca.Value{}, transaction.GasLimit, fmt.Errorf("insufficient gas for set up: %w", err)
+		return tosca.Value{}, transaction.GasLimit, fmt.Errorf("insufficient gas for set up")
 	}
 
 	buyGasInternal(transaction, gasPrice, blockParameters.BlobBaseFee, context)
@@ -163,7 +163,6 @@ func (p *Processor) runTransaction(
 	blockParameters tosca.BlockParameters,
 	transaction tosca.Transaction,
 	context tosca.TransactionContext,
-	ethCompatible bool,
 	gasPrice tosca.Value,
 	gas tosca.Gas) (tosca.CallResult, error) {
 

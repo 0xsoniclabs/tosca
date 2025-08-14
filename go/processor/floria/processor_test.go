@@ -189,6 +189,78 @@ func TestProcessor_Run_BeforeGasIsBoughtErrorsHaveNoEffect(t *testing.T) {
 	}
 }
 
+func TestProcessor_SuccessfulCreateSetsContractAddress(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	context := tosca.NewMockRunContext(ctrl)
+	interpreter := tosca.NewMockInterpreter(ctrl)
+
+	sender := tosca.Address{1}
+	createdAddress := tosca.Address([20]byte{
+		43, 36, 192, 75, 89, 93, 87, 109, 78, 242, 252, 171, 56, 97, 150, 38, 212, 42, 81, 164,
+	})
+	context.EXPECT().GetNonce(sender).Times(3)
+	context.EXPECT().GetCodeHash(sender)
+	context.EXPECT().GetBalance(sender).Times(3)
+	context.EXPECT().SetBalance(sender, gomock.Any()).Times(2)
+	context.EXPECT().SetNonce(sender, gomock.Any())
+	context.EXPECT().GetNonce(createdAddress)
+	context.EXPECT().HasEmptyStorage(createdAddress).Return(true)
+	context.EXPECT().GetCodeHash(createdAddress)
+	context.EXPECT().CreateSnapshot()
+	context.EXPECT().CreateAccount(createdAddress)
+	context.EXPECT().SetNonce(createdAddress, gomock.Any())
+	interpreter.EXPECT().Run(gomock.Any()).Return(tosca.Result{Success: true}, nil)
+	context.EXPECT().SetCode(createdAddress, gomock.Any())
+	context.EXPECT().GetLogs().AnyTimes()
+
+	blockParameters := tosca.BlockParameters{}
+
+	transaction := tosca.Transaction{
+		Sender:   sender,
+		GasLimit: tosca.Gas(100000),
+	}
+
+	processor := newFloriaProcessor(interpreter)
+	result, err := processor.Run(blockParameters, transaction, context)
+	require.NoError(t, err, "Run should not return an error")
+	require.True(t, result.Success, "Run should succeed")
+	require.NotNil(t, result.ContractAddress, "Run should return a contract address")
+	require.Equal(t, createdAddress, *result.ContractAddress, "Run should create the expected contract address")
+}
+
+func TestProcessor_InterpreterErrorsAreForwarded(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	context := tosca.NewMockRunContext(ctrl)
+	interpreter := tosca.NewMockInterpreter(ctrl)
+	testError := fmt.Errorf("test error")
+	sender := tosca.Address{1}
+	recipient := tosca.Address{2}
+
+	context.EXPECT().GetNonce(sender).Times(2)
+	context.EXPECT().GetCodeHash(sender)
+	context.EXPECT().GetBalance(sender).Times(2)
+	context.EXPECT().SetBalance(sender, gomock.Any())
+	context.EXPECT().SetNonce(sender, gomock.Any())
+	context.EXPECT().CreateSnapshot()
+	context.EXPECT().GetCodeHash(recipient)
+	context.EXPECT().GetCode(recipient).Return([]byte{1, 2, 3, 4, 5})
+	interpreter.EXPECT().Run(gomock.Any()).Return(tosca.Result{Success: true}, testError)
+	context.EXPECT().RestoreSnapshot(gomock.Any())
+
+	blockParameters := tosca.BlockParameters{}
+
+	transaction := tosca.Transaction{
+		Sender:    sender,
+		Recipient: &recipient,
+		GasLimit:  tosca.Gas(100000),
+	}
+
+	processor := newFloriaProcessor(interpreter)
+	result, err := processor.Run(blockParameters, transaction, context)
+	require.ErrorIs(t, err, testError)
+	require.False(t, result.Success)
+}
+
 // Check transaction tests
 //-------------------------------------------------------------------------------------------------
 //
@@ -728,6 +800,79 @@ func TestProcessor_BuyGasAccountsForBlobs(t *testing.T) {
 //-------------------------------------------------------------------------------------------------
 //
 
+func TestProcessor_runTransactionSetsUpAccessListAfterBerlin(t *testing.T) {
+	tests := map[string]struct {
+		revision    tosca.Revision
+		numAccesses int
+	}{
+		"Istanbul": {
+			revision: tosca.R07_Istanbul,
+		},
+		"Berlin": {
+			revision:    tosca.R09_Berlin,
+			numAccesses: 1 + 1 + 9 + 1, // recipient, sender, precompiles and account from access list
+		},
+		"Shanghai": {
+			revision:    tosca.R12_Shanghai,
+			numAccesses: 13, // + coinbase
+		},
+		"Cancun": {
+			revision:    tosca.R13_Cancun,
+			numAccesses: 14, // new precompiled contract
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			context := tosca.NewMockTransactionContext(ctrl)
+			interpreter := tosca.NewMockInterpreter(ctrl)
+
+			processor := Processor{
+				Interpreter: interpreter,
+			}
+
+			gasPrice := tosca.NewValue(10)
+			gas := tosca.Gas(1000)
+			sender := tosca.Address{1}
+			recipient := tosca.Address{2}
+
+			context.EXPECT().GetNonce(sender).Return(uint64(42))
+			context.EXPECT().SetNonce(sender, uint64(43))
+			if test.revision >= tosca.R09_Berlin {
+				context.EXPECT().AccessAccount(gomock.Any()).Times(test.numAccesses)
+				context.EXPECT().AccessStorage(gomock.Any(), gomock.Any())
+				context.EXPECT().AccountExists(recipient).Return(true)
+			}
+
+			// mocks for CALL
+			context.EXPECT().CreateSnapshot()
+			context.EXPECT().GetCodeHash(recipient)
+			context.EXPECT().GetCode(recipient)
+			interpreter.EXPECT().Run(gomock.Any()).Return(tosca.Result{Success: true}, nil)
+
+			transaction := tosca.Transaction{
+				Sender:    sender,
+				Recipient: &recipient,
+				AccessList: []tosca.AccessTuple{
+					{
+						Address: tosca.Address{3},
+						Keys:    []tosca.Key{{1}},
+					},
+				},
+			}
+
+			blockParameters := tosca.BlockParameters{
+				Revision: test.revision,
+			}
+
+			_, err := processor.runTransaction(blockParameters, transaction, context, gasPrice, gas)
+			require.NoError(t, err, "runTransaction should not return an error")
+
+		})
+	}
+}
+
 func TestProcessor_CallKind(t *testing.T) {
 	tests := map[string]struct {
 		recipient *tosca.Address
@@ -1033,6 +1178,57 @@ func TestProcessor_PaymentToCoinbase(t *testing.T) {
 			context.EXPECT().SetBalance(coinbase, tosca.Add(initialBalance, test.payment))
 
 			paymentToCoinbase(test.gasPrice, gasUsed, blockParameters, context)
+		})
+	}
+}
+
+func TestProcessor_ethCompatibleReturnDoesNotConsumeGasAndUpdatesCoinbase(t *testing.T) {
+	gasPrice := tosca.NewValue(10)
+	gasLeft := tosca.Gas(100)
+	gasLimit := tosca.Gas(1000)
+
+	tests := map[string]struct {
+		ethCompatible bool
+		actualGasLeft tosca.Gas
+	}{
+		"ethCompatible": {
+			ethCompatible: true,
+			actualGasLeft: gasLeft,
+		},
+		"nonEthCompatible": {
+			ethCompatible: false,
+			actualGasLeft: gasLeft - gasLeft/10,
+		},
+	}
+
+	for testName, test := range tests {
+		t.Run(testName, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			context := tosca.NewMockTransactionContext(ctrl)
+
+			coinbase := tosca.Address{42}
+			sender := tosca.Address{1}
+
+			context.EXPECT().GetBalance(sender)
+			context.EXPECT().SetBalance(sender, gasPrice.Scale(uint64(test.actualGasLeft)))
+			if test.ethCompatible {
+				context.EXPECT().GetBalance(coinbase)
+				context.EXPECT().SetBalance(coinbase, gasPrice.Scale(uint64(gasLimit-test.actualGasLeft)))
+			}
+
+			blockParameters := tosca.BlockParameters{
+				Coinbase: coinbase,
+			}
+			transaction := tosca.Transaction{
+				Sender:   sender,
+				GasLimit: gasLimit,
+			}
+			result := tosca.CallResult{
+				GasLeft: gasLeft,
+			}
+
+			gasUsed := returnExcessGas(blockParameters, transaction, context, gasPrice, result, test.ethCompatible)
+			require.Equal(t, gasLimit-test.actualGasLeft, gasUsed, "unexpected gas used")
 		})
 	}
 }
