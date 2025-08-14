@@ -60,27 +60,31 @@ type Processor struct {
 	EthCompatible bool
 }
 
+// Run checks whether the transaction can be executed and applies it if possible.
+// It returns a receipt with the result of the transaction or an error in case the
+// transaction can not be executed.
 func (p *Processor) Run(
 	blockParameters tosca.BlockParameters,
 	transaction tosca.Transaction,
 	context tosca.TransactionContext,
 ) (tosca.Receipt, error) {
 
-	if err := preCheck(blockParameters, transaction, context); err != nil {
+	if err := checkTransaction(blockParameters, transaction, context); err != nil {
 		return tosca.Receipt{}, err
 	}
 
-	gasPrice, gas, err := buyGas(blockParameters, transaction, context, p.EthCompatible)
+	gasPrice, gas, err := calculateAvailableGas(blockParameters, transaction, context, p.EthCompatible)
 	if err != nil {
-		return tosca.Receipt{GasUsed: gas}, err
+		return tosca.Receipt{}, err
 	}
 
 	result, err := p.runTransaction(blockParameters, transaction, context, p.EthCompatible, gasPrice, gas)
 	if err != nil {
+		// An error here is due to an implementation bug or runtime error, the state has already been modified.
 		return tosca.Receipt{GasUsed: transaction.GasLimit}, err
 	}
 
-	gasUsed := refundGas(blockParameters, transaction, context, gasPrice, result, p.EthCompatible)
+	gasUsed := returnExcessGas(blockParameters, transaction, context, gasPrice, result, p.EthCompatible)
 
 	receipt := tosca.Receipt{
 		Success: result.Success,
@@ -96,7 +100,10 @@ func (p *Processor) Run(
 	return receipt, nil
 }
 
-func preCheck(
+// checkTransaction performs basic checks to ensure the validity of the transaction.
+// It ensures the nonce is correct, the transaction is from an EOA, blobs are valid,
+// and the init code size is not too large.
+func checkTransaction(
 	blockParameters tosca.BlockParameters,
 	transaction tosca.Transaction,
 	context tosca.TransactionContext,
@@ -120,7 +127,10 @@ func preCheck(
 	return nil
 }
 
-func buyGas(
+// calculateAvailableGas calculates the gasPrice and available gas for the transaction.
+// An error is returned if the gasPrice can not be calculated, the sender does not have
+// enough balance or the gasLimit is too low for the set up gas.
+func calculateAvailableGas(
 	blockParameters tosca.BlockParameters,
 	transaction tosca.Transaction,
 	context tosca.TransactionContext,
@@ -146,6 +156,9 @@ func buyGas(
 	return gasPrice, gas, nil
 }
 
+// runTransaction executes the transaction and returns the result.
+// Non executable transactions return a result with success marked as false,
+// errors are implementation bugs or runtime errors.
 func (p *Processor) runTransaction(
 	blockParameters tosca.BlockParameters,
 	transaction tosca.Transaction,
@@ -183,7 +196,9 @@ func (p *Processor) runTransaction(
 	return runContext.Call(kind, callParameters)
 }
 
-func refundGas(
+// returnExcessGas returns the excess gas back to the sender.
+// The ethereum compatible version transfers the tip to the coinbase.
+func returnExcessGas(
 	blockParameters tosca.BlockParameters,
 	transaction tosca.Transaction,
 	context tosca.TransactionContext,
@@ -202,6 +217,9 @@ func refundGas(
 	return gasUsed
 }
 
+// calculateGasPrice calculates the gas price of the transaction considering the tip.
+// The calculation fails if the maximum price is smaller than the base price or if the
+// maximum price exceeds the maximum tip.
 func calculateGasPrice(baseFee, gasFeeCap, gasTipCap tosca.Value) (tosca.Value, error) {
 	if gasFeeCap.Cmp(baseFee) < 0 {
 		return tosca.Value{}, fmt.Errorf("gasFeeCap %v is lower than baseFee %v", gasFeeCap, baseFee)
@@ -222,7 +240,8 @@ func nonceCheck(transactionNonce uint64, stateNonce uint64) error {
 	return nil
 }
 
-// Only accept transactions from externally owned accounts (EOAs) and not from contracts
+// eoaCheck ensures that the sender is an externally owned account (EOA),
+// transactions from contracts are not allowed.
 func eoaCheck(sender tosca.Address, codeHash tosca.Hash) error {
 	if codeHash != (tosca.Hash{}) && codeHash != emptyCodeHash {
 		return fmt.Errorf("sender is not an EOA")
@@ -230,7 +249,7 @@ func eoaCheck(sender tosca.Address, codeHash tosca.Hash) error {
 	return nil
 }
 
-// Checks if the sender has enough balance to cover the transaction gas limit and value.
+// balanceCheck checks if the sender has enough balance to cover for the transaction gas limit and value.
 func balanceCheck(gasPrice tosca.Value, transaction tosca.Transaction, balance tosca.Value, ethCompatible bool) error {
 	checkValue := gasPrice.ToBig().Mul(gasPrice.ToBig(), big.NewInt(int64(transaction.GasLimit)))
 	if ethCompatible && transaction.GasFeeCap != (tosca.Value{}) {
@@ -261,7 +280,7 @@ func balanceCheck(gasPrice tosca.Value, transaction tosca.Transaction, balance t
 	return nil
 }
 
-// initCodeSizeCheck checks the size of the init code for contract creation.
+// initCodeSizeCheck ensures the init code size for contract creation is smaller than the maximum.
 func initCodeSizeCheck(revision tosca.Revision, transaction tosca.Transaction) error {
 	if revision >= tosca.R12_Shanghai && transaction.Recipient == nil &&
 		len(transaction.Input) > maxInitCodeSize {
@@ -285,6 +304,7 @@ func buyGasInternal(transaction tosca.Transaction, gasPrice tosca.Value, blobGas
 	context.SetBalance(transaction.Sender, senderBalance)
 }
 
+// setUpAccessList sets up the access list for the transaction by adding accounts and storage keys.
 func setUpAccessList(transaction tosca.Transaction, context tosca.TransactionContext, revision tosca.Revision, coinBase tosca.Address) {
 	if transaction.AccessList == nil {
 		return
@@ -312,6 +332,7 @@ func setUpAccessList(transaction tosca.Transaction, context tosca.TransactionCon
 	}
 }
 
+// callKind determines whether the transaction is a call or a create.
 func callKind(transaction tosca.Transaction) tosca.CallKind {
 	if transaction.Recipient == nil {
 		return tosca.Create
@@ -319,6 +340,7 @@ func callKind(transaction tosca.Transaction) tosca.CallKind {
 	return tosca.Call
 }
 
+// callParameters extracts the call parameters from the transaction.
 func callParameters(transaction tosca.Transaction, gas tosca.Gas) tosca.CallParameters {
 	callParameters := tosca.CallParameters{
 		Sender: transaction.Sender,
@@ -333,6 +355,8 @@ func callParameters(transaction tosca.Transaction, gas tosca.Gas) tosca.CallPara
 	return callParameters
 }
 
+// calculateGasLeft calculates the remaining gas after the transaction execution.
+// The non ethereum compatible version consumes 10% of the remaining gas.
 func calculateGasLeft(transaction tosca.Transaction, result tosca.CallResult, revision tosca.Revision, ethCompatible bool) tosca.Gas {
 	gasLeft := result.GasLeft
 
@@ -363,6 +387,7 @@ func calculateGasLeft(transaction tosca.Transaction, result tosca.CallResult, re
 	return gasLeft
 }
 
+// refundGasInternal transfers the remaining gas back to the sender.
 func refundGasInternal(context tosca.TransactionContext, sender tosca.Address, gasPrice tosca.Value, gasLeft tosca.Gas) {
 	refundValue := gasPrice.Scale(uint64(gasLeft))
 	senderBalance := context.GetBalance(sender)
@@ -370,6 +395,8 @@ func refundGasInternal(context tosca.TransactionContext, sender tosca.Address, g
 	context.SetBalance(sender, senderBalance)
 }
 
+// calculateSetupGas calculates the gas required for setting up the transaction.
+// This includes costs for call or create, the input data and the access list.
 func calculateSetupGas(transaction tosca.Transaction, revision tosca.Revision) tosca.Gas {
 	var gas tosca.Gas
 	if transaction.Recipient == nil {
@@ -411,6 +438,7 @@ func calculateSetupGas(transaction tosca.Transaction, revision tosca.Revision) t
 	return tosca.Gas(gas)
 }
 
+// paymentToCoinbase transfers the tip to the coinbase, only applicable for ethereum compatible version
 func paymentToCoinbase(gasPrice tosca.Value, gasUsed tosca.Gas, blockParameters tosca.BlockParameters, context tosca.TransactionContext) {
 	effectiveTip := gasPrice
 	if blockParameters.Revision >= tosca.R10_London {
@@ -420,6 +448,7 @@ func paymentToCoinbase(gasPrice tosca.Value, gasUsed tosca.Gas, blockParameters 
 	context.SetBalance(blockParameters.Coinbase, tosca.Add(context.GetBalance(blockParameters.Coinbase), fee))
 }
 
+// checkBlobs validates the blob hashes and blob gas price of the transaction.
 func checkBlobs(transaction tosca.Transaction, blockParameters tosca.BlockParameters) error {
 	if transaction.BlobHashes != nil {
 		if transaction.Recipient == nil {
@@ -434,7 +463,6 @@ func checkBlobs(transaction tosca.Transaction, blockParameters tosca.BlockParame
 				return fmt.Errorf("blob with invalid hash version")
 			}
 		}
-
 	}
 
 	if blockParameters.Revision >= tosca.R13_Cancun && len(transaction.BlobHashes) > 0 {
