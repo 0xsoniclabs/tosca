@@ -42,7 +42,7 @@ pub extern "C" fn evmrs_is_coverage_enabled() -> u8 {
     #[cfg(target_os = "linux")]
     return llvm_profile_enabled();
     #[cfg(not(target_os = "linux"))]
-    return false;
+    return 0;
 }
 
 #[cfg(feature = "mimalloc")]
