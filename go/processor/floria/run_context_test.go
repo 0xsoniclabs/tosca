@@ -201,6 +201,8 @@ func TestTransferValue_InCallRestoreFailed(t *testing.T) {
 		Gas:       1000,
 		Input:     []byte{},
 	}
+
+	context.EXPECT().CreateSnapshot()
 	context.EXPECT().GetBalance(params.Sender).Return(tosca.NewValue(0))
 
 	result, err := runContext.Call(tosca.Call, params)
@@ -239,7 +241,7 @@ func TestTransferValue_SuccessfulValueTransfer(t *testing.T) {
 				context.EXPECT().GetBalance(*transaction.Recipient).Return(recipientBalance)
 			}
 
-			if !canTransferValue(context, transaction.Value, transaction.Sender, transaction.Recipient) {
+			if !canTransferValue(transaction.Value, transaction.Sender, transaction.Recipient, context) {
 				t.Errorf("Value should be possible but was not")
 			}
 		})
@@ -272,7 +274,7 @@ func TestTransferValue_FailedValueTransfer(t *testing.T) {
 			context.EXPECT().GetBalance(tosca.Address{1}).Return(transfer.senderBalance).AnyTimes()
 			context.EXPECT().GetBalance(tosca.Address{2}).Return(transfer.receiverBalance).AnyTimes()
 
-			if canTransferValue(context, transfer.value, tosca.Address{1}, &tosca.Address{2}) {
+			if canTransferValue(transfer.value, tosca.Address{1}, &tosca.Address{2}, context) {
 				t.Errorf("value transfer should have returned an error")
 			}
 		})
@@ -293,7 +295,7 @@ func TestCanTransferValue_SameSenderAndReceiver(t *testing.T) {
 		context := tosca.NewMockTransactionContext(ctrl)
 		context.EXPECT().GetBalance(gomock.Any()).Return(tosca.NewValue(100))
 
-		canTransfer := canTransferValue(context, test.value, tosca.Address{1}, &tosca.Address{1})
+		canTransfer := canTransferValue(test.value, tosca.Address{1}, &tosca.Address{1}, context)
 		if test.expectedError {
 			if canTransfer {
 				t.Errorf("transfer value should have not been possible")
@@ -313,7 +315,7 @@ func TestTransferValue_BalanceIsNotChangedWhenValueIsTransferredToTheSameAccount
 	address := tosca.Address{1}
 	value := tosca.NewValue(10)
 
-	transferValue(context, value, address, address)
+	transferValue(value, address, address, context)
 }
 
 func TestCreateAddress(t *testing.T) {
@@ -346,9 +348,28 @@ func TestCreateAddress(t *testing.T) {
 			if test.kind == tosca.Create {
 				want = tosca.Address(crypto.CreateAddress(common.Address(test.sender), test.nonce))
 			} else {
-				want = tosca.Address(crypto.CreateAddress2(common.Address(test.sender), common.Hash(test.salt), test.initHash[:]))
+				initHash := crypto.Keccak256(test.initHash[:])
+				want = tosca.Address(crypto.CreateAddress2(common.Address(test.sender), common.Hash(test.salt), initHash[:]))
 			}
-			result := createAddress(test.kind, test.sender, test.nonce, test.salt, test.initHash)
+
+			ctrl := gomock.NewController(t)
+			context := tosca.NewMockTransactionContext(ctrl)
+			context.EXPECT().GetNonce(test.sender).Return(test.nonce + 1).AnyTimes()
+			context.EXPECT().AccessAccount(want)
+			context.EXPECT().GetNonce(want)
+			context.EXPECT().HasEmptyStorage(want).Return(true)
+			context.EXPECT().GetCodeHash(want)
+
+			parameters := tosca.CallParameters{
+				Sender: test.sender,
+				Salt:   test.salt,
+				Input:  test.initHash[:],
+			}
+
+			result, err := createAddress(test.kind, parameters, tosca.R09_Berlin, context)
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
 			if result != want {
 				t.Errorf("Unexpected address, got: %v, want: %v", result, want)
 			}
@@ -378,7 +399,7 @@ func TestIncrementNonce(t *testing.T) {
 			context.EXPECT().GetNonce(gomock.Any()).Return(test.nonce)
 			context.EXPECT().SetNonce(gomock.Any(), test.nonce+1).AnyTimes()
 
-			err := incrementNonce(context, tosca.Address{})
+			err := incrementNonce(tosca.Address{}, context)
 			if test.err != nil && err == nil {
 				t.Errorf("incrementNonce returned an unexpected error: %v", err)
 			}

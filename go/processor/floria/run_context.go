@@ -43,41 +43,30 @@ func (r runContext) executeCall(kind tosca.CallKind, parameters tosca.CallParame
 		Success: false,
 		GasLeft: parameters.Gas,
 	}
-	if r.depth > MaxRecursiveDepth {
+	decrementDepthCounter, err := r.incrementDepthCounter()
+	if err != nil {
 		return errResult, nil
 	}
-	r.depth++
-	defer func() { r.depth-- }()
+	defer decrementDepthCounter()
+
+	// only set and reset static if it was not set before.
+	if !r.static && kind == tosca.StaticCall {
+		r.static = true
+		defer func() { r.static = false }()
+	}
+
+	snapshot := r.CreateSnapshot()
 
 	if kind == tosca.Call || kind == tosca.CallCode {
-		if !canTransferValue(r, parameters.Value, parameters.Sender, &parameters.Recipient) {
+		if !canTransferValue(parameters.Value, parameters.Sender, &parameters.Recipient, r) {
 			return errResult, nil
 		}
-	}
-	snapshot := r.CreateSnapshot()
-	recipient := parameters.Recipient
-
-	if kind == tosca.StaticCall {
-		r.static = true
+		if kind == tosca.Call {
+			transferValue(parameters.Value, parameters.Sender, parameters.Recipient, r)
+		}
 	}
 
-	isStateContract := isStateContract(parameters.CodeAddress)
-	isPrecompiled := isPrecompiled(parameters.CodeAddress, r.blockParameters.Revision)
-
-	if kind == tosca.Call &&
-		r.blockParameters.Revision >= tosca.R09_Berlin &&
-		!isPrecompiled &&
-		!isStateContract &&
-		!r.AccountExists(parameters.Recipient) &&
-		parameters.Value.Cmp(tosca.Value{}) == 0 {
-		return tosca.CallResult{Success: true, GasLeft: parameters.Gas}, nil
-	}
-
-	if kind == tosca.Call {
-		transferValue(r, parameters.Value, parameters.Sender, recipient)
-	}
-
-	if kind == tosca.Call && isStateContract {
+	if kind == tosca.Call && isStateContract(parameters.CodeAddress) {
 		result := runStateContract(r, parameters.Sender, parameters.CodeAddress, parameters.Input, parameters.Gas)
 		if !result.Success {
 			r.RestoreSnapshot(snapshot)
@@ -86,7 +75,7 @@ func (r runContext) executeCall(kind tosca.CallKind, parameters tosca.CallParame
 		return result, nil
 	}
 
-	if isPrecompiled {
+	if isPrecompiled(parameters.CodeAddress, r.blockParameters.Revision) {
 		result, err := runPrecompiledContract(r.blockParameters.Revision, parameters.Input, parameters.CodeAddress, parameters.Gas)
 		if err != nil {
 			r.RestoreSnapshot(snapshot)
@@ -94,33 +83,7 @@ func (r runContext) executeCall(kind tosca.CallKind, parameters tosca.CallParame
 		return result, nil
 	}
 
-	var codeHash tosca.Hash
-	var code tosca.Code
-	if kind == tosca.Call || kind == tosca.StaticCall {
-		codeHash = r.GetCodeHash(recipient)
-		code = r.GetCode(recipient)
-	} else {
-		code = r.GetCode(parameters.CodeAddress)
-		codeHash = r.GetCodeHash(parameters.CodeAddress)
-	}
-
-	interpreterParameters := tosca.Parameters{
-		BlockParameters:       r.blockParameters,
-		TransactionParameters: r.transactionParameters,
-		Context:               r,
-		Kind:                  kind,
-		Static:                r.static,
-		Depth:                 r.depth - 1, // depth has already been incremented
-		Gas:                   parameters.Gas,
-		Recipient:             recipient,
-		Sender:                parameters.Sender,
-		Input:                 parameters.Input,
-		Value:                 parameters.Value,
-		CodeHash:              &codeHash,
-		Code:                  code,
-	}
-
-	callResult, err := r.interpreter.Run(interpreterParameters)
+	callResult, err := r.runInterpreter(kind, parameters)
 	if err != nil || !callResult.Success {
 		r.RestoreSnapshot(snapshot)
 
@@ -143,58 +106,29 @@ func (r runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallPara
 		Success: false,
 		GasLeft: parameters.Gas,
 	}
-	if r.depth > MaxRecursiveDepth {
+	decrementDepthCounter, err := r.incrementDepthCounter()
+	if err != nil {
 		return errResult, nil
 	}
-	r.depth++
-	defer func() { r.depth-- }()
+	defer decrementDepthCounter()
 
-	if !canTransferValue(r, parameters.Value, parameters.Sender, &parameters.Recipient) {
-		return errResult, nil
-	}
-	if err := incrementNonce(r, parameters.Sender); err != nil {
+	if err := createPreChecks(parameters, r.TransactionContext); err != nil {
 		return errResult, nil
 	}
 
-	code := tosca.Code(parameters.Input)
-	codeHash := hashCode(code)
-
-	createdAddress := createAddress(kind, parameters.Sender, r.GetNonce(parameters.Sender)-1,
-		parameters.Salt, codeHash)
-
-	if r.blockParameters.Revision >= tosca.R09_Berlin {
-		r.AccessAccount(createdAddress)
-	}
-
-	if r.GetNonce(createdAddress) != 0 ||
-		!r.HasEmptyStorage(createdAddress) ||
-		(r.GetCodeHash(createdAddress) != (tosca.Hash{}) &&
-			r.GetCodeHash(createdAddress) != emptyCodeHash) {
+	createdAddress, err := createAddress(kind, parameters, r.blockParameters.Revision, r.TransactionContext)
+	if err != nil {
 		return tosca.CallResult{}, nil
 	}
+
 	snapshot := r.CreateSnapshot()
 	r.CreateAccount(createdAddress)
 	r.SetNonce(createdAddress, 1)
 
-	transferValue(r, parameters.Value, parameters.Sender, createdAddress)
+	transferValue(parameters.Value, parameters.Sender, createdAddress, r)
 
-	interpreterParameters := tosca.Parameters{
-		BlockParameters:       r.blockParameters,
-		TransactionParameters: r.transactionParameters,
-		Context:               r,
-		Kind:                  kind,
-		Static:                r.static,
-		Depth:                 r.depth - 1, // depth has already been incremented
-		Gas:                   parameters.Gas,
-		Recipient:             createdAddress,
-		Sender:                parameters.Sender,
-		Input:                 nil,
-		Value:                 parameters.Value,
-		CodeHash:              &codeHash,
-		Code:                  code,
-	}
-
-	result, err := r.interpreter.Run(interpreterParameters)
+	parameters.Recipient = createdAddress
+	result, err := r.runInterpreter(kind, parameters)
 	if err != nil || !result.Success {
 		r.RestoreSnapshot(snapshot)
 
@@ -205,26 +139,7 @@ func (r runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallPara
 		return tosca.CallResult{Output: result.Output, GasLeft: result.GasLeft, CreatedAddress: createdAddress}, nil
 	}
 
-	outCode := result.Output
-	if len(outCode) > maxCodeSize {
-		result.Success = false
-	}
-	if r.blockParameters.Revision >= tosca.R10_London && len(outCode) > 0 && outCode[0] == 0xEF {
-		result.Success = false
-	}
-	createGas := tosca.Gas(len(outCode) * createGasCostPerByte)
-	if result.GasLeft < createGas {
-		result.Success = false
-	}
-	result.GasLeft -= createGas
-
-	if result.Success {
-		r.SetCode(createdAddress, tosca.Code(outCode))
-	} else {
-		r.RestoreSnapshot(snapshot)
-		result.GasLeft = 0
-		result.Output = nil
-	}
+	result = finalizeCreate(result, createdAddress, snapshot, r.blockParameters.Revision, r.TransactionContext)
 
 	return tosca.CallResult{
 		Output:         result.Output,
@@ -235,6 +150,105 @@ func (r runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallPara
 	}, nil
 }
 
+func (r *runContext) incrementDepthCounter() (func(), error) {
+	if r.depth > MaxRecursiveDepth {
+		return func() {}, fmt.Errorf("maximum recursive depth exceeded")
+	}
+	r.depth++
+	return func() { r.depth-- }, nil
+}
+
+func (r runContext) runInterpreter(kind tosca.CallKind, parameters tosca.CallParameters) (tosca.Result, error) {
+	var code tosca.Code
+	var codeHash tosca.Hash
+	switch kind {
+	case tosca.Call, tosca.StaticCall:
+		code = r.GetCode(parameters.Recipient)
+		codeHash = r.GetCodeHash(parameters.Recipient)
+	case tosca.CallCode, tosca.DelegateCall:
+		code = r.GetCode(parameters.CodeAddress)
+		codeHash = r.GetCodeHash(parameters.CodeAddress)
+	case tosca.Create, tosca.Create2:
+		code = tosca.Code(parameters.Input)
+		codeHash = tosca.Hash(crypto.Keccak256(code))
+		parameters.Input = nil
+	}
+
+	interpreterParameters := tosca.Parameters{
+		BlockParameters:       r.blockParameters,
+		TransactionParameters: r.transactionParameters,
+		Context:               r,
+		Static:                r.static,
+		Depth:                 r.depth - 1, // depth has already been incremented
+		Gas:                   parameters.Gas,
+		Recipient:             parameters.Recipient,
+		Sender:                parameters.Sender,
+		Input:                 parameters.Input,
+		Value:                 parameters.Value,
+		CodeHash:              &codeHash,
+		Code:                  code,
+	}
+
+	return r.interpreter.Run(interpreterParameters)
+}
+
+func createPreChecks(parameters tosca.CallParameters, context tosca.TransactionContext) error {
+	if !canTransferValue(parameters.Value, parameters.Sender, &parameters.Recipient, context) {
+		return fmt.Errorf("insufficient balance for value transfer")
+	}
+	if err := incrementNonce(parameters.Sender, context); err != nil {
+		return err
+	}
+	return nil
+}
+
+func createAddress(kind tosca.CallKind, parameters tosca.CallParameters, revision tosca.Revision, context tosca.TransactionContext) (tosca.Address, error) {
+	var createdAddress tosca.Address
+	if kind == tosca.Create {
+		createdAddress = tosca.Address(crypto.CreateAddress(common.Address(parameters.Sender), context.GetNonce(parameters.Sender)-1))
+	} else {
+		initHash := crypto.Keccak256(parameters.Input)
+		createdAddress = tosca.Address(crypto.CreateAddress2(common.Address(parameters.Sender), common.Hash(parameters.Salt), initHash[:]))
+	}
+
+	if revision >= tosca.R09_Berlin {
+		context.AccessAccount(createdAddress)
+	}
+
+	if context.GetNonce(createdAddress) != 0 ||
+		!context.HasEmptyStorage(createdAddress) ||
+		(context.GetCodeHash(createdAddress) != (tosca.Hash{}) &&
+			context.GetCodeHash(createdAddress) != emptyCodeHash) {
+		return tosca.Address{}, fmt.Errorf("created address is not empty")
+	}
+
+	return createdAddress, nil
+}
+
+func finalizeCreate(result tosca.Result, createdAddress tosca.Address, snapshot tosca.Snapshot, revision tosca.Revision, context tosca.TransactionContext) tosca.Result {
+	outCode := result.Output
+	if len(outCode) > maxCodeSize {
+		result.Success = false
+	}
+	if revision >= tosca.R10_London && len(outCode) > 0 && outCode[0] == 0xEF {
+		result.Success = false
+	}
+	createGas := tosca.Gas(len(outCode) * createGasCostPerByte)
+	if result.GasLeft < createGas {
+		result.Success = false
+	}
+	result.GasLeft -= createGas
+
+	if result.Success {
+		context.SetCode(createdAddress, tosca.Code(outCode))
+	} else {
+		context.RestoreSnapshot(snapshot)
+		result.GasLeft = 0
+		result.Output = nil
+	}
+	return result
+}
+
 func isRevert(result tosca.Result, err error) bool {
 	if err == nil && !result.Success && (result.GasLeft > 0 || len(result.Output) > 0) {
 		return true
@@ -242,28 +256,11 @@ func isRevert(result tosca.Result, err error) bool {
 	return false
 }
 
-func hashCode(code tosca.Code) tosca.Hash {
-	return tosca.Hash(crypto.Keccak256(code))
-}
-
-func createAddress(
-	kind tosca.CallKind,
-	sender tosca.Address,
-	nonce uint64,
-	salt tosca.Hash,
-	initHash tosca.Hash,
-) tosca.Address {
-	if kind == tosca.Create {
-		return tosca.Address(crypto.CreateAddress(common.Address(sender), nonce))
-	}
-	return tosca.Address(crypto.CreateAddress2(common.Address(sender), common.Hash(salt), initHash[:]))
-}
-
 func canTransferValue(
-	context tosca.TransactionContext,
 	value tosca.Value,
 	sender tosca.Address,
 	recipient *tosca.Address,
+	context tosca.TransactionContext,
 ) bool {
 	if value == (tosca.Value{}) {
 		return true
@@ -287,7 +284,7 @@ func canTransferValue(
 	return true
 }
 
-func incrementNonce(context tosca.TransactionContext, address tosca.Address) error {
+func incrementNonce(address tosca.Address, context tosca.TransactionContext) error {
 	nonce := context.GetNonce(address)
 	if nonce+1 < nonce {
 		return fmt.Errorf("nonce overflow")
@@ -298,10 +295,10 @@ func incrementNonce(context tosca.TransactionContext, address tosca.Address) err
 
 // Only to be called after canTransferValue
 func transferValue(
-	context tosca.TransactionContext,
 	value tosca.Value,
 	sender tosca.Address,
 	recipient tosca.Address,
+	context tosca.TransactionContext,
 ) {
 	if value == (tosca.Value{}) {
 		return
