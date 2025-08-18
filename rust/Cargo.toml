@@ -30,7 +30,7 @@ fuzzing = ["dep:arbitrary"]
 needs-cache = ["dep:lru"]
 # optimizations:
 performance = [
-    "mimalloc",
+    # "mimalloc",
     "unsafe-stack",
     "unsafe-hints",
     "hash-cache",
@@ -51,7 +51,6 @@ fn-ptr-conversion-dispatch = []
 
 [dependencies]
 evmc-vm = { path = "evmc-vm" }
-llvm-profile-wrappers = { path = "llvm-profile-wrappers" }
 bnum = "0.13.0"
 ethnum = "1.5.0"
 sha3 = "0.10.8"
@@ -61,6 +60,9 @@ arbitrary = { version = "1.4.1", features = ["derive"], optional = true }
 mimalloc = { version = "0.1.43", optional = true }
 lru = { version = "0.14.0", optional = true }
 nohash-hasher = { version = "0.2.0", optional = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+llvm-profile-wrappers = { path = "llvm-profile-wrappers" }
 
 [dev-dependencies]
 # workaround for enabling mock feature also in integration tests

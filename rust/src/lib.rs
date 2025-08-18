@@ -16,6 +16,7 @@ compile_error!(
 );
 
 pub use evmc_vm;
+#[cfg(target_os = "linux")]
 use llvm_profile_wrappers::{
     llvm_profile_enabled, llvm_profile_reset_counters, llvm_profile_set_filename,
     llvm_profile_write_file,
@@ -26,6 +27,7 @@ pub use types::{ExecutionContextTrait, MockExecutionMessage, Opcode, u256};
 
 /// Dump coverage data when compiled with `RUSTFLAGS="-C instrument-coverage"`.
 /// Otherwise this is a no-op.
+#[cfg(target_os = "linux")]
 #[unsafe(no_mangle)]
 pub extern "C" fn evmrs_dump_coverage(filename: Option<&std::ffi::c_char>) {
     if llvm_profile_enabled() != 0 {
@@ -37,7 +39,10 @@ pub extern "C" fn evmrs_dump_coverage(filename: Option<&std::ffi::c_char>) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn evmrs_is_coverage_enabled() -> u8 {
-    llvm_profile_enabled()
+    #[cfg(target_os = "linux")]
+    return llvm_profile_enabled();
+    #[cfg(not(target_os = "linux"))]
+    return false;
 }
 
 #[cfg(feature = "mimalloc")]
