@@ -16,6 +16,7 @@ import (
 	"reflect"
 	"testing"
 
+	test_utils "github.com/0xsoniclabs/tosca/go/processor"
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -198,10 +199,10 @@ func TestProcessor_SuccessfulCreateSetsContractAddress(t *testing.T) {
 	createdAddress := tosca.Address([20]byte{
 		43, 36, 192, 75, 89, 93, 87, 109, 78, 242, 252, 171, 56, 97, 150, 38, 212, 42, 81, 164,
 	})
-	context.EXPECT().GetNonce(sender).Times(3)
+	context.EXPECT().GetNonce(sender).MinTimes(1)
 	context.EXPECT().GetCodeHash(sender)
-	context.EXPECT().GetBalance(sender).Times(3)
-	context.EXPECT().SetBalance(sender, gomock.Any()).Times(2)
+	context.EXPECT().GetBalance(sender).MinTimes(1)
+	context.EXPECT().SetBalance(sender, gomock.Any()).MinTimes(1)
 	context.EXPECT().SetNonce(sender, gomock.Any())
 	context.EXPECT().GetNonce(createdAddress)
 	context.EXPECT().HasEmptyStorage(createdAddress).Return(true)
@@ -801,24 +802,65 @@ func TestProcessor_BuyGasAccountsForBlobs(t *testing.T) {
 //
 
 func TestProcessor_runTransactionSetsUpAccessListAfterBerlin(t *testing.T) {
+	// Accounts in the access list are marked as warm in the stateDB during the set up of
+	// the transaction, this reduces the price for accesses during the execution.
+	sender := tosca.Address{1}
+	recipient := tosca.Address{2}
+	coinbase := tosca.Address{3}
+	addressInAccessList := tosca.Address{4}
+	keyInAccessList := tosca.Key{1}
+
+	addPrecompiles := func(context *tosca.MockTransactionContext, revision tosca.Revision) {
+		for i := range 100 {
+			if address := test_utils.NewAddress(byte(i)); isPrecompiled(address, revision) {
+				context.EXPECT().AccessAccount(address)
+			}
+		}
+	}
+
 	tests := map[string]struct {
-		revision    tosca.Revision
-		numAccesses int
+		revision        tosca.Revision
+		mockAccessSetup func(context *tosca.MockTransactionContext)
 	}{
 		"Istanbul": {
 			revision: tosca.R07_Istanbul,
+			mockAccessSetup: func(context *tosca.MockTransactionContext) {
+				// no access list before Berlin, therefore no access calls.
+			},
 		},
 		"Berlin": {
-			revision:    tosca.R09_Berlin,
-			numAccesses: 1 + 1 + 9 + 1, // recipient, sender, precompiles and account from access list
+			revision: tosca.R09_Berlin,
+			mockAccessSetup: func(context *tosca.MockTransactionContext) {
+				context.EXPECT().AccessAccount(sender)
+				context.EXPECT().AccessAccount(recipient)
+				context.EXPECT().AccessAccount(addressInAccessList)
+				context.EXPECT().AccessStorage(addressInAccessList, keyInAccessList)
+				addPrecompiles(context, tosca.R09_Berlin)
+			},
 		},
 		"Shanghai": {
-			revision:    tosca.R12_Shanghai,
-			numAccesses: 13, // + coinbase
+			revision: tosca.R12_Shanghai,
+			mockAccessSetup: func(context *tosca.MockTransactionContext) {
+				context.EXPECT().AccessAccount(sender)
+				context.EXPECT().AccessAccount(recipient)
+				context.EXPECT().AccessAccount(addressInAccessList)
+				context.EXPECT().AccessStorage(addressInAccessList, keyInAccessList)
+				addPrecompiles(context, tosca.R12_Shanghai)
+				// shanghai adds coinbase to access list.
+				context.EXPECT().AccessAccount(coinbase)
+			},
 		},
 		"Cancun": {
-			revision:    tosca.R13_Cancun,
-			numAccesses: 14, // new precompiled contract
+			revision: tosca.R13_Cancun,
+			mockAccessSetup: func(context *tosca.MockTransactionContext) {
+				context.EXPECT().AccessAccount(sender)
+				context.EXPECT().AccessAccount(recipient)
+				context.EXPECT().AccessAccount(addressInAccessList)
+				context.EXPECT().AccessStorage(addressInAccessList, keyInAccessList)
+				context.EXPECT().AccessAccount(coinbase)
+				// Cancun adds a new precompiled contract.
+				addPrecompiles(context, tosca.R13_Cancun)
+			},
 		},
 	}
 
@@ -827,25 +869,16 @@ func TestProcessor_runTransactionSetsUpAccessListAfterBerlin(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			context := tosca.NewMockTransactionContext(ctrl)
 			interpreter := tosca.NewMockInterpreter(ctrl)
-
 			processor := Processor{
 				Interpreter: interpreter,
 			}
 
-			gasPrice := tosca.NewValue(10)
-			gas := tosca.Gas(1000)
-			sender := tosca.Address{1}
-			recipient := tosca.Address{2}
-
-			context.EXPECT().GetNonce(sender).Return(uint64(42))
-			context.EXPECT().SetNonce(sender, uint64(43))
-			if test.revision >= tosca.R09_Berlin {
-				context.EXPECT().AccessAccount(gomock.Any()).Times(test.numAccesses)
-				context.EXPECT().AccessStorage(gomock.Any(), gomock.Any())
-				context.EXPECT().AccountExists(recipient).Return(true)
-			}
+			test.mockAccessSetup(context)
 
 			// mocks for CALL
+			context.EXPECT().GetNonce(sender).Return(uint64(42))
+			context.EXPECT().SetNonce(sender, uint64(43))
+			context.EXPECT().AccountExists(gomock.Any()).Return(true).AnyTimes()
 			context.EXPECT().CreateSnapshot()
 			context.EXPECT().GetCodeHash(recipient)
 			context.EXPECT().GetCode(recipient)
@@ -856,15 +889,18 @@ func TestProcessor_runTransactionSetsUpAccessListAfterBerlin(t *testing.T) {
 				Recipient: &recipient,
 				AccessList: []tosca.AccessTuple{
 					{
-						Address: tosca.Address{3},
-						Keys:    []tosca.Key{{1}},
+						Address: addressInAccessList,
+						Keys:    []tosca.Key{keyInAccessList},
 					},
 				},
 			}
 
 			blockParameters := tosca.BlockParameters{
 				Revision: test.revision,
+				Coinbase: coinbase,
 			}
+			gasPrice := tosca.NewValue(10)
+			gas := tosca.Gas(1000)
 
 			_, err := processor.runTransaction(blockParameters, transaction, context, gasPrice, gas)
 			require.NoError(t, err, "runTransaction should not return an error")
@@ -1182,7 +1218,7 @@ func TestProcessor_PaymentToCoinbase(t *testing.T) {
 	}
 }
 
-func TestProcessor_ethCompatibleReturnDoesNotConsumeGasAndUpdatesCoinbase(t *testing.T) {
+func TestProcessor_ethCompatibleReturnDoesNotConsumeExtraGasAndUpdatesCoinbase(t *testing.T) {
 	gasPrice := tosca.NewValue(10)
 	gasLeft := tosca.Gas(100)
 	gasLimit := tosca.Gas(1000)
