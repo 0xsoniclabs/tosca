@@ -317,7 +317,7 @@ func TestTransferValue_BalanceIsNotChangedWhenValueIsTransferredToTheSameAccount
 	transferValue(context, value, address, address)
 }
 
-func TestCreateAddress(t *testing.T) {
+func TestCreate_CreateAddressProducesTheCorrectAddress(t *testing.T) {
 	tests := map[string]struct {
 		kind     tosca.CallKind
 		sender   tosca.Address
@@ -342,16 +342,219 @@ func TestCreateAddress(t *testing.T) {
 	}
 
 	for name, test := range tests {
+		for _, revision := range tosca.GetAllKnownRevisions() {
+			t.Run(name+revision.String(), func(t *testing.T) {
+				var want tosca.Address
+				if test.kind == tosca.Create {
+					want = tosca.Address(crypto.CreateAddress(common.Address(test.sender), test.nonce))
+				} else {
+					initHash := crypto.Keccak256(test.initHash[:])
+					want = tosca.Address(crypto.CreateAddress2(common.Address(test.sender), common.Hash(test.salt), initHash[:]))
+				}
+
+				ctrl := gomock.NewController(t)
+				context := tosca.NewMockTransactionContext(ctrl)
+				context.EXPECT().GetNonce(test.sender).Return(test.nonce + 1).AnyTimes()
+				if revision > tosca.R07_Istanbul {
+					context.EXPECT().AccessAccount(want)
+				}
+				context.EXPECT().GetNonce(want)
+				context.EXPECT().HasEmptyStorage(want).Return(true)
+				context.EXPECT().GetCodeHash(want)
+
+				parameters := tosca.CallParameters{
+					Sender: test.sender,
+					Salt:   test.salt,
+					Input:  test.initHash[:],
+				}
+
+				result, err := createAddress(test.kind, parameters, revision, context)
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+				if result != want {
+					t.Errorf("Unexpected address, got: %v, want: %v", result, want)
+				}
+			})
+		}
+	}
+}
+
+func TestCreate_CreateAddressReturnErrorIfAddressIsNotEmpty(t *testing.T) {
+	tests := map[string]struct {
+		nonce         uint64
+		emptyStorage  bool
+		codeHash      tosca.Hash
+		expectedError error
+	}{
+		"nonce": {
+			nonce:         1,
+			emptyStorage:  true,
+			codeHash:      tosca.Hash{},
+			expectedError: fmt.Errorf("created address is not empty"),
+		},
+		"emptyStorage": {
+			nonce:         0,
+			emptyStorage:  false,
+			codeHash:      tosca.Hash{},
+			expectedError: fmt.Errorf("created address is not empty"),
+		},
+		"codeHash": {
+			nonce:         0,
+			emptyStorage:  true,
+			codeHash:      tosca.Hash{1},
+			expectedError: fmt.Errorf("created address is not empty"),
+		},
+		"emptyCodeHash": {
+			nonce:         0,
+			emptyStorage:  true,
+			codeHash:      tosca.Hash{},
+			expectedError: nil,
+		},
+		"zeroCodeHash": {
+			nonce:         0,
+			emptyStorage:  true,
+			codeHash:      tosca.Hash{},
+			expectedError: nil,
+		},
+	}
+
+	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			var want tosca.Address
-			if test.kind == tosca.Create {
-				want = tosca.Address(crypto.CreateAddress(common.Address(test.sender), test.nonce))
+			ctrl := gomock.NewController(t)
+			context := tosca.NewMockTransactionContext(ctrl)
+			context.EXPECT().GetNonce(gomock.Any()).Return(test.nonce).MinTimes(1)
+			context.EXPECT().HasEmptyStorage(gomock.Any()).Return(test.emptyStorage).MaxTimes(1)
+			context.EXPECT().GetCodeHash(gomock.Any()).Return(test.codeHash).MaxTimes(2)
+
+			_, err := createAddress(tosca.Create, tosca.CallParameters{}, tosca.R07_Istanbul, context)
+			if test.expectedError != nil {
+				require.ErrorContains(t, err, test.expectedError.Error())
 			} else {
-				want = tosca.Address(crypto.CreateAddress2(common.Address(test.sender), common.Hash(test.salt), test.initHash[:]))
+				require.NoError(t, err)
 			}
-			result := createAddress(test.kind, test.sender, test.nonce, test.salt, test.initHash)
-			if result != want {
-				t.Errorf("Unexpected address, got: %v, want: %v", result, want)
+		})
+	}
+}
+
+func TestCreate_FinalizeCreateSetsCodeOrResetsResult(t *testing.T) {
+	tests := map[string]struct {
+		revision      tosca.Revision
+		code          []byte
+		gas           tosca.Gas
+		success       bool
+		resultGasLeft tosca.Gas
+	}{
+		"successful": {
+			revision:      tosca.R07_Istanbul,
+			code:          []byte{1, 2, 3},
+			gas:           tosca.Gas(601),
+			success:       true,
+			resultGasLeft: tosca.Gas(1),
+		},
+		"greater max code size": {
+			revision:      tosca.R07_Istanbul,
+			code:          make([]byte, maxCodeSize+1),
+			gas:           tosca.Gas(100000000),
+			success:       false,
+			resultGasLeft: tosca.Gas(0),
+		},
+		"starts with 0xEF pre Shanghai": {
+			revision:      tosca.R07_Istanbul,
+			code:          append([]byte{0xEF}, []byte{1, 2, 3}...),
+			gas:           tosca.Gas(801),
+			success:       true,
+			resultGasLeft: tosca.Gas(1),
+		},
+		"starts with 0xEF Shanghai": {
+			revision:      tosca.R12_Shanghai,
+			code:          append([]byte{0xEF}, []byte{1, 2, 3}...),
+			gas:           tosca.Gas(801),
+			success:       false,
+			resultGasLeft: tosca.Gas(0),
+		},
+		"too little gas": {
+			revision:      tosca.R07_Istanbul,
+			code:          []byte{1, 2, 3},
+			gas:           tosca.Gas(599),
+			success:       false,
+			resultGasLeft: tosca.Gas(0),
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			context := tosca.NewMockTransactionContext(ctrl)
+			snapshot := tosca.Snapshot(42)
+
+			createdAddress := tosca.Address{1}
+			result := tosca.Result{
+				Success: true,
+				Output:  test.code,
+				GasLeft: test.gas,
+			}
+
+			if test.success {
+				context.EXPECT().SetCode(createdAddress, tosca.Code(test.code))
+			} else {
+				context.EXPECT().RestoreSnapshot(snapshot)
+			}
+
+			finalizedResult := finalizeCreate(result, createdAddress, snapshot, test.revision, context)
+
+			result.GasLeft = test.resultGasLeft
+			if !test.success {
+				result.Output = nil
+				result.Success = false
+			}
+			require.Equal(t, result, finalizedResult, "Finalized result does not match expected result")
+		})
+	}
+}
+
+func TestCreate_PreChecksReturnsErrorOnNonceOverflowOrTransferFailure(t *testing.T) {
+	tests := map[string]struct {
+		nonce uint64
+		value tosca.Value
+		err   error
+	}{
+		"nonce overflow": {
+			nonce: math.MaxUint64,
+			err:   fmt.Errorf("nonce overflow"),
+		},
+		"insufficient balance": {
+			nonce: 0,
+			value: tosca.NewValue(1000),
+			err:   fmt.Errorf("insufficient balance"),
+		},
+		"successful": {
+			nonce: 0,
+			value: tosca.NewValue(0),
+			err:   nil,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			context := tosca.NewMockTransactionContext(ctrl)
+
+			sender := tosca.Address{1}
+			context.EXPECT().GetBalance(sender).Return(tosca.NewValue(100)).AnyTimes()
+			context.EXPECT().GetNonce(sender).Return(test.nonce).AnyTimes()
+			context.EXPECT().SetNonce(sender, test.nonce+1).AnyTimes()
+
+			parameters := tosca.CallParameters{
+				Sender: sender,
+				Value:  test.value,
+			}
+
+			err := createPreChecks(parameters, context)
+			if test.err != nil {
+				require.ErrorContains(t, err, test.err.Error(), "Expected error did not match")
+			} else {
+				require.NoError(t, err, "Expected no error but got one")
 			}
 		})
 	}

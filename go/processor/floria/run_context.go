@@ -123,29 +123,15 @@ func (r runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallPara
 	r.depth++
 	defer func() { r.depth-- }()
 
-	if !canTransferValue(r, parameters.Value, parameters.Sender, &parameters.Recipient) {
-		return errResult, nil
-	}
-	if err := incrementNonce(r, parameters.Sender); err != nil {
+	if err := createPreChecks(parameters, r.TransactionContext); err != nil {
 		return errResult, nil
 	}
 
-	code := tosca.Code(parameters.Input)
-	codeHash := hashCode(code)
-
-	createdAddress := createAddress(kind, parameters.Sender, r.GetNonce(parameters.Sender)-1,
-		parameters.Salt, codeHash)
-
-	if r.blockParameters.Revision >= tosca.R09_Berlin {
-		r.AccessAccount(createdAddress)
-	}
-
-	if r.GetNonce(createdAddress) != 0 ||
-		!r.HasEmptyStorage(createdAddress) ||
-		(r.GetCodeHash(createdAddress) != (tosca.Hash{}) &&
-			r.GetCodeHash(createdAddress) != emptyCodeHash) {
+	createdAddress, err := createAddress(kind, parameters, r.blockParameters.Revision, r.TransactionContext)
+	if err != nil {
 		return tosca.CallResult{}, nil
 	}
+
 	snapshot := r.CreateSnapshot()
 	r.CreateAccount(createdAddress)
 	r.SetNonce(createdAddress, 1)
@@ -164,11 +150,68 @@ func (r runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallPara
 		return tosca.CallResult{Output: result.Output, GasLeft: result.GasLeft, CreatedAddress: createdAddress}, nil
 	}
 
+	result = finalizeCreate(result, createdAddress, snapshot, r.blockParameters.Revision, r)
+
+	return tosca.CallResult{
+		Output:         result.Output,
+		GasLeft:        result.GasLeft,
+		GasRefund:      result.GasRefund,
+		Success:        result.Success,
+		CreatedAddress: createdAddress,
+	}, nil
+}
+
+func createPreChecks(parameters tosca.CallParameters, context tosca.TransactionContext) error {
+	if !canTransferValue(context, parameters.Value, parameters.Sender, &parameters.Recipient) {
+		return fmt.Errorf("insufficient balance for value transfer")
+	}
+	if err := incrementNonce(context, parameters.Sender); err != nil {
+		return err
+	}
+	return nil
+}
+
+func createAddress(
+	kind tosca.CallKind,
+	parameters tosca.CallParameters,
+	revision tosca.Revision,
+	context tosca.TransactionContext,
+) (tosca.Address, error) {
+	var createdAddress tosca.Address
+	if kind == tosca.Create {
+		createdAddress = tosca.Address(crypto.CreateAddress(
+			common.Address(parameters.Sender),
+			context.GetNonce(parameters.Sender)-1,
+		))
+	} else {
+		initHash := crypto.Keccak256(parameters.Input)
+		createdAddress = tosca.Address(crypto.CreateAddress2(
+			common.Address(parameters.Sender),
+			common.Hash(parameters.Salt),
+			initHash[:],
+		))
+	}
+
+	if revision >= tosca.R09_Berlin {
+		context.AccessAccount(createdAddress)
+	}
+
+	if context.GetNonce(createdAddress) != 0 ||
+		!context.HasEmptyStorage(createdAddress) ||
+		(context.GetCodeHash(createdAddress) != (tosca.Hash{}) &&
+			context.GetCodeHash(createdAddress) != emptyCodeHash) {
+		return tosca.Address{}, fmt.Errorf("created address is not empty")
+	}
+
+	return createdAddress, nil
+}
+
+func finalizeCreate(result tosca.Result, createdAddress tosca.Address, snapshot tosca.Snapshot, revision tosca.Revision, context tosca.TransactionContext) tosca.Result {
 	outCode := result.Output
 	if len(outCode) > maxCodeSize {
 		result.Success = false
 	}
-	if r.blockParameters.Revision >= tosca.R10_London && len(outCode) > 0 && outCode[0] == 0xEF {
+	if revision >= tosca.R10_London && len(outCode) > 0 && outCode[0] == 0xEF {
 		result.Success = false
 	}
 	createGas := tosca.Gas(len(outCode) * createGasCostPerByte)
@@ -178,20 +221,13 @@ func (r runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallPara
 	result.GasLeft -= createGas
 
 	if result.Success {
-		r.SetCode(createdAddress, tosca.Code(outCode))
+		context.SetCode(createdAddress, tosca.Code(outCode))
 	} else {
-		r.RestoreSnapshot(snapshot)
+		context.RestoreSnapshot(snapshot)
 		result.GasLeft = 0
 		result.Output = nil
 	}
-
-	return tosca.CallResult{
-		Output:         result.Output,
-		GasLeft:        result.GasLeft,
-		GasRefund:      result.GasRefund,
-		Success:        result.Success,
-		CreatedAddress: createdAddress,
-	}, nil
+	return result
 }
 
 func (r runContext) runInterpreter(kind tosca.CallKind, parameters tosca.CallParameters) (tosca.Result, error) {
@@ -237,19 +273,6 @@ func isRevert(result tosca.Result, err error) bool {
 
 func hashCode(code tosca.Code) tosca.Hash {
 	return tosca.Hash(crypto.Keccak256(code))
-}
-
-func createAddress(
-	kind tosca.CallKind,
-	sender tosca.Address,
-	nonce uint64,
-	salt tosca.Hash,
-	initHash tosca.Hash,
-) tosca.Address {
-	if kind == tosca.Create {
-		return tosca.Address(crypto.CreateAddress(common.Address(sender), nonce))
-	}
-	return tosca.Address(crypto.CreateAddress2(common.Address(sender), common.Hash(salt), initHash[:]))
 }
 
 func canTransferValue(
