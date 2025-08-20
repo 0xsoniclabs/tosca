@@ -19,6 +19,7 @@ import (
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -476,6 +477,193 @@ func TestRunContext_AccountIsOnlyCreatedIfItIsEmptyAndDoesNotExist(t *testing.T)
 			}
 		})
 	}
+}
+
+func TestRunContext_runInterpreterSelectsCodeBasedOnType(t *testing.T) {
+	code := tosca.Code{1, 2, 3}
+	codeHash := tosca.Hash{4, 5, 6}
+	codeAddress := tosca.Address{1}
+	recipient := tosca.Address{2}
+
+	tests := map[string]struct {
+		kind      tosca.CallKind
+		mockSetup func(context *tosca.MockTransactionContext)
+	}{
+		"call": {
+			kind: tosca.Call,
+			mockSetup: func(context *tosca.MockTransactionContext) {
+				context.EXPECT().GetCodeHash(recipient).Return(codeHash)
+				context.EXPECT().GetCode(recipient).Return(code)
+			},
+		},
+		"staticCall": {
+			kind: tosca.StaticCall,
+			mockSetup: func(context *tosca.MockTransactionContext) {
+				context.EXPECT().GetCodeHash(recipient).Return(codeHash)
+				context.EXPECT().GetCode(recipient).Return(code)
+			},
+		},
+		"delegateCall": {
+			kind: tosca.DelegateCall,
+			mockSetup: func(context *tosca.MockTransactionContext) {
+				context.EXPECT().GetCodeHash(codeAddress).Return(codeHash)
+				context.EXPECT().GetCode(codeAddress).Return(code)
+			},
+		},
+		"codeCall": {
+			kind: tosca.CallCode,
+			mockSetup: func(context *tosca.MockTransactionContext) {
+				context.EXPECT().GetCodeHash(codeAddress).Return(codeHash)
+				context.EXPECT().GetCode(codeAddress).Return(code)
+			},
+		},
+		"create": {
+			kind: tosca.Create,
+			mockSetup: func(context *tosca.MockTransactionContext) {
+				// no calls to state DB
+			},
+		},
+		"create2": {
+			kind: tosca.Create2,
+			mockSetup: func(context *tosca.MockTransactionContext) {
+				// no calls to state DB
+			},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			context := tosca.NewMockTransactionContext(ctrl)
+			interpreter := tosca.NewMockInterpreter(ctrl)
+			runContext := runContext{
+				context,
+				interpreter,
+				tosca.BlockParameters{},
+				tosca.TransactionParameters{},
+				0,
+				false,
+			}
+
+			parameters := tosca.CallParameters{
+				Sender:      tosca.Address{1},
+				Recipient:   recipient,
+				CodeAddress: codeAddress,
+				Gas:         1000,
+				Input:       tosca.Data(code),
+			}
+
+			test.mockSetup(context)
+
+			interpreter.EXPECT().Run(gomock.Any()).DoAndReturn(func(parameters tosca.Parameters) (tosca.Result, error) {
+				if test.kind == tosca.Create || test.kind == tosca.Create2 {
+					require.Nil(t, parameters.Input)
+					require.Equal(t, parameters.Code, code)
+					require.NotNil(t, parameters.CodeHash)
+				} else {
+					require.Equal(t, parameters.Code, code)
+					require.Equal(t, *parameters.CodeHash, codeHash)
+				}
+				return tosca.Result{Success: true}, nil
+			})
+
+			result, err := runContext.runInterpreter(test.kind, parameters)
+			require.NoError(t, err)
+			require.True(t, result.Success)
+		})
+	}
+}
+
+func TestRunContext_runInterpreterCreateComputesCorrectCodeHash(t *testing.T) {
+	code := tosca.Code{1, 2, 3}
+	expectedHash := tosca.Hash(crypto.Keccak256(code))
+
+	ctrl := gomock.NewController(t)
+	interpreter := tosca.NewMockInterpreter(ctrl)
+	runContext := runContext{
+		nil,
+		interpreter,
+		tosca.BlockParameters{},
+		tosca.TransactionParameters{},
+		0,
+		false,
+	}
+
+	interpreter.EXPECT().Run(gomock.Any()).DoAndReturn(func(parameters tosca.Parameters) (tosca.Result, error) {
+		require.Nil(t, parameters.Input)
+		require.Equal(t, parameters.Code, code)
+		require.Equal(t, *parameters.CodeHash, expectedHash)
+		return tosca.Result{Success: true}, nil
+	})
+
+	_, err := runContext.runInterpreter(tosca.Create, tosca.CallParameters{
+		Input: tosca.Data(code),
+	})
+	require.NoError(t, err)
+}
+
+func TestRunContext_runInterpreterForwardsValuesCorrectly(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	context := tosca.NewMockTransactionContext(ctrl)
+	interpreter := tosca.NewMockInterpreter(ctrl)
+	runContext := runContext{
+		context,
+		interpreter,
+		tosca.BlockParameters{
+			ChainID: tosca.Word{0x01},
+		},
+		tosca.TransactionParameters{
+			Origin: tosca.Address{0x02},
+		},
+		0,
+		false,
+	}
+
+	parameters := tosca.CallParameters{
+		Sender:      tosca.Address{0x03},
+		Recipient:   tosca.Address{0x04},
+		CodeAddress: tosca.Address{0x05},
+		Gas:         1000,
+		Input:       []byte("test input"),
+		Value:       tosca.NewValue(42),
+	}
+
+	code := tosca.Code{1, 2, 3}
+	codeHash := tosca.Hash{4, 5, 6}
+
+	expectedParams := tosca.Parameters{
+		BlockParameters:       runContext.blockParameters,
+		TransactionParameters: runContext.transactionParameters,
+		Context:               runContext,
+		Sender:                parameters.Sender,
+		Recipient:             parameters.Recipient,
+		Gas:                   parameters.Gas,
+		Input:                 parameters.Input,
+		Value:                 parameters.Value,
+		Code:                  code,
+		CodeHash:              &codeHash,
+	}
+
+	context.EXPECT().GetCode(parameters.Recipient).Return(code)
+	context.EXPECT().GetCodeHash(parameters.Recipient).Return(codeHash)
+
+	interpreter.EXPECT().Run(gomock.Any()).DoAndReturn(func(p tosca.Parameters) (tosca.Result, error) {
+		require.Equal(t, p.Depth, expectedParams.Depth-1)
+		require.Equal(t, p.BlockParameters, expectedParams.BlockParameters)
+		require.Equal(t, p.TransactionParameters, expectedParams.TransactionParameters)
+		require.Equal(t, p.Context, expectedParams.Context)
+		require.Equal(t, p.Sender, expectedParams.Sender)
+		require.Equal(t, p.Recipient, expectedParams.Recipient)
+		require.Equal(t, p.Gas, expectedParams.Gas)
+		require.Equal(t, p.Input, expectedParams.Input)
+		require.Equal(t, p.Value, expectedParams.Value)
+		require.Equal(t, p.Code, expectedParams.Code)
+		require.Equal(t, *p.CodeHash, *expectedParams.CodeHash)
+		return tosca.Result{Success: true}, nil
+	})
+
+	_, err := runContext.runInterpreter(tosca.Call, parameters)
+	require.NoError(t, err)
 }
 
 func TestCall_PrecompiledCheckDependsOnCodeAddress(t *testing.T) {
