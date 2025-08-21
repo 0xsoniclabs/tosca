@@ -123,7 +123,7 @@ func (r runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallPara
 	r.depth++
 	defer func() { r.depth-- }()
 
-	if err := createPreChecks(parameters, r.TransactionContext); err != nil {
+	if err := senderCreateSetUp(parameters, r.TransactionContext); err != nil {
 		return errResult, nil
 	}
 
@@ -132,6 +132,9 @@ func (r runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallPara
 		return tosca.CallResult{}, nil
 	}
 
+	// The following changes have an impact on the created address.
+	// If a check fails the snapshot will be restored and revert all changes on the
+	// created address. The nonce increment of the sender is not impacted.
 	snapshot := r.CreateSnapshot()
 	r.CreateAccount(createdAddress)
 	r.SetNonce(createdAddress, 1)
@@ -150,7 +153,7 @@ func (r runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallPara
 		return tosca.CallResult{Output: result.Output, GasLeft: result.GasLeft, CreatedAddress: createdAddress}, nil
 	}
 
-	result = finalizeCreate(result, createdAddress, snapshot, r.blockParameters.Revision, r)
+	result = checkAndDeployCode(result, createdAddress, snapshot, r.blockParameters.Revision, r)
 
 	return tosca.CallResult{
 		Output:         result.Output,
@@ -161,16 +164,20 @@ func (r runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallPara
 	}, nil
 }
 
-func createPreChecks(parameters tosca.CallParameters, context tosca.TransactionContext) error {
+// senderCreateSetUp performs necessary steps before creating a contract.
+func senderCreateSetUp(parameters tosca.CallParameters, context tosca.TransactionContext) error {
 	if !canTransferValue(context, parameters.Value, parameters.Sender, &parameters.Recipient) {
 		return fmt.Errorf("insufficient balance for value transfer")
 	}
 	if err := incrementNonce(context, parameters.Sender); err != nil {
-		return err
+		return fmt.Errorf("nonce increment failed: %w", err)
 	}
 	return nil
 }
 
+// createAddress generates a new contract address,
+// depending on the revision it is added to the access list.
+// An error is return in case the address is not empty.
 func createAddress(
 	kind tosca.CallKind,
 	parameters tosca.CallParameters,
@@ -178,12 +185,14 @@ func createAddress(
 	context tosca.TransactionContext,
 ) (tosca.Address, error) {
 	var createdAddress tosca.Address
-	if kind == tosca.Create {
+
+	switch kind {
+	case tosca.Create:
 		createdAddress = tosca.Address(crypto.CreateAddress(
 			common.Address(parameters.Sender),
 			context.GetNonce(parameters.Sender)-1,
 		))
-	} else {
+	case tosca.Create2:
 		initHash := crypto.Keccak256(parameters.Input)
 		createdAddress = tosca.Address(crypto.CreateAddress2(
 			common.Address(parameters.Sender),
@@ -206,20 +215,35 @@ func createAddress(
 	return createdAddress, nil
 }
 
-func finalizeCreate(result tosca.Result, createdAddress tosca.Address, snapshot tosca.Snapshot, revision tosca.Revision, context tosca.TransactionContext) tosca.Result {
+// checkAndDeployCode performs the required checks to ensure the code is valid and can be deployed.
+// If all checks pass, the code is deployed, in the case of failure the snapshot is restored,
+// gas consumed and no result is returned.
+func checkAndDeployCode(
+	result tosca.Result,
+	createdAddress tosca.Address,
+	snapshot tosca.Snapshot,
+	revision tosca.Revision,
+	context tosca.TransactionContext,
+) tosca.Result {
 	outCode := result.Output
+	// check code size
 	if len(outCode) > maxCodeSize {
 		result.Success = false
 	}
+
+	// with eip-3541 code is not allowed to start with 0xEF
 	if revision >= tosca.R10_London && len(outCode) > 0 && outCode[0] == 0xEF {
 		result.Success = false
 	}
-	createGas := tosca.Gas(len(outCode) * createGasCostPerByte)
-	if result.GasLeft < createGas {
+
+	// charge for code deployment
+	deploymentCost := tosca.Gas(len(outCode) * createGasCostPerByte)
+	if result.GasLeft < deploymentCost {
 		result.Success = false
 	}
-	result.GasLeft -= createGas
+	result.GasLeft -= deploymentCost
 
+	// deploy code or revert snapshot
 	if result.Success {
 		context.SetCode(createdAddress, tosca.Code(outCode))
 	} else {
@@ -269,10 +293,6 @@ func isRevert(result tosca.Result, err error) bool {
 		return true
 	}
 	return false
-}
-
-func hashCode(code tosca.Code) tosca.Hash {
-	return tosca.Hash(crypto.Keccak256(code))
 }
 
 func canTransferValue(

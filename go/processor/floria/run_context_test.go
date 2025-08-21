@@ -317,7 +317,7 @@ func TestTransferValue_BalanceIsNotChangedWhenValueIsTransferredToTheSameAccount
 	transferValue(context, value, address, address)
 }
 
-func TestCreate_CreateAddressProducesTheCorrectAddress(t *testing.T) {
+func TestCreate_CreateAddress_ProducesTheCorrectAddress(t *testing.T) {
 	tests := map[string]struct {
 		kind     tosca.CallKind
 		sender   tosca.Address
@@ -343,13 +343,17 @@ func TestCreate_CreateAddressProducesTheCorrectAddress(t *testing.T) {
 
 	for name, test := range tests {
 		for _, revision := range tosca.GetAllKnownRevisions() {
-			t.Run(name+revision.String(), func(t *testing.T) {
+			t.Run(fmt.Sprintf("%s/%s", name, revision), func(t *testing.T) {
 				var want tosca.Address
-				if test.kind == tosca.Create {
+
+				switch test.kind {
+				case tosca.Create:
 					want = tosca.Address(crypto.CreateAddress(common.Address(test.sender), test.nonce))
-				} else {
+				case tosca.Create2:
 					initHash := crypto.Keccak256(test.initHash[:])
 					want = tosca.Address(crypto.CreateAddress2(common.Address(test.sender), common.Hash(test.salt), initHash[:]))
+				default:
+					t.Fatal("Unsupported create type")
 				}
 
 				ctrl := gomock.NewController(t)
@@ -437,7 +441,7 @@ func TestCreate_CreateAddressReturnErrorIfAddressIsNotEmpty(t *testing.T) {
 	}
 }
 
-func TestCreate_FinalizeCreateSetsCodeOrResetsResult(t *testing.T) {
+func TestCreate_CheckAndDeployCode_SetsCodeOrResetsResult(t *testing.T) {
 	tests := map[string]struct {
 		revision      tosca.Revision
 		code          []byte
@@ -501,7 +505,7 @@ func TestCreate_FinalizeCreateSetsCodeOrResetsResult(t *testing.T) {
 				context.EXPECT().RestoreSnapshot(snapshot)
 			}
 
-			finalizedResult := finalizeCreate(result, createdAddress, snapshot, test.revision, context)
+			finalizedResult := checkAndDeployCode(result, createdAddress, snapshot, test.revision, context)
 
 			result.GasLeft = test.resultGasLeft
 			if !test.success {
@@ -513,7 +517,7 @@ func TestCreate_FinalizeCreateSetsCodeOrResetsResult(t *testing.T) {
 	}
 }
 
-func TestCreate_PreChecksReturnsErrorOnNonceOverflowOrTransferFailure(t *testing.T) {
+func TestCreate_senderCreateSetUp_ReturnsError(t *testing.T) {
 	tests := map[string]struct {
 		nonce uint64
 		value tosca.Value
@@ -550,7 +554,7 @@ func TestCreate_PreChecksReturnsErrorOnNonceOverflowOrTransferFailure(t *testing
 				Value:  test.value,
 			}
 
-			err := createPreChecks(parameters, context)
+			err := senderCreateSetUp(parameters, context)
 			if test.err != nil {
 				require.ErrorContains(t, err, test.err.Error(), "Expected error did not match")
 			} else {
