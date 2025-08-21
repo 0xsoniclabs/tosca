@@ -202,7 +202,13 @@ func TestTransferValue_InCallRestoreFailed(t *testing.T) {
 		Gas:       1000,
 		Input:     []byte{},
 	}
-	context.EXPECT().GetBalance(params.Sender).Return(tosca.NewValue(0))
+
+	snapshot := tosca.Snapshot(42)
+	gomock.InOrder(
+		context.EXPECT().CreateSnapshot().Return(snapshot),
+		context.EXPECT().GetBalance(params.Sender).Return(tosca.NewValue(0)),
+		context.EXPECT().RestoreSnapshot(snapshot),
+	)
 
 	result, err := runContext.Call(tosca.Call, params)
 	if err != nil {
@@ -211,6 +217,59 @@ func TestTransferValue_InCallRestoreFailed(t *testing.T) {
 
 	if result.Success {
 		t.Errorf("The transaction should have failed")
+	}
+}
+
+func TestCall_CanTransferValueDependsOnKind(t *testing.T) {
+	calls := []tosca.CallKind{
+		tosca.Call,
+		tosca.StaticCall,
+		tosca.CallCode,
+		tosca.DelegateCall,
+	}
+
+	for _, call := range calls {
+		t.Run(call.String(), func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			context := tosca.NewMockTransactionContext(ctrl)
+			interpreter := tosca.NewMockInterpreter(ctrl)
+			runContext := runContext{
+				context,
+				interpreter,
+				tosca.BlockParameters{},
+				tosca.TransactionParameters{},
+				0,
+				false,
+			}
+
+			parameters := tosca.CallParameters{
+				Sender:      tosca.Address{1},
+				Recipient:   tosca.Address{2},
+				CodeAddress: tosca.Address{2},
+				Value:       tosca.NewValue(10),
+				Gas:         1000,
+				Input:       []byte{},
+			}
+			senderBalance := tosca.NewValue(100)
+			recipientBalance := tosca.NewValue(0)
+
+			context.EXPECT().CreateSnapshot()
+
+			if call == tosca.Call || call == tosca.CallCode {
+				// Only check balance if kind is Call or CallCode.
+				context.EXPECT().GetBalance(parameters.Sender).Return(senderBalance).MinTimes(1)
+				context.EXPECT().GetBalance(parameters.Recipient).Return(recipientBalance).MinTimes(1)
+				context.EXPECT().SetBalance(parameters.Sender, tosca.Sub(senderBalance, parameters.Value))
+				context.EXPECT().SetBalance(parameters.Recipient, tosca.Add(recipientBalance, parameters.Value))
+			}
+			context.EXPECT().GetCode(parameters.Recipient).Return(tosca.Code{})
+			context.EXPECT().GetCodeHash(parameters.Recipient).Return(tosca.Hash{})
+			interpreter.EXPECT().Run(gomock.Any()).Return(tosca.Result{Success: true}, nil)
+
+			result, err := runContext.executeCall(call, parameters)
+			require.NoError(t, err, "unexpected error during call execution")
+			require.True(t, result.Success, "expected call to succeed")
+		})
 	}
 }
 
@@ -926,6 +985,41 @@ func TestCall_PrecompiledCheckDependsOnCodeAddress(t *testing.T) {
 			if !result.Success {
 				t.Error("expected successful call, got failure")
 			}
+		})
+	}
+}
+
+func TestCall_StateAndPrecompileErrorRestoresSnapshot(t *testing.T) {
+	tests := map[string]struct {
+		codeAddress tosca.Address
+	}{
+		"precompiled":   {test_utils.NewAddress(0x01)},
+		"stateContract": {StateContractAddress()},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			context := tosca.NewMockTransactionContext(ctrl)
+
+			runContext := runContext{TransactionContext: context}
+
+			snapshot := tosca.Snapshot(42)
+			context.EXPECT().CreateSnapshot().Return(snapshot)
+			context.EXPECT().RestoreSnapshot(snapshot)
+
+			parameters := tosca.CallParameters{
+				Sender:      DriverAddress(),
+				Recipient:   test.codeAddress,
+				CodeAddress: test.codeAddress,
+				Gas:         10,
+				Input:       []byte{0x00, 0x00, 0x00, 0x00},
+			}
+
+			result, err := runContext.executeCall(tosca.Call, parameters)
+			require.NoError(t, err, "unexpected error during call execution")
+			require.False(t, result.Success, "expected call to fail")
+			require.Equal(t, tosca.Gas(0), result.GasLeft, "expected gas to be consumed on failure")
 		})
 	}
 }

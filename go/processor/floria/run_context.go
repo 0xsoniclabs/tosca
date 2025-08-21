@@ -49,10 +49,8 @@ func (r runContext) executeCall(kind tosca.CallKind, parameters tosca.CallParame
 	r.depth++
 	defer func() { r.depth-- }()
 
-	if kind == tosca.Call || kind == tosca.CallCode {
-		if !canTransferValue(r, parameters.Value, parameters.Sender, &parameters.Recipient) {
-			return errResult, nil
-		}
+	if kind == tosca.StaticCall {
+		r.static = true
 	}
 
 	snapshot := r.CreateSnapshot()
@@ -64,35 +62,22 @@ func (r runContext) executeCall(kind tosca.CallKind, parameters tosca.CallParame
 		}
 	}()
 
-	recipient := parameters.Recipient
-
-	if kind == tosca.StaticCall {
-		r.static = true
+	if kind == tosca.Call || kind == tosca.CallCode {
+		if !canTransferValue(r, parameters.Value, parameters.Sender, &parameters.Recipient) {
+			return errResult, nil
+		}
+		transferValue(r, parameters.Value, parameters.Sender, parameters.Recipient)
 	}
 
-	isStateContract := isStateContract(parameters.CodeAddress)
-	isPrecompiled := isPrecompiled(parameters.CodeAddress, r.blockParameters.Revision)
-
-	if kind == tosca.Call &&
-		r.blockParameters.Revision >= tosca.R09_Berlin &&
-		!isPrecompiled &&
-		!isStateContract &&
-		!r.AccountExists(parameters.Recipient) &&
-		parameters.Value.Cmp(tosca.Value{}) == 0 {
-		return tosca.CallResult{Success: true, GasLeft: parameters.Gas}, nil
-	}
-
-	if kind == tosca.Call {
-		transferValue(r, parameters.Value, parameters.Sender, recipient)
-	}
-
-	if kind == tosca.Call && isStateContract {
-		result := runStateContract(r, parameters.Sender, parameters.CodeAddress, parameters.Input, parameters.Gas)
+	if kind == tosca.Call && isStateContract(parameters.CodeAddress) {
+		result :=
+			runStateContract(r, parameters.Sender, parameters.CodeAddress, parameters.Input, parameters.Gas)
 		return result, nil
 	}
 
-	if isPrecompiled {
-		result, err := runPrecompiledContract(r.blockParameters.Revision, parameters.Input, parameters.CodeAddress, parameters.Gas)
+	if isPrecompiled(parameters.CodeAddress, r.blockParameters.Revision) {
+		result, err :=
+			runPrecompiledContract(r.blockParameters.Revision, parameters.Input, parameters.CodeAddress, parameters.Gas)
 		if err != nil {
 			result.Success = false
 		}
