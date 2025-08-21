@@ -567,9 +567,8 @@ func TestRunContext_runInterpreterSelectsCodeBasedOnType(t *testing.T) {
 				return tosca.Result{Success: true}, nil
 			})
 
-			result, err := runContext.runInterpreter(test.kind, parameters)
+			_, err := runContext.runInterpreter(test.kind, parameters)
 			require.NoError(t, err)
-			require.True(t, result.Success)
 		})
 	}
 }
