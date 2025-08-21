@@ -43,15 +43,15 @@ func (r runContext) executeCall(kind tosca.CallKind, parameters tosca.CallParame
 		Success: false,
 		GasLeft: parameters.Gas,
 	}
-	if r.depth > MaxRecursiveDepth {
+
+	// The runContext is passed to the interpreter by value,
+	// therefore no decrement of depth is required.
+	if r.incrementDepth() != nil {
 		return errResult, nil
 	}
-	r.depth++
-	defer func() { r.depth-- }()
 
-	if kind == tosca.StaticCall {
-		r.static = true
-	}
+	// Just like the depth, the static flag does not need to be reset.
+	r.static = r.static || kind == tosca.StaticCall
 
 	snapshot := r.CreateSnapshot()
 	defer func() {
@@ -102,11 +102,9 @@ func (r runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallPara
 		Success: false,
 		GasLeft: parameters.Gas,
 	}
-	if r.depth > MaxRecursiveDepth {
+	if r.incrementDepth() != nil {
 		return errResult, nil
 	}
-	r.depth++
-	defer func() { r.depth-- }()
 
 	if err := senderCreateSetUp(parameters, r.TransactionContext); err != nil {
 		// the set up only fails if the create can not be executed in the current state,
@@ -288,6 +286,16 @@ func (r runContext) runInterpreter(kind tosca.CallKind, parameters tosca.CallPar
 	}
 
 	return r.interpreter.Run(interpreterParameters)
+}
+
+// incrementDepth increases the depth of the run context.
+// In case the maximum call depth is exceeded, an error is returned.
+func (r *runContext) incrementDepth() error {
+	if r.depth > MaxRecursiveDepth {
+		return fmt.Errorf("max recursive depth reached")
+	}
+	r.depth++
+	return nil
 }
 
 func canTransferValue(
