@@ -49,36 +49,24 @@ func (r runContext) executeCall(kind tosca.CallKind, parameters tosca.CallParame
 	r.depth++
 	defer func() { r.depth-- }()
 
-	if kind == tosca.Call || kind == tosca.CallCode {
-		if !canTransferValue(r, parameters.Value, parameters.Sender, &parameters.Recipient) {
-			return errResult, nil
-		}
-	}
-	snapshot := r.CreateSnapshot()
-	recipient := parameters.Recipient
-
 	if kind == tosca.StaticCall {
 		r.static = true
 	}
 
-	isStateContract := isStateContract(parameters.CodeAddress)
-	isPrecompiled := isPrecompiled(parameters.CodeAddress, r.blockParameters.Revision)
+	snapshot := r.CreateSnapshot()
 
-	if kind == tosca.Call &&
-		r.blockParameters.Revision >= tosca.R09_Berlin &&
-		!isPrecompiled &&
-		!isStateContract &&
-		!r.AccountExists(parameters.Recipient) &&
-		parameters.Value.Cmp(tosca.Value{}) == 0 {
-		return tosca.CallResult{Success: true, GasLeft: parameters.Gas}, nil
+	if kind == tosca.Call || kind == tosca.CallCode {
+		if !canTransferValue(r, parameters.Value, parameters.Sender, &parameters.Recipient) {
+			return errResult, nil
+		}
+		if kind == tosca.Call {
+			transferValue(r, parameters.Value, parameters.Sender, parameters.Recipient)
+		}
 	}
 
-	if kind == tosca.Call {
-		transferValue(r, parameters.Value, parameters.Sender, recipient)
-	}
-
-	if kind == tosca.Call && isStateContract {
-		result := runStateContract(r, parameters.Sender, parameters.CodeAddress, parameters.Input, parameters.Gas)
+	if kind == tosca.Call && isStateContract(parameters.CodeAddress) {
+		result :=
+			runStateContract(r, parameters.Sender, parameters.CodeAddress, parameters.Input, parameters.Gas)
 		if !result.Success {
 			r.RestoreSnapshot(snapshot)
 			result.GasLeft = 0
@@ -86,8 +74,9 @@ func (r runContext) executeCall(kind tosca.CallKind, parameters tosca.CallParame
 		return result, nil
 	}
 
-	if isPrecompiled {
-		result, err := runPrecompiledContract(r.blockParameters.Revision, parameters.Input, parameters.CodeAddress, parameters.Gas)
+	if isPrecompiled(parameters.CodeAddress, r.blockParameters.Revision) {
+		result, err :=
+			runPrecompiledContract(r.blockParameters.Revision, parameters.Input, parameters.CodeAddress, parameters.Gas)
 		if err != nil {
 			r.RestoreSnapshot(snapshot)
 		}
