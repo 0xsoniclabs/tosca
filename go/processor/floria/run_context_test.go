@@ -932,3 +932,126 @@ func TestCall_PrecompiledCheckDependsOnCodeAddress(t *testing.T) {
 		})
 	}
 }
+
+func TestRunContext_InterpreterErrorIsForwardedAndRestoresSnapshot(t *testing.T) {
+	calls := allCallTypes()
+	for _, call := range calls {
+		t.Run(call.String(), func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			context := tosca.NewMockTransactionContext(ctrl)
+			interpreter := tosca.NewMockInterpreter(ctrl)
+			runContext := runContext{
+				TransactionContext: context,
+				interpreter:        interpreter,
+			}
+
+			parameters := tosca.CallParameters{
+				Sender:      tosca.Address{1},
+				Recipient:   tosca.Address{2},
+				CodeAddress: tosca.Address{2},
+				Value:       tosca.NewValue(0),
+				Gas:         1000,
+				Input:       []byte{},
+			}
+
+			snapshot := tosca.Snapshot(42)
+
+			context.EXPECT().CreateSnapshot().Return(snapshot)
+			if call == tosca.Create || call == tosca.Create2 {
+				context.EXPECT().GetNonce(parameters.Sender)
+				context.EXPECT().SetNonce(parameters.Sender, uint64(1))
+				context.EXPECT().GetNonce(gomock.Any()).AnyTimes()
+				context.EXPECT().HasEmptyStorage(gomock.Any()).Return(true)
+				context.EXPECT().GetCodeHash(gomock.Any())
+				context.EXPECT().CreateAccount(gomock.Any())
+				context.EXPECT().SetNonce(gomock.Any(), uint64(1))
+			} else {
+				context.EXPECT().GetCode(parameters.Recipient)
+				context.EXPECT().GetCodeHash(parameters.Recipient)
+			}
+			// Make sure the correct snapshot is rolled back
+			context.EXPECT().RestoreSnapshot(snapshot)
+
+			interpreterError := fmt.Errorf("interpreter error")
+			interpreter.EXPECT().Run(gomock.Any()).Return(tosca.Result{}, interpreterError)
+
+			result, err := runContext.Call(call, parameters)
+			require.Equal(t, interpreterError, err)
+			require.Equal(t, tosca.CallResult{}, result)
+		})
+	}
+}
+
+func TestRunContext_UnsuccessfulInterpreterExecutionRestoresSnapshot(t *testing.T) {
+	for _, call := range allCallTypes() {
+		t.Run(call.String(), func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			context := tosca.NewMockTransactionContext(ctrl)
+			interpreter := tosca.NewMockInterpreter(ctrl)
+			runContext := runContext{
+				TransactionContext: context,
+				interpreter:        interpreter,
+			}
+
+			parameters := tosca.CallParameters{
+				Sender:      tosca.Address{1},
+				Recipient:   tosca.Address{2},
+				CodeAddress: tosca.Address{2},
+				Value:       tosca.NewValue(0),
+				Gas:         1000,
+				Input:       []byte{},
+			}
+
+			snapshot := tosca.Snapshot(42)
+
+			context.EXPECT().CreateSnapshot().Return(snapshot)
+			if call == tosca.Create || call == tosca.Create2 {
+				context.EXPECT().GetNonce(parameters.Sender)
+				context.EXPECT().SetNonce(parameters.Sender, uint64(1))
+				context.EXPECT().GetNonce(gomock.Any()).AnyTimes()
+				context.EXPECT().HasEmptyStorage(gomock.Any()).Return(true)
+				context.EXPECT().GetCodeHash(gomock.Any())
+				context.EXPECT().CreateAccount(gomock.Any())
+				context.EXPECT().SetNonce(gomock.Any(), uint64(1))
+			} else {
+				context.EXPECT().GetCode(parameters.Recipient)
+				context.EXPECT().GetCodeHash(parameters.Recipient)
+			}
+			// Make sure the correct snapshot is rolled back
+			context.EXPECT().RestoreSnapshot(snapshot)
+
+			output := tosca.Data("some output")
+			gasLeft := tosca.Gas(500)
+			gasRefund := tosca.Gas(100)
+			interpreter.EXPECT().Run(gomock.Any()).Return(
+				tosca.Result{
+					GasLeft:   gasLeft,
+					GasRefund: gasRefund,
+					Output:    output,
+				},
+				nil,
+			)
+
+			result, err := runContext.Call(call, parameters)
+			require.NoError(t, err)
+			require.False(t, result.Success)
+			require.Equal(t, output, result.Output)
+			require.Equal(t, gasLeft, result.GasLeft)
+			require.Equal(t, gasRefund, result.GasRefund)
+			if call == tosca.Create || call == tosca.Create2 {
+				require.NotEqual(t, tosca.Address{}, result.CreatedAddress)
+			}
+		})
+	}
+}
+
+func allCallTypes() []tosca.CallKind {
+	return []tosca.CallKind{
+		tosca.Call,
+		tosca.StaticCall,
+		tosca.CallCode,
+		tosca.DelegateCall,
+		tosca.Create,
+		tosca.Create2,
+	}
+}

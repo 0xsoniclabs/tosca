@@ -95,13 +95,12 @@ func (r runContext) executeCall(kind tosca.CallKind, parameters tosca.CallParame
 	}
 
 	callResult, err := r.runInterpreter(kind, parameters)
-	if err != nil || !callResult.Success {
+	if err != nil {
 		r.RestoreSnapshot(snapshot)
-
-		if !isRevert(callResult, err) {
-			// if the unsuccessful call was due to a revert, the gas is not consumed
-			callResult.GasLeft = 0
-		}
+		return tosca.CallResult{}, err
+	}
+	if !callResult.Success {
+		r.RestoreSnapshot(snapshot)
 	}
 
 	return tosca.CallResult{
@@ -109,7 +108,7 @@ func (r runContext) executeCall(kind tosca.CallKind, parameters tosca.CallParame
 		GasLeft:   callResult.GasLeft,
 		GasRefund: callResult.GasRefund,
 		Success:   callResult.Success,
-	}, err
+	}, nil
 }
 
 func (r runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallParameters) (tosca.CallResult, error) {
@@ -146,14 +145,18 @@ func (r runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallPara
 
 	parameters.Recipient = createdAddress
 	result, err := r.runInterpreter(kind, parameters)
-	if err != nil || !result.Success {
+	if err != nil {
 		r.RestoreSnapshot(snapshot)
-
-		if !isRevert(result, err) {
-			// if the unsuccessful create was due to a revert, the result is still returned
-			return tosca.CallResult{}, err
-		}
-		return tosca.CallResult{Output: result.Output, GasLeft: result.GasLeft, CreatedAddress: createdAddress}, nil
+		return tosca.CallResult{}, err
+	}
+	if !result.Success {
+		r.RestoreSnapshot(snapshot)
+		return tosca.CallResult{
+			Output:         result.Output,
+			GasLeft:        result.GasLeft,
+			GasRefund:      result.GasRefund,
+			CreatedAddress: createdAddress,
+		}, nil
 	}
 
 	result = checkAndDeployCode(result, createdAddress, snapshot, r.blockParameters.Revision, r)
@@ -295,13 +298,6 @@ func (r runContext) runInterpreter(kind tosca.CallKind, parameters tosca.CallPar
 	}
 
 	return r.interpreter.Run(interpreterParameters)
-}
-
-func isRevert(result tosca.Result, err error) bool {
-	if err == nil && !result.Success && (result.GasLeft > 0 || len(result.Output) > 0) {
-		return true
-	}
-	return false
 }
 
 func canTransferValue(
