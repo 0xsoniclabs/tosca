@@ -199,6 +199,8 @@ func createAddress(
 			common.Hash(parameters.Salt),
 			initHash[:],
 		))
+	default:
+		return tosca.Address{}, fmt.Errorf("invalid call kind for create: %d", kind)
 	}
 
 	if revision >= tosca.R09_Berlin {
@@ -216,8 +218,8 @@ func createAddress(
 }
 
 // checkAndDeployCode performs the required checks to ensure the code is valid and can be deployed.
-// If all checks pass, the code is deployed, in the case of failure the snapshot is restored,
-// gas consumed and no result is returned.
+// If all checks pass, the code is deployed, in the case of failure the snapshot is restored and
+// the gas consumed.
 func checkAndDeployCode(
 	result tosca.Result,
 	createdAddress tosca.Address,

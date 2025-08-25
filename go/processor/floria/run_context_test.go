@@ -352,8 +352,6 @@ func TestCreate_CreateAddress_ProducesTheCorrectAddress(t *testing.T) {
 				case tosca.Create2:
 					initHash := crypto.Keccak256(test.initHash[:])
 					want = tosca.Address(crypto.CreateAddress2(common.Address(test.sender), common.Hash(test.salt), initHash[:]))
-				default:
-					t.Fatal("Unsupported create type")
 				}
 
 				ctrl := gomock.NewController(t)
@@ -382,6 +380,14 @@ func TestCreate_CreateAddress_ProducesTheCorrectAddress(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestCreate_CreateAddress_UnsupportedKindTriggersError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	context := tosca.NewMockTransactionContext(ctrl)
+
+	_, err := createAddress(tosca.Call, tosca.CallParameters{}, tosca.R07_Istanbul, context)
+	require.ErrorContains(t, err, "invalid call kind for create")
 }
 
 func TestCreate_CreateAddressReturnErrorIfAddressIsNotEmpty(t *testing.T) {
