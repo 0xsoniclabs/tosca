@@ -352,10 +352,13 @@ func TestCreate_CreateAddress_ProducesTheCorrectAddress(t *testing.T) {
 				case tosca.Create2:
 					initHash := crypto.Keccak256(test.initHash[:])
 					want = tosca.Address(crypto.CreateAddress2(common.Address(test.sender), common.Hash(test.salt), initHash[:]))
+				default:
+					t.Fatalf("invalid call kind for create: %v", test.kind)
 				}
 
 				ctrl := gomock.NewController(t)
 				context := tosca.NewMockTransactionContext(ctrl)
+				// the sender nonce is already updated before the createAddress function.
 				context.EXPECT().GetNonce(test.sender).Return(test.nonce + 1).AnyTimes()
 				if revision > tosca.R07_Istanbul {
 					context.EXPECT().AccessAccount(want)
@@ -434,8 +437,8 @@ func TestCreate_CreateAddressReturnErrorIfAddressIsNotEmpty(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			context := tosca.NewMockTransactionContext(ctrl)
 			context.EXPECT().GetNonce(gomock.Any()).Return(test.nonce).MinTimes(1)
-			context.EXPECT().HasEmptyStorage(gomock.Any()).Return(test.emptyStorage).MaxTimes(1)
-			context.EXPECT().GetCodeHash(gomock.Any()).Return(test.codeHash).MaxTimes(2)
+			context.EXPECT().HasEmptyStorage(gomock.Any()).Return(test.emptyStorage).AnyTimes()
+			context.EXPECT().GetCodeHash(gomock.Any()).Return(test.codeHash).AnyTimes()
 
 			_, err := createAddress(tosca.Create, tosca.CallParameters{}, tosca.R07_Istanbul, context)
 			if test.expectedError != nil {

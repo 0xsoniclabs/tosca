@@ -124,11 +124,14 @@ func (r runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallPara
 	defer func() { r.depth-- }()
 
 	if err := senderCreateSetUp(parameters, r.TransactionContext); err != nil {
+		// the set up only fails if the create can not be executed in the current state,
+		// a unsuccessful receipt is returned but no gas is consumed.
 		return errResult, nil
 	}
 
 	createdAddress, err := createAddress(kind, parameters, r.blockParameters.Revision, r.TransactionContext)
 	if err != nil {
+		// the address has been generated, therefore the gas is consumed in case of an error.
 		return tosca.CallResult{}, nil
 	}
 
@@ -207,14 +210,18 @@ func createAddress(
 		context.AccessAccount(createdAddress)
 	}
 
-	if context.GetNonce(createdAddress) != 0 ||
-		!context.HasEmptyStorage(createdAddress) ||
-		(context.GetCodeHash(createdAddress) != (tosca.Hash{}) &&
-			context.GetCodeHash(createdAddress) != emptyCodeHash) {
+	if !isEmpty(context, createdAddress) {
 		return tosca.Address{}, fmt.Errorf("created address is not empty")
 	}
 
 	return createdAddress, nil
+}
+
+// isEmpty checks whether an account has no nonce update, no code and empty storage.
+func isEmpty(context tosca.TransactionContext, address tosca.Address) bool {
+	return context.GetNonce(address) == 0 && context.HasEmptyStorage(address) &&
+		(context.GetCodeHash(address) == (tosca.Hash{}) ||
+			context.GetCodeHash(address) == emptyCodeHash)
 }
 
 // checkAndDeployCode performs the required checks to ensure the code is valid and can be deployed.
