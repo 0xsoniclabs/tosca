@@ -262,6 +262,7 @@ func TestCall_CanTransferValueDependsOnKind(t *testing.T) {
 				context.EXPECT().SetBalance(parameters.Sender, tosca.Sub(senderBalance, parameters.Value))
 				context.EXPECT().SetBalance(parameters.Recipient, tosca.Add(recipientBalance, parameters.Value))
 			}
+
 			context.EXPECT().GetCode(parameters.Recipient).Return(tosca.Code{})
 			context.EXPECT().GetCodeHash(parameters.Recipient).Return(tosca.Hash{})
 			interpreter.EXPECT().Run(gomock.Any()).Return(tosca.Result{Success: true}, nil)
