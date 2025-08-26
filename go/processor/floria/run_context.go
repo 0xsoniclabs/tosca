@@ -57,6 +57,8 @@ func (r runContext) executeCall(kind tosca.CallKind, parameters tosca.CallParame
 
 	snapshot := r.CreateSnapshot()
 	defer func() {
+		// For all returns with an error or an unsuccessful result,
+		// the snapshot will be restored.
 		if err != nil || !callResult.Success {
 			r.RestoreSnapshot(snapshot)
 		}
@@ -138,6 +140,8 @@ func (r runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallPara
 	// created address. The nonce increment of the sender is not impacted.
 	snapshot := r.CreateSnapshot()
 	defer func() {
+		// For all returns with an error or an unsuccessful result,
+		// the snapshot will be restored.
 		if err != nil || !callResult.Success {
 			r.RestoreSnapshot(snapshot)
 		}
