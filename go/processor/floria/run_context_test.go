@@ -499,7 +499,6 @@ func TestCreate_CheckAndDeployCode_SetsCodeOrResetsResult(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			context := tosca.NewMockTransactionContext(ctrl)
-			snapshot := tosca.Snapshot(42)
 
 			createdAddress := tosca.Address{1}
 			result := tosca.Result{
@@ -510,11 +509,9 @@ func TestCreate_CheckAndDeployCode_SetsCodeOrResetsResult(t *testing.T) {
 
 			if test.success {
 				context.EXPECT().SetCode(createdAddress, tosca.Code(test.code))
-			} else {
-				context.EXPECT().RestoreSnapshot(snapshot)
 			}
 
-			finalizedResult := checkAndDeployCode(result, createdAddress, snapshot, test.revision, context)
+			finalizedResult := checkAndDeployCode(result, createdAddress, test.revision, context)
 
 			result.GasLeft = test.resultGasLeft
 			if !test.success {
@@ -933,7 +930,7 @@ func TestCall_PrecompiledCheckDependsOnCodeAddress(t *testing.T) {
 	}
 }
 
-func TestRunContext_InterpreterErrorIsForwardedAndRestoresSnapshot(t *testing.T) {
+func TestRunContext_InterpreterErrorIsForwardedAndSnapshotIsRestored(t *testing.T) {
 	calls := allCallTypes()
 	for _, call := range calls {
 		t.Run(call.String(), func(t *testing.T) {
