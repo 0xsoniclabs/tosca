@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
+	common "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -72,4 +73,22 @@ func TestStateDB_RevertToSnapshot_InvalidSnapshot_IsIgnored(t *testing.T) {
 			db.RevertToSnapshot(snapshot)
 		})
 	}
+}
+
+func TestStateDB_GetStateAndCommittedStateReturnsOriginalAndCurrentState(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	context := tosca.NewMockTransactionContext(ctrl)
+
+	address := tosca.Address{0x1}
+	key := tosca.Key{0x2}
+	original := tosca.Word{0x3}
+	current := tosca.Word{0x4}
+
+	context.EXPECT().GetStorage(address, key).Return(original)
+	context.EXPECT().GetCommittedStorage(address, key).Return(current)
+	stateDB := NewStateDB(context)
+
+	state, committed := stateDB.GetStateAndCommittedState(common.Address(address), common.Hash(key))
+	require.Equal(t, original, tosca.Word(state))
+	require.Equal(t, current, tosca.Word(committed))
 }

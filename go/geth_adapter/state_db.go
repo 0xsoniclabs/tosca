@@ -42,6 +42,12 @@ func NewStateDB(ctx tosca.TransactionContext) *StateDB {
 	return &StateDB{context: ctx}
 }
 
+func (s *StateDB) GetStateAndCommittedState(address common.Address, key common.Hash) (common.Hash, common.Hash) {
+	state := common.Hash(s.context.GetStorage(tosca.Address(address), tosca.Key(key)))
+	committedState := common.Hash(s.context.GetCommittedStorage(tosca.Address(address), tosca.Key(key)))
+	return state, committedState
+}
+
 func (s *StateDB) GetCreatedContract() *common.Address {
 	return s.createdContract
 }
@@ -137,11 +143,6 @@ func (s *StateDB) SubRefund(refund uint64) {
 
 func (s *StateDB) GetRefund() uint64 {
 	return s.refund
-}
-
-// GetCommittedState should only be used by geth_adapter
-func (s *StateDB) GetCommittedState(address common.Address, key common.Hash) common.Hash {
-	return common.Hash(s.context.GetCommittedStorage(tosca.Address(address), tosca.Key(key)))
 }
 
 func (s *StateDB) GetState(address common.Address, key common.Hash) common.Hash {
