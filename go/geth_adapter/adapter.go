@@ -411,13 +411,12 @@ func (a *runContextAdapter) GetStorage(addr tosca.Address, key tosca.Key) tosca.
 }
 
 func (a *runContextAdapter) SetStorage(addr tosca.Address, key tosca.Key, future tosca.Word) tosca.StorageStatus {
-	current := a.GetStorage(addr, key)
-	if current == future {
+	current, original := a.evm.StateDB.GetStateAndCommittedState(common.Address(addr), common.Hash(key))
+	if tosca.Word(current) == future {
 		return tosca.StorageAssigned
 	}
-	original := tosca.Word(a.evm.StateDB.GetCommittedState(common.Address(addr), common.Hash(key)))
 	a.evm.StateDB.SetState(common.Address(addr), common.Hash(key), common.Hash(future))
-	return tosca.GetStorageStatus(original, current, future)
+	return tosca.GetStorageStatus(tosca.Word(original), tosca.Word(current), future)
 }
 
 func (a *runContextAdapter) GetTransientStorage(addr tosca.Address, key tosca.Key) tosca.Word {
@@ -536,7 +535,8 @@ func (a *runContextAdapter) AccessStorage(addr tosca.Address, key tosca.Key) tos
 // -- legacy API needed by LFVM and Geth, to be removed in the future ---
 
 func (a *runContextAdapter) GetCommittedStorage(addr tosca.Address, key tosca.Key) tosca.Word {
-	return tosca.Word(a.evm.StateDB.GetCommittedState(common.Address(addr), common.Hash(key)))
+	_, committed := a.evm.StateDB.GetStateAndCommittedState(common.Address(addr), common.Hash(key))
+	return tosca.Word(committed)
 }
 
 func (a *runContextAdapter) IsAddressInAccessList(addr tosca.Address) bool {
