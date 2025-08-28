@@ -168,9 +168,8 @@ func TestRunContextAdapter_SetAndGetStorage(t *testing.T) {
 			key := tosca.Key{10}
 			original := tosca.Word{1}
 
-			stateDb.EXPECT().GetState(common.Address(address), common.Hash(key)).Return(common.Hash(test.current))
+			stateDb.EXPECT().GetStateAndCommittedState(common.Address(address), common.Hash(key)).Return(common.Hash(original), common.Hash(test.current))
 			if test.current != test.future {
-				stateDb.EXPECT().GetCommittedState(common.Address(address), common.Hash(key)).Return(common.Hash(original))
 				stateDb.EXPECT().SetState(common.Address(address), common.Hash(key), common.Hash(test.future))
 			}
 
@@ -368,7 +367,7 @@ func TestRunContextAdapter_GettersReturnTheCorrectStateDbValues(t *testing.T) {
 		},
 		"committedState": {
 			primingMock: func(stateDb *MockStateDb) {
-				stateDb.EXPECT().GetCommittedState(common.Address{0x42}, common.Hash{0x10}).Return(common.Hash{2})
+				stateDb.EXPECT().GetStateAndCommittedState(common.Address{0x42}, common.Hash{0x10}).Return(common.Hash{4}, common.Hash{2})
 			},
 			want: tosca.Word{2},
 			functionCall: func(adapter *runContextAdapter) any {
@@ -454,8 +453,7 @@ func TestRunContextAdapter_SettersForwardTheCorrectStateDbValues(t *testing.T) {
 		},
 		"storage": {
 			primingMock: func(stateDb *MockStateDb) {
-				stateDb.EXPECT().GetState(common.Address{0x42}, common.Hash{0x10}).Return(common.Hash{0x01})
-				stateDb.EXPECT().GetCommittedState(common.Address{0x42}, common.Hash{0x10}).Return(common.Hash{0x02})
+				stateDb.EXPECT().GetStateAndCommittedState(common.Address{0x42}, common.Hash{0x10}).Return(common.Hash{0x01}, common.Hash{0x02})
 				stateDb.EXPECT().SetState(common.Address{0x42}, common.Hash{0x10}, common.Hash{0x03})
 			},
 			functionCall: func(adapter *runContextAdapter) {
