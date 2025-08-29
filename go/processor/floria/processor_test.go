@@ -438,13 +438,71 @@ func TestProcessor_blobCheckReturnsErrors(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := checkBlobs(test.transaction, test.blockParams)
+			err := checkBlobs(test.transaction, test.blockParams, false)
 			if test.errorString != "" {
 				require.ErrorContains(t, err, test.errorString)
 			} else {
 				require.NoError(t, err, "checkBlobs should not return an error")
 			}
 		})
+	}
+}
+
+func TestProcessor_IsSimulationSkipsSelectedChecks(t *testing.T) {
+	tests := map[string]struct {
+		nonce      uint64
+		codeHash   tosca.Hash
+		blobFeeCap tosca.Value
+	}{
+		"blob": {
+			nonce:      1,
+			codeHash:   tosca.Hash{},
+			blobFeeCap: tosca.NewValue(0),
+		},
+		"nonce": {
+			nonce:      10,
+			codeHash:   tosca.Hash{},
+			blobFeeCap: tosca.NewValue(100),
+		},
+		"EOA": {
+			nonce:      1,
+			codeHash:   tosca.Hash{1},
+			blobFeeCap: tosca.NewValue(100),
+		},
+	}
+
+	for _, isSimulation := range []bool{true, false} {
+		for testName, test := range tests {
+			t.Run(fmt.Sprintf("%s_simulation=%t", testName, isSimulation), func(t *testing.T) {
+				ctrl := gomock.NewController(t)
+				context := tosca.NewMockRunContext(ctrl)
+
+				sender := tosca.Address{1}
+				context.EXPECT().GetNonce(sender).Return(uint64(1))
+				context.EXPECT().GetCodeHash(sender).Return(test.codeHash).AnyTimes()
+
+				blockParameters := tosca.BlockParameters{
+					Revision:    tosca.R13_Cancun,
+					BlobBaseFee: tosca.NewValue(50),
+				}
+				transaction := tosca.Transaction{
+					Sender:        sender,
+					Recipient:     &tosca.Address{2},
+					Nonce:         test.nonce,
+					BlobGasFeeCap: test.blobFeeCap,
+					BlobHashes:    []tosca.Hash{{1}},
+				}
+				config := Config{
+					OffChainExecution: isSimulation,
+				}
+				err := checkTransaction(blockParameters, transaction, context, config)
+				if isSimulation {
+					require.NoError(t, err, "checkTransaction should not return an error")
+				} else {
+					require.ErrorContains(t, err, testName, "checkTransaction should return an error containing the test name")
+				}
+			})
+		}
 	}
 }
 
@@ -504,9 +562,83 @@ func TestProcessor_GasPriceCalculation(t *testing.T) {
 	}
 	for testName, test := range tests {
 		t.Run(testName, func(t *testing.T) {
-			gasPrice, err := calculateGasPrice(tosca.NewValue(test.baseFee), tosca.NewValue(test.gasFeeCap), tosca.NewValue(test.gasTipCap))
+			gasPrice, err := calculateGasPrice(tosca.NewValue(test.baseFee), tosca.NewValue(test.gasFeeCap), tosca.NewValue(test.gasTipCap), false)
 			require.NoError(t, err, "calculateGasPrice should not return an error")
 			require.Equal(t, tosca.NewValue(test.expected), gasPrice, "calculateGasPrice should return the expected gas price")
+		})
+	}
+}
+
+func TestProcessor_SimulationAcceptsZeroValues(t *testing.T) {
+	tests := map[string]struct {
+		isSimulation  bool
+		gasTipCap     tosca.Value
+		gasFeeCap     tosca.Value
+		expectedValue tosca.Value
+		expectError   bool
+	}{
+		"zero values no simulation": {
+			isSimulation: false,
+			gasTipCap:    tosca.NewValue(0),
+			gasFeeCap:    tosca.NewValue(0),
+			expectError:  true,
+		},
+		"zero values simulation": {
+			isSimulation:  true,
+			gasTipCap:     tosca.NewValue(0),
+			gasFeeCap:     tosca.NewValue(0),
+			expectedValue: tosca.NewValue(0),
+			expectError:   false,
+		},
+		"non zero gasTipCap simulation": {
+			isSimulation: true,
+			gasTipCap:    tosca.NewValue(10),
+			gasFeeCap:    tosca.NewValue(0),
+			expectError:  true,
+		},
+		"non zero gasFeeCap no simulation": {
+			isSimulation:  false,
+			gasTipCap:     tosca.NewValue(0),
+			gasFeeCap:     tosca.NewValue(10),
+			expectedValue: tosca.NewValue(10),
+			expectError:   false,
+		},
+		"non zero gasFeeCap simulation": {
+			isSimulation:  true,
+			gasTipCap:     tosca.NewValue(0),
+			gasFeeCap:     tosca.NewValue(10),
+			expectedValue: tosca.NewValue(10),
+			expectError:   false,
+		},
+		"non zero values no simulation": {
+			isSimulation:  false,
+			gasTipCap:     tosca.NewValue(10),
+			gasFeeCap:     tosca.NewValue(10),
+			expectedValue: tosca.NewValue(10),
+			expectError:   false,
+		},
+		"non zero values simulation": {
+			isSimulation:  true,
+			gasTipCap:     tosca.NewValue(10),
+			gasFeeCap:     tosca.NewValue(10),
+			expectedValue: tosca.NewValue(10),
+			expectError:   false,
+		},
+	}
+	for testName, test := range tests {
+		t.Run(testName, func(t *testing.T) {
+			baseFee := tosca.NewValue(10)
+			transaction := tosca.Transaction{
+				GasFeeCap: test.gasFeeCap,
+				GasTipCap: test.gasTipCap,
+			}
+			gasPrice, err := calculateGasPrice(baseFee, transaction.GasFeeCap, transaction.GasTipCap, test.isSimulation)
+			if test.expectError {
+				require.Error(t, err, "calculateGasPrice should return an error")
+			} else {
+				require.NoError(t, err, "calculateGasPrice should not return an error")
+				require.Equal(t, test.expectedValue, gasPrice, "calculateGasPrice should return the expected value")
+			}
 		})
 	}
 }
@@ -545,7 +677,7 @@ func TestProcessor_GasPriceCalculationError(t *testing.T) {
 	}
 	for testName, test := range tests {
 		t.Run(testName, func(t *testing.T) {
-			_, err := calculateGasPrice(tosca.NewValue(test.baseFee), tosca.NewValue(test.gasFeeCap), tosca.NewValue(test.gasTipCap))
+			_, err := calculateGasPrice(tosca.NewValue(test.baseFee), tosca.NewValue(test.gasFeeCap), tosca.NewValue(test.gasTipCap), false)
 			require.ErrorContains(t, err, test.errorString, "calculateGasPrice should return an error for invalid parameters")
 		})
 	}

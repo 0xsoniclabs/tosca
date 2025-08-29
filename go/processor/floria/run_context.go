@@ -25,6 +25,7 @@ var emptyCodeHash = tosca.Hash(crypto.Keccak256(nil))
 type runContext struct {
 	tosca.TransactionContext
 	interpreter           tosca.Interpreter
+	config                Config
 	blockParameters       tosca.BlockParameters
 	transactionParameters tosca.TransactionParameters
 	depth                 int
@@ -71,10 +72,11 @@ func (r *runContext) executeCall(kind tosca.CallKind, parameters tosca.CallParam
 		transferValue(r, parameters.Value, parameters.Sender, parameters.Recipient)
 	}
 
-	if kind == tosca.Call && isStateContract(parameters.CodeAddress) {
-		result :=
-			runStateContract(r, parameters.Sender, parameters.CodeAddress, parameters.Input, parameters.Gas)
-		return result, nil
+	if kind == tosca.Call {
+		// state contracts are only executed in a normal call.
+		if result, ok := handleStateContracts(r, r.config, parameters); ok {
+			return result, nil
+		}
 	}
 
 	if isPrecompiled(parameters.CodeAddress, r.blockParameters.Revision) {
@@ -161,6 +163,19 @@ func (r *runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallPar
 		Success:        result.Success,
 		CreatedAddress: createdAddress,
 	}, nil
+}
+
+// handleStateContracts checks if the code address is a state contract and runs it if so.
+func handleStateContracts(r tosca.WorldState, config Config, parameters tosca.CallParameters) (tosca.CallResult, bool) {
+	if config.StateContracts == nil {
+		return tosca.CallResult{}, false
+	}
+
+	if contract, ok := config.StateContracts[parameters.CodeAddress]; ok {
+		result := contract.Run(r, parameters.Sender, parameters.CodeAddress, parameters.Input, parameters.Gas)
+		return result, true
+	}
+	return tosca.CallResult{}, false
 }
 
 // senderCreateSetUp performs necessary steps before creating a contract.
