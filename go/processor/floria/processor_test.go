@@ -208,7 +208,6 @@ func TestProcessor_SuccessfulCreateSetsContractAddress(t *testing.T) {
 	context.EXPECT().HasEmptyStorage(createdAddress).Return(true)
 	context.EXPECT().GetCodeHash(createdAddress)
 	context.EXPECT().CreateSnapshot()
-	context.EXPECT().CreateAccount(createdAddress)
 	context.EXPECT().SetNonce(createdAddress, gomock.Any())
 	interpreter.EXPECT().Run(gomock.Any()).Return(tosca.Result{Success: true}, nil)
 	context.EXPECT().SetCode(createdAddress, gomock.Any())
@@ -878,7 +877,6 @@ func TestProcessor_runTransactionSetsUpAccessListAfterBerlin(t *testing.T) {
 			// mocks for CALL
 			context.EXPECT().GetNonce(sender).Return(uint64(42))
 			context.EXPECT().SetNonce(sender, uint64(43))
-			context.EXPECT().AccountExists(gomock.Any()).Return(true).AnyTimes()
 			context.EXPECT().CreateSnapshot()
 			context.EXPECT().GetCodeHash(recipient)
 			context.EXPECT().GetCode(recipient)

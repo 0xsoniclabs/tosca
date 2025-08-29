@@ -29,6 +29,7 @@ type runContext struct {
 	transactionParameters tosca.TransactionParameters
 	depth                 int
 	static                bool
+	createdAddresses      map[tosca.Address]struct{}
 }
 
 func (r runContext) Call(kind tosca.CallKind, parameters tosca.CallParameters) (tosca.CallResult, error) {
@@ -130,8 +131,8 @@ func (r runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallPara
 		}
 	}()
 
-	r.CreateAccount(createdAddress)
 	r.SetNonce(createdAddress, 1)
+	r.markAccountAsCreated(createdAddress)
 
 	transferValue(r, parameters.Value, parameters.Sender, createdAddress)
 
@@ -158,6 +159,15 @@ func (r runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallPara
 		Success:        result.Success,
 		CreatedAddress: createdAddress,
 	}, nil
+}
+
+// markAccountAsCreated marks an account as created in the run context.
+// In case of a selfdestruct in the same transaction, the account will be deleted.
+func (r *runContext) markAccountAsCreated(address tosca.Address) {
+	if r.createdAddresses == nil {
+		r.createdAddresses = make(map[tosca.Address]struct{})
+	}
+	r.createdAddresses[address] = struct{}{}
 }
 
 // senderCreateSetUp performs necessary steps before creating a contract.
@@ -252,6 +262,18 @@ func checkAndDeployCode(
 		result.Output = nil
 	}
 	return result
+}
+
+func (r runContext) SelfDestruct(address tosca.Address, beneficiary tosca.Address) bool {
+	balance := r.GetBalance(address)
+	r.SetBalance(address, tosca.Value{})
+	r.SetBalance(beneficiary, tosca.Add(r.GetBalance(beneficiary), balance))
+	if r.createdAddresses != nil {
+		if _, exists := r.createdAddresses[address]; exists {
+			r.CreateAccount(beneficiary)
+		}
+	}
+	return r.TransactionContext.SelfDestruct(address, beneficiary)
 }
 
 func (r runContext) runInterpreter(kind tosca.CallKind, parameters tosca.CallParameters) (tosca.Result, error) {

@@ -179,6 +179,7 @@ func (p *Processor) runTransaction(
 		transactionParameters,
 		0,
 		false,
+		nil,
 	}
 
 	if blockParameters.Revision >= tosca.R09_Berlin {

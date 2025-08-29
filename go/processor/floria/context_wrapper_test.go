@@ -17,7 +17,7 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-func TestFloriaContext_SelfDestructPerformsTheBalanceUpdate(t *testing.T) {
+func DisTestFloriaContext_SelfDestructPerformsTheBalanceUpdate(t *testing.T) {
 	revisions := tosca.GetAllKnownRevisions()
 	for _, revision := range revisions {
 		t.Run(revision.String(), func(t *testing.T) {

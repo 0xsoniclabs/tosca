@@ -53,14 +53,9 @@ func TestCalls_InterpreterResultIsHandledCorrectly(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	context := tosca.NewMockTransactionContext(ctrl)
 	interpreter := tosca.NewMockInterpreter(ctrl)
-
 	runContext := runContext{
-		context,
-		interpreter,
-		tosca.BlockParameters{},
-		tosca.TransactionParameters{},
-		0,
-		false,
+		TransactionContext: context,
+		interpreter:        interpreter,
 	}
 
 	params := tosca.CallParameters{
@@ -99,12 +94,8 @@ func TestCall_TransferValueInCall(t *testing.T) {
 	context := tosca.NewMockTransactionContext(ctrl)
 	interpreter := tosca.NewMockInterpreter(ctrl)
 	runContext := runContext{
-		context,
-		interpreter,
-		tosca.BlockParameters{},
-		tosca.TransactionParameters{},
-		0,
-		false,
+		TransactionContext: context,
+		interpreter:        interpreter,
 	}
 
 	params := tosca.CallParameters{
@@ -137,12 +128,8 @@ func TestCall_TransferValueInCreate(t *testing.T) {
 	context := tosca.NewMockTransactionContext(ctrl)
 	interpreter := tosca.NewMockInterpreter(ctrl)
 	runContext := runContext{
-		context,
-		interpreter,
-		tosca.BlockParameters{},
-		tosca.TransactionParameters{},
-		0,
-		false,
+		TransactionContext: context,
+		interpreter:        interpreter,
 	}
 
 	params := tosca.CallParameters{
@@ -163,7 +150,6 @@ func TestCall_TransferValueInCreate(t *testing.T) {
 	context.EXPECT().HasEmptyStorage(createdAddress).Return(true)
 	context.EXPECT().GetCodeHash(createdAddress).Return(tosca.Hash{})
 	context.EXPECT().CreateSnapshot()
-	context.EXPECT().CreateAccount(createdAddress)
 	context.EXPECT().SetNonce(createdAddress, uint64(1))
 	context.EXPECT().GetBalance(params.Sender).Return(tosca.NewValue(100))
 	context.EXPECT().GetBalance(createdAddress).Return(tosca.NewValue(0))
@@ -187,12 +173,8 @@ func TestTransferValue_InCallRestoreFailed(t *testing.T) {
 	context := tosca.NewMockTransactionContext(ctrl)
 	interpreter := tosca.NewMockInterpreter(ctrl)
 	runContext := runContext{
-		context,
-		interpreter,
-		tosca.BlockParameters{},
-		tosca.TransactionParameters{},
-		0,
-		false,
+		TransactionContext: context,
+		interpreter:        interpreter,
 	}
 
 	params := tosca.CallParameters{
@@ -234,12 +216,8 @@ func TestCall_CanTransferValueDependsOnKind(t *testing.T) {
 			context := tosca.NewMockTransactionContext(ctrl)
 			interpreter := tosca.NewMockInterpreter(ctrl)
 			runContext := runContext{
-				context,
-				interpreter,
-				tosca.BlockParameters{},
-				tosca.TransactionParameters{},
-				0,
-				false,
+				TransactionContext: context,
+				interpreter:        interpreter,
 			}
 
 			parameters := tosca.CallParameters{
@@ -708,12 +686,8 @@ func TestRunContext_AccountIsOnlyCreatedIfItIsEmptyAndDoesNotExist(t *testing.T)
 			context := tosca.NewMockTransactionContext(ctrl)
 			interpreter := tosca.NewMockInterpreter(ctrl)
 			runContext := runContext{
-				context,
-				interpreter,
-				tosca.BlockParameters{},
-				tosca.TransactionParameters{},
-				0,
-				false,
+				TransactionContext: context,
+				interpreter:        interpreter,
 			}
 
 			params := tosca.CallParameters{
@@ -734,7 +708,6 @@ func TestRunContext_AccountIsOnlyCreatedIfItIsEmptyAndDoesNotExist(t *testing.T)
 			context.EXPECT().GetCodeHash(createdAddress).Return(test.codeHash).AnyTimes()
 			context.EXPECT().CreateSnapshot().AnyTimes()
 			context.EXPECT().AccountExists(createdAddress).Return(test.exists).AnyTimes()
-			context.EXPECT().CreateAccount(createdAddress).AnyTimes()
 
 			context.EXPECT().SetNonce(createdAddress, uint64(1)).AnyTimes()
 			context.EXPECT().SetCode(createdAddress, code).AnyTimes()
@@ -810,12 +783,8 @@ func TestRunContext_runInterpreterSelectsCodeBasedOnType(t *testing.T) {
 			context := tosca.NewMockTransactionContext(ctrl)
 			interpreter := tosca.NewMockInterpreter(ctrl)
 			runContext := runContext{
-				context,
-				interpreter,
-				tosca.BlockParameters{},
-				tosca.TransactionParameters{},
-				0,
-				false,
+				TransactionContext: context,
+				interpreter:        interpreter,
 			}
 
 			parameters := tosca.CallParameters{
@@ -853,12 +822,7 @@ func TestRunContext_runInterpreterCreateComputesCorrectCodeHash(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	interpreter := tosca.NewMockInterpreter(ctrl)
 	runContext := runContext{
-		nil,
-		interpreter,
-		tosca.BlockParameters{},
-		tosca.TransactionParameters{},
-		0,
-		false,
+		interpreter: interpreter,
 	}
 
 	interpreter.EXPECT().Run(gomock.Any()).DoAndReturn(func(parameters tosca.Parameters) (tosca.Result, error) {
@@ -879,16 +843,14 @@ func TestRunContext_runInterpreterForwardsValuesCorrectly(t *testing.T) {
 	context := tosca.NewMockTransactionContext(ctrl)
 	interpreter := tosca.NewMockInterpreter(ctrl)
 	runContext := runContext{
-		context,
-		interpreter,
-		tosca.BlockParameters{
+		TransactionContext: context,
+		interpreter:        interpreter,
+		blockParameters: tosca.BlockParameters{
 			ChainID: tosca.Word{0x01},
 		},
-		tosca.TransactionParameters{
+		transactionParameters: tosca.TransactionParameters{
 			Origin: tosca.Address{0x02},
 		},
-		0,
-		false,
 	}
 
 	parameters := tosca.CallParameters{
@@ -954,14 +916,9 @@ func TestCall_PrecompiledCheckDependsOnCodeAddress(t *testing.T) {
 
 			// No calls to the interpreter because the call is handled by the precompiled contract.
 			interpreter := tosca.NewMockInterpreter(ctrl)
-
 			runContext := runContext{
-				context,
-				interpreter,
-				tosca.BlockParameters{},
-				tosca.TransactionParameters{},
-				0,
-				false,
+				TransactionContext: context,
+				interpreter:        interpreter,
 			}
 
 			input := []byte{}
@@ -1055,7 +1012,6 @@ func TestRunContext_InterpreterErrorIsForwardedAndSnapshotIsRestored(t *testing.
 				context.EXPECT().GetNonce(gomock.Any()).AnyTimes()
 				context.EXPECT().HasEmptyStorage(gomock.Any()).Return(true)
 				context.EXPECT().GetCodeHash(gomock.Any())
-				context.EXPECT().CreateAccount(gomock.Any())
 				context.EXPECT().SetNonce(gomock.Any(), uint64(1))
 			} else {
 				context.EXPECT().GetCode(parameters.Recipient)
@@ -1103,7 +1059,6 @@ func TestRunContext_UnsuccessfulInterpreterExecutionRestoresSnapshot(t *testing.
 				context.EXPECT().GetNonce(gomock.Any()).AnyTimes()
 				context.EXPECT().HasEmptyStorage(gomock.Any()).Return(true)
 				context.EXPECT().GetCodeHash(gomock.Any())
-				context.EXPECT().CreateAccount(gomock.Any())
 				context.EXPECT().SetNonce(gomock.Any(), uint64(1))
 			} else {
 				context.EXPECT().GetCode(parameters.Recipient)
@@ -1152,14 +1107,9 @@ func TestCall_StaticFlagStaysSetInNestedStaticCalls(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	context := tosca.NewMockTransactionContext(ctrl)
 	interpreter := tosca.NewMockInterpreter(ctrl)
-
 	contextDepth0 := runContext{
-		context,
-		interpreter,
-		tosca.BlockParameters{},
-		tosca.TransactionParameters{},
-		0,
-		false,
+		TransactionContext: context,
+		interpreter:        interpreter,
 	}
 	parameters := tosca.CallParameters{}
 
@@ -1221,14 +1171,9 @@ func TestCall_StaticCallIsResetAfterStaticCall(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	context := tosca.NewMockTransactionContext(ctrl)
 	interpreter := tosca.NewMockInterpreter(ctrl)
-
 	contextDepth0 := runContext{
-		context,
-		interpreter,
-		tosca.BlockParameters{},
-		tosca.TransactionParameters{},
-		0,
-		false,
+		TransactionContext: context,
+		interpreter:        interpreter,
 	}
 	parameters := tosca.CallParameters{}
 
@@ -1290,14 +1235,9 @@ func TestRunContext_DepthHasTheCorrectValueInsideNestedCalls(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	context := tosca.NewMockTransactionContext(ctrl)
 	interpreter := tosca.NewMockInterpreter(ctrl)
-
 	contextDepth0 := runContext{
-		context,
-		interpreter,
-		tosca.BlockParameters{},
-		tosca.TransactionParameters{},
-		0,
-		false,
+		TransactionContext: context,
+		interpreter:        interpreter,
 	}
 	parameters := tosca.CallParameters{}
 
