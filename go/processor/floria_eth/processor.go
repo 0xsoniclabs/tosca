@@ -25,7 +25,9 @@ func init() {
 // Sonic.
 func newFloriaEthProcessor(interpreter tosca.Interpreter) tosca.Processor {
 	return &floria.Processor{
-		Interpreter:   interpreter,
-		EthCompatible: true,
+		Interpreter: interpreter,
+		Config: floria.Config{
+			EthCompatible: true,
+		},
 	}
 }

@@ -49,15 +49,43 @@ func init() {
 // - Consume 10% of the remaining gas
 func newFloriaProcessor(interpreter tosca.Interpreter) tosca.Processor {
 	return &Processor{
-		Interpreter:   interpreter,
-		EthCompatible: false,
+		Interpreter: interpreter,
+		Config: Config{
+			EthCompatible: false,
+			StateContracts: map[tosca.Address]StateContract{
+				StateContractAddress(): StateContractSonic{},
+			},
+		},
 	}
 }
 
 // Processor implements the tosca.Processor interface for the Floria processor.
 type Processor struct {
-	Interpreter   tosca.Interpreter
+	Interpreter tosca.Interpreter
+	Config      Config
+}
+
+type StateContract interface {
+	Run(state tosca.WorldState, sender tosca.Address, receiver tosca.Address, input []byte, gas tosca.Gas) tosca.CallResult
+}
+
+// Config holds configuration options for the Floria processor.
+type Config struct {
+	// EthCompatible flag indicates whether the processor is compatible with Ethereum.
+	// The default is compatibility with Sonic/Fantom.
 	EthCompatible bool
+
+	// StateContracts allows to add special contracts that can not be implemented as
+	// classic smart contracts.
+	StateContracts map[tosca.Address]StateContract
+
+	// OffChainExecution flag indicates that the transaction does not have any effect
+	// on the state of the blockchain. It is used for simulation purposes.
+	// When enabled, EOA and nonce checks are skipped, and 0 is treated as a valid value for
+	// gasprice and blob gasprice.
+	OffChainExecution bool
+
+	// TODO: add tracing/debug flag
 }
 
 // Run checks whether the transaction can be executed and applies it if possible.
@@ -68,12 +96,11 @@ func (p *Processor) Run(
 	transaction tosca.Transaction,
 	context tosca.TransactionContext,
 ) (tosca.Receipt, error) {
-
-	if err := checkTransaction(blockParameters, transaction, context); err != nil {
+	if err := checkTransaction(blockParameters, transaction, context, p.Config); err != nil {
 		return tosca.Receipt{}, err
 	}
 
-	gasPrice, gas, err := calculateAvailableGas(blockParameters, transaction, context, p.EthCompatible)
+	gasPrice, gas, err := calculateAvailableGas(blockParameters, transaction, context, p.Config)
 	if err != nil {
 		return tosca.Receipt{}, err
 	}
@@ -84,7 +111,7 @@ func (p *Processor) Run(
 		return tosca.Receipt{GasUsed: transaction.GasLimit}, err
 	}
 
-	gasUsed := returnExcessGas(blockParameters, transaction, context, gasPrice, result, p.EthCompatible)
+	gasUsed := returnExcessGas(blockParameters, transaction, context, gasPrice, result, p.Config.EthCompatible)
 
 	receipt := tosca.Receipt{
 		Success: result.Success,
@@ -107,16 +134,17 @@ func checkTransaction(
 	blockParameters tosca.BlockParameters,
 	transaction tosca.Transaction,
 	context tosca.TransactionContext,
+	config Config,
 ) error {
-	if err := nonceCheck(transaction.Nonce, context.GetNonce(transaction.Sender)); err != nil {
+	if err := nonceCheck(transaction.Nonce, context.GetNonce(transaction.Sender)); !config.OffChainExecution && err != nil {
 		return fmt.Errorf("failed nonce check: %w", err)
 	}
 
-	if err := eoaCheck(transaction.Sender, context.GetCodeHash(transaction.Sender)); err != nil {
+	if err := eoaCheck(transaction.Sender, context.GetCodeHash(transaction.Sender)); !config.OffChainExecution && err != nil {
 		return fmt.Errorf("failed EOA check: %w", err)
 	}
 
-	if err := checkBlobs(transaction, blockParameters); err != nil {
+	if err := checkBlobs(transaction, blockParameters, config.OffChainExecution); err != nil {
 		return fmt.Errorf("failed blob check: %w", err)
 	}
 
@@ -134,14 +162,14 @@ func calculateAvailableGas(
 	blockParameters tosca.BlockParameters,
 	transaction tosca.Transaction,
 	context tosca.TransactionContext,
-	ethCompatible bool,
+	config Config,
 ) (tosca.Value, tosca.Gas, error) {
-	gasPrice, err := calculateGasPrice(blockParameters.BaseFee, transaction.GasFeeCap, transaction.GasTipCap)
+	gasPrice, err := calculateGasPrice(blockParameters.BaseFee, transaction.GasFeeCap, transaction.GasTipCap, config.OffChainExecution)
 	if err != nil {
 		return tosca.Value{}, 0, fmt.Errorf("failed to calculate gas price: %w", err)
 	}
 
-	if err = balanceCheck(gasPrice, transaction, context.GetBalance(transaction.Sender), ethCompatible); err != nil {
+	if err = balanceCheck(gasPrice, transaction, context.GetBalance(transaction.Sender), config.EthCompatible); err != nil {
 		return tosca.Value{}, 0, fmt.Errorf("failed balance check: %w", err)
 	}
 
@@ -173,12 +201,13 @@ func (p *Processor) runTransaction(
 	}
 
 	runContext := runContext{
-		floriaContext{context},
-		p.Interpreter,
-		blockParameters,
-		transactionParameters,
-		0,
-		false,
+		TransactionContext:    floriaContext{context},
+		interpreter:           p.Interpreter,
+		config:                p.Config,
+		blockParameters:       blockParameters,
+		transactionParameters: transactionParameters,
+		depth:                 0,
+		static:                false,
 	}
 
 	if blockParameters.Revision >= tosca.R09_Berlin {
@@ -219,7 +248,10 @@ func returnExcessGas(
 // calculateGasPrice calculates the gas price of the transaction considering the tip.
 // The calculation fails if the maximum price is smaller than the base price or if the
 // maximum price exceeds the maximum tip.
-func calculateGasPrice(baseFee, gasFeeCap, gasTipCap tosca.Value) (tosca.Value, error) {
+func calculateGasPrice(baseFee, gasFeeCap, gasTipCap tosca.Value, isSimulation bool) (tosca.Value, error) {
+	if isSimulation && gasFeeCap == (tosca.Value{}) && gasTipCap == (tosca.Value{}) {
+		return tosca.NewValue(0), nil
+	}
 	if gasFeeCap.Cmp(baseFee) < 0 {
 		return tosca.Value{}, fmt.Errorf("gasFeeCap %v is lower than baseFee %v", gasFeeCap, baseFee)
 	}
@@ -448,7 +480,7 @@ func paymentToCoinbase(gasPrice tosca.Value, gasUsed tosca.Gas, blockParameters 
 }
 
 // checkBlobs validates the blob hashes and blob gas price of the transaction.
-func checkBlobs(transaction tosca.Transaction, blockParameters tosca.BlockParameters) error {
+func checkBlobs(transaction tosca.Transaction, blockParameters tosca.BlockParameters, isSimulation bool) error {
 	if transaction.BlobHashes != nil {
 		if transaction.Recipient == nil {
 			return fmt.Errorf("blob transaction without recipient")
@@ -464,7 +496,8 @@ func checkBlobs(transaction tosca.Transaction, blockParameters tosca.BlockParame
 		}
 	}
 
-	if blockParameters.Revision >= tosca.R13_Cancun && len(transaction.BlobHashes) > 0 {
+	if blockParameters.Revision >= tosca.R13_Cancun && len(transaction.BlobHashes) > 0 &&
+		(!isSimulation || transaction.BlobGasFeeCap != (tosca.Value{})) {
 		if transaction.BlobGasFeeCap.Cmp(blockParameters.BlobBaseFee) < 0 {
 			return fmt.Errorf("blobGasFeeCap is lower than blobBaseFee")
 		}
