@@ -906,7 +906,7 @@ func TestRunContext_runInterpreterForwardsValuesCorrectly(t *testing.T) {
 	expectedParams := tosca.Parameters{
 		BlockParameters:       runContext.blockParameters,
 		TransactionParameters: runContext.transactionParameters,
-		Context:               runContext,
+		Context:               &runContext,
 		Sender:                parameters.Sender,
 		Recipient:             parameters.Recipient,
 		Gas:                   parameters.Gas,
@@ -1179,13 +1179,13 @@ func TestCall_StaticFlagStaysSetInNestedStaticCalls(t *testing.T) {
 	// 0 <------------- 1                2
 
 	interpreter.EXPECT().Run(gomock.Any()).DoAndReturn(func(params tosca.Parameters) (tosca.Result, error) {
-		contextDepth1, ok := params.Context.(runContext)
+		contextDepth1, ok := params.Context.(*runContext)
 		require.True(t, ok, "Context should be of type runContext")
 		require.True(t, contextDepth1.static)
 		require.True(t, params.Static)
 
 		interpreter.EXPECT().Run(gomock.Any()).DoAndReturn(func(nestedParams tosca.Parameters) (tosca.Result, error) {
-			contextDepth2, ok := nestedParams.Context.(runContext)
+			contextDepth2, ok := nestedParams.Context.(*runContext)
 			require.True(t, ok, "Context should be of type runContext")
 			require.True(t, contextDepth2.static)
 			require.True(t, nestedParams.Static)
@@ -1197,7 +1197,7 @@ func TestCall_StaticFlagStaysSetInNestedStaticCalls(t *testing.T) {
 		require.True(t, params.Static, "Static flag should be set after nested static call inside of static call")
 
 		interpreter.EXPECT().Run(gomock.Any()).DoAndReturn(func(nestedParams tosca.Parameters) (tosca.Result, error) {
-			contextDepth2, ok := nestedParams.Context.(runContext)
+			contextDepth2, ok := nestedParams.Context.(*runContext)
 			require.True(t, ok, "Context should be of type runContext")
 			require.True(t, contextDepth2.static)
 			require.True(t, nestedParams.Static)
@@ -1248,13 +1248,13 @@ func TestCall_StaticCallIsResetAfterStaticCall(t *testing.T) {
 	// 0 <------------- 1                2
 
 	interpreter.EXPECT().Run(gomock.Any()).DoAndReturn(func(params tosca.Parameters) (tosca.Result, error) {
-		contextDepth1, ok := params.Context.(runContext)
+		contextDepth1, ok := params.Context.(*runContext)
 		require.True(t, ok, "Context should be of type runContext")
 		require.False(t, contextDepth1.static)
 		require.False(t, params.Static)
 
 		interpreter.EXPECT().Run(gomock.Any()).DoAndReturn(func(nestedParams tosca.Parameters) (tosca.Result, error) {
-			contextDepth2, ok := nestedParams.Context.(runContext)
+			contextDepth2, ok := nestedParams.Context.(*runContext)
 			require.True(t, ok, "Context should be of type runContext")
 			require.True(t, contextDepth2.static)
 			require.True(t, nestedParams.Static)
@@ -1266,7 +1266,7 @@ func TestCall_StaticCallIsResetAfterStaticCall(t *testing.T) {
 		require.False(t, params.Static, "Static flag should not be set after nested static call inside of call")
 
 		interpreter.EXPECT().Run(gomock.Any()).DoAndReturn(func(nestedParams tosca.Parameters) (tosca.Result, error) {
-			contextDepth2, ok := nestedParams.Context.(runContext)
+			contextDepth2, ok := nestedParams.Context.(*runContext)
 			require.True(t, ok, "Context should be of type runContext")
 			require.False(t, contextDepth2.static)
 			require.False(t, nestedParams.Static)
@@ -1317,13 +1317,13 @@ func TestRunContext_DepthHasTheCorrectValueInsideNestedCalls(t *testing.T) {
 	// 0 <------------- 1                2
 
 	interpreter.EXPECT().Run(gomock.Any()).DoAndReturn(func(params tosca.Parameters) (tosca.Result, error) {
-		contextDepth1, ok := params.Context.(runContext)
+		contextDepth1, ok := params.Context.(*runContext)
 		require.True(t, ok, "Context should be of type runContext")
 		require.Equal(t, 1, contextDepth1.depth, "Depth should be 1 in first call")
 
 		// Nested call
 		interpreter.EXPECT().Run(gomock.Any()).DoAndReturn(func(nestedParams tosca.Parameters) (tosca.Result, error) {
-			contextDepth2, ok := nestedParams.Context.(runContext)
+			contextDepth2, ok := nestedParams.Context.(*runContext)
 			require.True(t, ok, "Context should be of type runContext")
 			require.Equal(t, 2, contextDepth2.depth, "Depth should be 2 in nested call")
 
@@ -1335,7 +1335,7 @@ func TestRunContext_DepthHasTheCorrectValueInsideNestedCalls(t *testing.T) {
 
 		// Nested call
 		interpreter.EXPECT().Run(gomock.Any()).DoAndReturn(func(nestedParams tosca.Parameters) (tosca.Result, error) {
-			contextDepth2, ok := nestedParams.Context.(runContext)
+			contextDepth2, ok := nestedParams.Context.(*runContext)
 			require.True(t, ok, "Context should be of type runContext")
 			require.Equal(t, 2, contextDepth2.depth, "Depth should be 2 in nested call")
 

@@ -31,27 +31,29 @@ type runContext struct {
 	static                bool
 }
 
-func (r runContext) Call(kind tosca.CallKind, parameters tosca.CallParameters) (tosca.CallResult, error) {
+func (r *runContext) Call(kind tosca.CallKind, parameters tosca.CallParameters) (tosca.CallResult, error) {
 	if kind == tosca.Create || kind == tosca.Create2 {
 		return r.executeCreate(kind, parameters)
 	}
 	return r.executeCall(kind, parameters)
 }
 
-func (r runContext) executeCall(kind tosca.CallKind, parameters tosca.CallParameters) (callResult tosca.CallResult, err error) {
+func (r *runContext) executeCall(kind tosca.CallKind, parameters tosca.CallParameters) (callResult tosca.CallResult, err error) {
 	errResult := tosca.CallResult{
 		Success: false,
 		GasLeft: parameters.Gas,
 	}
 
-	// The runContext is passed to the interpreter by value,
-	// therefore no decrement of depth is required.
 	if r.incrementDepth() != nil {
 		return errResult, nil
 	}
+	defer func() { r.depth-- }()
 
-	// Just like the depth, the static flag does not need to be reset.
-	r.static = r.static || kind == tosca.StaticCall
+	// Only set and reset the static flag if it was not already set.
+	if !r.static && kind == tosca.StaticCall {
+		r.static = true
+		defer func() { r.static = false }()
+	}
 
 	snapshot := r.CreateSnapshot()
 	defer func() {
@@ -97,7 +99,7 @@ func (r runContext) executeCall(kind tosca.CallKind, parameters tosca.CallParame
 	}, nil
 }
 
-func (r runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallParameters) (callResult tosca.CallResult, err error) {
+func (r *runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallParameters) (callResult tosca.CallResult, err error) {
 	errResult := tosca.CallResult{
 		Success: false,
 		GasLeft: parameters.Gas,
@@ -105,6 +107,7 @@ func (r runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallPara
 	if r.incrementDepth() != nil {
 		return errResult, nil
 	}
+	defer func() { r.depth-- }()
 
 	if err := senderCreateSetUp(parameters, r.TransactionContext); err != nil {
 		// the set up only fails if the create can not be executed in the current state,
@@ -254,7 +257,7 @@ func checkAndDeployCode(
 	return result
 }
 
-func (r runContext) runInterpreter(kind tosca.CallKind, parameters tosca.CallParameters) (tosca.Result, error) {
+func (r *runContext) runInterpreter(kind tosca.CallKind, parameters tosca.CallParameters) (tosca.Result, error) {
 	var code tosca.Code
 	var codeHash tosca.Hash
 	switch kind {
