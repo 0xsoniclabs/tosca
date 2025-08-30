@@ -48,7 +48,9 @@ func (p *Processor) Run(
 	transaction tosca.Transaction,
 	context tosca.TransactionContext,
 ) (tosca.Receipt, error) {
-	gasPrice, err := calculateGasPrice(blockParameters.BaseFee, transaction.GasFeeCap, transaction.GasTipCap)
+	internal := (transaction.Sender == tosca.Address{})
+
+	gasPrice, err := calculateGasPrice(blockParameters.BaseFee, transaction.GasFeeCap, transaction.GasTipCap, internal)
 	if err != nil {
 		return tosca.Receipt{}, err
 	}
@@ -72,6 +74,8 @@ func (p *Processor) Run(
 	stateDB := geth_adapter.NewStateDB(context)
 	chainConfig := blockParametersToChainConfig(blockParameters)
 	config := newEVMConfig(p.Interpreter, p.EthereumCompatible)
+	config.NoBaseFee = internal
+	config.ChargeExcessGas = true
 	evm := vm.NewEVM(blockContext, stateDB, chainConfig, config)
 	evm.TxContext = txContext
 
@@ -112,7 +116,10 @@ func (p *Processor) Run(
 	}, nil
 }
 
-func calculateGasPrice(baseFee, gasFeeCap, gasTipCap tosca.Value) (tosca.Value, error) {
+func calculateGasPrice(baseFee, gasFeeCap, gasTipCap tosca.Value, internal bool) (tosca.Value, error) {
+	if internal {
+		return tosca.Add(gasFeeCap, gasTipCap), nil
+	}
 	if gasFeeCap.Cmp(baseFee) < 0 {
 		return tosca.Value{}, fmt.Errorf("gasFeeCap %v is lower than baseFee %v", gasFeeCap, baseFee)
 	}
@@ -242,6 +249,8 @@ func transactionToMessage(transaction tosca.Transaction, gasPrice tosca.Value, b
 		}
 	}
 
+	internal := (transaction.Sender == tosca.Address{})
+
 	return &core.Message{
 		From:                  common.Address(transaction.Sender),
 		To:                    (*common.Address)(transaction.Recipient),
@@ -256,5 +265,8 @@ func transactionToMessage(transaction tosca.Transaction, gasPrice tosca.Value, b
 		BlobGasFeeCap:         transaction.BlobGasFeeCap.ToBig(),
 		BlobHashes:            blobHashes,
 		SetCodeAuthorizations: authorizations,
+		// Internal transactions are not subject to nonce and EOA checks.
+		SkipNonceChecks:  internal,
+		SkipFromEOACheck: internal,
 	}
 }
