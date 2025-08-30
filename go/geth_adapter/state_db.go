@@ -11,6 +11,8 @@
 package geth_adapter
 
 import (
+	"fmt"
+
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"github.com/ethereum/go-ethereum/common"
 	state "github.com/ethereum/go-ethereum/core/state"
@@ -22,13 +24,20 @@ import (
 	"github.com/holiman/uint256"
 )
 
+const debug = false
+
 // StateDB is a wrapper around the tosca.TransactionContext to implement the vm.StateDB interface.
 type StateDB struct {
 	context         tosca.TransactionContext
 	createdContract *common.Address
 	refund          uint64
-	refundBackups   map[tosca.Snapshot]uint64
+	snapshots       []snapshot
 	beneficiary     common.Address
+}
+
+type snapshot struct {
+	snapshot tosca.Snapshot
+	refund   uint64
 }
 
 func NewStateDB(ctx tosca.TransactionContext) *StateDB {
@@ -40,6 +49,9 @@ func (s *StateDB) GetCreatedContract() *common.Address {
 }
 
 func (s *StateDB) SetRefund(refund uint64) {
+	if debug {
+		fmt.Printf("Update refund: %d\n", refund)
+	}
 	s.refund = refund
 }
 
@@ -122,13 +134,25 @@ func (s *StateDB) GetCodeSize(address common.Address) int {
 
 func (s *StateDB) AddRefund(refund uint64) {
 	s.refund += refund
+	if debug {
+		fmt.Printf("Add refund: %d, new: %d\n", refund, s.refund)
+	}
 }
 
 func (s *StateDB) SubRefund(refund uint64) {
+	if refund > s.refund {
+		panic("insufficient refund")
+	}
 	s.refund -= refund
+	if debug {
+		fmt.Printf("Sub refund: %d, new: %d\n", refund, s.refund)
+	}
 }
 
 func (s *StateDB) GetRefund() uint64 {
+	if debug {
+		fmt.Printf("Get refund: %d\n", s.refund)
+	}
 	return s.refund
 }
 
@@ -234,17 +258,39 @@ func (s *StateDB) Prepare(rules params.Rules, sender, coinbase common.Address, d
 }
 
 func (s *StateDB) RevertToSnapshot(snapshot int) {
-	s.context.RestoreSnapshot(tosca.Snapshot(snapshot))
-	s.refund = s.refundBackups[tosca.Snapshot(snapshot)]
+	if snapshot < 0 || snapshot >= len(s.snapshots) {
+		panic("invalid snapshot")
+	}
+	s.context.RestoreSnapshot(s.snapshots[snapshot].snapshot)
+	s.refund = s.snapshots[snapshot].refund
+	/*
+		s.context.RestoreSnapshot(tosca.Snapshot(snapshot))
+		s.refund = s.refundBackups[tosca.Snapshot(snapshot)]
+		fmt.Printf("Revert to snapshot %d, refund now %d\n", snapshot, s.refund)
+		if snapshot == 15 {
+			debug.PrintStack()
+		}
+	*/
 }
 
 func (s *StateDB) Snapshot() int {
 	id := s.context.CreateSnapshot()
-	if s.refundBackups == nil {
-		s.refundBackups = make(map[tosca.Snapshot]uint64)
-	}
-	s.refundBackups[id] = s.refund
-	return int(id)
+	s.snapshots = append(s.snapshots, snapshot{
+		snapshot: tosca.Snapshot(id),
+		refund:   s.refund,
+	})
+	return len(s.snapshots) - 1
+	/*
+		if s.refundBackups == nil {
+			s.refundBackups = make(map[tosca.Snapshot]uint64)
+		}
+		s.refundBackups[id] = s.refund
+		fmt.Printf("Create snapshot %d, refund %d\n", id, s.refund)
+		if id == 15 {
+			debug.PrintStack()
+		}
+		return int(id)
+	*/
 }
 
 func (s *StateDB) AddLog(log *types.Log) {
