@@ -27,8 +27,15 @@ type StateDB struct {
 	context         tosca.TransactionContext
 	createdContract *common.Address
 	refund          uint64
-	refundBackups   map[tosca.Snapshot]uint64
+	snapshots       []snapshot
 	beneficiary     common.Address
+}
+
+// snapshot combines the snapshot ID of the underlying transaction context with
+// a backup of the StateDB's refund state.
+type snapshot struct {
+	snapshot tosca.Snapshot
+	refund   uint64
 }
 
 func NewStateDB(ctx tosca.TransactionContext) *StateDB {
@@ -234,17 +241,20 @@ func (s *StateDB) Prepare(rules params.Rules, sender, coinbase common.Address, d
 }
 
 func (s *StateDB) RevertToSnapshot(snapshot int) {
-	s.context.RestoreSnapshot(tosca.Snapshot(snapshot))
-	s.refund = s.refundBackups[tosca.Snapshot(snapshot)]
+	if snapshot < 0 || snapshot >= len(s.snapshots) {
+		return
+	}
+	s.context.RestoreSnapshot(s.snapshots[snapshot].snapshot)
+	s.refund = s.snapshots[snapshot].refund
 }
 
 func (s *StateDB) Snapshot() int {
 	id := s.context.CreateSnapshot()
-	if s.refundBackups == nil {
-		s.refundBackups = make(map[tosca.Snapshot]uint64)
-	}
-	s.refundBackups[id] = s.refund
-	return int(id)
+	s.snapshots = append(s.snapshots, snapshot{
+		snapshot: tosca.Snapshot(id),
+		refund:   s.refund,
+	})
+	return len(s.snapshots) - 1
 }
 
 func (s *StateDB) AddLog(log *types.Log) {
