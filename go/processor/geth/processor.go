@@ -48,7 +48,9 @@ func (p *Processor) Run(
 	transaction tosca.Transaction,
 	context tosca.TransactionContext,
 ) (tosca.Receipt, error) {
-	gasPrice, err := calculateGasPrice(blockParameters.BaseFee, transaction.GasFeeCap, transaction.GasTipCap)
+	internal := isInternal(transaction)
+
+	gasPrice, err := calculateGasPrice(blockParameters.BaseFee, transaction.GasFeeCap, transaction.GasTipCap, internal)
 	if err != nil {
 		return tosca.Receipt{}, err
 	}
@@ -72,6 +74,7 @@ func (p *Processor) Run(
 	stateDB := geth_adapter.NewStateDB(context)
 	chainConfig := blockParametersToChainConfig(blockParameters)
 	config := newEVMConfig(p.Interpreter, p.EthereumCompatible)
+	config.NoBaseFee = internal // Disable base fee check for internal transactions
 	evm := vm.NewEVM(blockContext, stateDB, chainConfig, config)
 	evm.TxContext = txContext
 
@@ -112,7 +115,14 @@ func (p *Processor) Run(
 	}, nil
 }
 
-func calculateGasPrice(baseFee, gasFeeCap, gasTipCap tosca.Value) (tosca.Value, error) {
+func isInternal(tx tosca.Transaction) bool {
+	return tx.Sender == tosca.Address{}
+}
+
+func calculateGasPrice(baseFee, gasFeeCap, gasTipCap tosca.Value, internal bool) (tosca.Value, error) {
+	if internal { // internal transactions get whatever price they state as fee cap
+		return gasFeeCap, nil
+	}
 	if gasFeeCap.Cmp(baseFee) < 0 {
 		return tosca.Value{}, fmt.Errorf("gasFeeCap %v is lower than baseFee %v", gasFeeCap, baseFee)
 	}

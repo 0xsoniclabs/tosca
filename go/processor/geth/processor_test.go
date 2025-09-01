@@ -18,6 +18,7 @@ import (
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -241,4 +242,22 @@ func TestProcessor_ReceiptIsDefaultInitializedInCaseOfError(t *testing.T) {
 		receipt.Output != nil || receipt.ContractAddress != nil || len(receipt.Logs) != 0 {
 		t.Errorf("expected empty receipt, got %v", receipt)
 	}
+}
+
+func TestIsInternal_TransactionsWithZeroSenderAreInternal(t *testing.T) {
+	require := require.New(t)
+	require.True(isInternal(tosca.Transaction{Sender: tosca.Address{}}))
+	require.False(isInternal(tosca.Transaction{Sender: tosca.Address{0x01}}))
+}
+
+func TestCalculateGasPrices_InternalTransactions_GetPricesBelowBaseFee(t *testing.T) {
+	require := require.New(t)
+	baseFee := tosca.NewValue(100)
+	gasFeeCap := tosca.NewValue(90)
+	gasTipCap := tosca.NewValue(10)
+	internal := true
+
+	price, err := calculateGasPrice(baseFee, gasFeeCap, gasTipCap, internal)
+	require.NoError(err)
+	require.Equal(price, gasFeeCap)
 }
