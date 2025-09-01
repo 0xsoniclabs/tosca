@@ -541,7 +541,7 @@ try:
         data = file.read()
 except FileNotFoundError:
     print("error: rule file not found.")
-rules = eval(data)
+rules = eval(data.replace("true", "True").replace("false","False"))
 
 # perform determinism check
 if determinism: 
