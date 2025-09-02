@@ -903,10 +903,11 @@ func TestRunContext_runInterpreterForwardsValuesCorrectly(t *testing.T) {
 	code := tosca.Code{1, 2, 3}
 	codeHash := tosca.Hash{4, 5, 6}
 
+	expectedContext := runContext
 	expectedParams := tosca.Parameters{
 		BlockParameters:       runContext.blockParameters,
 		TransactionParameters: runContext.transactionParameters,
-		Context:               &runContext,
+		Context:               &expectedContext,
 		Sender:                parameters.Sender,
 		Recipient:             parameters.Recipient,
 		Gas:                   parameters.Gas,
