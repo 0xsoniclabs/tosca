@@ -925,8 +925,8 @@ func TestCall_PrecompiledCheckDependsOnCodeAddress(t *testing.T) {
 				TransactionContext: context,
 				interpreter:        interpreter,
 				config: Config{
-					StateContracts: map[tosca.Address]StateContract{
-						StateContractAddress(): StateContractSonic{},
+					BuiltInContracts: map[tosca.Address]BuiltInContract{
+						StateContractAddress(): StateContract{},
 					},
 				},
 			}
@@ -973,8 +973,8 @@ func TestCall_StateAndPrecompileErrorRestoresSnapshot(t *testing.T) {
 			runContext := runContext{
 				TransactionContext: context,
 				config: Config{
-					StateContracts: map[tosca.Address]StateContract{
-						StateContractAddress(): StateContractSonic{},
+					BuiltInContracts: map[tosca.Address]BuiltInContract{
+						StateContractAddress(): StateContract{},
 					},
 				},
 			}
@@ -999,19 +999,13 @@ func TestCall_StateAndPrecompileErrorRestoresSnapshot(t *testing.T) {
 	}
 }
 
-type testStateContract struct{}
-
-func (testStateContract) Run(state tosca.WorldState, sender tosca.Address, receiver tosca.Address, input []byte, gas tosca.Gas) tosca.CallResult {
-	return tosca.CallResult{
-		Success: true,
-		Output:  tosca.Data("test data"),
-	}
-}
-
 func TestRunContext_HandleStateContracts(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	stateContract := NewMockBuiltInContract(ctrl)
+
 	testContractAddress := tosca.Address{42}
 	tests := map[string]struct {
-		contract        StateContract
+		contract        BuiltInContract
 		recipient       tosca.Address
 		executeContract bool
 	}{
@@ -1020,11 +1014,11 @@ func TestRunContext_HandleStateContracts(t *testing.T) {
 			recipient: testContractAddress,
 		},
 		"call to state contract": {
-			contract:  testStateContract{},
+			contract:  stateContract,
 			recipient: testContractAddress,
 		},
 		"call to non state contract": {
-			contract:  testStateContract{},
+			contract:  stateContract,
 			recipient: tosca.Address{2},
 		},
 	}
@@ -1033,14 +1027,14 @@ func TestRunContext_HandleStateContracts(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			context := tosca.NewMockTransactionContext(ctrl)
 
-			var contracts map[tosca.Address]StateContract
+			var contracts map[tosca.Address]BuiltInContract
 			if test.contract != nil {
-				contracts = map[tosca.Address]StateContract{
+				contracts = map[tosca.Address]BuiltInContract{
 					testContractAddress: test.contract,
 				}
 			}
 			config := Config{
-				StateContracts: contracts,
+				BuiltInContracts: contracts,
 			}
 			parameters := tosca.CallParameters{
 				Recipient: test.recipient,

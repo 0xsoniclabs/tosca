@@ -18,6 +18,8 @@ import (
 	"github.com/holiman/uint256"
 )
 
+//go:generate mockgen -source processor.go -destination built_in_contract_mock.go -package floria
+
 const (
 	TxGas                     = 21_000
 	TxGasContractCreation     = 53_000
@@ -52,8 +54,8 @@ func newFloriaProcessor(interpreter tosca.Interpreter) tosca.Processor {
 		Interpreter: interpreter,
 		Config: Config{
 			EthCompatible: false,
-			StateContracts: map[tosca.Address]StateContract{
-				StateContractAddress(): StateContractSonic{},
+			BuiltInContracts: map[tosca.Address]BuiltInContract{
+				StateContractAddress(): StateContract{},
 			},
 		},
 	}
@@ -65,7 +67,8 @@ type Processor struct {
 	Config      Config
 }
 
-type StateContract interface {
+// BuiltInContract defines the Run function for special build in contracts that are not deployed as smart contracts.
+type BuiltInContract interface {
 	Run(state tosca.WorldState, sender tosca.Address, receiver tosca.Address, input []byte, gas tosca.Gas) tosca.CallResult
 }
 
@@ -75,15 +78,14 @@ type Config struct {
 	// The default is compatibility with Sonic/Fantom.
 	EthCompatible bool
 
-	// StateContracts allows to add special contracts that can not be implemented as
-	// classic smart contracts.
-	StateContracts map[tosca.Address]StateContract
+	// BuiltInContracts binds addresses to special contracts not deployed as smart contracts.
+	BuiltInContracts map[tosca.Address]BuiltInContract
 
-	// OffChainExecution flag indicates that the transaction does not have any effect
+	// OffChainSimulation flag indicates that the transaction does not have any effect
 	// on the state of the blockchain. It is used for simulation purposes.
 	// When enabled, EOA and nonce checks are skipped, and 0 is treated as a valid value for
 	// gasprice and blob gasprice.
-	OffChainExecution bool
+	OffChainSimulation bool
 
 	// TODO: add tracing/debug flag
 }
@@ -136,15 +138,15 @@ func checkTransaction(
 	context tosca.TransactionContext,
 	config Config,
 ) error {
-	if err := nonceCheck(transaction.Nonce, context.GetNonce(transaction.Sender)); !config.OffChainExecution && err != nil {
+	if err := nonceCheck(transaction.Nonce, context.GetNonce(transaction.Sender)); !config.OffChainSimulation && err != nil {
 		return fmt.Errorf("failed nonce check: %w", err)
 	}
 
-	if err := eoaCheck(transaction.Sender, context.GetCodeHash(transaction.Sender)); !config.OffChainExecution && err != nil {
+	if err := eoaCheck(transaction.Sender, context.GetCodeHash(transaction.Sender)); !config.OffChainSimulation && err != nil {
 		return fmt.Errorf("failed EOA check: %w", err)
 	}
 
-	if err := checkBlobs(transaction, blockParameters, config.OffChainExecution); err != nil {
+	if err := checkBlobs(transaction, blockParameters, config.OffChainSimulation); err != nil {
 		return fmt.Errorf("failed blob check: %w", err)
 	}
 
@@ -164,7 +166,7 @@ func calculateAvailableGas(
 	context tosca.TransactionContext,
 	config Config,
 ) (tosca.Value, tosca.Gas, error) {
-	gasPrice, err := calculateGasPrice(blockParameters.BaseFee, transaction.GasFeeCap, transaction.GasTipCap, config.OffChainExecution)
+	gasPrice, err := calculateGasPrice(blockParameters.BaseFee, transaction.GasFeeCap, transaction.GasTipCap, config.OffChainSimulation)
 	if err != nil {
 		return tosca.Value{}, 0, fmt.Errorf("failed to calculate gas price: %w", err)
 	}

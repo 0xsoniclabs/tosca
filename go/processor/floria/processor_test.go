@@ -493,7 +493,7 @@ func TestProcessor_IsSimulationSkipsSelectedChecks(t *testing.T) {
 					BlobHashes:    []tosca.Hash{{1}},
 				}
 				config := Config{
-					OffChainExecution: isSimulation,
+					OffChainSimulation: isSimulation,
 				}
 				err := checkTransaction(blockParameters, transaction, context, config)
 				if isSimulation {

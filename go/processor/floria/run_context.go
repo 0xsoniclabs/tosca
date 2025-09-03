@@ -167,11 +167,11 @@ func (r *runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallPar
 
 // handleStateContracts checks if the code address is a state contract and runs it if so.
 func handleStateContracts(r tosca.WorldState, config Config, parameters tosca.CallParameters) (tosca.CallResult, bool) {
-	if config.StateContracts == nil {
+	if config.BuiltInContracts == nil {
 		return tosca.CallResult{}, false
 	}
 
-	if contract, ok := config.StateContracts[parameters.CodeAddress]; ok {
+	if contract, ok := config.BuiltInContracts[parameters.CodeAddress]; ok {
 		result := contract.Run(r, parameters.Sender, parameters.CodeAddress, parameters.Input, parameters.Gas)
 		return result, true
 	}

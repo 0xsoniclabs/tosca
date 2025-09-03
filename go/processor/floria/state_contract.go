@@ -76,9 +76,9 @@ func init() {
 	}
 }
 
-type StateContractSonic struct{}
+type StateContract struct{}
 
-func (StateContractSonic) Run(state tosca.WorldState, sender tosca.Address, receiver tosca.Address, input []byte, gas tosca.Gas) tosca.CallResult {
+func (StateContract) Run(state tosca.WorldState, sender tosca.Address, receiver tosca.Address, input []byte, gas tosca.Gas) tosca.CallResult {
 	return runStateContract(state, sender, receiver, input, gas)
 }
 
