@@ -588,13 +588,10 @@ func getAllRules() []Rule {
 				Eq(Status(), st.Running),
 				Eq(Op(Pc()), vm.JUMP),
 				IsCode(Pc()),
-				Ge(Gas(), 8),
-				Ge(StackSize(), 1),
 				IsData(Param(0)),
 			),
 			Effect: FailEffect(),
 		},
-
 		{
 			Name: "jump_to_invalid_destination",
 			Parameter: []Parameter{
@@ -605,8 +602,6 @@ func getAllRules() []Rule {
 				Eq(Status(), st.Running),
 				Eq(Op(Pc()), vm.JUMP),
 				IsCode(Pc()),
-				Ge(Gas(), 8),
-				Ge(StackSize(), 1),
 				IsCode(Param(0)),
 				Ne(Op(Param(0)), vm.JUMPDEST),
 			),
@@ -637,27 +632,26 @@ func getAllRules() []Rule {
 		},
 	})...)
 
-	name = "jumpi_not_taken"
-	rules = append(rules, []Rule{
-		{
-			Name: name,
-			Condition: And(
-				AnyKnownRevision(),
-				Eq(Status(), st.Running),
-				Eq(Op(Pc()), vm.JUMPI),
-				IsCode(Pc()),
-				Ge(Gas(), 10),
-				Ge(StackSize(), 2),
-				Eq(Param(1), NewU256(0)),
-			),
-			Effect: Change(name, func(s *st.State) {
-				s.Gas -= 10
-				s.Stack.Pop()
-				s.Stack.Pop()
-				s.Pc += 1
-			}),
+	rules = append(rules, rulesFor(instruction{
+		name:      "_jump_not_taken",
+		op:        vm.JUMPI,
+		staticGas: 10,
+		pops:      2,
+		pushes:    0,
+		parameters: []Parameter{
+			JumpTargetParameter{},
+			NumericParameter{},
 		},
+		conditions: []Condition{
+			Eq(Param(1), NewU256(0)),
+		},
+		effect: func(s *st.State) {
+			s.Stack.Pop()
+			s.Stack.Pop()
+		},
+	})...)
 
+	rules = append(rules, []Rule{
 		{
 			Name: "jumpi_to_data",
 			Condition: And(
@@ -665,14 +659,11 @@ func getAllRules() []Rule {
 				Eq(Status(), st.Running),
 				Eq(Op(Pc()), vm.JUMPI),
 				IsCode(Pc()),
-				Ge(Gas(), 10),
-				Ge(StackSize(), 2),
 				IsData(Param(0)),
 				Ne(Param(1), NewU256(0)),
 			),
 			Effect: FailEffect(),
 		},
-
 		{
 			Name: "jumpi_to_invalid_destination",
 			Parameter: []Parameter{
@@ -684,8 +675,6 @@ func getAllRules() []Rule {
 				Eq(Status(), st.Running),
 				Eq(Op(Pc()), vm.JUMPI),
 				IsCode(Pc()),
-				Ge(Gas(), 10),
-				Ge(StackSize(), 2),
 				IsCode(Param(0)),
 				Ne(Op(Param(0)), vm.JUMPDEST),
 				Ne(Param(1), NewU256(0)),
