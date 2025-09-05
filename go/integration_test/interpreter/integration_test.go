@@ -1075,6 +1075,7 @@ func getRadomByte32() []byte {
 
 func setDefaultCallStateDBMock(mockStateDB *MockStateDB, account tosca.Address, code []byte) {
 	// mock state calls for call instruction
+	mockStateDB.EXPECT().GetCommittedStorage(gomock.Any(), gomock.Any()).AnyTimes().Return(tosca.Word{1})
 	mockStateDB.EXPECT().GetBalance(gomock.Any()).AnyTimes().Return(tosca.Value{1})
 	mockStateDB.EXPECT().GetNonce(gomock.Any()).AnyTimes().Return(uint64(123))
 	mockStateDB.EXPECT().SetNonce(gomock.Any(), gomock.Any()).AnyTimes()
