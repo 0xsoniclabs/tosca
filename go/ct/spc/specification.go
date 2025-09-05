@@ -869,8 +869,6 @@ func getAllRules() []Rule {
 				Eq(Status(), st.Running),
 				Eq(Op(Pc()), vm.PUSH0),
 				IsCode(Pc()),
-				Ge(Gas(), 2),
-				Lt(StackSize(), st.MaxStackSize-1),
 			),
 			Effect: FailEffect(),
 		},
