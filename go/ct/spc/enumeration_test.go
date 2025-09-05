@@ -36,6 +36,10 @@ func condition(fitsRule bool, numStates int) rlz.Condition {
 	return &testCondition{fits: fitsRule, numStates: numStates}
 }
 
+func (e testCondition) Py() string {
+	return "not supported in test condition"
+}
+
 func (e testCondition) Check(s *st.State) (bool, error) {
 	return e.fits, nil
 }

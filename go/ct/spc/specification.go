@@ -1753,7 +1753,7 @@ func getAllRules() []Rule {
 			SizeParameter{},
 			NumericParameter{},
 		},
-		effect: nil, 
+		effect: nil,
 	})...)
 
 	rules = append(rules, rulesFor(instruction{
@@ -2411,8 +2411,8 @@ func rulesFor(i instruction) []Rule {
 	name := fmt.Sprintf("%s_regular%v", strings.ToLower(i.op.String()), i.name)
 
 	var E Effect
-	if i.effect != nil { 
-		E =  Change(name, func(s *st.State) {
+	if i.effect != nil {
+		E = Change(name, func(s *st.State) {
 			s.Gas -= i.staticGas
 			s.Pc++
 			i.effect(s)
@@ -2425,8 +2425,8 @@ func rulesFor(i instruction) []Rule {
 		Name:      name,
 		Condition: And(localConditions...),
 		Parameter: i.parameters,
-		Effect:E,
-	       })
+		Effect:    E,
+	})
 	return res
 }
 
@@ -2441,19 +2441,20 @@ func getRulesForAllCallTypes() []Rule {
 			for _, warm := range []bool{true, false} {
 				for _, static := range []bool{true, false} {
 					for _, zeroValue := range []bool{true, false} {
-						for _, delegationDesignator := range []DelegationDesignatorState{NoDelegationDesignation, WarmDelegationDesignation, ColdDelegationDesignation} {
-
-							// delegationDesignator is introduced in Prague; for any revision before, cold and warm cases
-							// are analogogus and half of them can be pruned.
-							if rev < tosca.R14_Prague && delegationDesignator == ColdDelegationDesignation {
-								continue
+						if rev >= tosca.R14_Prague {
+							for _, delegationDesignator := range []DelegationDesignatorState{NoDelegationDesignation, WarmDelegationDesignation, ColdDelegationDesignation} {
+								effect := callEffect
+								if op == vm.CALL && static && !zeroValue {
+									effect = nil
+								}
+								res = append(res, getRulesForCall(op, rev, warm, zeroValue, delegationDesignator, effect, static)...)
 							}
-
+						} else {
 							effect := callEffect
 							if op == vm.CALL && static && !zeroValue {
 								effect = nil
 							}
-							res = append(res, getRulesForCall(op, rev, warm, zeroValue, delegationDesignator, effect, static)...)
+							res = append(res, getRulesForCall(op, rev, warm, zeroValue, NoDelegationDesignation, effect, static)...)
 						}
 					}
 				}
@@ -2511,7 +2512,11 @@ func getRulesForCall(op vm.OpCode, revision tosca.Revision, warm, zeroValue bool
 		IsRevision(revision),
 		targetWarm,
 		staticCondition,
-		ConstraintDelegationDesignator(Param(1), delegationDesignator),
+	}
+	if revision >= tosca.R14_Prague {
+		callConditions = append(callConditions,
+			ConstraintDelegationDesignator(Param(1), delegationDesignator),
+		)
 	}
 
 	var valueZeroCondition Condition
@@ -2552,11 +2557,11 @@ func getRulesForCall(op vm.OpCode, revision tosca.Revision, warm, zeroValue bool
 	}, "_")
 	name = strings.ReplaceAll(name, "__", "_")
 
-	var effect func(s *st.State) =nil
+	var effect func(s *st.State) = nil
 	if opEffect != nil {
-	    effect = func(s *st.State) {
-		opEffect(s, addressAccessCost, op)
-	    }
+		effect = func(s *st.State) {
+			opEffect(s, addressAccessCost, op)
+		}
 	}
 
 	return rulesFor(instruction{
@@ -2567,7 +2572,7 @@ func getRulesForCall(op vm.OpCode, revision tosca.Revision, warm, zeroValue bool
 		pushes:     1,
 		conditions: callConditions,
 		parameters: parameters,
-		effect: effect,
+		effect:     effect,
 	})
 }
 
