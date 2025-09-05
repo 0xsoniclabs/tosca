@@ -76,6 +76,12 @@ func init() {
 	}
 }
 
+type StateContract struct{}
+
+func (StateContract) Run(state tosca.WorldState, sender tosca.Address, receiver tosca.Address, input []byte, gas tosca.Gas) tosca.CallResult {
+	return runStateContract(state, sender, receiver, input, gas)
+}
+
 var ErrExecutionReverted = fmt.Errorf("execution reverted")
 var ErrOutOfGas = fmt.Errorf("out of gas")
 
