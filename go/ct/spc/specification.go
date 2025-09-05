@@ -1686,6 +1686,21 @@ func getAllRules() []Rule {
 		effect: nil,
 	})...)
 
+	// SELFDESTRUCT with negative balance (not possible in practice, but included for smt completeness)
+	rules = append(rules, []Rule{
+		{
+			Name: "selfdestruct_negative_balance",
+			Condition: And(
+				AnyKnownRevision(),
+				Eq(Status(), st.Running),
+				Eq(Op(Pc()), vm.SELFDESTRUCT),
+				IsCode(Pc()),
+				Lt(Balance(SelfAddress()), NewU256(0)),
+			),
+			Effect: FailEffect(),
+		},
+	}...)
+
 	// --- CREATE ---
 
 	rules = append(rules, rulesFor(instruction{
