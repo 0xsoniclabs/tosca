@@ -2190,9 +2190,7 @@ func logOp(n int) []Rule {
 		Eq(Status(), st.Running),
 		Eq(Op(Pc()), op),
 		IsCode(Pc()),
-		Ge(Gas(), minGas),
 		Eq(ReadOnly(), true),
-		Ge(StackSize(), 2+n),
 	}
 
 	rules = append(rules, []Rule{{
