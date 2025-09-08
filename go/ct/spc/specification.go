@@ -504,15 +504,15 @@ func getAllRules() []Rule {
 		// Certain storage configurations imply warm access. Not all
 		// combinations are possible; invalid ones are marked below.
 
-		// {revision: tosca.R09_Berlin, warm: false, config: tosca.StorageAssigned, gasCost: 2200}, // invalid
+		{revision: tosca.R09_Berlin, warm: false, config: tosca.StorageAssigned, gasCost: 2200}, // invalid
 		{revision: tosca.R09_Berlin, warm: false, config: tosca.StorageAdded, gasCost: 22100},
-		// {revision: tosca.R09_Berlin, warm: false, config: tosca.StorageAddedDeleted, gasCost: 2200, gasRefund: 19900},     // invalid
-		// {revision: tosca.R09_Berlin, warm: false, config: tosca.StorageDeletedRestored, gasCost: 2200, gasRefund: -10800}, // invalid
-		// {revision: tosca.R09_Berlin, warm: false, config: tosca.StorageDeletedAdded, gasCost: 2200, gasRefund: -15000},    // invalid
+		{revision: tosca.R09_Berlin, warm: false, config: tosca.StorageAddedDeleted, gasCost: 2200, gasRefund: 19900},     // invalid
+		{revision: tosca.R09_Berlin, warm: false, config: tosca.StorageDeletedRestored, gasCost: 2200, gasRefund: -12200}, // invalid
+		{revision: tosca.R09_Berlin, warm: false, config: tosca.StorageDeletedAdded, gasCost: 2200, gasRefund: -15000},    // invalid
 		{revision: tosca.R09_Berlin, warm: false, config: tosca.StorageDeleted, gasCost: 5000, gasRefund: 15000},
 		{revision: tosca.R09_Berlin, warm: false, config: tosca.StorageModified, gasCost: 5000},
-		// {revision: tosca.R09_Berlin, warm: false, config: tosca.StorageModifiedDeleted, gasCost: 2200, gasRefund: 15000}, // invalid
-		// {revision: tosca.R09_Berlin, warm: false, config: tosca.StorageModifiedRestored, gasCost: 2200, gasRefund: 4900}, // invalid
+		{revision: tosca.R09_Berlin, warm: false, config: tosca.StorageModifiedDeleted, gasCost: 2200, gasRefund: 15000}, // invalid
+		{revision: tosca.R09_Berlin, warm: false, config: tosca.StorageModifiedRestored, gasCost: 2200, gasRefund: 2800}, // invalid
 
 		{revision: tosca.R09_Berlin, warm: true, config: tosca.StorageAssigned, gasCost: 100},
 		{revision: tosca.R09_Berlin, warm: true, config: tosca.StorageAdded, gasCost: 20000},
@@ -529,15 +529,15 @@ func getAllRules() []Rule {
 		// Certain storage configurations imply warm access. Not all
 		// combinations are possible; invalid ones are marked below.
 		sstoreRules = append(sstoreRules, []sstoreOpParams{
-			// {revision: rev, warm: false, config: tosca.StorageAssigned, gasCost: 2200}, // invalid
+			{revision: rev, warm: false, config: tosca.StorageAssigned, gasCost: 2200}, // invalid
 			{revision: rev, warm: false, config: tosca.StorageAdded, gasCost: 22100},
-			// {revision: rev, warm: false, config: tosca.StorageAddedDeleted, gasCost: 2200, gasRefund: 19900},  // invalid
-			// {revision: rev, warm: false, config: tosca.StorageDeletedRestored, gasCost: 2200, gasRefund: 100}, // invalid
-			// {revision: rev, warm: false, config: tosca.StorageDeletedAdded, gasCost: 2200, gasRefund: -4800},  // invalid
+			{revision: rev, warm: false, config: tosca.StorageAddedDeleted, gasCost: 2200, gasRefund: 19900},    // invalid
+			{revision: rev, warm: false, config: tosca.StorageDeletedRestored, gasCost: 2200, gasRefund: -2000}, // invalid
+			{revision: rev, warm: false, config: tosca.StorageDeletedAdded, gasCost: 2200, gasRefund: -4800},    // invalid
 			{revision: rev, warm: false, config: tosca.StorageDeleted, gasCost: 5000, gasRefund: 4800},
 			{revision: rev, warm: false, config: tosca.StorageModified, gasCost: 5000},
-			// {revision: rev, warm: false, config: tosca.StorageModifiedDeleted, gasCost: 2200, gasRefund: 4800},  // invalid
-			// {revision: rev, warm: false, config: tosca.StorageModifiedRestored, gasCost: 2200, gasRefund: 4900}, // invalid
+			{revision: rev, warm: false, config: tosca.StorageModifiedDeleted, gasCost: 2200, gasRefund: 4800},  // invalid
+			{revision: rev, warm: false, config: tosca.StorageModifiedRestored, gasCost: 2200, gasRefund: 2800}, // invalid
 
 			{revision: rev, warm: true, config: tosca.StorageAssigned, gasCost: 100},
 			{revision: rev, warm: true, config: tosca.StorageAdded, gasCost: 20000},
@@ -2087,14 +2087,18 @@ func sstoreOpRegular(params sstoreOpParams) Rule {
 func sstoreOpTooLittleGas(params sstoreOpParams) Rule {
 	name := fmt.Sprintf("sstore_with_too_little_gas_%v_%v", params.revision, params.config)
 
+	minGas := tosca.Gas(2301) // EIP2200
+	if params.gasCost > minGas {
+		minGas = params.gasCost
+	}
+
 	conditions := []Condition{
 		IsRevision(params.revision),
 		Eq(Status(), st.Running),
 		Eq(Op(Pc()), vm.SSTORE),
 		IsCode(Pc()),
-		Lt(Gas(), params.gasCost),
+		Lt(Gas(), minGas),
 		Eq(ReadOnly(), false),
-		Ge(StackSize(), 2),
 		StorageConfiguration(params.config, Param(0), Param(1)),
 	}
 
@@ -2122,19 +2126,12 @@ func sstoreOpTooLittleGas(params sstoreOpParams) Rule {
 func sstoreOpReadOnlyMode(params sstoreOpParams) Rule {
 	name := fmt.Sprintf("sstore_in_read_only_mode_%v_%v", params.revision, params.config)
 
-	gasLimit := tosca.Gas(2301) // EIP2200
-	if params.gasCost > gasLimit {
-		gasLimit = params.gasCost
-	}
-
 	conditions := []Condition{
 		IsRevision(params.revision),
 		Eq(Status(), st.Running),
 		Eq(Op(Pc()), vm.SSTORE),
 		IsCode(Pc()),
-		Ge(Gas(), gasLimit),
 		Eq(ReadOnly(), true),
-		Ge(StackSize(), 2),
 		StorageConfiguration(params.config, Param(0), Param(1)),
 	}
 
