@@ -273,6 +273,32 @@ func TestSpecification_NumberOfTestCasesMatchesRuleInfo(t *testing.T) {
 	}
 }
 
+func TestSpecification_OnlySelectedRulesApplyToPcOnData(t *testing.T) {
+	rulesPcOnData := []string{"pc_on_data_is_ignored"}
+
+	for _, revision := range tosca.GetAllKnownRevisions() {
+		for instruction := range 255 {
+			code := st.NewCode([]byte{byte(vm.PUSH1), byte(instruction)})
+			state := st.NewState(code)
+
+			state.Revision = revision
+			state.Status = st.Running
+			state.Pc = 1 // point to data
+
+			rules := Spec.GetRulesFor(state)
+			if len(rules) == 0 {
+				t.Fatalf("no rule found for state with PC pointing to data")
+			}
+
+			for _, rule := range rules {
+				if !slices.Contains(rulesPcOnData, rule.Name) {
+					t.Errorf("rule %s does not expect PC to point to data", rule.Name)
+				}
+			}
+		}
+	}
+}
+
 func BenchmarkSpecification_GetState(b *testing.B) {
 	N := 10000
 	rnd := rand.New(0)
