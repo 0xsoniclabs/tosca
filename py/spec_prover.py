@@ -128,9 +128,12 @@ reverted = 2
 failed = 3
 NumStatusCodes = 4
 
+# Predicate abstractions for cold account.
+# Cold account is only used a single time in a rule, there is no need to check the address.
+# It is sufficient to have a single boolean variable denoting whether the account is cold or warm.
 # Cold account
 cold_account_x = Bool('cold_account_x')
-def account_cold(x):
+def account_cold(x): # TODO: check that x is always the same variable in the context of one solver call.
     return cold_account_x
 
 def account_warm(x):
@@ -158,15 +161,18 @@ account_empty_x = Bool('account_empty_x')
 def account_empty(x):
     return account_empty_x
 
+# Function abstraction for balance with integer variable for the result.
+# The balance function is only used a single time in a rule, there is no need to check the address.
 balance_x = Int('balance_x')
 def balance(x):
     return balance_x
 
+tran_storage_x = Bool('tran_storage_x')
 def tranStorageNonZero(x):
-    return False
+    return tran_storage_x
 
 def tranStorageToZero(x):
-    return True
+    return Not(tran_storage_x)
 
 # Self address (might not be used)
 self = Int('self')
@@ -207,8 +213,9 @@ gas = Int("gas")
 stackSize = Int("stackSize")
 stack = Array("stack", IntSort(), IntSort())
 
+# Variable abstraction for stack parameters
 def param(x):
-    sdata = Int("sdata_"+str(x))   # opcode variable needs to be unique (e.g. op_pc, etc.)
+    sdata = Int("sdata_"+str(x))   # param variable needs to be unique (e.g. op_pc, etc.)
     sdata = Select(stack, stackSize - x - 1)
     return sdata
 
@@ -429,11 +436,22 @@ def vm_state_solver():
     # bound gas counter
     s.add(gas >= 0)
 
+    # bound balance
+    s.add(balance_x >= 0)
+
     # bound stack size
     s.add(stackSize >= 0, stackSize <= 1024)
 
     # bound storage status
     s.add(storage_conf_yz >= 0, storage_conf_yz < numStorageStatus)
+
+    # storage configuration, cold access
+    s.add(Implies(storage_conf_yz == StorageAssigned, Not(storage_cold_x)))
+    s.add(Implies(storage_conf_yz == StorageAddedDeleted, Not(storage_cold_x)))
+    s.add(Implies(storage_conf_yz == StorageDeletedRestored, Not(storage_cold_x)))
+    s.add(Implies(storage_conf_yz == StorageDeletedAdded, Not(storage_cold_x)))
+    s.add(Implies(storage_conf_yz == StorageModifiedDeleted, Not(storage_cold_x)))
+    s.add(Implies(storage_conf_yz == StorageModifiedRestored, Not(storage_cold_x)))
 
     # bound op-code to byte range
     s.add(code(pc) >= 0, code(pc) <= 255)

@@ -504,15 +504,15 @@ func getAllRules() []Rule {
 		// Certain storage configurations imply warm access. Not all
 		// combinations are possible; invalid ones are marked below.
 
-		{revision: tosca.R09_Berlin, warm: false, config: tosca.StorageAssigned, gasCost: 2200}, // invalid
+		// {revision: tosca.R09_Berlin, warm: false, config: tosca.StorageAssigned, gasCost: 2200}, // invalid
 		{revision: tosca.R09_Berlin, warm: false, config: tosca.StorageAdded, gasCost: 22100},
-		{revision: tosca.R09_Berlin, warm: false, config: tosca.StorageAddedDeleted, gasCost: 2200, gasRefund: 19900},     // invalid
-		{revision: tosca.R09_Berlin, warm: false, config: tosca.StorageDeletedRestored, gasCost: 2200, gasRefund: -12200}, // invalid
-		{revision: tosca.R09_Berlin, warm: false, config: tosca.StorageDeletedAdded, gasCost: 2200, gasRefund: -15000},    // invalid
+		// {revision: tosca.R09_Berlin, warm: false, config: tosca.StorageAddedDeleted, gasCost: 2200, gasRefund: 19900},     // invalid
+		// {revision: tosca.R09_Berlin, warm: false, config: tosca.StorageDeletedRestored, gasCost: 2200, gasRefund: -12200}, // invalid
+		// {revision: tosca.R09_Berlin, warm: false, config: tosca.StorageDeletedAdded, gasCost: 2200, gasRefund: -15000},    // invalid
 		{revision: tosca.R09_Berlin, warm: false, config: tosca.StorageDeleted, gasCost: 5000, gasRefund: 15000},
 		{revision: tosca.R09_Berlin, warm: false, config: tosca.StorageModified, gasCost: 5000},
-		{revision: tosca.R09_Berlin, warm: false, config: tosca.StorageModifiedDeleted, gasCost: 2200, gasRefund: 15000}, // invalid
-		{revision: tosca.R09_Berlin, warm: false, config: tosca.StorageModifiedRestored, gasCost: 2200, gasRefund: 2800}, // invalid
+		// {revision: tosca.R09_Berlin, warm: false, config: tosca.StorageModifiedDeleted, gasCost: 2200, gasRefund: 15000}, // invalid
+		// {revision: tosca.R09_Berlin, warm: false, config: tosca.StorageModifiedRestored, gasCost: 2200, gasRefund: 2800}, // invalid
 
 		{revision: tosca.R09_Berlin, warm: true, config: tosca.StorageAssigned, gasCost: 100},
 		{revision: tosca.R09_Berlin, warm: true, config: tosca.StorageAdded, gasCost: 20000},
@@ -1685,21 +1685,6 @@ func getAllRules() []Rule {
 		},
 		effect: nil,
 	})...)
-
-	// SELFDESTRUCT with negative balance (not possible in practice, but included for smt completeness)
-	rules = append(rules, []Rule{
-		{
-			Name: "selfdestruct_negative_balance",
-			Condition: And(
-				AnyKnownRevision(),
-				Eq(Status(), st.Running),
-				Eq(Op(Pc()), vm.SELFDESTRUCT),
-				IsCode(Pc()),
-				Lt(Balance(SelfAddress()), NewU256(0)),
-			),
-			Effect: FailEffect(),
-		},
-	}...)
 
 	// --- CREATE ---
 
