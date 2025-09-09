@@ -506,12 +506,12 @@ func getAllRules() []Rule {
 		// {revision: tosca.R09_Berlin, warm: false, config: tosca.StorageAssigned, gasCost: 2200}, // invalid
 		{revision: tosca.R09_Berlin, warm: false, config: tosca.StorageAdded, gasCost: 22100},
 		// {revision: tosca.R09_Berlin, warm: false, config: tosca.StorageAddedDeleted, gasCost: 2200, gasRefund: 19900},     // invalid
-		// {revision: tosca.R09_Berlin, warm: false, config: tosca.StorageDeletedRestored, gasCost: 2200, gasRefund: -10800}, // invalid
+		// {revision: tosca.R09_Berlin, warm: false, config: tosca.StorageDeletedRestored, gasCost: 2200, gasRefund: -12200}, // invalid
 		// {revision: tosca.R09_Berlin, warm: false, config: tosca.StorageDeletedAdded, gasCost: 2200, gasRefund: -15000},    // invalid
 		{revision: tosca.R09_Berlin, warm: false, config: tosca.StorageDeleted, gasCost: 5000, gasRefund: 15000},
 		{revision: tosca.R09_Berlin, warm: false, config: tosca.StorageModified, gasCost: 5000},
 		// {revision: tosca.R09_Berlin, warm: false, config: tosca.StorageModifiedDeleted, gasCost: 2200, gasRefund: 15000}, // invalid
-		// {revision: tosca.R09_Berlin, warm: false, config: tosca.StorageModifiedRestored, gasCost: 2200, gasRefund: 4900}, // invalid
+		// {revision: tosca.R09_Berlin, warm: false, config: tosca.StorageModifiedRestored, gasCost: 2200, gasRefund: 2800}, // invalid
 
 		{revision: tosca.R09_Berlin, warm: true, config: tosca.StorageAssigned, gasCost: 100},
 		{revision: tosca.R09_Berlin, warm: true, config: tosca.StorageAdded, gasCost: 20000},
@@ -531,12 +531,12 @@ func getAllRules() []Rule {
 			// {revision: rev, warm: false, config: tosca.StorageAssigned, gasCost: 2200}, // invalid
 			{revision: rev, warm: false, config: tosca.StorageAdded, gasCost: 22100},
 			// {revision: rev, warm: false, config: tosca.StorageAddedDeleted, gasCost: 2200, gasRefund: 19900},  // invalid
-			// {revision: rev, warm: false, config: tosca.StorageDeletedRestored, gasCost: 2200, gasRefund: 100}, // invalid
+			// {revision: rev, warm: false, config: tosca.StorageDeletedRestored, gasCost: 2200, gasRefund: -2000}, // invalid
 			// {revision: rev, warm: false, config: tosca.StorageDeletedAdded, gasCost: 2200, gasRefund: -4800},  // invalid
 			{revision: rev, warm: false, config: tosca.StorageDeleted, gasCost: 5000, gasRefund: 4800},
 			{revision: rev, warm: false, config: tosca.StorageModified, gasCost: 5000},
 			// {revision: rev, warm: false, config: tosca.StorageModifiedDeleted, gasCost: 2200, gasRefund: 4800},  // invalid
-			// {revision: rev, warm: false, config: tosca.StorageModifiedRestored, gasCost: 2200, gasRefund: 4900}, // invalid
+			// {revision: rev, warm: false, config: tosca.StorageModifiedRestored, gasCost: 2200, gasRefund: 2800}, // invalid
 
 			{revision: rev, warm: true, config: tosca.StorageAssigned, gasCost: 100},
 			{revision: rev, warm: true, config: tosca.StorageAdded, gasCost: 20000},
@@ -551,9 +551,8 @@ func getAllRules() []Rule {
 	}
 
 	for _, params := range sstoreRules {
-		rules = append(rules, sstoreOpRegular(params))
-		rules = append(rules, sstoreOpTooLittleGas(params))
-		rules = append(rules, sstoreOpReadOnlyMode(params))
+		rules = append(rules, sstoreOpRegular(params)...)
+		rules = append(rules, sstoreOpReadOnlyMode(params)...)
 	}
 
 	rules = append(rules, tooLittleGas(instruction{op: vm.SSTORE, staticGas: 2300, name: "_EIP2200"})...)
@@ -2027,24 +2026,10 @@ type sstoreOpParams struct {
 	gasRefund tosca.Gas
 }
 
-func sstoreOpRegular(params sstoreOpParams) Rule {
-	name := fmt.Sprintf("sstore_regular_%v_%v", params.revision, params.config)
+func sstoreOpRegular(params sstoreOpParams) []Rule {
+	name := fmt.Sprintf("_%v_%v", params.revision, params.config)
 
-	gasLimit := tosca.Gas(2301) // EIP2200
-	if params.gasCost > gasLimit {
-		gasLimit = params.gasCost
-	}
-
-	conditions := []Condition{
-		IsRevision(params.revision),
-		Eq(Status(), st.Running),
-		Eq(Op(Pc()), vm.SSTORE),
-		Ge(Gas(), gasLimit),
-		Eq(ReadOnly(), false),
-		Ge(StackSize(), 2),
-		StorageConfiguration(params.config, Param(0), Param(1)),
-	}
-
+	conditions := []Condition{}
 	if params.revision >= tosca.R09_Berlin {
 		if params.warm {
 			name += "_warm"
@@ -2055,88 +2040,76 @@ func sstoreOpRegular(params sstoreOpParams) Rule {
 		}
 	}
 
-	return Rule{
-		Name:      name,
-		Condition: And(conditions...),
-		Parameter: []Parameter{
+	// EIP-2200 introduced a minimum amount of available gas for SSTORE.
+	// The gas price still does not change for configurations smaller than the minimum.
+	gasLimit := tosca.Gas(2301) // EIP2200
+	priceDiff := tosca.Gas(0)
+	if params.gasCost > gasLimit {
+		gasLimit = params.gasCost
+	} else {
+		priceDiff = gasLimit - params.gasCost
+	}
+
+	rules := rulesFor(instruction{
+		name:      name,
+		op:        vm.SSTORE,
+		staticGas: gasLimit,
+		pops:      2,
+		pushes:    0,
+		conditions: append(conditions, []Condition{
+			IsRevision(params.revision),
+			Eq(ReadOnly(), false),
+			StorageConfiguration(params.config, Param(0), Param(1)),
+		}...),
+		parameters: []Parameter{
 			NumericParameter{},
 			NumericParameter{},
 		},
-		Effect: Change(func(s *st.State) {
+		effect: func(s *st.State) {
+			// We use the minimum available gas to generate the test cases.
+			// The price difference is added back for configurations with lower gas cost.
+			s.Gas += priceDiff
+
 			s.GasRefund += params.gasRefund
-			s.Gas -= params.gasCost
-			s.Pc++
 			key := s.Stack.Pop()
 			value := s.Stack.Pop()
 			s.Storage.SetCurrent(key, value)
 			if s.Revision >= tosca.R09_Berlin {
 				s.Storage.MarkWarm(key)
 			}
-		}),
-	}
-}
-
-func sstoreOpTooLittleGas(params sstoreOpParams) Rule {
-	name := fmt.Sprintf("sstore_with_too_little_gas_%v_%v", params.revision, params.config)
-
-	conditions := []Condition{
-		IsRevision(params.revision),
-		Eq(Status(), st.Running),
-		Eq(Op(Pc()), vm.SSTORE),
-		Lt(Gas(), params.gasCost),
-		Eq(ReadOnly(), false),
-		Ge(StackSize(), 2),
-		StorageConfiguration(params.config, Param(0), Param(1)),
-	}
-
-	if params.revision >= tosca.R09_Berlin {
-		if params.warm {
-			name += "_warm"
-			conditions = append(conditions, IsStorageWarm(Param(0)))
-		} else {
-			name += "_cold"
-			conditions = append(conditions, IsStorageCold(Param(0)))
-		}
-	}
-
-	return Rule{
-		Name:      name,
-		Condition: And(conditions...),
-		Parameter: []Parameter{
-			NumericParameter{},
-			NumericParameter{},
 		},
-		Effect: FailEffect(),
-	}
+	})
+
+	return rules
 }
 
-func sstoreOpReadOnlyMode(params sstoreOpParams) Rule {
-	name := fmt.Sprintf("sstore_in_read_only_mode_%v_%v", params.revision, params.config)
+func sstoreOpReadOnlyMode(params sstoreOpParams) []Rule {
+	name := fmt.Sprintf("_read_only_%v_%v", params.revision, params.config)
 
 	gasLimit := tosca.Gas(2301) // EIP2200
 	if params.gasCost > gasLimit {
 		gasLimit = params.gasCost
 	}
 
-	conditions := []Condition{
-		IsRevision(params.revision),
-		Eq(Status(), st.Running),
-		Eq(Op(Pc()), vm.SSTORE),
-		Ge(Gas(), gasLimit),
-		Eq(ReadOnly(), true),
-		Ge(StackSize(), 2),
-		StorageConfiguration(params.config, Param(0), Param(1)),
-	}
-
-	return Rule{
-		Name:      name,
-		Condition: And(conditions...),
-		Parameter: []Parameter{
+	rules := rulesFor(instruction{
+		name:      name,
+		op:        vm.SSTORE,
+		staticGas: gasLimit,
+		pops:      2,
+		pushes:    0,
+		conditions: []Condition{
+			IsRevision(params.revision),
+			Eq(ReadOnly(), true),
+			StorageConfiguration(params.config, Param(0), Param(1)),
+		},
+		parameters: []Parameter{
 			NumericParameter{},
 			NumericParameter{},
 		},
-		Effect: FailEffect(),
-	}
+		effect: FailEffect().Apply,
+	})
+
+	return rules
 }
 
 func logOp(n int) []Rule {
@@ -2424,19 +2397,17 @@ func getRulesForAllCallTypes() []Rule {
 			for _, warm := range []bool{true, false} {
 				for _, static := range []bool{true, false} {
 					for _, zeroValue := range []bool{true, false} {
-						for _, delegationDesignator := range []DelegationDesignatorState{NoDelegationDesignation, WarmDelegationDesignation, ColdDelegationDesignation} {
-
-							// delegationDesignator is introduced in Prague; for any revision before, cold and warm cases
-							// are analogogus and half of them can be pruned.
-							if rev < tosca.R14_Prague && delegationDesignator == ColdDelegationDesignation {
-								continue
+						effect := callEffect
+						if op == vm.CALL && static && !zeroValue {
+							effect = callFailEffect
+						}
+						if rev < tosca.R14_Prague {
+							res = append(res, getRulesForCall(op, rev, warm, zeroValue, nil, effect, static)...)
+						} else {
+							delegations := []DelegationDesignatorState{NoDelegationDesignation, WarmDelegationDesignation, ColdDelegationDesignation}
+							for _, delegationDesignator := range delegations {
+								res = append(res, getRulesForCall(op, rev, warm, zeroValue, &delegationDesignator, effect, static)...)
 							}
-
-							effect := callEffect
-							if op == vm.CALL && static && !zeroValue {
-								effect = callFailEffect
-							}
-							res = append(res, getRulesForCall(op, rev, warm, zeroValue, delegationDesignator, effect, static)...)
 						}
 					}
 				}
@@ -2447,7 +2418,14 @@ func getRulesForAllCallTypes() []Rule {
 	return res
 }
 
-func getRulesForCall(op vm.OpCode, revision tosca.Revision, warm, zeroValue bool, delegationDesignator DelegationDesignatorState, opEffect func(s *st.State, addrAccessCost tosca.Gas, op vm.OpCode), static bool) []Rule {
+func getRulesForCall(
+	op vm.OpCode,
+	revision tosca.Revision,
+	warm, zeroValue bool,
+	delegationDesignator *DelegationDesignatorState,
+	opEffect func(s *st.State, addrAccessCost tosca.Gas, op vm.OpCode),
+	static bool,
+) []Rule {
 
 	var staticGas tosca.Gas
 	var addressAccessCost tosca.Gas
@@ -2494,7 +2472,10 @@ func getRulesForCall(op vm.OpCode, revision tosca.Revision, warm, zeroValue bool
 		IsRevision(revision),
 		targetWarm,
 		staticCondition,
-		ConstraintDelegationDesignator(Param(1), delegationDesignator),
+	}
+
+	if delegationDesignator != nil {
+		callConditions = append(callConditions, ConstraintDelegationDesignator(Param(1), *delegationDesignator))
 	}
 
 	var valueZeroCondition Condition
@@ -2531,8 +2512,10 @@ func getRulesForCall(op vm.OpCode, revision tosca.Revision, warm, zeroValue bool
 		warmColdString,
 		staticConditionName,
 		valueZeroConditionName,
-		delegationDesignator.String(),
 	}, "_")
+	if delegationDesignator != nil {
+		name += "_" + delegationDesignator.String()
+	}
 	name = strings.ReplaceAll(name, "__", "_")
 
 	return rulesFor(instruction{
