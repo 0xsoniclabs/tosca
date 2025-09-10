@@ -218,7 +218,7 @@ func corpusEntryToCtState(opCodes []byte, gas int64, revision byte, stackBytes [
 		return nil, fmt.Errorf("gas too large %v", gas)
 	}
 
-	if tosca.Revision(revision) < MinRevision || tosca.Revision(revision) > NewestSupportedRevision {
+	if tosca.Revision(revision) < MinRevision || tosca.Revision(revision) > NewestFullySupportedRevision {
 		return nil, fmt.Errorf("unsupported revision %v", revision)
 	}
 
