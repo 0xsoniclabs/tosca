@@ -1212,6 +1212,7 @@ func TestRunContextAdapter_bigIntToWord(t *testing.T) {
 }
 
 func TestRunContextAdapter_ConvertRevision(t *testing.T) {
+	osakaTime := uint64(1200)
 	pragueTime := uint64(1100)
 	cancunTime := uint64(1000)
 	shanghaiTime := uint64(900)
@@ -1265,6 +1266,12 @@ func TestRunContextAdapter_ConvertRevision(t *testing.T) {
 			time:   pragueTime,
 			want:   tosca.R14_Prague,
 		},
+		"Osaka": {
+			random: &common.Hash{0x42},
+			block:  parisBlock,
+			time:   osakaTime,
+			want:   tosca.R15_Osaka,
+		},
 	}
 
 	chainConfig := &params.ChainConfig{
@@ -1276,6 +1283,7 @@ func TestRunContextAdapter_ConvertRevision(t *testing.T) {
 		ShanghaiTime:       &shanghaiTime,
 		CancunTime:         &cancunTime,
 		PragueTime:         &pragueTime,
+		OsakaTime:          &osakaTime,
 	}
 
 	for name, test := range tests {
@@ -1470,49 +1478,56 @@ func TestGethInterpreterAdapter_RefundShiftIsReverted(t *testing.T) {
 
 func TestGethAdapter_IsPrecompiledContractDependsOnRevision(t *testing.T) {
 	tests := map[string]struct {
-		revision        tosca.Revision
-		lastPrecompiled int
+		revision             tosca.Revision
+		precompiledAddresses []uint64
 	}{
 		"istanbul": {
-			revision:        tosca.R07_Istanbul,
-			lastPrecompiled: 9,
+			revision:             tosca.R07_Istanbul,
+			precompiledAddresses: []uint64{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09},
 		},
 		"berlin": {
-			revision:        tosca.R09_Berlin,
-			lastPrecompiled: 9,
+			revision:             tosca.R09_Berlin,
+			precompiledAddresses: []uint64{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09},
 		},
 		"london": {
-			revision:        tosca.R10_London,
-			lastPrecompiled: 9,
+			revision:             tosca.R10_London,
+			precompiledAddresses: []uint64{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09},
 		},
 		"paris": {
-			revision:        tosca.R11_Paris,
-			lastPrecompiled: 9,
+			revision:             tosca.R11_Paris,
+			precompiledAddresses: []uint64{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09},
 		},
 		"shanghai": {
-			revision:        tosca.R12_Shanghai,
-			lastPrecompiled: 9,
+			revision:             tosca.R12_Shanghai,
+			precompiledAddresses: []uint64{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09},
 		},
 		"cancun": {
-			revision:        tosca.R13_Cancun,
-			lastPrecompiled: 10,
+			revision:             tosca.R13_Cancun,
+			precompiledAddresses: []uint64{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A},
 		},
 		"prague": {
-			revision:        tosca.R14_Prague,
-			lastPrecompiled: 17,
+			revision:             tosca.R14_Prague,
+			precompiledAddresses: []uint64{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11},
+		},
+		"osaka": {
+			revision:             tosca.R15_Osaka,
+			precompiledAddresses: []uint64{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x100},
 		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			for i := range test.lastPrecompiled + 256 {
+			for i := range len(test.precompiledAddresses) + 256 {
 				address := uint256.NewInt(uint64(i)).Bytes20()
 				got := isPrecompiledContract(address, test.revision)
-				if !got && (i > 0 && i <= test.lastPrecompiled) {
-					t.Errorf("Expected %v to be precompiled, got %v", address, got)
-				}
-				if got && (i < 1 || i > test.lastPrecompiled) {
-					t.Errorf("Expected %v to not be precompiled, got %v", address, got)
+				if slices.Contains(test.precompiledAddresses, uint64(i)) {
+					if !got {
+						t.Errorf("Address %v should be precompiled for revision %v", address, test.revision)
+					}
+				} else {
+					if got {
+						t.Errorf("Address %v should not be precompiled for revision %v", address, test.revision)
+					}
 				}
 			}
 		})

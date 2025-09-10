@@ -221,7 +221,9 @@ func undoRefundShift(stateDB geth.StateDB, err error, refundShift uint64) {
 }
 
 func convertRevision(rules params.Rules) (tosca.Revision, error) {
-	if rules.IsPrague {
+	if rules.IsOsaka {
+		return tosca.R15_Osaka, nil
+	} else if rules.IsPrague {
 		return tosca.R14_Prague, nil
 	} else if rules.IsCancun {
 		return tosca.R13_Cancun, nil
@@ -580,6 +582,8 @@ func bigIntToWord(value *big.Int) (tosca.Word, error) {
 func isPrecompiledContract(recipient tosca.Address, revision tosca.Revision) bool {
 	var precompiles map[common.Address]geth.PrecompiledContract
 	switch revision {
+	case tosca.R15_Osaka:
+		precompiles = geth.PrecompiledContractsOsaka
 	case tosca.R14_Prague:
 		precompiles = geth.PrecompiledContractsPrague
 	case tosca.R13_Cancun:

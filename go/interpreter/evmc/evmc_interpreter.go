@@ -153,6 +153,8 @@ func toEvmcRevision(revision tosca.Revision) (evmc.Revision, error) {
 		return evmc.Cancun, nil
 	case tosca.R14_Prague:
 		return evmc.Prague, nil
+	case tosca.R15_Osaka:
+		return evmc.Osaka, nil
 	default:
 		return 0, fmt.Errorf("unsupported revision: %v", revision)
 	}

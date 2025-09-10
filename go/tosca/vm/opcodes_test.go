@@ -80,6 +80,7 @@ func TestOpCode_NumberOfOpCodes(t *testing.T) {
 		BASEFEE,                                     // London
 		PUSH0,                                       // Shanghai
 		BLOBHASH, BLOBBASEFEE, TLOAD, TSTORE, MCOPY, // Cancun, Prague
+		// TODO: CLZ // Osaka
 	}
 
 	for i := 0; i < 256; i++ {
