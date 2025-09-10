@@ -51,7 +51,7 @@ const fn gen_jumptable<const STEPPABLE: bool>() -> [OpFn<STEPPABLE>; 256] {
         |i| i.shl(),
         |i| i.shr(),
         |i| i.sar(),
-        |i| i.jumptable_placeholder(),
+        |i| i.clz(),
         |i| i.jumptable_placeholder(),
         |i| i.sha3(),
         #[cfg(feature = "fn-ptr-conversion-dispatch")]
@@ -708,6 +708,15 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.gas_left.consume(3)?;
         let (push_location, [value, shift]) = self.stack.pop_with_location()?;
         push_location.push(value.sar(shift));
+        self.code_reader.next();
+        self.return_from_op()
+    }
+
+    fn clz(&mut self) -> OpResult {
+        check_min_revision(Revision::EVMC_OSAKA, self.revision)?;
+        self.gas_left.consume(5)?;
+        let (push_location, [value]) = self.stack.pop_with_location()?;
+        push_location.push(u256::from(value.leading_zeros()));
         self.code_reader.next();
         self.return_from_op()
     }

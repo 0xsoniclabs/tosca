@@ -72,6 +72,12 @@ impl From<u8> for u256 {
     }
 }
 
+impl From<u32> for u256 {
+    fn from(value: u32) -> Self {
+        Self(U256::from(value))
+    }
+}
+
 impl From<u64> for u256 {
     fn from(value: u64) -> Self {
         Self(U256::from(value))
@@ -434,6 +440,10 @@ impl u256 {
         Self(shr)
     }
 
+    pub fn leading_zeros(&self) -> u32 {
+        self.0.leading_zeros()
+    }
+
     pub fn bits(&self) -> u32 {
         256 - self.0.leading_zeros()
     }
@@ -503,6 +513,9 @@ mod tests {
 
         assert_eq!(u256::from(0u8), u256::ZERO);
         assert_eq!(u256::from(1u8), u256::ONE);
+
+        assert_eq!(u256::from(0u32), u256::ZERO);
+        assert_eq!(u256::from(1u32), u256::ONE);
 
         assert_eq!(u256::from(0u64), u256::ZERO);
         assert_eq!(u256::from(1u64), u256::ONE);
