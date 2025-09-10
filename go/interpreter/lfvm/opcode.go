@@ -148,6 +148,7 @@ const (
 	SHL  = OpCode(vm.SHL)
 	SHR  = OpCode(vm.SHR)
 	SAR  = OpCode(vm.SAR)
+	CLZ  = OpCode(vm.CLZ)
 
 	// Memory
 	MSTORE  = OpCode(vm.MSTORE)

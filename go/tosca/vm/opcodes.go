@@ -534,6 +534,7 @@ func initValidOpCodes() [256]bool {
 	res[BYTE] = true
 	res[SHL] = true
 	res[SHR] = true
+	res[CLZ] = true
 	res[SAR] = true
 	res[CLZ] = true
 	res[SHA3] = true

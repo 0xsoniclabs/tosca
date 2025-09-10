@@ -449,6 +449,15 @@ func opSar(c *context) {
 	b.SRsh(b, uint(a.Uint64()))
 }
 
+func opClz(c *context) error {
+	if !c.isAtLeast(tosca.R15_Osaka) {
+		return errInvalidRevision
+	}
+	a := c.stack.peek()
+	a.SetUint64(256 - uint64(a.BitLen()))
+	return nil
+}
+
 func opSignExtend(c *context) {
 	back, num := c.stack.pop(), c.stack.peek()
 	num.ExtendSign(num, back)

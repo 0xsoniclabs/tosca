@@ -311,6 +311,8 @@ func steps(c *context, oneStepOnly bool) (status, error) {
 			opShl(c)
 		case SAR:
 			opSar(c)
+		case CLZ:
+			err = opClz(c)
 		case SIGNEXTEND:
 			opSignExtend(c)
 		case BYTE:
