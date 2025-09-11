@@ -1517,7 +1517,8 @@ func TestGethAdapter_IsPrecompiledContractDependsOnRevision(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			for i := range len(test.precompiledAddresses) + 256 {
+			slices.Sort(test.precompiledAddresses) // ensure the addresses are in ascending order
+			for i := range test.precompiledAddresses[len(test.precompiledAddresses)-1] + 256 {
 				address := uint256.NewInt(uint64(i)).Bytes20()
 				got := isPrecompiledContract(address, test.revision)
 				if slices.Contains(test.precompiledAddresses, uint64(i)) {
