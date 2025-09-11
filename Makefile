@@ -41,7 +41,10 @@ tosca-cpp-coverage: tosca-cpp
 
 tosca-rust:
 	cd rust; \
-	cargo build --lib --release --features performance
+	cargo build --lib --release --features performance; \
+	# we expect the dynamic library to have .so suffix, so we copy it here if on macOS
+	# on other platforms the .dylib does not exists and the command fails, so we ignore errors
+	cp rust/target/release/libevmrs.dylib rust/target/release/libevmrs.so || true 
 
 tosca-rust-coverage:
 	cd rust; \

@@ -1,0 +1,7 @@
+[target.aarch64-apple-darwin]
+# allow dynamic lookup of symbols
+rustflags = ["-C", "link-arg=-Wl,-undefined,dynamic_lookup"]
+
+[target.x86_664-apple-darwin]
+# allow dynamic lookup of symbols
+rustflags = ["-C", "link-arg=-Wl,-undefined,dynamic_lookup"]
