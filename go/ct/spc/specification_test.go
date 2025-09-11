@@ -277,7 +277,7 @@ func TestSpecification_OnlySelectedRulesApplyToPcOnData(t *testing.T) {
 	rulesPcOnData := []string{"pc_on_data_is_ignored"}
 
 	for _, revision := range tosca.GetAllKnownRevisions() {
-		for instruction := range 255 {
+		for instruction := range 256 {
 			code := st.NewCode([]byte{byte(vm.PUSH1), byte(instruction)})
 			state := st.NewState(code)
 
