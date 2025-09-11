@@ -17,7 +17,7 @@ import (
 )
 
 func TestEffect_Change(t *testing.T) {
-	pcAdd1 := Change(func(s *st.State) {
+	pcAdd1 := Change("pc++", func(s *st.State) {
 		s.Pc += 1
 	})
 
@@ -31,11 +31,11 @@ func TestEffect_Change(t *testing.T) {
 }
 
 func TestEffect_String(t *testing.T) {
-	pcAdd1 := Change(func(s *st.State) {
+	pcAdd1 := Change("pc++", func(s *st.State) {
 		s.Pc += 1
 	})
 
-	if pcAdd1.String() != "change" {
+	if pcAdd1.String() != "pc++" {
 		t.Errorf("effect string is wrong")
 	}
 }

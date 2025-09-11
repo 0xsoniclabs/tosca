@@ -101,6 +101,7 @@ func (r *Rule) GetTestCaseEnumerationInfo() TestCaseEnumerationInfo {
 	for _, parameter := range r.Parameter {
 		res.parameterDomainSizes = append(res.parameterDomainSizes, len(parameter.Samples())+1)
 	}
+	res.effect = r.Effect
 	return res
 }
 
@@ -123,6 +124,7 @@ type TestCaseEnumerationInfo struct {
 	conditions           []string
 	propertyDomains      map[Property][]string
 	parameterDomainSizes []int
+	effect               Effect
 }
 
 func (i *TestCaseEnumerationInfo) TotalNumberOfCases() int {
@@ -166,6 +168,10 @@ func (i *TestCaseEnumerationInfo) String() string {
 	}
 	if len(i.parameterDomainSizes) == 0 {
 		builder.WriteString("\t-none-\n")
+	}
+	if i.effect != nil {
+		builder.WriteString("Effect:\n")
+		builder.WriteString(fmt.Sprintf("\t%v\n", i.effect.String()))
 	}
 	builder.WriteString(fmt.Sprintf("Total number of cases: %d\n", i.TotalNumberOfCases()))
 	return builder.String()
