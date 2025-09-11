@@ -497,6 +497,30 @@ struct Impl<OpCode::SAR> {
 };
 
 template <>
+struct Impl<OpCode::CLZ> {
+  constexpr static OpInfo kInfo = OpInfo{
+      .pops = 1,
+      .pushes = 1,
+      .static_gas = 5,
+      .introduced_in = EVMC_OSAKA,
+  };
+  static OpResult Run(uint256_t* top) noexcept {
+    uint256_t value = top[0];
+    int count = 0;
+    for (int i = 3; i >= 0; --i) {
+      if (value[static_cast<size_t>(i)] == 0) {
+        count += 64;
+      } else {
+        count += std::countl_zero(value[static_cast<size_t>(i)]);
+        break;
+      }
+    }
+    top[0] = count;
+    return {};
+  }
+};
+
+template <>
 struct Impl<OpCode::SHA3> {
   constexpr static OpInfo kInfo = BinaryOp(30);
 
