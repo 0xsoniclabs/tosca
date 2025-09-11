@@ -1,3 +1,4 @@
+from ast import Not
 from cvc5.pythonic import *
 
 ################################################################
@@ -132,47 +133,47 @@ NumStatusCodes = 4
 # Cold account is only used a single time in a rule, there is no need to check the address.
 # It is sufficient to have a single boolean variable denoting whether the account is cold or warm.
 # Cold account
-cold_account_x = Bool('cold_account_x')
 def account_cold(x): # TODO: check that x is always the same variable in the context of one solver call.
-    return cold_account_x
+    return Bool('cold_account_'+str(x))
 
 def account_warm(x):
     return Not(account_cold(x))
 
 # Blob check 
-has_blob_x = Bool('has_blob_x')
 def hasBlobHash(x):
-    return has_blob_x
+    return Bool('has_blob_'+str(x))
 
 # Delegation designation
-deleg_desig_x = Bool('deleg_desig_x')
 def NoDelegationDesignation(x):
-    return Not(deleg_desig_x)
+    return Not(Bool('deleg_desig_'+str(x)))
 
-cold_deleg_x = Bool('cold_deleg_x')
 def ColdDelegationDesignation(x):
-    return And(deleg_desig_x,cold_deleg_x)
+    return And(Not(NoDelegationDesignation(x)), Bool('cold_deleg_'+str(x)))
 
 def WarmDelegationDesignation(x):
-    return And(deleg_desig_x,Not(cold_deleg_x))
+    return And(Not(NoDelegationDesignation(x)), Not(Bool('cold_deleg_'+str(x))))
 
 # Account empty check
-account_empty_x = Bool('account_empty_x')
 def account_empty(x):
-    return account_empty_x
+    return Bool('account_empty_'+str(x))
 
 # Function abstraction for balance with integer variable for the result.
-# The balance function is only used a single time in a rule, there is no need to check the address.
-balance_x = Int('balance_x')
-def balance(x):
-    return balance_x
+# The balance function is only used a single time in a rule, there is no need to check the address.}
 
-tran_storage_x = Bool('tran_storage_x')
+balance_dic = {}
+def balance(x):
+    if str(x) in balance_dic:
+        return balance_dic[str(x)]
+    else:
+        var = Int('balance_'+str(x))
+        balance_dic[str(x)] = var
+        return var
+
 def tranStorageNonZero(x):
-    return tran_storage_x
+    return Bool('tran_storage_'+str(x))
 
 def tranStorageToZero(x):
-    return Not(tran_storage_x)
+    return Not(tranStorageNonZero(x))
 
 # Self address (might not be used)
 self = Int('self')
@@ -180,13 +181,17 @@ self = Int('self')
 # Has self-destructed state
 hasSelfDestructed = Bool('hasSelfDestructed')
 
-inRange_x = Bool('inRange_x')
 def inRange256FromCurrentBlock(x):
-    return inRange_x
+    return Bool('inRange_'+str(x))
 
-storage_cold_x = Bool('storage_cold_x')
+storage_cold_dic = {}
 def storage_cold(x):
-    return storage_cold_x
+    if str(x) in storage_cold_dic:
+        return storage_cold_dic[str(x)]
+    else:
+        var = Bool('storage_cold_'+str(x))
+        storage_cold_dic[str(x)] = var
+        return var
 
 # Storage configuration abstraction
 StorageAssigned = 0
@@ -199,9 +204,15 @@ StorageDeletedRestored = 6
 StorageAddedDeleted = 7
 StorageModifiedRestored = 8
 numStorageStatus = 9
-storage_conf_yz = Int('storage_conf_yz')
+
+storage_conf_dic = {}
 def storageConf(x,y,z):
-    return storage_conf_yz == x
+    if (y,z) in storage_conf_dic:
+        return storage_conf_dic[(y,z)] == x
+    else:
+        var = Int('storageConf_'+str(y)+'_'+str(z))
+        storage_conf_dic[(y,z)] = var
+        return  storage_conf_dic[(y,z)] == x
 
 # ReadOnly Flag for static call execution
 readOnly = Bool('readOnly')
@@ -400,14 +411,18 @@ def code(x):
 # a predicate abstraction, we need a variable abstraction. I.e., we need
 # a boolean variable is_code_pc for code(pc) and a boolean variable 
 # is_code_param_0 for code(param(0)).
-is_code_dict = {}
+# is_code_dict = {}
+# def isCode(x):
+#     if str(x) in is_code_dict:
+#         return is_code_dict[str(x)]
+#     else:
+#         var = Bool('is_code_'+str(x))
+#         is_code_dict[str(x)] = var
+#        return var
+
 def isCode(x):
-    if str(x) in is_code_dict:
-        return is_code_dict[str(x)]
-    else:
-        var = Bool('is_code_'+str(x))
-        is_code_dict[str(x)] = var
-        return var
+    return Bool("is_code_"+str(x))   # is_code variable needs to be unique (e.g. is_code_pc, etc.) 
+
 
 def isData(x):
     return Not(isCode(x))
@@ -437,21 +452,25 @@ def vm_state_solver():
     s.add(gas >= 0)
 
     # bound balance
-    s.add(balance_x >= 0)
+    for x in balance_dic:
+        s.add(balance_dic[x] >= 0)
 
     # bound stack size
     s.add(stackSize >= 0, stackSize <= 1024)
 
     # bound storage status
-    s.add(storage_conf_yz >= 0, storage_conf_yz < numStorageStatus)
+    for conf in storage_conf_dic:
+        s.add(storage_conf_dic[conf] >= 0, storage_conf_dic[conf] < numStorageStatus)
 
     # storage configuration, cold access
-    s.add(Implies(storage_conf_yz == StorageAssigned, Not(storage_cold_x)))
-    s.add(Implies(storage_conf_yz == StorageAddedDeleted, Not(storage_cold_x)))
-    s.add(Implies(storage_conf_yz == StorageDeletedRestored, Not(storage_cold_x)))
-    s.add(Implies(storage_conf_yz == StorageDeletedAdded, Not(storage_cold_x)))
-    s.add(Implies(storage_conf_yz == StorageModifiedDeleted, Not(storage_cold_x)))
-    s.add(Implies(storage_conf_yz == StorageModifiedRestored, Not(storage_cold_x)))
+    for cold in storage_cold_dic:
+        for conf in storage_conf_dic:
+            s.add(Implies(storage_conf_dic[conf] == StorageAssigned, Not(storage_cold_dic[cold])))
+            s.add(Implies(storage_conf_dic[conf] == StorageAddedDeleted, Not(storage_cold_dic[cold])))
+            s.add(Implies(storage_conf_dic[conf] == StorageDeletedRestored, Not(storage_cold_dic[cold])))
+            s.add(Implies(storage_conf_dic[conf] == StorageDeletedAdded, Not(storage_cold_dic[cold])))
+            s.add(Implies(storage_conf_dic[conf] == StorageModifiedDeleted, Not(storage_cold_dic[cold])))
+            s.add(Implies(storage_conf_dic[conf] == StorageModifiedRestored, Not(storage_cold_dic[cold])))
 
     # bound op-code to byte range
     s.add(code(pc) >= 0, code(pc) <= 255)
@@ -525,7 +544,7 @@ def check_completeness(rules):
         return False
     else:
         return True
-
+  
 # open rule file and evaluate
 #
 # NB: a rule file can be generated with the following driver command:
