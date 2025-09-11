@@ -26,6 +26,7 @@ func TestRevisions_Marshal(t *testing.T) {
 		R12_Shanghai: "\"Shanghai\"",
 		R13_Cancun:   "\"Cancun\"",
 		R14_Prague:   "\"Prague\"",
+		R15_Osaka:    "\"Osaka\"",
 		Revision(42): "\"Revision(42)\"",
 	}
 
@@ -49,6 +50,7 @@ func TestRevisions_Unmarshal(t *testing.T) {
 		"\"Shanghai\"":     R12_Shanghai,
 		"\"Cancun\"":       R13_Cancun,
 		"\"Prague\"":       R14_Prague,
+		"\"Osaka\"":        R15_Osaka,
 		"\"Revision(42)\"": Revision(42),
 	}
 

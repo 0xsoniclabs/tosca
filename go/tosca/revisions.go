@@ -33,6 +33,8 @@ func (r Revision) String() string {
 		return "Cancun"
 	case R14_Prague:
 		return "Prague"
+	case R15_Osaka:
+		return "Osaka"
 	default:
 		return fmt.Sprintf("Revision(%d)", r)
 	}
@@ -74,6 +76,8 @@ func (r *Revision) UnmarshalJSON(data []byte) error {
 		revision = R13_Cancun
 	case "Prague":
 		revision = R14_Prague
+	case "Osaka":
+		revision = R15_Osaka
 	default:
 		// read Revision(X) format and extract the number.
 		reg := regexp.MustCompile(`Revision\(([0-9]+)\)`)

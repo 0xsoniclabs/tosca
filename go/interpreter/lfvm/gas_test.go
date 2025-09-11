@@ -60,6 +60,7 @@ func TestGas_getDynamicCostsForSstore_exhaustive(t *testing.T) {
 	specs[tosca.R12_Shanghai] = specs[tosca.R11_Paris]
 	specs[tosca.R13_Cancun] = specs[tosca.R12_Shanghai]
 	specs[tosca.R14_Prague] = specs[tosca.R13_Cancun]
+	specs[tosca.R15_Osaka] = specs[tosca.R14_Prague]
 
 	// Check that gas prices are computed correctly.
 	for _, revision := range tosca.GetAllKnownRevisions() {
@@ -137,6 +138,7 @@ func TestGas_getRefundForSstore_exhaustive(t *testing.T) {
 	specs[tosca.R12_Shanghai] = specs[tosca.R11_Paris]
 	specs[tosca.R13_Cancun] = specs[tosca.R12_Shanghai]
 	specs[tosca.R14_Prague] = specs[tosca.R13_Cancun]
+	specs[tosca.R15_Osaka] = specs[tosca.R14_Prague]
 
 	// Check that gas prices are computed correctly.
 	for _, revision := range tosca.GetAllKnownRevisions() {

@@ -502,6 +502,7 @@ func TestDomain_SamplesKnownValues(t *testing.T) {
 				tosca.R12_Shanghai,
 				tosca.R13_Cancun,
 				tosca.R14_Prague,
+				tosca.R15_Osaka,
 			},
 		},
 		"statusCode-samplesforall": {

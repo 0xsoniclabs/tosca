@@ -190,6 +190,7 @@ const (
 	R12_Shanghai
 	R13_Cancun
 	R14_Prague
+	R15_Osaka
 	numRevisions int = iota
 )
 

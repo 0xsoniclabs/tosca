@@ -634,6 +634,7 @@ func TestCondition_GetTestValues(t *testing.T) {
 			tosca.R12_Shanghai,
 			tosca.R13_Cancun,
 			tosca.R14_Prague,
+			tosca.R15_Osaka,
 			R99_UnknownNextRevision,
 		}},
 		{InRange256FromCurrentBlock(Param(0)), inOutofRangeTestValues},

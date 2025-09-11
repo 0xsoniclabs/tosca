@@ -35,7 +35,7 @@ func init() {
 type gethVm struct{}
 
 // Defines the newest supported revision for this interpreter implementation
-const newestSupportedRevision = tosca.R14_Prague
+const newestSupportedRevision = tosca.R15_Osaka
 
 func (m *gethVm) Run(parameters tosca.Parameters) (tosca.Result, error) {
 	if parameters.Revision > newestSupportedRevision {
@@ -128,6 +128,9 @@ func MakeChainConfig(baseline params.ChainConfig, chainId *big.Int, targetRevisi
 	}
 	if targetRevision >= tosca.R14_Prague {
 		chainConfig.PragueTime = &zeroTime
+	}
+	if targetRevision >= tosca.R15_Osaka {
+		chainConfig.OsakaTime = &zeroTime
 	}
 
 	return chainConfig
