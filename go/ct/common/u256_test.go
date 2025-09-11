@@ -255,20 +255,10 @@ func TestU256Not(t *testing.T) {
 }
 
 func TestU256BitLen(t *testing.T) {
-	if NewU256(0).BitLen() != 0 {
-		t.Fail()
-	}
-	if NewU256(1).BitLen() != 1 {
-		t.Fail()
-	}
-	if NewU256(2).BitLen() != 2 {
-		t.Fail()
-	}
-	if NewU256(4).BitLen() != 3 {
-		t.Fail()
-	}
-	if NewU256(0).Not().BitLen() != 256 {
-		t.Fail()
+	for i := range 256 {
+		if NewU256(1).Shl(NewU256(uint64(i))).BitLen() != i+1 {
+			t.Fail()
+		}
 	}
 }
 
