@@ -102,6 +102,7 @@ func getAllRules() []Rule {
 				Condition: And(
 					Eq(Status(), st.Running),
 					Eq(Op(Pc()), op),
+					IsCode(Pc()),
 					AnyKnownRevision(),
 				),
 				Effect: FailEffect(),
@@ -578,37 +579,42 @@ func getAllRules() []Rule {
 		},
 	})...)
 
-	rules = append(rules, []Rule{
-		{
-			Name: "jump_to_data",
-			Condition: And(
-				AnyKnownRevision(),
-				Eq(Status(), st.Running),
-				Eq(Op(Pc()), vm.JUMP),
-				Ge(Gas(), 8),
-				Ge(StackSize(), 1),
-				IsData(Param(0)),
-			),
-			Effect: FailEffect(),
+	rules = append(rules, rulesFor(instruction{
+		name:      "_to_data",
+		op:        vm.JUMP,
+		staticGas: 8,
+		pops:      1,
+		pushes:    0,
+		parameters: []Parameter{
+			JumpTargetParameter{},
 		},
+		conditions: []Condition{
+			AnyKnownRevision(),
+			Eq(Status(), st.Running),
+			Eq(Op(Pc()), vm.JUMP),
+			IsData(Param(0)),
+		},
+		effect: FailEffect().Apply,
+	})...)
 
-		{
-			Name: "jump_to_invalid_destination",
-			Parameter: []Parameter{
-				JumpTargetParameter{},
-			},
-			Condition: And(
-				AnyKnownRevision(),
-				Eq(Status(), st.Running),
-				Eq(Op(Pc()), vm.JUMP),
-				Ge(Gas(), 8),
-				Ge(StackSize(), 1),
-				IsCode(Param(0)),
-				Ne(Op(Param(0)), vm.JUMPDEST),
-			),
-			Effect: FailEffect(),
+	rules = append(rules, rulesFor(instruction{
+		name:      "_to_invalid_destination",
+		op:        vm.JUMP,
+		staticGas: 8,
+		pops:      1,
+		pushes:    0,
+		parameters: []Parameter{
+			JumpTargetParameter{},
 		},
-	}...)
+		conditions: []Condition{
+			AnyKnownRevision(),
+			Eq(Status(), st.Running),
+			Eq(Op(Pc()), vm.JUMP),
+			IsCode(Param(0)),
+			Ne(Op(Param(0)), vm.JUMPDEST),
+		},
+		effect: FailEffect().Apply,
+	})...)
 
 	// --- JUMPI ---
 
@@ -633,58 +639,59 @@ func getAllRules() []Rule {
 		},
 	})...)
 
-	rules = append(rules, []Rule{
-		{
-			Name: "jumpi_not_taken",
-			Condition: And(
-				AnyKnownRevision(),
-				Eq(Status(), st.Running),
-				Eq(Op(Pc()), vm.JUMPI),
-				Ge(Gas(), 10),
-				Ge(StackSize(), 2),
-				Eq(Param(1), NewU256(0)),
-			),
-			Effect: Change(func(s *st.State) {
-				s.Gas -= 10
-				s.Stack.Pop()
-				s.Stack.Pop()
-				s.Pc += 1
-			}),
+	rules = append(rules, rulesFor(instruction{
+		name:      "_jump_not_taken",
+		op:        vm.JUMPI,
+		staticGas: 10,
+		pops:      2,
+		pushes:    0,
+		parameters: []Parameter{
+			JumpTargetParameter{},
+			NumericParameter{},
 		},
+		conditions: []Condition{
+			Eq(Param(1), NewU256(0)),
+		},
+		effect: func(s *st.State) {
+			s.Stack.Pop()
+			s.Stack.Pop()
+		},
+	})...)
 
-		{
-			Name: "jumpi_to_data",
-			Condition: And(
-				AnyKnownRevision(),
-				Eq(Status(), st.Running),
-				Eq(Op(Pc()), vm.JUMPI),
-				Ge(Gas(), 10),
-				Ge(StackSize(), 2),
-				IsData(Param(0)),
-				Ne(Param(1), NewU256(0)),
-			),
-			Effect: FailEffect(),
+	rules = append(rules, rulesFor(instruction{
+		name:      "_jump_to_data",
+		op:        vm.JUMPI,
+		staticGas: 10,
+		pops:      2,
+		pushes:    0,
+		parameters: []Parameter{
+			JumpTargetParameter{},
+			NumericParameter{},
 		},
+		conditions: []Condition{
+			IsData(Param(0)),
+			Ne(Param(1), NewU256(0)),
+		},
+		effect: FailEffect().Apply,
+	})...)
 
-		{
-			Name: "jumpi_to_invalid_destination",
-			Parameter: []Parameter{
-				JumpTargetParameter{},
-				NumericParameter{},
-			},
-			Condition: And(
-				AnyKnownRevision(),
-				Eq(Status(), st.Running),
-				Eq(Op(Pc()), vm.JUMPI),
-				Ge(Gas(), 10),
-				Ge(StackSize(), 2),
-				IsCode(Param(0)),
-				Ne(Op(Param(0)), vm.JUMPDEST),
-				Ne(Param(1), NewU256(0)),
-			),
-			Effect: FailEffect(),
+	rules = append(rules, rulesFor(instruction{
+		name:      "_jump_to_invalid_destination",
+		op:        vm.JUMPI,
+		staticGas: 10,
+		pops:      2,
+		pushes:    0,
+		parameters: []Parameter{
+			JumpTargetParameter{},
+			NumericParameter{},
 		},
-	}...)
+		conditions: []Condition{
+			Ne(Param(1), NewU256(0)),
+			IsCode(Param(0)),
+			Ne(Op(Param(0)), vm.JUMPDEST),
+		},
+		effect: FailEffect().Apply,
+	})...)
 
 	// --- PC ---
 
@@ -777,6 +784,7 @@ func getAllRules() []Rule {
 			RevisionBounds(tosca.R07_Istanbul, tosca.R12_Shanghai),
 			Eq(Status(), st.Running),
 			Eq(Op(Pc()), vm.TLOAD),
+			IsCode(Pc()),
 		),
 		Effect: FailEffect(),
 	})
@@ -831,6 +839,7 @@ func getAllRules() []Rule {
 			RevisionBounds(tosca.R07_Istanbul, tosca.R12_Shanghai),
 			Eq(Status(), st.Running),
 			Eq(Op(Pc()), vm.TSTORE),
+			IsCode(Pc()),
 		),
 		Effect: FailEffect(),
 	})
@@ -861,19 +870,17 @@ func getAllRules() []Rule {
 		},
 	})...)
 
-	rules = append(rules, []Rule{
-		{
-			Name: "push0_invalid_revision",
-			Condition: And(
-				RevisionBounds(tosca.R07_Istanbul, tosca.R11_Paris),
-				Eq(Status(), st.Running),
-				Eq(Op(Pc()), vm.PUSH0),
-				Ge(Gas(), 2),
-				Lt(StackSize(), st.MaxStackSize-1),
-			),
-			Effect: FailEffect(),
+	rules = append(rules, rulesFor(instruction{
+		name:      "_invalid_revision",
+		op:        vm.PUSH0,
+		staticGas: 2,
+		pops:      0,
+		pushes:    1,
+		conditions: []Condition{
+			RevisionBounds(tosca.R07_Istanbul, tosca.R11_Paris),
 		},
-	}...)
+		effect: FailEffect().Apply,
+	})...)
 
 	// --- MCOPY ---
 
@@ -919,6 +926,7 @@ func getAllRules() []Rule {
 				RevisionBounds(tosca.R07_Istanbul, tosca.R12_Shanghai),
 				Eq(Status(), st.Running),
 				Eq(Op(Pc()), vm.MCOPY),
+				IsCode(Pc()),
 			),
 			Effect: FailEffect(),
 		},
@@ -1263,6 +1271,7 @@ func getAllRules() []Rule {
 				RevisionBounds(tosca.R07_Istanbul, tosca.R09_Berlin),
 				Eq(Status(), st.Running),
 				Eq(Op(Pc()), vm.BASEFEE),
+				IsCode(Pc()),
 			),
 			Effect: FailEffect(),
 		},
@@ -1310,6 +1319,7 @@ func getAllRules() []Rule {
 				RevisionBounds(tosca.R07_Istanbul, tosca.R12_Shanghai),
 				Eq(Status(), st.Running),
 				Eq(Op(Pc()), vm.BLOBHASH),
+				IsCode(Pc()),
 			),
 			Effect: FailEffect(),
 		},
@@ -1335,6 +1345,7 @@ func getAllRules() []Rule {
 				RevisionBounds(tosca.R07_Istanbul, tosca.R12_Shanghai),
 				Eq(Status(), st.Running),
 				Eq(Op(Pc()), vm.BLOBBASEFEE),
+				IsCode(Pc()),
 			),
 			Effect: FailEffect(),
 		},
@@ -2177,20 +2188,18 @@ func logOp(n int) []Rule {
 	})
 
 	// Read only mode
-	conditions = []Condition{
-		AnyKnownRevision(),
-		Eq(Status(), st.Running),
-		Eq(Op(Pc()), op),
-		Ge(Gas(), minGas),
-		Eq(ReadOnly(), true),
-		Ge(StackSize(), 2+n),
-	}
-
-	rules = append(rules, []Rule{{
-		Name:      fmt.Sprintf("%v_in_read_only_mode", strings.ToLower(op.String())),
-		Condition: And(conditions...),
-		Effect:    FailEffect(),
-	}}...)
+	rules = append(rules, rulesFor(instruction{
+		name:       "_read_only_mode",
+		op:         op,
+		staticGas:  minGas,
+		pops:       2 + n,
+		pushes:     0,
+		parameters: parameter,
+		conditions: []Condition{
+			Eq(ReadOnly(), true),
+		},
+		effect: FailEffect().Apply,
+	})...)
 
 	return rules
 }
@@ -2322,6 +2331,7 @@ func tooLittleGas(i instruction) []Rule {
 		AnyKnownRevision(),
 		Eq(Status(), st.Running),
 		Eq(Op(Pc()), i.op),
+		IsCode(Pc()),
 		Lt(Gas(), i.staticGas))
 	return []Rule{{
 		Name:      fmt.Sprintf("%v_with_too_little_gas%v", strings.ToLower(i.op.String()), i.name),
@@ -2335,6 +2345,7 @@ func notEnoughSpace(i instruction) []Rule {
 		AnyKnownRevision(),
 		Eq(Status(), st.Running),
 		Eq(Op(Pc()), i.op),
+		IsCode(Pc()),
 		Ge(StackSize(), st.MaxStackSize))
 	return []Rule{{
 		Name:      fmt.Sprintf("%v_with_not_enough_space%v", strings.ToLower(i.op.String()), i.name),
@@ -2348,6 +2359,7 @@ func tooFewElements(i instruction) []Rule {
 		AnyKnownRevision(),
 		Eq(Status(), st.Running),
 		Eq(Op(Pc()), i.op),
+		IsCode(Pc()),
 		Lt(StackSize(), i.pops))
 	return []Rule{{
 		Name:      fmt.Sprintf("%v_with_too_few_elements%v", strings.ToLower(i.op.String()), i.name),
