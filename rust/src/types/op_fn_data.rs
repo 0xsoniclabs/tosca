@@ -9,10 +9,10 @@ use crate::{
 
 // All function pointers stored here are pointers to functions implementing opcodes and come from
 // the same jumptable. This means that for the same opcode we always get the same function pointer.
-// And since the pointers are the top entry point of the function implementing the opcode, two
-// different opcodes can not have the same function pointer because then they would do the same
-// thing. This means that comparing function pointers for equality is equivalent to comparing the
-// opcodes they implement for equality.
+// Since the pointers are the top entry point of the function implementing the opcode, two different
+// opcodes cannot have the same function pointer because then they would do the same thing. This
+// means that comparing function pointers for equality is equivalent to comparing the opcodes they
+// implement for equality.
 #[allow(unpredictable_function_pointer_comparisons)]
 #[derive(Clone, PartialEq, Eq)]
 pub struct OpFnData<const STEPPABLE: bool> {
