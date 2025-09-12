@@ -133,8 +133,8 @@ impl Stack {
     }
 
     pub fn pop_with_location<const N: usize>(
-        &mut self,
-    ) -> Result<(PushLocation, [u256; N]), FailStatus> {
+        &'_ mut self,
+    ) -> Result<(PushLocation<'_>, [u256; N]), FailStatus> {
         let () = const { NonZero::<N>::VALID };
 
         self.check_underflow(N)?;
