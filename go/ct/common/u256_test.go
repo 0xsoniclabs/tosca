@@ -254,6 +254,18 @@ func TestU256Not(t *testing.T) {
 	}
 }
 
+func TestU256BitLen(t *testing.T) {
+	if NewU256(0).BitLen() != 0 {
+		t.Fail()
+	}
+
+	for i := range 256 {
+		if NewU256(1).Shl(NewU256(uint64(i))).BitLen() != i+1 {
+			t.Fail()
+		}
+	}
+}
+
 func TestU256Shl(t *testing.T) {
 	x := NewU256(42)
 	if x.Shl(NewU256(64)).Ne(NewU256(42, 0)) {

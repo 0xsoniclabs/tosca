@@ -220,6 +220,10 @@ func (a U256) Not() (z U256) {
 	return
 }
 
+func (a U256) BitLen() int {
+	return a.internal.BitLen()
+}
+
 func (a U256) Shl(b U256) (z U256) {
 	if b.internal.LtUint64(256) {
 		z.internal.Lsh(&a.internal, uint(b.internal.Uint64()))

@@ -250,6 +250,38 @@ func getAllRules() []Rule {
 		return value.Srsh(shift)
 	})...)
 
+	// --- CLZ ---
+
+	rules = append(rules, rulesFor(instruction{
+		op:        vm.CLZ,
+		staticGas: 5,
+		pops:      1,
+		pushes:    1,
+		conditions: []Condition{
+			RevisionBounds(tosca.R15_Osaka, NewestSupportedRevision),
+		},
+		parameters: []Parameter{
+			NumericParameter{},
+		},
+		effect: func(s *st.State) {
+			x := s.Stack.Pop()
+			s.Stack.Push(NewU256(256 - uint64(x.BitLen())))
+		},
+	})...)
+
+	rules = append(rules, []Rule{
+		{
+			Name: "CLZ_invalid_revision",
+			Condition: And(
+				RevisionBounds(tosca.R07_Istanbul, tosca.R14_Prague),
+				Eq(Status(), st.Running),
+				Eq(Op(Pc()), vm.CLZ),
+				IsCode(Pc()),
+			),
+			Effect: FailEffect(),
+		},
+	}...)
+
 	// --- SHA3 ---
 
 	rules = append(rules, rulesFor(instruction{

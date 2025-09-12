@@ -43,6 +43,7 @@ const (
 	SHL            OpCode = 0x1B
 	SHR            OpCode = 0x1C
 	SAR            OpCode = 0x1D
+	CLZ            OpCode = 0x1E
 	SHA3           OpCode = 0x20
 	ADDRESS        OpCode = 0x30
 	BALANCE        OpCode = 0x31
@@ -245,6 +246,8 @@ func (op OpCode) String() string {
 		return "SHR"
 	case SAR:
 		return "SAR"
+	case CLZ:
+		return "CLZ"
 	case SHA3:
 		return "SHA3"
 	case ADDRESS:
@@ -532,6 +535,7 @@ func initValidOpCodes() [256]bool {
 	res[SHL] = true
 	res[SHR] = true
 	res[SAR] = true
+	res[CLZ] = true
 	res[SHA3] = true
 	res[ADDRESS] = true
 	res[BALANCE] = true
