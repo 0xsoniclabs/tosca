@@ -505,17 +505,7 @@ struct Impl<OpCode::CLZ> {
       .introduced_in = EVMC_OSAKA,
   };
   static OpResult Run(uint256_t* top) noexcept {
-    uint256_t value = top[0];
-    int count = 0;
-    for (int i = 3; i >= 0; --i) {
-      if (value[static_cast<size_t>(i)] == 0) {
-        count += 64;
-      } else {
-        count += std::countl_zero(value[static_cast<size_t>(i)]);
-        break;
-      }
-    }
-    top[0] = count;
+    top[0] = intx::clz(top[0]);
     return {};
   }
 };
