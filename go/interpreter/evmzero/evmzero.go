@@ -116,7 +116,7 @@ type evmzeroInstance struct {
 	e *evmc.EvmcInterpreter
 }
 
-const newestSupportedRevision = tosca.R14_Prague
+const newestSupportedRevision = tosca.R15_Osaka
 
 func (e *evmzeroInstance) Run(params tosca.Parameters) (tosca.Result, error) {
 	if params.Revision > newestSupportedRevision {

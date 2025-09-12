@@ -1550,6 +1550,60 @@ TEST(InterpreterTest, SAR_StackError) {
 }
 
 ///////////////////////////////////////////////////////////
+// CLZ
+TEST(InterpreterTest, CLZ) {
+  RunInterpreterTest({
+      .code = {op::CLZ},
+      .state_after = RunState::kDone,
+      .gas_before = 10,
+      .gas_after = 5,
+      .stack_before = {0x0},
+      .stack_after = {0x0100},
+      .revision = EVMC_OSAKA,
+  });
+
+  for (uint32_t i = 0; i < 256; ++i) {
+    RunInterpreterTest({
+        .code = {op::CLZ},
+        .state_after = RunState::kDone,
+        .gas_before = 10,
+        .gas_after = 5,
+        .stack_before = {uint256_t{1} << i},
+        .stack_after = {255 - i},
+        .revision = EVMC_OSAKA,
+    });
+  }
+}
+
+TEST(InterpreterTest, CLZ_OutOfGas) {
+  RunInterpreterTest({
+      .code = {op::CLZ},
+      .state_after = RunState::kErrorGas,
+      .gas_before = 4,
+      .stack_before = {0x0},
+      .revision = EVMC_OSAKA,
+  });
+}
+
+TEST(InterpreterTest, CLZ_StackError) {
+  RunInterpreterTest({
+      .code = {op::CLZ},
+      .state_after = RunState::kErrorStackUnderflow,
+      .gas_before = 10,
+      .revision = EVMC_OSAKA,
+  });
+}
+
+TEST(InterpreterTest, CLZ_PreOsaka) {
+  RunInterpreterTest({
+      .code = {op::CLZ},
+      .state_after = RunState::kErrorOpcode,
+      .gas_before = 10,
+      .revision = EVMC_PRAGUE,
+  });
+}
+
+///////////////////////////////////////////////////////////
 // SHA3
 TEST(InterpreterTest, SHA3) {
   RunInterpreterTest({

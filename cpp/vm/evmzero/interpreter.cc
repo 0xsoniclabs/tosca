@@ -497,6 +497,20 @@ struct Impl<OpCode::SAR> {
 };
 
 template <>
+struct Impl<OpCode::CLZ> {
+  constexpr static OpInfo kInfo = OpInfo{
+      .pops = 1,
+      .pushes = 1,
+      .static_gas = 5,
+      .introduced_in = EVMC_OSAKA,
+  };
+  static OpResult Run(uint256_t* top) noexcept {
+    top[0] = intx::clz(top[0]);
+    return {};
+  }
+};
+
+template <>
 struct Impl<OpCode::SHA3> {
   constexpr static OpInfo kInfo = BinaryOp(30);
 
