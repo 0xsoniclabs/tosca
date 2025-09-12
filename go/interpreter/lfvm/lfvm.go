@@ -118,7 +118,7 @@ func newVm(config config) (*lfvm, error) {
 }
 
 // Defines the newest supported revision for this interpreter implementation
-const newestSupportedRevision = tosca.R14_Prague
+const newestSupportedRevision = tosca.R15_Osaka
 
 func (e *lfvm) Run(params tosca.Parameters) (tosca.Result, error) {
 	if params.Revision > newestSupportedRevision {

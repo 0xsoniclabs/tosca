@@ -75,6 +75,7 @@ func TestContext_isAtLeast_RespectsOrderOfRevisions(t *testing.T) {
 		tosca.R12_Shanghai,
 		tosca.R13_Cancun,
 		tosca.R14_Prague,
+		tosca.R15_Osaka,
 	}
 
 	for _, is := range revisions {
@@ -800,6 +801,8 @@ func fib(x int) int {
 
 var _introducedIn = newOpCodePropertyMap(func(op OpCode) tosca.Revision {
 	switch op {
+	case CLZ:
+		return tosca.R15_Osaka
 	case BASEFEE:
 		return tosca.R10_London
 	case PUSH0:

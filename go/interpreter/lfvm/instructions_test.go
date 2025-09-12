@@ -1805,6 +1805,61 @@ func TestInstructions_ComparisonAndShiftOperations(t *testing.T) {
 	}
 }
 
+func TestInstructions_CLZRangeOfInputs(t *testing.T) {
+	stack := NewStack()
+	defer ReturnStack(stack)
+
+	ctxt := context{
+		stack: stack,
+	}
+	ctxt.params.Revision = tosca.R15_Osaka
+
+	stack.push(uint256.NewInt(0))
+	err := opClz(&ctxt)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result := ctxt.stack.pop(); result.Cmp(uint256.NewInt(256)) != 0 {
+		t.Errorf("unexpected result for 0, wanted 256, got %d", result)
+	}
+
+	for i := range 256 {
+		stack.push(uint256.NewInt(1).Lsh(uint256.NewInt(1), uint(i)))
+		err = opClz(&ctxt)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result := ctxt.stack.pop(); result.Cmp(uint256.NewInt(255-uint64(i))) != 0 {
+			t.Errorf("unexpected result for 1<<%d, wanted %d, got %d", i, 255-uint64(i), result)
+		}
+	}
+}
+
+func TestInstructions_CLZReturnsErrorPreOsaka(t *testing.T) {
+	for _, revision := range tosca.GetAllKnownRevisions() {
+		stack := NewStack()
+		defer ReturnStack(stack)
+
+		ctxt := context{
+			stack: stack,
+		}
+
+		stack.push(uint256.NewInt(0))
+		ctxt.params.Revision = revision
+
+		err := opClz(&ctxt)
+		if revision < tosca.R15_Osaka {
+			if err != errInvalidRevision {
+				t.Fatalf("unexpected error, wanted %v, got %v", errInvalidRevision, err)
+			}
+		} else {
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		}
+	}
+}
+
 func TestInstructions_OpExtCodeCopy_CallsContextAndCopiesCodeSlice(t *testing.T) {
 
 	code := []byte{0x1, 0x2, 0x3, 0x4}

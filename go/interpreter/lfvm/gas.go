@@ -90,6 +90,8 @@ func getStaticGasPriceInternal(op OpCode) tosca.Gas {
 		return 2
 	}
 	switch op {
+	case CLZ:
+		return 5
 	case POP:
 		return 2
 	case PUSH0:
