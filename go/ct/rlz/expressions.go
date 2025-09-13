@@ -16,6 +16,7 @@ import (
 
 	. "github.com/0xsoniclabs/tosca/go/ct/common"
 	"github.com/0xsoniclabs/tosca/go/ct/gen"
+	"github.com/0xsoniclabs/tosca/go/ct/sexpr"
 	"github.com/0xsoniclabs/tosca/go/ct/st"
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"github.com/0xsoniclabs/tosca/go/tosca/vm"
@@ -43,6 +44,7 @@ type Expression[T any] interface {
 	// states.
 	Restrict(kind RestrictionKind, value T, generator *gen.StateGenerator)
 
+	sexpr.Expressioner
 	fmt.Stringer
 }
 
@@ -85,6 +87,10 @@ func (status) String() string {
 	return "status"
 }
 
+func (status) Expression() sexpr.Expression {
+	return sexpr.List("status", "state")
+}
+
 ////////////////////////////////////////////////////////////
 // Program Counter
 
@@ -124,6 +130,10 @@ func (e pc) BindTo(generator *gen.StateGenerator) {
 	generator.BindPc(e.GetVariable())
 }
 
+func (pc) Expression() sexpr.Expression {
+	return sexpr.List("pc", "state")
+}
+
 ////////////////////////////////////////////////////////////
 // Gas Counter
 
@@ -158,6 +168,10 @@ func (gas) Restrict(kind RestrictionKind, amount tosca.Gas, generator *gen.State
 
 func (gas) String() string {
 	return "Gas"
+}
+
+func (gas) Expression() sexpr.Expression {
+	return sexpr.List("gas", "state")
 }
 
 ////////////////////////////////////////////////////////////
@@ -196,6 +210,10 @@ func (s selfAddress) BindTo(generator *gen.StateGenerator) {
 	generator.BindToSelfAddress(s.GetVariable())
 }
 
+func (selfAddress) Expression() sexpr.Expression {
+	return sexpr.Atom("selfAddress")
+}
+
 // //////////////////////////////////////////////////////////
 // Read Only Mode
 type readOnly struct{}
@@ -221,6 +239,10 @@ func (readOnly) Restrict(kind RestrictionKind, isSet bool, generator *gen.StateG
 
 func (readOnly) String() string {
 	return "readOnly"
+}
+
+func (readOnly) Expression() sexpr.Expression {
+	return sexpr.List("readOnly", "state")
 }
 
 ////////////////////////////////////////////////////////////
@@ -269,6 +291,10 @@ func (b balance) String() string {
 	return fmt.Sprintf("balance(%v)", b.account)
 }
 
+func (b balance) Expression() sexpr.Expression {
+	return sexpr.List("balance", b.account.Expression())
+}
+
 ////////////////////////////////////////////////////////////
 // Code Operation
 
@@ -314,6 +340,10 @@ func (e op) String() string {
 	return fmt.Sprintf("code[%v]", e.position)
 }
 
+func (e op) Expression() sexpr.Expression {
+	return sexpr.List("codeAt", e.position)
+}
+
 ////////////////////////////////////////////////////////////
 // Stack Size
 
@@ -348,6 +378,10 @@ func (stackSize) Restrict(kind RestrictionKind, size int, generator *gen.StateGe
 
 func (stackSize) String() string {
 	return "stackSize"
+}
+
+func (stackSize) Expression() sexpr.Expression {
+	return sexpr.List("stackSize", "state")
 }
 
 ////////////////////////////////////////////////////////////
@@ -399,6 +433,10 @@ func (p param) BindTo(generator *gen.StateGenerator) {
 	generator.BindStackValue(p.position, p.GetVariable())
 }
 
+func (p param) Expression() sexpr.Expression {
+	return sexpr.List("param", "state", p.position)
+}
+
 ////////////////////////////////////////////////////////////
 // Constants
 
@@ -442,6 +480,10 @@ func (c constant) BindTo(generator *gen.StateGenerator) {
 	generator.BindValue(c.GetVariable(), c.value)
 }
 
+func (c constant) Expression() sexpr.Expression {
+	return sexpr.Atom(c.value.String())
+}
+
 ////////////////////////////////////////////////////////////
 // ToAddress
 
@@ -479,4 +521,8 @@ func (a toAddress) GetVariable() gen.Variable {
 
 func (a toAddress) BindTo(generator *gen.StateGenerator) {
 	a.expr.BindTo(generator)
+}
+
+func (a toAddress) Expression() sexpr.Expression {
+	return sexpr.List("toAddress", a.expr)
 }

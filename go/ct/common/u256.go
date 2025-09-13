@@ -18,6 +18,7 @@ import (
 
 	"pgregory.net/rand"
 
+	"github.com/0xsoniclabs/tosca/go/ct/sexpr"
 	"github.com/holiman/uint256"
 )
 
@@ -282,4 +283,14 @@ func (a *U256) UnmarshalText(text []byte) error {
 // ToBigInt returns a bigInt version of i
 func (a U256) ToBigInt() *big.Int {
 	return a.internal.ToBig()
+}
+
+func (a U256) Expression() sexpr.Expression {
+	// SMT-LIB does not have a native 256-bit integer type, so we represent
+	// the value as a bit-vector.
+	// We use the int2bv function to convert from integer to bit-vector.
+	return sexpr.List(
+		sexpr.List("_", "int2bv", "256"),
+		a.DecimalString(),
+	)
 }

@@ -17,6 +17,7 @@ import (
 
 	. "github.com/0xsoniclabs/tosca/go/ct/common"
 	"github.com/0xsoniclabs/tosca/go/ct/gen"
+	"github.com/0xsoniclabs/tosca/go/ct/sexpr"
 	"github.com/0xsoniclabs/tosca/go/ct/st"
 	"github.com/0xsoniclabs/tosca/go/tosca"
 )
@@ -34,6 +35,7 @@ type Condition interface {
 	// by this constraint.
 	GetTestValues() []TestValue
 
+	sexpr.Expressioner
 	fmt.Stringer
 }
 
@@ -101,6 +103,14 @@ func (c *conjunction) String() string {
 	return builder.String()
 }
 
+func (c *conjunction) Expression() sexpr.Expression {
+	clauses := make([]any, len(c.conditions))
+	for i, condition := range c.conditions {
+		clauses[i] = condition.Expression()
+	}
+	return sexpr.List("and", clauses...)
+}
+
 ////////////////////////////////////////////////////////////
 // Equal
 
@@ -143,6 +153,10 @@ func (e *eq[T]) String() string {
 	return fmt.Sprintf("%s = %v", e.lhs, e.rhs)
 }
 
+func (c *eq[T]) Expression() sexpr.Expression {
+	return sexpr.List("=", c.lhs, c.rhs)
+}
+
 ////////////////////////////////////////////////////////////
 // Not Equal
 
@@ -175,6 +189,10 @@ func (e *ne[T]) GetTestValues() []TestValue {
 
 func (e *ne[T]) String() string {
 	return fmt.Sprintf("%s ≠ %v", e.lhs, e.rhs)
+}
+
+func (c *ne[T]) Expression() sexpr.Expression {
+	return sexpr.List("distinct", c.lhs, c.rhs)
 }
 
 ////////////////////////////////////////////////////////////
@@ -211,6 +229,10 @@ func (c *lt[T]) String() string {
 	return fmt.Sprintf("%s < %v", c.lhs, c.rhs)
 }
 
+func (c *lt[T]) Expression() sexpr.Expression {
+	return sexpr.List("<", c.lhs, c.rhs)
+}
+
 ////////////////////////////////////////////////////////////
 // Less Equal
 
@@ -242,6 +264,10 @@ func (c *le[T]) GetTestValues() []TestValue {
 
 func (c *le[T]) String() string {
 	return fmt.Sprintf("%s ≤ %v", c.lhs, c.rhs)
+}
+
+func (c *le[T]) Expression() sexpr.Expression {
+	return sexpr.List("<=", c.lhs, c.rhs)
 }
 
 ////////////////////////////////////////////////////////////
@@ -278,6 +304,10 @@ func (c *gt[T]) String() string {
 	return fmt.Sprintf("%s > %v", c.lhs, c.rhs)
 }
 
+func (c *gt[T]) Expression() sexpr.Expression {
+	return sexpr.List(">", c.lhs, c.rhs)
+}
+
 ////////////////////////////////////////////////////////////
 // Greater Equal
 
@@ -309,6 +339,10 @@ func (c *ge[T]) GetTestValues() []TestValue {
 
 func (c *ge[T]) String() string {
 	return fmt.Sprintf("%s ≥ %v", c.lhs, c.rhs)
+}
+
+func (c *ge[T]) Expression() sexpr.Expression {
+	return sexpr.List(">=", c.lhs, c.rhs)
 }
 
 ////////////////////////////////////////////////////////////
@@ -375,6 +409,15 @@ func (c *revisionBounds) String() string {
 	return fmt.Sprintf("revision(%v-%v)", c.min, c.max)
 }
 
+func (c *revisionBounds) Expression() sexpr.Expression {
+	// The revision is a global state property.
+	return sexpr.List(
+		"and",
+		sexpr.List("<=", c.min, "revision"),
+		sexpr.List("<=", "revision", c.max),
+	)
+}
+
 ////////////////////////////////////////////////////////////
 // Is Code
 
@@ -425,6 +468,10 @@ func (c *isCode) String() string {
 	return fmt.Sprintf("isCode[%s]", c.position)
 }
 
+func (c *isCode) Expression() sexpr.Expression {
+	return sexpr.List("isCode", c.position)
+}
+
 ////////////////////////////////////////////////////////////
 // Is Data
 
@@ -459,6 +506,10 @@ func (c *isData) GetTestValues() []TestValue {
 
 func (c *isData) String() string {
 	return fmt.Sprintf("isData[%s]", c.position)
+}
+
+func (c *isData) Expression() sexpr.Expression {
+	return sexpr.List("isData", c.position)
 }
 
 ////////////////////////////////////////////////////////////
@@ -508,6 +559,10 @@ func (c *isStorageWarm) String() string {
 	return fmt.Sprintf("warm(%v)", c.key)
 }
 
+func (c *isStorageWarm) Expression() sexpr.Expression {
+	return sexpr.List("warmStorage", "state", c.key)
+}
+
 ////////////////////////////////////////////////////////////
 // Is Storage Cold
 
@@ -539,6 +594,10 @@ func (c *isStorageCold) GetTestValues() []TestValue {
 
 func (c *isStorageCold) String() string {
 	return fmt.Sprintf("cold(%v)", c.key)
+}
+
+func (c *isStorageCold) Expression() sexpr.Expression {
+	return sexpr.List("not", IsStorageWarm(c.key))
 }
 
 ////////////////////////////////////////////////////////////
@@ -591,6 +650,25 @@ func (c *storageConfiguration) String() string {
 	return fmt.Sprintf("StorageConfiguration(%v,%v,%v)", c.config, c.key, c.newValue)
 }
 
+func (c *storageConfiguration) Expression() sexpr.Expression {
+	/*
+		StorageAssigned         StorageStatus = iota
+		StorageAdded                          // 0 -> 0 -> Z
+		StorageDeleted                        // X -> X -> 0
+		StorageModified                       // X -> X -> Z
+		StorageDeletedAdded                   // X -> 0 -> Z
+		StorageModifiedDeleted                // X -> Y -> 0
+		StorageDeletedRestored                // X -> 0 -> X
+		StorageAddedDeleted                   // 0 -> Y -> 0
+		StorageModifiedRestored               // X -> Y -> X
+	*/
+
+	switch c.config {
+	default:
+		return sexpr.List(fmt.Sprintf("not_implemented_storage_configuration_%d", c.config))
+	}
+}
+
 ////////////////////////////////////////////////////////////
 // Bind Transient Storage to non zero value
 
@@ -638,6 +716,14 @@ func (c *bindTransientStorageToNonZero) String() string {
 	return fmt.Sprintf("Transient storage at [%v] is bound to non zero", c.key)
 }
 
+func (c *bindTransientStorageToNonZero) Expression() sexpr.Expression {
+	return sexpr.List(
+		"distinct",
+		sexpr.List("transientStorage", "state", c.key),
+		sexpr.List("toValue", "0"),
+	)
+}
+
 ////////////////////////////////////////////////////////////
 // Bind Transient Storage to zero value
 
@@ -666,6 +752,14 @@ func (c *bindTransientStorageToZero) GetTestValues() []TestValue {
 
 func (c *bindTransientStorageToZero) String() string {
 	return fmt.Sprintf("Transient storage at [%v] is bound to zero", c.key)
+}
+
+func (c *bindTransientStorageToZero) Expression() sexpr.Expression {
+	return sexpr.List(
+		"=",
+		sexpr.List("transientStorage", "state", c.key),
+		sexpr.List("toValue", "0"),
+	)
 }
 
 ////////////////////////////////////////////////////////////
@@ -712,6 +806,13 @@ func (c *accountIsEmpty) String() string {
 	return fmt.Sprintf("account_empty(%v)", c.address)
 }
 
+func (c *accountIsEmpty) Expression() sexpr.Expression {
+	return sexpr.List(
+		"isEmptyAccount",
+		c.address.Expression(),
+	)
+}
+
 ////////////////////////////////////////////////////////////
 // Address not empty
 
@@ -740,6 +841,13 @@ func (c *accountIsNotEmpty) GetTestValues() []TestValue {
 
 func (c *accountIsNotEmpty) String() string {
 	return fmt.Sprintf("!account_empty(%v)", c.address)
+}
+
+func (c *accountIsNotEmpty) Expression() sexpr.Expression {
+	return sexpr.List(
+		"not",
+		AccountIsEmpty(c.address).Expression(),
+	)
 }
 
 ////////////////////////////////////////////////////////////
@@ -776,6 +884,10 @@ func (c *isAddressWarm) GetTestValues() []TestValue {
 
 func (c *isAddressWarm) String() string {
 	return fmt.Sprintf("account warm(%v)", c.key)
+}
+
+func (c *isAddressWarm) Expression() sexpr.Expression {
+	return sexpr.List("warmAddress", "state", c.key)
 }
 
 ////////////////////////////////////////////////////////////
@@ -823,6 +935,10 @@ func restrictAccountWarmCold(bindKey BindableExpression[U256]) func(generator *g
 	}
 }
 
+func (c *isAddressCold) Expression() sexpr.Expression {
+	return sexpr.List("not", IsAddressWarm(c.key))
+}
+
 ////////////////////////////////////////////////////////////
 // Has Self-Destructed
 
@@ -861,6 +977,10 @@ func (c *hasSelfDestructed) String() string {
 	return "hasSelfDestructed()"
 }
 
+func (c *hasSelfDestructed) Expression() sexpr.Expression {
+	return sexpr.List("hasSelfDestructed", "state")
+}
+
 ////////////////////////////////////////////////////////////
 // Has Not Self-Destructed
 
@@ -885,6 +1005,10 @@ func (c *hasNotSelfDestructed) GetTestValues() []TestValue {
 
 func (c *hasNotSelfDestructed) String() string {
 	return "hasNotSelfDestructed()"
+}
+
+func (c *hasNotSelfDestructed) Expression() sexpr.Expression {
+	return sexpr.List("not", HasSelfDestructed())
 }
 
 ////////////////////////////////////////////////////////////
@@ -940,6 +1064,10 @@ func (c *inRange256FromCurrentBlock) String() string {
 	return c.blockNumber.String()
 }
 
+func (c *inRange256FromCurrentBlock) Expression() sexpr.Expression {
+	return sexpr.List("inRange256FromCurrentBlock", "state", c.blockNumber)
+}
+
 ////////////////////////////////////////////////////////////
 // Out Of Range 256 From Current Block
 
@@ -968,6 +1096,10 @@ func (c *outOfRange256FromCurrentBlock) GetTestValues() []TestValue {
 
 func (c *outOfRange256FromCurrentBlock) String() string {
 	return c.blockNumber.String()
+}
+
+func (c *outOfRange256FromCurrentBlock) Expression() sexpr.Expression {
+	return sexpr.List("not", InRange256FromCurrentBlock(c.blockNumber))
 }
 
 ////////////////////////////////////////////////////////////
@@ -1023,6 +1155,10 @@ func (c *hasBlobHash) String() string {
 	return fmt.Sprintf("%v has BlobHash", c.index.String())
 }
 
+func (c *hasBlobHash) Expression() sexpr.Expression {
+	return sexpr.List("hasBlobHash", c.index)
+}
+
 ////////////////////////////////////////////////////////////
 // index does not have a blob hash
 
@@ -1051,6 +1187,10 @@ func (c *hasNoBlobHash) GetTestValues() []TestValue {
 
 func (c *hasNoBlobHash) String() string {
 	return fmt.Sprintf("%v does not have BlobHash", c.index.String())
+}
+
+func (c *hasNoBlobHash) Expression() sexpr.Expression {
+	return sexpr.List("not", HasBlobHash(c.index))
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1129,4 +1269,8 @@ func (c *containsDelegationDesignation) String() string {
 	default:
 		return "unknown DelegationDesignatorState"
 	}
+}
+
+func (c *containsDelegationDesignation) Expression() sexpr.Expression {
+	return sexpr.List("not_implemented_delegation_designator")
 }
