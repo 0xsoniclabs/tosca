@@ -1,5 +1,3 @@
-option(EVMZERO_MIMALLOC "Enable mimalloc for evmzero" ON)
-option(EVMZERO_TRACY "Enable Tracy profiler for evmzero" OFF)
 
 ###########################################################
 # Library
@@ -9,8 +7,8 @@ add_library(evmzero SHARED
   interpreter.cc
   memory.cc
   opcodes.cc
-  stack.cc)
-tosca_add_compile_flags(evmzero)
+  stack.cc
+)
 
 get_target_property(EVMZERO_COMPILE_DEFINITIONS evmzero COMPILE_DEFINITIONS)
 get_target_property(EVMZERO_COMPILE_OPTIONS evmzero COMPILE_OPTIONS)
@@ -18,23 +16,24 @@ get_target_property(EVMZERO_COMPILE_OPTIONS evmzero COMPILE_OPTIONS)
 # configure_file. The workaround is to use file(GENERATE ... TARGET ...) to expand
 # the generator expressions.
 file(GENERATE OUTPUT target_properties.inc CONTENT
-"constexpr auto kCompileDefinitions = \"${EVMZERO_COMPILE_DEFINITIONS}\";
-constexpr auto kCompileOptions = \"${EVMZERO_COMPILE_OPTIONS}\";"
-  TARGET evmzero)
+  "constexpr auto kCompileDefinitions = \"${EVMZERO_COMPILE_DEFINITIONS}\";
+  constexpr auto kCompileOptions = \"${EVMZERO_COMPILE_OPTIONS}\";"
+  TARGET evmzero
+)
 configure_file(build_info.h.in build_info.h)
+target_include_directories(evmzero PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 
-target_include_directories(evmzero SYSTEM PUBLIC ${TOSCA_THIRD_PARTY_DIR}/intx/include ${CMAKE_CURRENT_BINARY_DIR})
-target_link_libraries(evmzero PUBLIC tosca_common ethash::keccak evmc::evmc)
+target_link_libraries(evmzero PUBLIC tosca_common ethash::keccak evmc::evmc intx::intx)
 
+option(EVMZERO_MIMALLOC "Enable mimalloc for evmzero" ON)
 if(EVMZERO_MIMALLOC)
   target_compile_definitions(evmzero PRIVATE EVMZERO_MIMALLOC_ENABLED)
   target_link_libraries(evmzero PRIVATE mimalloc-obj)
 endif()
 
-if(EVMZERO_TRACY)
-  target_compile_definitions(evmzero PRIVATE EVMZERO_TRACY_ENABLED)
-  target_link_libraries(evmzero PUBLIC Tracy::TracyClient)
-endif()
+option(EVMZERO_TRACY "Enable Tracy profiler for evmzero" OFF)
+target_compile_definitions(evmzero PRIVATE $<$<BOOL:${EVMZERO_TRACY}>:EVMZERO_TRACY_ENABLED>)
+target_link_libraries(evmzero PUBLIC $<$<BOOL:${EVMZERO_TRACY}>:Tracy::TracyClient>)
 
 ###########################################################
 # Tests
@@ -45,7 +44,6 @@ foreach(evmzero_test ${evmzero_tests})
   get_filename_component(evmzero_test_target ${evmzero_test} NAME_WE)
 
   add_executable(${evmzero_test_target} ${evmzero_test})
-  tosca_add_compile_flags(${evmzero_test_target})
   target_link_libraries(${evmzero_test_target} evmzero GTest::gmock GTest::gtest_main)
   gtest_discover_tests(${evmzero_test_target})
 endforeach()
@@ -58,7 +56,6 @@ foreach(evmzero_benchmark ${evmzero_benchmarks})
   get_filename_component(evmzero_benchmark_target ${evmzero_benchmark} NAME_WE)
 
   add_executable(${evmzero_benchmark_target} ${evmzero_benchmark})
-  tosca_add_compile_flags(${evmzero_benchmark_target})
   target_link_libraries(${evmzero_benchmark_target} evmzero benchmark::benchmark benchmark::benchmark_main)
 
   # Always include the CPU profiler in benchmarks.
