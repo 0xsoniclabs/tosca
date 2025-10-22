@@ -62,9 +62,8 @@ func (a ctAdapter) StepN(state *st.State, numSteps int) (*st.State, error) {
 		LastCallReturnData: state.LastCallReturnData.ToBytes(),
 	}
 
-	interpreter := evm.Interpreter()
 	for i := 0; i < numSteps && interpreterState.Status == geth_vm.Running; i++ {
-		interpreter.(*geth_vm.EVMInterpreter).Step(&interpreterState)
+		evm.Step(&interpreterState)
 	}
 
 	// Update the resulting state.
