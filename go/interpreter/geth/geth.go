@@ -43,7 +43,7 @@ func (m *gethVm) Run(parameters tosca.Parameters) (tosca.Result, error) {
 	}
 	evm, contract, stateDb := createGethInterpreterContext(parameters)
 
-	output, err := evm.Interpreter().Run(contract, parameters.Input, false)
+	output, err := evm.Run(contract, parameters.Input, false)
 
 	result := tosca.Result{
 		Output:    output,

@@ -116,7 +116,7 @@ func (s *StateDB) GetCode(address common.Address) []byte {
 	return s.context.GetCode(tosca.Address(address))
 }
 
-func (s *StateDB) SetCode(address common.Address, code []byte) []byte {
+func (s *StateDB) SetCode(address common.Address, code []byte, _ tracing.CodeChangeReason) []byte {
 	oldCode := s.context.GetCode(tosca.Address(address))
 	s.context.SetCode(tosca.Address(address), code)
 	return oldCode

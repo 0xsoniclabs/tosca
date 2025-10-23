@@ -131,7 +131,7 @@ func TestRunContextAdapter_SetAndGetCode(t *testing.T) {
 	address := tosca.Address{0x42}
 	code := []byte{1, 2, 3}
 
-	stateDb.EXPECT().SetCode(common.Address(address), code)
+	stateDb.EXPECT().SetCode(common.Address(address), code, gomock.Any())
 	adapter.SetCode(address, code)
 
 	stateDb.EXPECT().GetCode(common.Address(address)).Return(code)
@@ -470,7 +470,7 @@ func TestRunContextAdapter_SettersForwardTheCorrectStateDbValues(t *testing.T) {
 		},
 		"code": {
 			primingMock: func(stateDb *MockStateDb) {
-				stateDb.EXPECT().SetCode(common.Address{0x42}, []byte{1, 2, 3})
+				stateDb.EXPECT().SetCode(common.Address{0x42}, []byte{1, 2, 3}, gomock.Any())
 			},
 			functionCall: func(adapter *runContextAdapter) {
 				adapter.SetCode(tosca.Address{0x42}, []byte{1, 2, 3})
@@ -812,7 +812,7 @@ func TestRunContextAdapter_getPrevRandaoErrorIfDifficultyCanNotBeConverted(t *te
 	}
 }
 
-func TestRunContextAdapter_Run(t *testing.T) {
+func TestRunContextAdapter_Interpret(t *testing.T) {
 	tests := map[string]bool{
 		"success": true,
 		"failure": false,
@@ -905,7 +905,7 @@ func TestRunContextAdapter_Run(t *testing.T) {
 			contract := geth.NewContract(common.Address(address), common.Address(address), nil, 0, nil)
 			contract.CodeHash = common.Hash(codeHash)
 
-			_, err := adapter.Run(contract, []byte{}, false)
+			_, err := adapter.Interpret(contract, []byte{}, false)
 			if success && err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
@@ -950,7 +950,7 @@ func TestRunContextAdapter_MaximumCallDepthIsEnforced(t *testing.T) {
 				interpreter: interpreter,
 			}
 			contract := geth.NewContract(common.Address{}, common.Address{}, nil, 0, nil)
-			_, err := adapter.Run(contract, []byte{}, false)
+			_, err := adapter.Interpret(contract, []byte{}, false)
 			if depth <= int(params.CallCreateDepth) {
 				require.NoError(t, err, "expected no error for depth %d", depth)
 			} else {
@@ -1023,7 +1023,7 @@ func TestGethAdapter_CorruptValuesReturnErrors(t *testing.T) {
 			address := tosca.Address{0x42}
 			contract := geth.NewContract(common.Address(address), common.Address(address), nil, 0, nil)
 
-			ret, err := adapter.Run(contract, nil, false)
+			ret, err := adapter.Interpret(contract, nil, false)
 			require.Error(t, err, "could not convert"+name)
 			require.Nil(t, ret, "expected nil return value")
 		})
@@ -1624,7 +1624,7 @@ func TestGethAdapter_InterpreterReturnsAreHandledCorrectly(t *testing.T) {
 
 			address := tosca.Address{0x42}
 			contract := geth.NewContract(common.Address(address), common.Address(address), nil, uint64(contractGas), nil)
-			result, err := adapter.Run(contract, []byte{}, false)
+			result, err := adapter.Interpret(contract, []byte{}, false)
 
 			require.Equal(t, test.expectedOutput, result, "Output should match expected output")
 			if test.expectedError == nil {
@@ -1712,7 +1712,7 @@ func TestGethAdapter_RefundShiftIsAlwaysUndone(t *testing.T) {
 
 			contract := geth.NewContract(common.Address(address), common.Address(address), nil, 0, nil)
 			interpreter.EXPECT().Run(gomock.Any()).Return(tosca.Result{Success: test.success, GasRefund: test.gasRefund}, nil)
-			_, err := adapter.Run(contract, []byte{}, false)
+			_, err := adapter.Interpret(contract, []byte{}, false)
 			if test.success && err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}

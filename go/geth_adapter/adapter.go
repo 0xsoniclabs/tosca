@@ -45,7 +45,7 @@ type gethInterpreterAdapter struct {
 	evm         *geth.EVM
 }
 
-func (a *gethInterpreterAdapter) Run(contract *geth.Contract, input []byte, readOnly bool) (ret []byte, err error) {
+func (a *gethInterpreterAdapter) Interpret(contract *geth.Contract, input []byte, readOnly bool) (ret []byte, err error) {
 	var result tosca.Result
 
 	// Tosca EVM implementations update the refund in the StateDB only at the
@@ -459,7 +459,7 @@ func (a *runContextAdapter) GetCode(addr tosca.Address) tosca.Code {
 }
 
 func (a *runContextAdapter) SetCode(addr tosca.Address, code tosca.Code) {
-	a.evm.StateDB.SetCode(common.Address(addr), code)
+	a.evm.StateDB.SetCode(common.Address(addr), code, tracing.CodeChangeUnspecified)
 }
 
 func (a *runContextAdapter) GetBlockHash(number int64) tosca.Hash {
