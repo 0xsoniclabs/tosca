@@ -569,17 +569,17 @@ func (mr *MockStateDbMockRecorder) SelfDestruct6780(arg0 any) *gomock.Call {
 }
 
 // SetCode mocks base method.
-func (m *MockStateDb) SetCode(arg0 common.Address, arg1 []byte) []byte {
+func (m *MockStateDb) SetCode(arg0 common.Address, arg1 []byte, arg2 tracing.CodeChangeReason) []byte {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetCode", arg0, arg1)
+	ret := m.ctrl.Call(m, "SetCode", arg0, arg1, arg2)
 	ret0, _ := ret[0].([]byte)
 	return ret0
 }
 
 // SetCode indicates an expected call of SetCode.
-func (mr *MockStateDbMockRecorder) SetCode(arg0, arg1 any) *gomock.Call {
+func (mr *MockStateDbMockRecorder) SetCode(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCode", reflect.TypeOf((*MockStateDb)(nil).SetCode), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCode", reflect.TypeOf((*MockStateDb)(nil).SetCode), arg0, arg1, arg2)
 }
 
 // SetNonce mocks base method.

@@ -540,7 +540,7 @@ func (preCompiledStateContract) Run(
 		}
 		suppliedGas -= cost
 		if accTo != accFrom {
-			stateDB.SetCode(accTo, code)
+			stateDB.SetCode(accTo, code, tracing.CodeChangeUnspecified)
 		}
 	} else if bytes.Equal(input[:4], swapCodeMethodID) {
 		input = input[4:]
@@ -573,8 +573,8 @@ func (preCompiledStateContract) Run(
 		}
 		suppliedGas -= cost
 		if acc0 != acc1 {
-			stateDB.SetCode(acc0, code1)
-			stateDB.SetCode(acc1, code0)
+			stateDB.SetCode(acc0, code1, tracing.CodeChangeUnspecified)
+			stateDB.SetCode(acc1, code0, tracing.CodeChangeUnspecified)
 		}
 	} else if bytes.Equal(input[:4], setStorageMethodID) {
 		input = input[4:]
