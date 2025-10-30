@@ -15,6 +15,7 @@ import (
 	"math"
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/holiman/uint256"
 )
 
@@ -1048,6 +1049,8 @@ func genericCall(c *context, kind tosca.CallKind) error {
 
 	// Perform the call.
 	ret, err := c.context.Call(kind, callParams)
+
+	log.Info("CALL", "from address", callParams.Sender, "to address", callParams.Recipient, "gasUsed", callParams.Gas-ret.GasLeft)
 
 	if err == nil {
 		copy(output, ret.Output)
