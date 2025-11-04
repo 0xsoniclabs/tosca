@@ -9,7 +9,12 @@
 // this software will be governed by the GNU Lesser General Public License v3.
 
 pipeline {
-    agent { label 'pr' }
+    agent {
+        dockerfile {
+            filename 'CI/Dockerfile.jenkins'
+            label 'pr'
+        }
+    }
 
     options {
         timestamps()
@@ -20,7 +25,6 @@ pipeline {
     environment {
         CC = 'gcc'
         CXX = 'g++'
-        PATH = "${env.HOME}/.cargo/bin:${env.PATH}"
     }
 
     stages {
@@ -57,7 +61,7 @@ pipeline {
 
         stage('Check C++ sources formatting') {
             steps {
-                sh 'find cpp/ -not -path "cpp/build/*" \\( -iname *.h -o -iname *.cc \\) | xargs clang-format --dry-run -Werror'
+                sh 'find cpp/ -not -path "cpp/build/*" \\( -iname *.h -o -iname *.cc \\) | xargs clang-format-19 --dry-run -Werror'
             }
         }
 
@@ -97,7 +101,7 @@ pipeline {
 
         stage('Run C++ tests') {
             steps {
-                sh 'make test-cpp'
+                sh 'make test-cpp-asan'
             }
         }
 
@@ -113,6 +117,11 @@ pipeline {
                 sh 'make tosca-rust-coverage'
                 sh 'go test -v  -run ^TestDumpRustCoverageData$ ./go/lib/rust/ --expect-coverage'
             }
+        }
+    }
+    post {
+        always {
+            sh 'make clean'
         }
     }
 }
