@@ -15,6 +15,7 @@ import (
 
 	"github.com/0xsoniclabs/tosca/go/interpreter/sfvm"
 	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/tosca/vm"
 )
 
 // TestSfvm_RegisterExperimentalConfigurations tests the registration of
@@ -25,19 +26,6 @@ import (
 // - It tests different properties, in one single function. The reason is that the
 // order of different functions may change, invalidating the test.
 func TestSfvm_RegisterExperimentalConfigurations(t *testing.T) {
-
-	// Fist registration must succeed.
-	err := sfvm.RegisterExperimentalInterpreterConfigurations()
-	if err != nil {
-		t.Fatalf("failed to register experimental configurations: %v", err)
-	}
-
-	// Registering a second time must fail.
-	err = sfvm.RegisterExperimentalInterpreterConfigurations()
-	if err == nil {
-		t.Fatalf("expected error when registering experimental configurations twice")
-	}
-
 	// Check that sfvm is registered by default, in addition to experimental configurations
 	if _, ok := tosca.GetAllRegisteredInterpreters()["sfvm"]; !ok {
 		t.Fatalf("sfvm is not registered")
@@ -46,7 +34,7 @@ func TestSfvm_RegisterExperimentalConfigurations(t *testing.T) {
 	// Construct all registered interpreter configurations
 	for name, factory := range tosca.GetAllRegisteredInterpreters() {
 		t.Run(name, func(t *testing.T) {
-			vm, err := factory(sfvm.Config{})
+			interpreter, err := factory(sfvm.Config{})
 			if err != nil {
 				t.Fatalf("failed to create interpreter: %v", err)
 			}
@@ -54,9 +42,9 @@ func TestSfvm_RegisterExperimentalConfigurations(t *testing.T) {
 			// Vms are opaque, we can't check their configuration directly.
 			// We can only check that they do execute some basic code.
 			params := tosca.Parameters{}
-			params.Code = []byte{byte(sfvm.PUSH1), 0xff, byte(sfvm.POP), byte(sfvm.STOP)}
+			params.Code = []byte{byte(vm.PUSH1), 0xff, byte(vm.POP), byte(vm.STOP)}
 			params.Gas = 5
-			res, err := vm.Run(params)
+			res, err := interpreter.Run(params)
 			if err != nil {
 				t.Fatalf("failed to run interpreter: %v", err)
 			}

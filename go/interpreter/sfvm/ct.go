@@ -11,14 +11,11 @@
 package sfvm
 
 import (
-	"fmt"
-
 	"github.com/0xsoniclabs/tosca/go/ct"
 	"github.com/0xsoniclabs/tosca/go/ct/common"
 	"github.com/0xsoniclabs/tosca/go/ct/st"
 	"github.com/0xsoniclabs/tosca/go/ct/utils"
 	"github.com/0xsoniclabs/tosca/go/tosca"
-	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 func NewConformanceTestingTarget() ct.Evm {
@@ -26,18 +23,13 @@ func NewConformanceTestingTarget() ct.Evm {
 	// Can only fail for invalid configuration. Configuration is hardcoded.
 	sanctionedVm, _ := NewInterpreter(Config{})
 
-	// can only fail for non-positive size
-	cache, _ := lru.New[[32]byte, *pcMap](4096)
-
 	return &ctAdapter{
-		vm:         sanctionedVm,
-		pcMapCache: cache,
+		vm: sanctionedVm,
 	}
 }
 
 type ctAdapter struct {
-	vm         *sfvm
-	pcMapCache *lru.Cache[[32]byte, *pcMap]
+	vm *sfvm
 }
 
 func (a *ctAdapter) StepN(state *st.State, numSteps int) (*st.State, error) {
@@ -51,28 +43,18 @@ func (a *ctAdapter) StepN(state *st.State, numSteps int) (*st.State, error) {
 		return state, nil
 	}
 
-	converted, err := a.vm.converter.Convert(
-		params.Code,
-		params.CodeHash,
-	)
-	if err != nil {
-		return &st.State{}, fmt.Errorf("failed to convert code: %w", err)
-	}
-
-	pcMap := a.getPcMap(state.Code)
-
 	memory := convertCtMemoryToSfvmMemory(state.Memory)
 
 	// Set up execution context.
 	var ctxt = &context{
-		pc:           int32(pcMap.evmToSfvm[state.Pc]),
+		pc:           int32(state.Pc),
 		params:       params,
 		context:      params.Context,
 		gas:          params.Gas,
 		refund:       tosca.Gas(state.GasRefund),
 		stack:        convertCtStackToSfvmStack(state.Stack),
 		memory:       memory,
-		code:         converted,
+		code:         params.Code,
 		returnData:   state.LastCallReturnData.ToBytes(),
 		withShaCache: a.vm.config.WithShaCache,
 	}
@@ -91,7 +73,7 @@ func (a *ctAdapter) StepN(state *st.State, numSteps int) (*st.State, error) {
 	state.Status = convertSfvmStatusToCtStatus(status)
 
 	if status == statusRunning {
-		state.Pc = pcMap.sfvmToEvm[ctxt.pc]
+		state.Pc = uint16(ctxt.pc)
 	}
 
 	state.Gas = ctxt.gas
@@ -104,61 +86,6 @@ func (a *ctAdapter) StepN(state *st.State, numSteps int) (*st.State, error) {
 	}
 
 	return state, nil
-}
-
-func (a *ctAdapter) getPcMap(code *st.Code) *pcMap {
-	hash := code.Hash()
-	pcMap, found := a.pcMapCache.Get(hash)
-	if found {
-		return pcMap
-	}
-	byteCode := code.Copy()
-	pcMap = genPcMap(byteCode)
-	a.pcMapCache.Add(hash, pcMap)
-	return pcMap
-}
-
-// pcMap is a bidirectional map to map program counters between evm <-> sfvm.
-type pcMap struct {
-	evmToSfvm []uint16
-	sfvmToEvm []uint16
-}
-
-// genPcMap creates a bidirectional program counter map for a given code,
-// allowing mapping from a program counter in evm code to sfvm and vice versa.
-func genPcMap(code []byte) *pcMap {
-	evmToSfvm := make([]uint16, len(code)+1)
-	sfvmToEvm := make([]uint16, len(code)+1)
-
-	config := ConversionConfig{}
-	res := convertWithObserver(code, config, func(evm, sfvm int) {
-		evmToSfvm[evm] = uint16(sfvm)
-		sfvmToEvm[sfvm] = uint16(evm)
-	})
-
-	// A program counter may correctly point to the position after the last
-	// instruction, which would lead to an implicit STOP.
-	evmToSfvm[len(code)] = uint16(len(res))
-
-	// The SFVM code could also be longer than the input code if extra padding
-	// of truncated PUSH instructions has been added.
-	if len(res)+1 > len(sfvmToEvm) {
-		sfvmToEvm = append(sfvmToEvm, make([]uint16, len(res)+1-len(sfvmToEvm))...)
-	}
-	sfvmToEvm[len(res)] = uint16(len(code))
-
-	// Locations pointing to JUMP_TO instructions in SFVM need to be updated to
-	// the position of the jump target.
-	for i := 0; i < len(res); i++ {
-		if res[i].opcode == JUMP_TO {
-			sfvmToEvm[i] = res[i].arg
-		}
-	}
-
-	return &pcMap{
-		evmToSfvm: evmToSfvm,
-		sfvmToEvm: sfvmToEvm,
-	}
 }
 
 func convertSfvmStatusToCtStatus(status status) st.StatusCode {

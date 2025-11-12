@@ -12,6 +12,7 @@ package sfvm
 
 import (
 	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/tosca/vm"
 )
 
 const (
@@ -35,28 +36,57 @@ const (
 var static_gas_prices = newOpCodePropertyMap(getStaticGasPriceInternal)
 var static_gas_prices_berlin = newOpCodePropertyMap(getBerlinGasPriceInternal)
 
-func getBerlinGasPriceInternal(op OpCode) tosca.Gas {
+// numOpCodes is the number of opcodes in the EVM.
+const numOpCodes = 256
+
+// opCodePropertyMap is a generic property map for precomputed values.
+// Its purpose is to provide a precomputed lookup table for OpCode properties
+// that can be generated from a function that takes an OpCode as input.
+// Using this type hides internal details of the opcode implementation.
+type opCodePropertyMap[T any] struct {
+	lookup [numOpCodes]T
+}
+
+// newOpCodePropertyMap creates a new OpCode property map.
+// The property function shall be resilient to undefined OpCode values, and not
+// panic. The zero values or a sentinel value shall be used in such cases.
+func newOpCodePropertyMap[T any](property func(op vm.OpCode) T) opCodePropertyMap[T] {
+	lookup := [numOpCodes]T{}
+	for i := 0; i < numOpCodes; i++ {
+		lookup[i] = property(vm.OpCode(i))
+	}
+	return opCodePropertyMap[T]{lookup}
+}
+
+func (p *opCodePropertyMap[T]) get(op vm.OpCode) T {
+	// Index may be out of bounds. Nevertheless, bounds check carry a performance
+	// penalty. If the property map is initialized correctly, the index will be
+	// within bounds.
+	return p.lookup[op]
+}
+
+func getBerlinGasPriceInternal(op vm.OpCode) tosca.Gas {
 	gp := getStaticGasPriceInternal(op)
 
 	// Changed static gas prices with EIP2929
 	switch op {
-	case SLOAD:
+	case vm.SLOAD:
 		gp = 0
-	case EXTCODECOPY:
+	case vm.EXTCODECOPY:
 		gp = 0
-	case EXTCODESIZE:
+	case vm.EXTCODESIZE:
 		gp = 0
-	case EXTCODEHASH:
+	case vm.EXTCODEHASH:
 		gp = 0
-	case BALANCE:
+	case vm.BALANCE:
 		gp = 0
-	case CALL:
+	case vm.CALL:
 		gp = 0
-	case CALLCODE:
+	case vm.CALLCODE:
 		gp = 0
-	case STATICCALL:
+	case vm.STATICCALL:
 		gp = 0
-	case DELEGATECALL:
+	case vm.DELEGATECALL:
 		gp = 0
 	}
 	return gp
@@ -69,160 +99,158 @@ func getStaticGasPrices(revision tosca.Revision) *opCodePropertyMap[tosca.Gas] {
 	return &static_gas_prices
 }
 
-func getStaticGasPriceInternal(op OpCode) tosca.Gas {
-	if PUSH1 <= op && op <= PUSH32 {
+func getStaticGasPriceInternal(op vm.OpCode) tosca.Gas {
+	if vm.PUSH1 <= op && op <= vm.PUSH32 {
 		return 3
 	}
-	if DUP1 <= op && op <= DUP16 {
+	if vm.DUP1 <= op && op <= vm.DUP16 {
 		return 3
 	}
-	if SWAP1 <= op && op <= SWAP16 {
+	if vm.SWAP1 <= op && op <= vm.SWAP16 {
 		return 3
 	}
 	// this range covers: LT, GT, SLT, SGT, EQ, ISZERO,
 	// AND, OR, XOR, NOT, BYTE, SHL, SHR, SAR
-	if LT <= op && op <= SAR {
+	if vm.LT <= op && op <= vm.SAR {
 		return 3
 	}
 	// this range covers: COINBASE, TIMESTAMP, NUMBER,
 	// DIFFICULTY/PREVRANDO, GAS, GASLIMIT, CHAINID
-	if COINBASE <= op && op <= CHAINID {
+	if vm.COINBASE <= op && op <= vm.CHAINID {
 		return 2
 	}
 	switch op {
-	case CLZ:
+	case vm.CLZ:
 		return 5
-	case POP:
+	case vm.POP:
 		return 2
-	case PUSH0:
+	case vm.PUSH0:
 		return 2
-	case ADD:
+	case vm.ADD:
 		return 3
-	case SUB:
+	case vm.SUB:
 		return 3
-	case MUL:
+	case vm.MUL:
 		return 5
-	case DIV:
+	case vm.DIV:
 		return 5
-	case SDIV:
+	case vm.SDIV:
 		return 5
-	case MOD:
+	case vm.MOD:
 		return 5
-	case SMOD:
+	case vm.SMOD:
 		return 5
-	case ADDMOD:
+	case vm.ADDMOD:
 		return 8
-	case MULMOD:
+	case vm.MULMOD:
 		return 8
-	case EXP:
+	case vm.EXP:
 		return 10
-	case SIGNEXTEND:
+	case vm.SIGNEXTEND:
 		return 5
-	case SHA3:
+	case vm.SHA3:
 		return 30
-	case ADDRESS:
+	case vm.ADDRESS:
 		return 2
-	case BALANCE:
+	case vm.BALANCE:
 		return 700 // Should be 100 for warm access, 2600 for cold access
-	case ORIGIN:
+	case vm.ORIGIN:
 		return 2
-	case CALLER:
+	case vm.CALLER:
 		return 2
-	case CALLVALUE:
+	case vm.CALLVALUE:
 		return 2
-	case CALLDATALOAD:
+	case vm.CALLDATALOAD:
 		return 3
-	case CALLDATASIZE:
+	case vm.CALLDATASIZE:
 		return 2
-	case CALLDATACOPY:
+	case vm.CALLDATACOPY:
 		return 3
-	case CODESIZE:
+	case vm.CODESIZE:
 		return 2
-	case CODECOPY:
+	case vm.CODECOPY:
 		return 3
-	case GASPRICE:
+	case vm.GASPRICE:
 		return 2
-	case EXTCODESIZE:
+	case vm.EXTCODESIZE:
 		return 700 // This seems to be different than documented on evm.codes (it should be 100)
-	case EXTCODECOPY:
+	case vm.EXTCODECOPY:
 		return 700 // From EIP150 it is 700, was 20
-	case RETURNDATASIZE:
+	case vm.RETURNDATASIZE:
 		return 2
-	case RETURNDATACOPY:
+	case vm.RETURNDATACOPY:
 		return 3
-	case EXTCODEHASH:
+	case vm.EXTCODEHASH:
 		return 700 // Should be 100 for warm access, 2600 for cold access
-	case BLOCKHASH:
+	case vm.BLOCKHASH:
 		return 20
-	case SELFBALANCE:
+	case vm.SELFBALANCE:
 		return 5
-	case BASEFEE:
+	case vm.BASEFEE:
 		return 2
-	case BLOBHASH:
+	case vm.BLOBHASH:
 		return 3
-	case BLOBBASEFEE:
+	case vm.BLOBBASEFEE:
 		return 2
-	case MLOAD:
+	case vm.MLOAD:
 		return 3
-	case MSTORE:
+	case vm.MSTORE:
 		return 3
-	case MSTORE8:
+	case vm.MSTORE8:
 		return 3
-	case SLOAD:
+	case vm.SLOAD:
 		return 800 // This is supposed to be 100 for warm and 2100 for cold accesses
-	case SSTORE:
+	case vm.SSTORE:
 		return 0 // Costs are handled in gasSStore(..) function below
-	case JUMP:
+	case vm.JUMP:
 		return 8
-	case JUMPI:
+	case vm.JUMPI:
 		return 10
-	case JUMPDEST:
+	case vm.JUMPDEST:
 		return 1
-	case JUMP_TO:
-		return 0
-	case TLOAD:
+	case vm.TLOAD:
 		return 100
-	case TSTORE:
+	case vm.TSTORE:
 		return 100
-	case PC:
+	case vm.PC:
 		return 2
-	case MSIZE:
+	case vm.MSIZE:
 		return 2
-	case MCOPY:
+	case vm.MCOPY:
 		return 3
-	case GAS:
+	case vm.GAS:
 		return 2
-	case LOG0:
+	case vm.LOG0:
 		return 375
-	case LOG1:
+	case vm.LOG1:
 		return 750
-	case LOG2:
+	case vm.LOG2:
 		return 1125
-	case LOG3:
+	case vm.LOG3:
 		return 1500
-	case LOG4:
+	case vm.LOG4:
 		return 1875
-	case CREATE:
+	case vm.CREATE:
 		return 32000
-	case CREATE2:
+	case vm.CREATE2:
 		return 32000
-	case CALL:
+	case vm.CALL:
 		return 700
-	case CALLCODE:
+	case vm.CALLCODE:
 		return 700
-	case STATICCALL:
+	case vm.STATICCALL:
 		return 700
-	case RETURN:
+	case vm.RETURN:
 		return 0
-	case STOP:
+	case vm.STOP:
 		return 0
-	case REVERT:
+	case vm.REVERT:
 		return 0
-	case INVALID:
+	case vm.INVALID:
 		return 0
-	case DELEGATECALL:
+	case vm.DELEGATECALL:
 		return 700
-	case SELFDESTRUCT:
+	case vm.SELFDESTRUCT:
 		return 5000
 	}
 
