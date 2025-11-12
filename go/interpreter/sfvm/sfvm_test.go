@@ -25,9 +25,6 @@ func TestNewInterpreter_ProducesInstanceWithSanctionedProperties(t *testing.T) {
 	if sfvm.config.WithShaCache != true {
 		t.Fatalf("SFVM is not configured with sha cache")
 	}
-	if sfvm.config.WithSuperInstructions != false {
-		t.Fatalf("SFVM is configured with super instructions")
-	}
 }
 
 func TestSfvm_OfficialConfigurationHasSanctionedProperties(t *testing.T) {
@@ -41,9 +38,6 @@ func TestSfvm_OfficialConfigurationHasSanctionedProperties(t *testing.T) {
 	}
 	if sfvm.config.WithShaCache != true {
 		t.Fatalf("sfvm is not configured with sha cache")
-	}
-	if sfvm.config.WithSuperInstructions != false {
-		t.Fatalf("sfvm is configured with super instructions")
 	}
 }
 

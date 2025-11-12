@@ -21,24 +21,12 @@ func TestOpCode_String(t *testing.T) {
 		want string
 	}{
 		{STOP, "STOP"},
-		{SWAP2_SWAP1_POP_JUMP, "SWAP2_SWAP1_POP_JUMP"},
 		{0x0c, "op(0x0C)"},
 		{0x0200, "op(0x0200)"},
 	}
 	for _, tt := range tests {
 		if got := tt.op.String(); got != tt.want {
 			t.Errorf("got = %q, want %q", got, tt.want)
-		}
-	}
-}
-
-func TestOpCode_SuperInstructionsAreDecomposedToBasicOpCodes(t *testing.T) {
-	for _, op := range allOpCodesWhere(OpCode.isSuperInstruction) {
-		baseOps := op.decompose()
-		for _, baseOp := range baseOps {
-			if baseOp.isSuperInstruction() {
-				t.Errorf("decomposition of %v contains super instruction %v", op, baseOp)
-			}
 		}
 	}
 }

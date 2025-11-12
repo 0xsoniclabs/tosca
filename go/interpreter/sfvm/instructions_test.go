@@ -1215,26 +1215,6 @@ func TestInstructions_JumpOpsCheckJUMPDEST(t *testing.T) {
 			implementation: opJumpi,
 			stack:          []uint64{1, 1},
 		},
-		SWAP2_SWAP1_POP_JUMP: {
-			implementation: opSwap2_Swap1_Pop_Jump,
-			stack:          []uint64{1, 1, 1},
-		},
-		POP_JUMP: {
-			implementation: opPop_Jump,
-			stack:          []uint64{1, 1},
-		},
-		PUSH2_JUMP: {
-			implementation: opPush2_Jump,
-			stack:          []uint64{1},
-		},
-		PUSH2_JUMPI: {
-			implementation: opPush2_Jumpi,
-			stack:          []uint64{1},
-		},
-		ISZERO_PUSH2_JUMPI: {
-			implementation: opIsZero_Push2_Jumpi,
-			stack:          []uint64{0},
-		},
 	}
 
 	// test that all jump instructions are tested
@@ -1262,7 +1242,6 @@ func TestInstructions_JumpOpsCheckJUMPDEST(t *testing.T) {
 
 func TestInstructions_ConditionalJumpOpsIgnoreDestinationWhenJumpNotTaken(t *testing.T) {
 	zero := *uint256.NewInt(0)
-	one := *uint256.NewInt(1)
 	maxUint256 := *uint256.NewInt(0).Sub(uint256.NewInt(0), uint256.NewInt(1))
 
 	tests := map[OpCode]struct {
@@ -1273,14 +1252,6 @@ func TestInstructions_ConditionalJumpOpsIgnoreDestinationWhenJumpNotTaken(t *tes
 			implementation: opJumpi,
 			// ignores destination, even if it would overflow
 			stack: []uint256.Int{maxUint256, zero},
-		},
-		PUSH2_JUMPI: {
-			implementation: opPush2_Jumpi,
-			stack:          []uint256.Int{zero},
-		},
-		ISZERO_PUSH2_JUMPI: {
-			implementation: opIsZero_Push2_Jumpi,
-			stack:          []uint256.Int{one},
 		},
 	}
 

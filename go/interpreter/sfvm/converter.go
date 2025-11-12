@@ -29,8 +29,6 @@ type ConversionConfig struct {
 	// Positive values larger than 0 but less than maxCachedCodeLength are
 	// reported as invalid cache sizes during initialization.
 	CacheSize int
-	// WithSuperInstructions enables the use of super instructions.
-	WithSuperInstructions bool
 }
 
 // Converter converts EVM code to SFVM code.
@@ -169,20 +167,13 @@ func convertWithObserver(
 
 		// Convert instructions
 		observer(i, res.nextPos)
-		inc := appendInstructions(&res, i, code, options.WithSuperInstructions)
+		inc := appendInstructions(&res, i, code)
 		i += inc + 1
 	}
 	return res.toCode()
 }
 
-func appendInstructions(res *codeBuilder, pos int, code []byte, withSuperInstructions bool) int {
-	// Convert super instructions.
-	if withSuperInstructions {
-		if n := appendSuperInstructions(res, pos, code); n > 0 {
-			return n
-		}
-	}
-
+func appendInstructions(res *codeBuilder, pos int, code []byte) int {
 	// Convert individual instructions.
 	toscaOpCode := vm.OpCode(code[pos])
 
@@ -236,124 +227,5 @@ func appendInstructions(res *codeBuilder, pos int, code []byte, withSuperInstruc
 
 	// All the rest converts to a single instruction.
 	res.appendCode(OpCode(toscaOpCode))
-	return 0
-}
-
-func appendSuperInstructions(res *codeBuilder, pos int, code []byte) int {
-	if len(code) > pos+7 {
-		op0 := vm.OpCode(code[pos])
-		op1 := vm.OpCode(code[pos+1])
-		op2 := vm.OpCode(code[pos+2])
-		op3 := vm.OpCode(code[pos+3])
-		op4 := vm.OpCode(code[pos+4])
-		op5 := vm.OpCode(code[pos+5])
-		op6 := vm.OpCode(code[pos+6])
-		op7 := vm.OpCode(code[pos+7])
-		if op0 == vm.PUSH1 && op2 == vm.PUSH4 && op7 == vm.DUP3 {
-			res.appendOp(PUSH1_PUSH4_DUP3, uint16(op1)<<8)
-			res.appendData(uint16(op3)<<8 | uint16(op4))
-			res.appendData(uint16(op5)<<8 | uint16(op6))
-			return 7
-		}
-		if op0 == vm.PUSH1 && op2 == vm.PUSH1 && op4 == vm.PUSH1 && op6 == vm.SHL && op7 == vm.SUB {
-			res.appendOp(PUSH1_PUSH1_PUSH1_SHL_SUB, uint16(op1)<<8|uint16(op3))
-			res.appendData(uint16(op5))
-			return 7
-		}
-	}
-	if len(code) > pos+4 {
-		op0 := vm.OpCode(code[pos])
-		op1 := vm.OpCode(code[pos+1])
-		op2 := vm.OpCode(code[pos+2])
-		op3 := vm.OpCode(code[pos+3])
-		op4 := vm.OpCode(code[pos+4])
-		if op0 == vm.AND && op1 == vm.SWAP1 && op2 == vm.POP && op3 == vm.SWAP2 && op4 == vm.SWAP1 {
-			res.appendCode(AND_SWAP1_POP_SWAP2_SWAP1)
-			return 4
-		}
-		if op0 == vm.ISZERO && op1 == vm.PUSH2 && op4 == vm.JUMPI {
-			res.appendOp(ISZERO_PUSH2_JUMPI, uint16(op2)<<8|uint16(op3))
-			return 4
-		}
-	}
-	if len(code) > pos+3 {
-		op0 := vm.OpCode(code[pos])
-		op1 := vm.OpCode(code[pos+1])
-		op2 := vm.OpCode(code[pos+2])
-		op3 := vm.OpCode(code[pos+3])
-		if op0 == vm.SWAP2 && op1 == vm.SWAP1 && op2 == vm.POP && op3 == vm.JUMP {
-			res.appendCode(SWAP2_SWAP1_POP_JUMP)
-			return 3
-		}
-		if op0 == vm.SWAP1 && op1 == vm.POP && op2 == vm.SWAP2 && op3 == vm.SWAP1 {
-			res.appendCode(SWAP1_POP_SWAP2_SWAP1)
-			return 3
-		}
-		if op0 == vm.POP && op1 == vm.SWAP2 && op2 == vm.SWAP1 && op3 == vm.POP {
-			res.appendCode(POP_SWAP2_SWAP1_POP)
-			return 3
-		}
-		if op0 == vm.PUSH2 && op3 == vm.JUMP {
-			res.appendOp(PUSH2_JUMP, uint16(op1)<<8|uint16(op2))
-			return 3
-		}
-		if op0 == vm.PUSH2 && op3 == vm.JUMPI {
-			res.appendOp(PUSH2_JUMPI, uint16(op1)<<8|uint16(op2))
-			return 3
-		}
-		if op0 == vm.PUSH1 && op2 == vm.PUSH1 {
-			res.appendOp(PUSH1_PUSH1, uint16(op1)<<8|uint16(op3))
-			return 3
-		}
-	}
-	if len(code) > pos+2 {
-		op0 := vm.OpCode(code[pos])
-		op1 := vm.OpCode(code[pos+1])
-		op2 := vm.OpCode(code[pos+2])
-		if op0 == vm.PUSH1 && op2 == vm.ADD {
-			res.appendOp(PUSH1_ADD, uint16(op1))
-			return 2
-		}
-		if op0 == vm.PUSH1 && op2 == vm.SHL {
-			res.appendOp(PUSH1_SHL, uint16(op1))
-			return 2
-		}
-		if op0 == vm.PUSH1 && op2 == vm.DUP1 {
-			res.appendOp(PUSH1_DUP1, uint16(op1))
-			return 2
-		}
-	}
-	if len(code) > pos+1 {
-		op0 := vm.OpCode(code[pos])
-		op1 := vm.OpCode(code[pos+1])
-		if op0 == vm.SWAP1 && op1 == vm.POP {
-			res.appendCode(SWAP1_POP)
-			return 1
-		}
-		if op0 == vm.POP && op1 == vm.JUMP {
-			res.appendCode(POP_JUMP)
-			return 1
-		}
-		if op0 == vm.POP && op1 == vm.POP {
-			res.appendCode(POP_POP)
-			return 1
-		}
-		if op0 == vm.SWAP2 && op1 == vm.SWAP1 {
-			res.appendCode(SWAP2_SWAP1)
-			return 1
-		}
-		if op0 == vm.SWAP2 && op1 == vm.POP {
-			res.appendCode(SWAP2_POP)
-			return 1
-		}
-		if op0 == vm.DUP2 && op1 == vm.MSTORE {
-			res.appendCode(DUP2_MSTORE)
-			return 1
-		}
-		if op0 == vm.DUP2 && op1 == vm.LT {
-			res.appendCode(DUP2_LT)
-			return 1
-		}
-	}
 	return 0
 }

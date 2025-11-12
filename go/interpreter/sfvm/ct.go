@@ -130,9 +130,7 @@ func genPcMap(code []byte) *pcMap {
 	evmToSfvm := make([]uint16, len(code)+1)
 	sfvmToEvm := make([]uint16, len(code)+1)
 
-	config := ConversionConfig{
-		WithSuperInstructions: false,
-	}
+	config := ConversionConfig{}
 	res := convertWithObserver(code, config, func(evm, sfvm int) {
 		evmToSfvm[evm] = uint16(sfvm)
 		sfvmToEvm[sfvm] = uint16(evm)

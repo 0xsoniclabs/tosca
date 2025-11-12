@@ -588,11 +588,7 @@ func TestInterpreter_ExecuteReturnsFailureOnExecutionError(t *testing.T) {
 // Benchmarks
 
 func BenchmarkFib10(b *testing.B) {
-	benchmarkFib(b, 10, false)
-}
-
-func BenchmarkFib10_SI(b *testing.B) {
-	benchmarkFib(b, 10, true)
+	benchmarkFib(b, 10)
 }
 
 func BenchmarkSatisfiesStackRequirements(b *testing.B) {
@@ -611,17 +607,14 @@ func BenchmarkSatisfiesStackRequirements(b *testing.B) {
 
 func Test_generateCodeForOps(t *testing.T) {
 	tests := map[OpCode]int{
-		PUSH1:                     1,
-		PUSH2:                     1,
-		PUSH3:                     2,
-		PUSH4:                     2,
-		PUSH5:                     3,
-		PUSH6:                     3,
-		PUSH31:                    16,
-		PUSH32:                    16,
-		PUSH1_PUSH1:               1,
-		PUSH1_PUSH4_DUP3:          3,
-		PUSH1_PUSH1_PUSH1_SHL_SUB: 2,
+		PUSH1:  1,
+		PUSH2:  1,
+		PUSH3:  2,
+		PUSH4:  2,
+		PUSH5:  3,
+		PUSH6:  3,
+		PUSH31: 16,
+		PUSH32: 16,
 	}
 	for op, test := range tests {
 		t.Run(op.String(), func(t *testing.T) {
@@ -639,27 +632,13 @@ func Test_generateCodeForOps(t *testing.T) {
 func generateCodeFor(op OpCode) Code {
 
 	var code []Instruction
+	code = append(code, Instruction{op, 0})
 
-	switch op {
-	case PUSH1_PUSH4_DUP3:
-		code = append(code, Instruction{op, 0}, Instruction{DATA, 0})
-	case PUSH1_PUSH1_PUSH1_SHL_SUB:
-		code = append(code, Instruction{op, 0}, Instruction{DATA, 0})
-	case PUSH2_JUMP:
-		code = append(code, Instruction{op, 1}) // hardcoded jump destination
-	case PUSH2_JUMPI:
-		code = append(code, Instruction{op, 1}) // hardcoded jump destination
-	default:
-		code = append(code, Instruction{op, 0})
-	}
-
-	for _, op := range append(op.decompose(), op) {
-		if PUSH3 <= op && op <= PUSH32 {
-			n := int(op) - int(PUSH3) + 3
-			numInstructions := n/2 + n%2
-			for i := 0; i < numInstructions-1; i++ {
-				code = append(code, Instruction{DATA, 0})
-			}
+	if PUSH3 <= op && op <= PUSH32 {
+		n := int(op) - int(PUSH3) + 3
+		numInstructions := n/2 + n%2
+		for i := 0; i < numInstructions-1; i++ {
+			code = append(code, Instruction{DATA, 0})
 		}
 	}
 
@@ -709,17 +688,14 @@ func isExecutable(op OpCode) bool {
 }
 
 func isJump(op OpCode) bool {
-	ops := append(op.decompose(), op)
-	return slices.ContainsFunc(ops, func(op OpCode) bool {
-		return op == JUMP || op == JUMPI
-	})
+	return op == JUMP || op == JUMPI
 }
 
-func benchmarkFib(b *testing.B, arg int, with_super_instructions bool) {
+func benchmarkFib(b *testing.B, arg int) {
 	example := getFibExample()
 
 	// Convert example to SFVM format.
-	converted := convert(example.code, ConversionConfig{WithSuperInstructions: with_super_instructions})
+	converted := convert(example.code, ConversionConfig{})
 
 	// Create input data.
 

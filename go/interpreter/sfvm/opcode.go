@@ -254,64 +254,17 @@ const (
 	// search (which could be cached to amortize costs).
 	DATA
 
-	// Super-instructions
-	SWAP2_SWAP1_POP_JUMP
-	SWAP1_POP_SWAP2_SWAP1
-	POP_SWAP2_SWAP1_POP
-	POP_POP
-	PUSH1_SHL
-	PUSH1_ADD
-	PUSH1_DUP1
-	PUSH2_JUMP
-	PUSH2_JUMPI
-
-	PUSH1_PUSH1
-	SWAP1_POP
-	POP_JUMP
-	SWAP2_SWAP1
-	SWAP2_POP
-	DUP2_MSTORE
-	DUP2_LT
-
-	ISZERO_PUSH2_JUMPI
-	PUSH1_PUSH4_DUP3
-	AND_SWAP1_POP_SWAP2_SWAP1
-	PUSH1_PUSH1_PUSH1_SHL_SUB
-
 	// _highestOpCode is an alias for the OpCode with the highest defined
 	// numeric value. It is only intended to be used in the unit tests
 	// associated to this OpCode definition file to verify that the OpCode
 	// bit mask limit has not been exceeded.
-	_highestOpCode = PUSH1_PUSH1_PUSH1_SHL_SUB
+	_highestOpCode = DATA
 )
 
 var toString = map[OpCode]string{
 	DATA:    "DATA",
 	NOOP:    "NOOP",
 	JUMP_TO: "JUMP_TO",
-
-	SWAP2_SWAP1_POP_JUMP:  "SWAP2_SWAP1_POP_JUMP",
-	SWAP1_POP_SWAP2_SWAP1: "SWAP1_POP_SWAP2_SWAP1",
-	POP_SWAP2_SWAP1_POP:   "POP_SWAP2_SWAP1_POP",
-	PUSH2_JUMP:            "PUSH2_JUMP",
-	PUSH2_JUMPI:           "PUSH2_JUMPI",
-	DUP2_MSTORE:           "DUP2_MSTORE",
-	DUP2_LT:               "DUP2_LT",
-
-	SWAP1_POP:   "SWAP1_POP",
-	POP_JUMP:    "POP_JUMP",
-	SWAP2_SWAP1: "SWAP2_SWAP1",
-	SWAP2_POP:   "SWAP2_POP",
-	PUSH1_PUSH1: "PUSH1_PUSH1",
-	PUSH1_ADD:   "PUSH1_ADD",
-	PUSH1_DUP1:  "PUSH1_DUP1",
-	POP_POP:     "POP_POP",
-	PUSH1_SHL:   "PUSH1_SHL",
-
-	ISZERO_PUSH2_JUMPI:        "ISZERO_PUSH2_JUMPI",
-	PUSH1_PUSH4_DUP3:          "PUSH1_PUSH4_DUP3",
-	AND_SWAP1_POP_SWAP2_SWAP1: "AND_SWAP1_POP_SWAP2_SWAP1",
-	PUSH1_PUSH1_PUSH1_SHL_SUB: "PUSH1_PUSH1_PUSH1_SHL_SUB",
 }
 
 // String returns the string representation of the OpCode.
@@ -338,68 +291,11 @@ func (o OpCode) HasArgument() bool {
 	case JUMP_TO:
 		return true
 	}
-	if o.isSuperInstruction() {
-		for _, subOp := range o.decompose() {
-			if subOp.HasArgument() {
-				return true
-			}
-		}
-	}
 	return false
 }
 
 func (o OpCode) isBaseInstruction() bool {
 	return o < 0x100
-}
-
-func (o OpCode) isSuperInstruction() bool {
-	return o.decompose() != nil
-}
-
-func (o OpCode) decompose() []OpCode {
-	switch o {
-	case SWAP2_SWAP1_POP_JUMP:
-		return []OpCode{SWAP2, SWAP1, POP, JUMP}
-	case SWAP1_POP_SWAP2_SWAP1:
-		return []OpCode{SWAP1, POP, SWAP2, SWAP1}
-	case POP_SWAP2_SWAP1_POP:
-		return []OpCode{POP, SWAP2, SWAP1, POP}
-	case POP_POP:
-		return []OpCode{POP, POP}
-	case PUSH1_SHL:
-		return []OpCode{PUSH1, SHL}
-	case PUSH1_ADD:
-		return []OpCode{PUSH1, ADD}
-	case PUSH1_DUP1:
-		return []OpCode{PUSH1, DUP1}
-	case PUSH2_JUMP:
-		return []OpCode{PUSH2, JUMP}
-	case PUSH2_JUMPI:
-		return []OpCode{PUSH2, JUMPI}
-	case PUSH1_PUSH1:
-		return []OpCode{PUSH1, PUSH1}
-	case SWAP1_POP:
-		return []OpCode{SWAP1, POP}
-	case POP_JUMP:
-		return []OpCode{POP, JUMP}
-	case SWAP2_SWAP1:
-		return []OpCode{SWAP2, SWAP1}
-	case SWAP2_POP:
-		return []OpCode{SWAP2, POP}
-	case DUP2_MSTORE:
-		return []OpCode{DUP2, MSTORE}
-	case DUP2_LT:
-		return []OpCode{DUP2, LT}
-	case ISZERO_PUSH2_JUMPI:
-		return []OpCode{ISZERO, PUSH2, JUMPI}
-	case PUSH1_PUSH4_DUP3:
-		return []OpCode{PUSH1, PUSH4, DUP3}
-	case AND_SWAP1_POP_SWAP2_SWAP1:
-		return []OpCode{AND, SWAP1, POP, SWAP2, SWAP1}
-	case PUSH1_PUSH1_PUSH1_SHL_SUB:
-		return []OpCode{PUSH1, PUSH1, PUSH1, SHL, SUB}
-	}
-	return nil
 }
 
 // opCodePropertyMap is a generic property map for precomputed values.
