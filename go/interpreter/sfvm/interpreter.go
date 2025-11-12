@@ -8,7 +8,7 @@
 // On the date above, in accordance with the Business Source License, use of
 // this software will be governed by the GNU Lesser General Public License v3.
 
-package lfvm
+package sfvm
 
 import (
 	"fmt"
@@ -16,7 +16,7 @@ import (
 	"github.com/0xsoniclabs/tosca/go/tosca"
 )
 
-//go:generate mockgen -source interpreter.go -destination interpreter_mock.go -package lfvm
+//go:generate mockgen -source interpreter.go -destination interpreter_mock.go -package sfvm
 
 // status is enumeration of the execution state of an interpreter run.
 type status byte
@@ -38,7 +38,7 @@ type context struct {
 	// Inputs
 	params  tosca.Parameters
 	context tosca.RunContext
-	code    Code // the contract code in LFVM format
+	code    Code // the contract code in SFVM format
 
 	// Execution state
 	pc     int32

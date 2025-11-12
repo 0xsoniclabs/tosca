@@ -8,45 +8,45 @@
 // On the date above, in accordance with the Business Source License, use of
 // this software will be governed by the GNU Lesser General Public License v3.
 
-package lfvm_test
+package sfvm_test
 
 import (
 	"testing"
 
-	"github.com/0xsoniclabs/tosca/go/interpreter/lfvm"
+	"github.com/0xsoniclabs/tosca/go/interpreter/sfvm"
 	"github.com/0xsoniclabs/tosca/go/tosca"
 )
 
-// TestLfvm_RegisterExperimentalConfigurations tests the registration of
+// TestSfvm_RegisterExperimentalConfigurations tests the registration of
 // experimental configurations.
 // This test is slightly different from other tests because of dealing with the
 // global registry:
 // - It is declared in it's own package to avoid leaking the registration to other tests.
 // - It tests different properties, in one single function. The reason is that the
 // order of different functions may change, invalidating the test.
-func TestLfvm_RegisterExperimentalConfigurations(t *testing.T) {
+func TestSfvm_RegisterExperimentalConfigurations(t *testing.T) {
 
 	// Fist registration must succeed.
-	err := lfvm.RegisterExperimentalInterpreterConfigurations()
+	err := sfvm.RegisterExperimentalInterpreterConfigurations()
 	if err != nil {
 		t.Fatalf("failed to register experimental configurations: %v", err)
 	}
 
 	// Registering a second time must fail.
-	err = lfvm.RegisterExperimentalInterpreterConfigurations()
+	err = sfvm.RegisterExperimentalInterpreterConfigurations()
 	if err == nil {
 		t.Fatalf("expected error when registering experimental configurations twice")
 	}
 
-	// Check that lfvm is registered by default, in addition to experimental configurations
-	if _, ok := tosca.GetAllRegisteredInterpreters()["lfvm"]; !ok {
-		t.Fatalf("lfvm is not registered")
+	// Check that sfvm is registered by default, in addition to experimental configurations
+	if _, ok := tosca.GetAllRegisteredInterpreters()["sfvm"]; !ok {
+		t.Fatalf("sfvm is not registered")
 	}
 
 	// Construct all registered interpreter configurations
 	for name, factory := range tosca.GetAllRegisteredInterpreters() {
 		t.Run(name, func(t *testing.T) {
-			vm, err := factory(lfvm.Config{})
+			vm, err := factory(sfvm.Config{})
 			if err != nil {
 				t.Fatalf("failed to create interpreter: %v", err)
 			}
@@ -54,7 +54,7 @@ func TestLfvm_RegisterExperimentalConfigurations(t *testing.T) {
 			// Vms are opaque, we can't check their configuration directly.
 			// We can only check that they do execute some basic code.
 			params := tosca.Parameters{}
-			params.Code = []byte{byte(lfvm.PUSH1), 0xff, byte(lfvm.POP), byte(lfvm.STOP)}
+			params.Code = []byte{byte(sfvm.PUSH1), 0xff, byte(sfvm.POP), byte(sfvm.STOP)}
 			params.Gas = 5
 			res, err := vm.Run(params)
 			if err != nil {

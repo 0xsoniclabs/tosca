@@ -8,7 +8,7 @@
 // On the date above, in accordance with the Business Source License, use of
 // this software will be governed by the GNU Lesser General Public License v3.
 
-package lfvm
+package sfvm
 
 import (
 	"math"
@@ -18,9 +18,9 @@ import (
 )
 
 // To run this fuzzer use the following command:
-// go test ./interpreter/lfvm -run none -fuzz LfvmConverter --fuzztime 10m
+// go test ./interpreter/sfvm -run none -fuzz SfvmConverter --fuzztime 10m
 
-func FuzzLfvmConverter(f *testing.F) {
+func FuzzSfvmConverter(f *testing.F) {
 
 	// Add empty code
 	f.Add([]byte{})
@@ -42,12 +42,12 @@ func FuzzLfvmConverter(f *testing.F) {
 		}
 
 		mapping := make([]int, len(toscaCode))
-		lfvmCode := convertWithObserver(toscaCode, ConversionConfig{}, func(evm, lfvm int) {
-			mapping[evm] = lfvm
+		sfvmCode := convertWithObserver(toscaCode, ConversionConfig{}, func(evm, sfvm int) {
+			mapping[evm] = sfvm
 		})
 
 		// Check that no super-instructions have been used.
-		for _, op := range lfvmCode {
+		for _, op := range sfvmCode {
 			if op.opcode.isSuperInstruction() {
 				t.Errorf("Super-instruction %v used", op.opcode)
 			}
@@ -56,29 +56,29 @@ func FuzzLfvmConverter(f *testing.F) {
 		// Check that all operations are mapped to matching operations.
 		for i := 0; i < len(toscaCode); i++ {
 			originalPos := i
-			lfvmPos := mapping[originalPos]
+			sfvmPos := mapping[originalPos]
 
 			toscaOpCode := vm.OpCode(toscaCode[originalPos])
-			lfvmOpCode := lfvmCode[lfvmPos].opcode
+			sfvmOpCode := sfvmCode[sfvmPos].opcode
 
-			if !lfvmOpCode.isBaseInstruction() {
-				t.Errorf("Expected base instructions only, got %v", lfvmOpCode)
+			if !sfvmOpCode.isBaseInstruction() {
+				t.Errorf("Expected base instructions only, got %v", sfvmOpCode)
 			}
 
-			if vm.OpCode(lfvmOpCode) != toscaOpCode {
-				t.Errorf("Invalid conversion from %v to %v", toscaOpCode, lfvmOpCode)
+			if vm.OpCode(sfvmOpCode) != toscaOpCode {
+				t.Errorf("Invalid conversion from %v to %v", toscaOpCode, sfvmOpCode)
 			}
 
 			// Check that the position of JUMPDEST ops are preserved.
 			if toscaOpCode == vm.JUMPDEST {
-				if originalPos != lfvmPos {
-					t.Errorf("Expected JUMPDEST at %d, got %d", originalPos, lfvmPos)
+				if originalPos != sfvmPos {
+					t.Errorf("Expected JUMPDEST at %d, got %d", originalPos, sfvmPos)
 				}
 			}
 
 			// Check that PC instructions point to the correct target.
 			if toscaOpCode == vm.PC {
-				target := int(lfvmCode[lfvmPos].arg)
+				target := int(sfvmCode[sfvmPos].arg)
 				if target != originalPos {
 					t.Errorf("Invalid PC target, wanted %d, got %d", originalPos, target)
 				}
@@ -91,17 +91,17 @@ func FuzzLfvmConverter(f *testing.F) {
 		}
 
 		// Check that JUMP_TO instructions point to their immediately succeeding JUMPDEST.
-		for i := 0; i < len(lfvmCode); i++ {
-			if lfvmCode[i].opcode == JUMP_TO {
-				trg := int(lfvmCode[i].arg)
+		for i := 0; i < len(sfvmCode); i++ {
+			if sfvmCode[i].opcode == JUMP_TO {
+				trg := int(sfvmCode[i].arg)
 				if trg < i {
 					t.Errorf("invalid JUMP_TO target from %d to %d", i, trg)
 				}
-				if trg >= len(lfvmCode) || lfvmCode[trg].opcode != JUMPDEST {
+				if trg >= len(sfvmCode) || sfvmCode[trg].opcode != JUMPDEST {
 					t.Fatalf("JUMP_TO target %d is not a JUMPDEST", trg)
 				}
 				for j := i + 1; j < trg; j++ {
-					cur := lfvmCode[j].opcode
+					cur := sfvmCode[j].opcode
 					if cur != NOOP {
 						t.Errorf("found %v between JUMP_TO and JUMPDEST at %d", cur, j)
 					}

@@ -8,7 +8,7 @@
 // On the date above, in accordance with the Business Source License, use of
 // this software will be governed by the GNU Lesser General Public License v3.
 
-package lfvm
+package sfvm
 
 import (
 	"fmt"
@@ -36,7 +36,7 @@ func NewConformanceTestingTarget() ct.Evm {
 }
 
 type ctAdapter struct {
-	vm         *lfvm
+	vm         *sfvm
 	pcMapCache *lru.Cache[[32]byte, *pcMap]
 }
 
@@ -61,16 +61,16 @@ func (a *ctAdapter) StepN(state *st.State, numSteps int) (*st.State, error) {
 
 	pcMap := a.getPcMap(state.Code)
 
-	memory := convertCtMemoryToLfvmMemory(state.Memory)
+	memory := convertCtMemoryToSfvmMemory(state.Memory)
 
 	// Set up execution context.
 	var ctxt = &context{
-		pc:           int32(pcMap.evmToLfvm[state.Pc]),
+		pc:           int32(pcMap.evmToSfvm[state.Pc]),
 		params:       params,
 		context:      params.Context,
 		gas:          params.Gas,
 		refund:       tosca.Gas(state.GasRefund),
-		stack:        convertCtStackToLfvmStack(state.Stack),
+		stack:        convertCtStackToSfvmStack(state.Stack),
 		memory:       memory,
 		code:         converted,
 		returnData:   state.LastCallReturnData.ToBytes(),
@@ -88,16 +88,16 @@ func (a *ctAdapter) StepN(state *st.State, numSteps int) (*st.State, error) {
 	}
 
 	// Update the resulting state.
-	state.Status = convertLfvmStatusToCtStatus(status)
+	state.Status = convertSfvmStatusToCtStatus(status)
 
 	if status == statusRunning {
-		state.Pc = pcMap.lfvmToEvm[ctxt.pc]
+		state.Pc = pcMap.sfvmToEvm[ctxt.pc]
 	}
 
 	state.Gas = ctxt.gas
 	state.GasRefund = ctxt.refund
-	state.Stack = convertLfvmStackToCtStack(ctxt.stack, state.Stack)
-	state.Memory = convertLfvmMemoryToCtMemory(ctxt.memory)
+	state.Stack = convertSfvmStackToCtStack(ctxt.stack, state.Stack)
+	state.Memory = convertSfvmMemoryToCtMemory(ctxt.memory)
 	state.LastCallReturnData = common.NewBytes(ctxt.returnData)
 	if status == statusReturned || status == statusReverted {
 		state.ReturnData = common.NewBytes(ctxt.returnData)
@@ -118,52 +118,52 @@ func (a *ctAdapter) getPcMap(code *st.Code) *pcMap {
 	return pcMap
 }
 
-// pcMap is a bidirectional map to map program counters between evm <-> lfvm.
+// pcMap is a bidirectional map to map program counters between evm <-> sfvm.
 type pcMap struct {
-	evmToLfvm []uint16
-	lfvmToEvm []uint16
+	evmToSfvm []uint16
+	sfvmToEvm []uint16
 }
 
 // genPcMap creates a bidirectional program counter map for a given code,
-// allowing mapping from a program counter in evm code to lfvm and vice versa.
+// allowing mapping from a program counter in evm code to sfvm and vice versa.
 func genPcMap(code []byte) *pcMap {
-	evmToLfvm := make([]uint16, len(code)+1)
-	lfvmToEvm := make([]uint16, len(code)+1)
+	evmToSfvm := make([]uint16, len(code)+1)
+	sfvmToEvm := make([]uint16, len(code)+1)
 
 	config := ConversionConfig{
 		WithSuperInstructions: false,
 	}
-	res := convertWithObserver(code, config, func(evm, lfvm int) {
-		evmToLfvm[evm] = uint16(lfvm)
-		lfvmToEvm[lfvm] = uint16(evm)
+	res := convertWithObserver(code, config, func(evm, sfvm int) {
+		evmToSfvm[evm] = uint16(sfvm)
+		sfvmToEvm[sfvm] = uint16(evm)
 	})
 
 	// A program counter may correctly point to the position after the last
 	// instruction, which would lead to an implicit STOP.
-	evmToLfvm[len(code)] = uint16(len(res))
+	evmToSfvm[len(code)] = uint16(len(res))
 
-	// The LFVM code could also be longer than the input code if extra padding
+	// The SFVM code could also be longer than the input code if extra padding
 	// of truncated PUSH instructions has been added.
-	if len(res)+1 > len(lfvmToEvm) {
-		lfvmToEvm = append(lfvmToEvm, make([]uint16, len(res)+1-len(lfvmToEvm))...)
+	if len(res)+1 > len(sfvmToEvm) {
+		sfvmToEvm = append(sfvmToEvm, make([]uint16, len(res)+1-len(sfvmToEvm))...)
 	}
-	lfvmToEvm[len(res)] = uint16(len(code))
+	sfvmToEvm[len(res)] = uint16(len(code))
 
-	// Locations pointing to JUMP_TO instructions in LFVM need to be updated to
+	// Locations pointing to JUMP_TO instructions in SFVM need to be updated to
 	// the position of the jump target.
 	for i := 0; i < len(res); i++ {
 		if res[i].opcode == JUMP_TO {
-			lfvmToEvm[i] = res[i].arg
+			sfvmToEvm[i] = res[i].arg
 		}
 	}
 
 	return &pcMap{
-		evmToLfvm: evmToLfvm,
-		lfvmToEvm: lfvmToEvm,
+		evmToSfvm: evmToSfvm,
+		sfvmToEvm: sfvmToEvm,
 	}
 }
 
-func convertLfvmStatusToCtStatus(status status) st.StatusCode {
+func convertSfvmStatusToCtStatus(status status) st.StatusCode {
 	switch status {
 	case statusRunning:
 		return st.Running
@@ -179,7 +179,7 @@ func convertLfvmStatusToCtStatus(status status) st.StatusCode {
 	return st.Failed
 }
 
-func convertCtStackToLfvmStack(stack *st.Stack) *stack {
+func convertCtStackToSfvmStack(stack *st.Stack) *stack {
 	result := NewStack()
 	for i := stack.Size() - 1; i >= 0; i-- {
 		val := stack.Get(i).Uint256()
@@ -188,7 +188,7 @@ func convertCtStackToLfvmStack(stack *st.Stack) *stack {
 	return result
 }
 
-func convertLfvmStackToCtStack(stack *stack, result *st.Stack) *st.Stack {
+func convertSfvmStackToCtStack(stack *stack, result *st.Stack) *st.Stack {
 	len := stack.len()
 	result.Resize(len)
 	for i := 0; i < len; i++ {
@@ -197,7 +197,7 @@ func convertLfvmStackToCtStack(stack *stack, result *st.Stack) *st.Stack {
 	return result
 }
 
-func convertCtMemoryToLfvmMemory(memory *st.Memory) *Memory {
+func convertCtMemoryToSfvmMemory(memory *st.Memory) *Memory {
 	data := memory.Read(0, uint64(memory.Size()))
 	mem := NewMemory()
 	words := tosca.SizeInWords(uint64(len(data)))
@@ -207,7 +207,7 @@ func convertCtMemoryToLfvmMemory(memory *st.Memory) *Memory {
 	return mem
 }
 
-func convertLfvmMemoryToCtMemory(memory *Memory) *st.Memory {
+func convertSfvmMemoryToCtMemory(memory *Memory) *st.Memory {
 	result := st.NewMemory()
 	result.Set(memory.store)
 	return result
