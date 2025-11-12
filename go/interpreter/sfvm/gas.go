@@ -226,14 +226,6 @@ func getStaticGasPriceInternal(op OpCode) tosca.Gas {
 		return 5000
 	}
 
-	if op.isSuperInstruction() {
-		var sum tosca.Gas
-		for _, subOp := range op.decompose() {
-			sum += getStaticGasPriceInternal(subOp)
-		}
-		return sum
-	}
-
 	return UNKNOWN_GAS_PRICE
 }
 

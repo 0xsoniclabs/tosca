@@ -81,36 +81,5 @@ func computeStackUsage(op OpCode) stackUsage {
 		return makeUsage(7, 1)
 	}
 
-	// For super-instructions, we need to decompose the instruction into its
-	// sub-instructions and compute the combined stack usage.
-	if op.isSuperInstruction() {
-		usages := []stackUsage{}
-		for _, subOp := range op.decompose() {
-			usages = append(usages, computeStackUsage(subOp))
-		}
-		return combineStackUsage(usages...)
-	}
-
 	return stackUsage{}
-}
-
-// combineStackUsage combines the given stack usages into a single stack usage.
-func combineStackUsage(usages ...stackUsage) stackUsage {
-	// This function simulates the effect of the given stack usages on the stack
-	// step by step. The delta of the resulting stack usage tracks the current
-	// stack height offset.
-	res := stackUsage{}
-	for _, usage := range usages {
-		from := usage.from + res.delta
-		to := usage.to + res.delta
-
-		if from < res.from {
-			res.from = from
-		}
-		if to > res.to {
-			res.to = to
-		}
-		res.delta += usage.delta
-	}
-	return res
 }
