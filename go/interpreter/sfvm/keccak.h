@@ -391,7 +391,7 @@ static inline ALWAYS_INLINE void keccak(uint64_t *out, size_t bits,
     out[i] = to_le64(state[i]);
 }
 
-union ethash_hash256 tosca_lfvm_keccak256(const void *in,
+union ethash_hash256 tosca_sfvm_keccak256(const void *in,
                                           size_t size) noexcept {
   union ethash_hash256 hash;
   keccak(hash.word64s, 256, (const uint8_t *)in, size);
@@ -439,7 +439,7 @@ static inline ALWAYS_INLINE union ethash_hash256 keccak_32(const uint64_t a,
   return res;
 }
 
-union ethash_hash256 tosca_lfvm_keccak256_32byte(const uint64_t a,
+union ethash_hash256 tosca_sfvm_keccak256_32byte(const uint64_t a,
                                                  const uint64_t b,
                                                  const uint64_t c,
                                                  const uint64_t d) noexcept {

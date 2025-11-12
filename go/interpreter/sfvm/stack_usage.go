@@ -8,7 +8,7 @@
 // On the date above, in accordance with the Business Source License, use of
 // this software will be governed by the GNU Lesser General Public License v3.
 
-package lfvm
+package sfvm
 
 // stackUsage defines the combined effect of an instruction on the stack. Each
 // instruction is accessing a range of elements on the stack relative to the

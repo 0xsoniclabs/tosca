@@ -8,7 +8,7 @@
 // On the date above, in accordance with the Business Source License, use of
 // this software will be governed by the GNU Lesser General Public License v3.
 
-package lfvm
+package sfvm
 
 /*
 #include "keccak.h"
@@ -55,14 +55,14 @@ func keccak256_C(data []byte) tosca.Hash {
 	if len(data) == 0 {
 		return emptyKeccak256Hash
 	}
-	res := C.tosca_lfvm_keccak256(unsafe.Pointer(&data[0]), C.size_t(len(data)))
+	res := C.tosca_sfvm_keccak256(unsafe.Pointer(&data[0]), C.size_t(len(data)))
 	return tosca.Hash(res)
 }
 
 func keccak256_C_32byte(data [32]byte) tosca.Hash {
 	// The address is passed as 4x 64-bit integer values through the stack to
 	// avoid the need of allocating heap memory for the key.
-	return tosca.Hash(C.tosca_lfvm_keccak256_32byte(
+	return tosca.Hash(C.tosca_sfvm_keccak256_32byte(
 		C.uint64_t(
 			uint64(data[7])<<56|uint64(data[6])<<48|uint64(data[5])<<40|uint64(data[4])<<32|
 				uint64(data[3])<<24|uint64(data[2])<<16|uint64(data[1])<<8|uint64(data[0])<<0),

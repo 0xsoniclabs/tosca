@@ -8,7 +8,7 @@
 // On the date above, in accordance with the Business Source License, use of
 // this software will be governed by the GNU Lesser General Public License v3.
 
-package lfvm
+package sfvm
 
 import (
 	"bytes"
@@ -633,7 +633,7 @@ func Test_generateCodeForOps(t *testing.T) {
 	}
 }
 
-// generateCodeFor generates valid LFVM code for one instruction.
+// generateCodeFor generates valid SFVM code for one instruction.
 // Appends necessary DATA instructions to the code to satisfy stack requirements.
 // Adds JUMPDEST instruction after JUMP instructions.
 func generateCodeFor(op OpCode) Code {
@@ -718,7 +718,7 @@ func isJump(op OpCode) bool {
 func benchmarkFib(b *testing.B, arg int, with_super_instructions bool) {
 	example := getFibExample()
 
-	// Convert example to LFVM format.
+	// Convert example to SFVM format.
 	converted := convert(example.code, ConversionConfig{WithSuperInstructions: with_super_instructions})
 
 	// Create input data.

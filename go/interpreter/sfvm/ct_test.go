@@ -8,7 +8,7 @@
 // On the date above, in accordance with the Business Source License, use of
 // this software will be governed by the GNU Lesser General Public License v3.
 
-package lfvm
+package sfvm
 
 import (
 	"bytes"
@@ -163,9 +163,9 @@ func TestCtAdapter_FillsReturnDataOnResultingState(t *testing.T) {
 }
 
 ////////////////////////////////////////////////////////////
-// ct -> lfvm
+// ct -> sfvm
 
-func TestConvertToLfvm_StatusCode(t *testing.T) {
+func TestConvertToSfvm_StatusCode(t *testing.T) {
 
 	tests := map[status]st.StatusCode{
 		statusRunning:        st.Running,
@@ -177,25 +177,25 @@ func TestConvertToLfvm_StatusCode(t *testing.T) {
 	}
 
 	for status, test := range tests {
-		got := convertLfvmStatusToCtStatus(status)
+		got := convertSfvmStatusToCtStatus(status)
 		if want, got := test, got; want != got {
 			t.Errorf("unexpected conversion, wanted %v, got %v", want, got)
 		}
 	}
 }
 
-func TestConvertToLfvm_StatusCodeFailsOnUnknownStatus(t *testing.T) {
-	status := convertLfvmStatusToCtStatus(statusFailed + 1)
+func TestConvertToSfvm_StatusCodeFailsOnUnknownStatus(t *testing.T) {
+	status := convertSfvmStatusToCtStatus(statusFailed + 1)
 	if status != st.Failed {
 		t.Errorf("unexpected conversion, wanted %v, got %v", st.Failed, status)
 	}
 }
 
-func TestConvertToLfvm_Pc(t *testing.T) {
+func TestConvertToSfvm_Pc(t *testing.T) {
 	tests := map[string][]struct {
 		evmCode []byte
 		evmPc   uint16
-		lfvmPc  uint16
+		sfvmPc  uint16
 	}{
 		"empty":        {{}},
 		"pos-0":        {{[]byte{byte(vm.STOP)}, 0, 0}},
@@ -220,8 +220,8 @@ func TestConvertToLfvm_Pc(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			for _, cur := range test {
 				pcMap := genPcMap(cur.evmCode)
-				lfvmPc := pcMap.evmToLfvm[cur.evmPc]
-				if want, got := cur.lfvmPc, lfvmPc; want != got {
+				sfvmPc := pcMap.evmToSfvm[cur.evmPc]
+				if want, got := cur.sfvmPc, sfvmPc; want != got {
 					t.Errorf("invalid conversion, wanted %d, got %d", want, got)
 				}
 			}
@@ -229,10 +229,10 @@ func TestConvertToLfvm_Pc(t *testing.T) {
 	}
 }
 
-func TestConvertToLfvm_Code(t *testing.T) {
+func TestConvertToSfvm_Code(t *testing.T) {
 	tests := map[string][]struct {
 		evmCode  []byte
-		lfvmCode Code
+		sfvmCode Code
 	}{
 		"empty": {{}},
 		"stop":  {{[]byte{byte(vm.STOP)}, Code{Instruction{STOP, 0x0000}}}},
@@ -315,7 +315,7 @@ func TestConvertToLfvm_Code(t *testing.T) {
 			for _, cur := range test {
 				got := convert(cur.evmCode, ConversionConfig{})
 
-				want := cur.lfvmCode
+				want := cur.sfvmCode
 
 				if wantSize, gotSize := len(want), len(got); wantSize != gotSize {
 					t.Fatalf("unexpected code size, wanted %d, got %d", wantSize, gotSize)
@@ -331,7 +331,7 @@ func TestConvertToLfvm_Code(t *testing.T) {
 	}
 }
 
-func TestConvertToLfvm_CodeWithSuperInstructions(t *testing.T) {
+func TestConvertToSfvm_CodeWithSuperInstructions(t *testing.T) {
 	tests := map[string]struct {
 		evmCode []byte
 		want    Code
@@ -432,8 +432,8 @@ func TestConvertToLfvm_CodeWithSuperInstructions(t *testing.T) {
 	}
 }
 
-func TestConvertToLfvm_Stack(t *testing.T) {
-	newLfvmStack := func(values ...cc.U256) *stack {
+func TestConvertToSfvm_Stack(t *testing.T) {
+	newSfvmStack := func(values ...cc.U256) *stack {
 		stack := NewStack()
 		for i := 0; i < len(values); i++ {
 			value := values[i].Uint256()
@@ -444,36 +444,36 @@ func TestConvertToLfvm_Stack(t *testing.T) {
 
 	tests := map[string]struct {
 		ctStack   *st.Stack
-		lfvmStack *stack
+		sfvmStack *stack
 	}{
 		"empty": {
 			st.NewStack(),
-			newLfvmStack()},
+			newSfvmStack()},
 		"one-element": {
 			st.NewStack(cc.NewU256(7)),
-			newLfvmStack(cc.NewU256(7))},
+			newSfvmStack(cc.NewU256(7))},
 		"two-elements": {
 			st.NewStack(cc.NewU256(1), cc.NewU256(2)),
-			newLfvmStack(cc.NewU256(1), cc.NewU256(2))},
+			newSfvmStack(cc.NewU256(1), cc.NewU256(2))},
 		"three-elements": {
 			st.NewStack(cc.NewU256(1), cc.NewU256(2), cc.NewU256(3)),
-			newLfvmStack(cc.NewU256(1), cc.NewU256(2), cc.NewU256(3))},
+			newSfvmStack(cc.NewU256(1), cc.NewU256(2), cc.NewU256(3))},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			stack := convertCtStackToLfvmStack(test.ctStack)
-			if want, got := test.lfvmStack.len(), stack.len(); want != got {
+			stack := convertCtStackToSfvmStack(test.ctStack)
+			if want, got := test.sfvmStack.len(), stack.len(); want != got {
 				t.Fatalf("unexpected stack size, wanted %v, got %v", want, got)
 			}
 			for i := 0; i < stack.len(); i++ {
-				want := *test.lfvmStack.get(i)
+				want := *test.sfvmStack.get(i)
 				got := *stack.get(i)
 				if want != got {
 					t.Errorf("unexpected stack value, wanted %v, got %v", want, got)
 				}
 			}
-			ReturnStack(test.lfvmStack)
+			ReturnStack(test.sfvmStack)
 			ReturnStack(stack)
 			test.ctStack.Release()
 		})
@@ -481,12 +481,12 @@ func TestConvertToLfvm_Stack(t *testing.T) {
 }
 
 ////////////////////////////////////////////////////////////
-// lfvm -> ct
+// sfvm -> ct
 
 func TestConvertToCt_Pc(t *testing.T) {
 	tests := map[string][]struct {
 		evmCode []byte
-		lfvmPc  uint16
+		sfvmPc  uint16
 		evmPc   uint16
 	}{
 		"empty":        {{}},
@@ -512,7 +512,7 @@ func TestConvertToCt_Pc(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			for _, cur := range test {
 				pcMap := genPcMap(cur.evmCode)
-				evmPc := pcMap.lfvmToEvm[cur.lfvmPc]
+				evmPc := pcMap.sfvmToEvm[cur.sfvmPc]
 				if want, got := cur.evmPc, evmPc; want != got {
 					t.Errorf("invalid conversion, wanted %d, got %d", want, got)
 				}
@@ -522,7 +522,7 @@ func TestConvertToCt_Pc(t *testing.T) {
 }
 
 func TestConvertToCt_Stack(t *testing.T) {
-	newLfvmStack := func(values ...cc.U256) *stack {
+	newSfvmStack := func(values ...cc.U256) *stack {
 		stack := NewStack()
 		for i := 0; i < len(values); i++ {
 			value := values[i].Uint256()
@@ -532,20 +532,20 @@ func TestConvertToCt_Stack(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		lfvmStack *stack
+		sfvmStack *stack
 		ctStack   *st.Stack
 	}{
 		"empty": {
-			newLfvmStack(),
+			newSfvmStack(),
 			st.NewStack()},
 		"one-element": {
-			newLfvmStack(cc.NewU256(7)),
+			newSfvmStack(cc.NewU256(7)),
 			st.NewStack(cc.NewU256(7))},
 		"two-elements": {
-			newLfvmStack(cc.NewU256(1), cc.NewU256(2)),
+			newSfvmStack(cc.NewU256(1), cc.NewU256(2)),
 			st.NewStack(cc.NewU256(1), cc.NewU256(2))},
 		"three-elements": {
-			newLfvmStack(cc.NewU256(1), cc.NewU256(2), cc.NewU256(3)),
+			newSfvmStack(cc.NewU256(1), cc.NewU256(2), cc.NewU256(3)),
 			st.NewStack(cc.NewU256(1), cc.NewU256(2), cc.NewU256(3))},
 	}
 
@@ -553,26 +553,26 @@ func TestConvertToCt_Stack(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			want := test.ctStack
 			ctStack := st.NewStack()
-			got := convertLfvmStackToCtStack(test.lfvmStack, ctStack)
+			got := convertSfvmStackToCtStack(test.sfvmStack, ctStack)
 
 			diffs := got.Diff(want)
 			for _, diff := range diffs {
 				t.Errorf("%s", diff)
 			}
-			ReturnStack(test.lfvmStack)
+			ReturnStack(test.sfvmStack)
 			test.ctStack.Release()
 			ctStack.Release()
 		})
 	}
 }
 
-func BenchmarkLfvmStackToCtStack(b *testing.B) {
+func BenchmarkSfvmStackToCtStack(b *testing.B) {
 	stack := NewStack()
 	for i := 0; i < MAX_STACK_SIZE/2; i++ {
 		stack.pushUndefined().SetUint64(uint64(i))
 	}
 	ctStack := st.NewStack()
 	for i := 0; i < b.N; i++ {
-		convertLfvmStackToCtStack(stack, ctStack)
+		convertSfvmStackToCtStack(stack, ctStack)
 	}
 }

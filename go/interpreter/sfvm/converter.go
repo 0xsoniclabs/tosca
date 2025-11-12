@@ -8,7 +8,7 @@
 // On the date above, in accordance with the Business Source License, use of
 // this software will be governed by the GNU Lesser General Public License v3.
 
-package lfvm
+package sfvm
 
 import (
 	"math"
@@ -33,7 +33,7 @@ type ConversionConfig struct {
 	WithSuperInstructions bool
 }
 
-// Converter converts EVM code to LFVM code.
+// Converter converts EVM code to SFVM code.
 type Converter struct {
 	config ConversionConfig
 	cache  *lru.Cache[tosca.Hash, Code]
@@ -61,7 +61,7 @@ func NewConverter(config ConversionConfig) (*Converter, error) {
 	}, nil
 }
 
-// Convert converts EVM code to LFVM code. If the provided code hash is not nil,
+// Convert converts EVM code to SFVM code. If the provided code hash is not nil,
 // it is assumed to be a valid hash of the code and is used to cache the
 // conversion result. If the hash is nil, the conversion result is not cached.
 func (c *Converter) Convert(code []byte, codeHash *tosca.Hash) (Code, error) {
@@ -143,12 +143,12 @@ func convert(code []byte, options ConversionConfig) Code {
 	return convertWithObserver(code, options, func(int, int) {})
 }
 
-// convertWithObserver converts EVM code to LFVM code and calls the observer
+// convertWithObserver converts EVM code to SFVM code and calls the observer
 // with the code position of every pair of instructions converted.
 func convertWithObserver(
 	code []byte,
 	options ConversionConfig,
-	observer func(evmPc int, lfvmPc int),
+	observer func(evmPc int, sfvmPc int),
 ) Code {
 	res := newCodeBuilder(len(code))
 
