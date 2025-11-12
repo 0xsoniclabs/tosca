@@ -337,9 +337,7 @@ func TestConvert_ProgramCounterBeyond16bitAreConvertedIntoInvalidInstructions(t 
 }
 
 func TestConvert_BaseInstructionsAreConvertedToEquivalents(t *testing.T) {
-	config := ConversionConfig{
-		WithSuperInstructions: false,
-	}
+	config := ConversionConfig{}
 	for _, op := range allOpCodesWhere(OpCode.isBaseInstruction) {
 		t.Run(op.String(), func(t *testing.T) {
 			code := []byte{byte(op)}
@@ -438,65 +436,6 @@ func TestConvert_AllJumpToOperationsPointToSubsequentJumpdest(t *testing.T) {
 	}
 	if counter == 0 {
 		t.Errorf("No JUMP_TO operations found")
-	}
-}
-
-func TestConvert_SI_WhenEnabledSuperInstructionsAreUsed(t *testing.T) {
-	config := ConversionConfig{
-		WithSuperInstructions: true,
-	}
-	for _, op := range allOpCodesWhere(OpCode.isSuperInstruction) {
-		t.Run(op.String(), func(t *testing.T) {
-			code := []byte{}
-			for _, op := range op.decompose() {
-				code = append(code, byte(op))
-				if PUSH1 <= op && op <= PUSH32 {
-					code = append(code, make([]byte, int(op)-int(PUSH1)+1)...)
-				}
-			}
-			res := convert(code, config)
-			if want, got := op, res[0].opcode; want != got {
-				t.Errorf("Expected %v, got %v", want, got)
-			}
-		})
-	}
-}
-
-func TestConvert_SI_WhenDisabledNoSuperInstructionsAreUsed(t *testing.T) {
-	config := ConversionConfig{
-		WithSuperInstructions: false,
-	}
-	for _, op := range allOpCodesWhere(OpCode.isSuperInstruction) {
-		t.Run(op.String(), func(t *testing.T) {
-			code := []byte{}
-			for _, op := range op.decompose() {
-				code = append(code, byte(op))
-			}
-
-			res := convert(code, config)
-			for i, instr := range res {
-				if instr.opcode.isSuperInstruction() {
-					t.Errorf("Super instruction %v used at position %d", instr.opcode, i)
-				}
-			}
-		})
-	}
-}
-
-func TestConverter_SI_FallsBackToSFVMInstructionsWhenNoSuperInstructionIsFit(t *testing.T) {
-
-	config := ConversionConfig{
-		WithSuperInstructions: true,
-	}
-	code := []byte{byte(PUSH2), 0x12, 0x34, byte(ADD), byte(PUSH1), 0x56, byte(SUB)}
-	convertedCode := convert(code, config)
-	if len(convertedCode) != 4 {
-		t.Fatalf("Expected 4 instructions, got %d", len(convertedCode))
-	}
-	for _, inst := range convertedCode {
-		if inst.opcode.isSuperInstruction() {
-			t.Errorf("Super instruction %v used", inst.opcode)
-		}
 	}
 }
 

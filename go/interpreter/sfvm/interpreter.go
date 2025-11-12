@@ -507,47 +507,6 @@ func steps(c *context, oneStepOnly bool) (status, error) {
 			err = opLog(c, 3)
 		case LOG4:
 			err = opLog(c, 4)
-		// --- Super Instructions ---
-		case SWAP2_SWAP1_POP_JUMP:
-			err = opSwap2_Swap1_Pop_Jump(c)
-		case SWAP1_POP_SWAP2_SWAP1:
-			opSwap1_Pop_Swap2_Swap1(c)
-		case POP_SWAP2_SWAP1_POP:
-			opPop_Swap2_Swap1_Pop(c)
-		case POP_POP:
-			opPopPop(c)
-		case PUSH1_SHL:
-			opPush1_Shl(c)
-		case PUSH1_ADD:
-			opPush1_Add(c)
-		case PUSH1_DUP1:
-			opPush1_Dup1(c)
-		case PUSH2_JUMP:
-			err = opPush2_Jump(c)
-		case PUSH2_JUMPI:
-			err = opPush2_Jumpi(c)
-		case PUSH1_PUSH1:
-			opPush1_Push1(c)
-		case SWAP1_POP:
-			opSwap1_Pop(c)
-		case POP_JUMP:
-			err = opPop_Jump(c)
-		case SWAP2_SWAP1:
-			opSwap2_Swap1(c)
-		case SWAP2_POP:
-			opSwap2_Pop(c)
-		case DUP2_MSTORE:
-			err = opDup2_Mstore(c)
-		case DUP2_LT:
-			opDup2_Lt(c)
-		case ISZERO_PUSH2_JUMPI:
-			err = opIsZero_Push2_Jumpi(c)
-		case PUSH1_PUSH4_DUP3:
-			opPush1_Push4_Dup3(c)
-		case AND_SWAP1_POP_SWAP2_SWAP1:
-			opAnd_Swap1_Pop_Swap2_Swap1(c)
-		case PUSH1_PUSH1_PUSH1_SHL_SUB:
-			opPush1_Push1_Push1_Shl_Sub(c)
 		default:
 			err = errInvalidOpCode
 		}

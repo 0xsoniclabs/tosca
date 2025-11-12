@@ -25,10 +25,8 @@ type Config struct {
 // configuration for production purposes.
 func NewInterpreter(Config) (*sfvm, error) {
 	return newVm(config{
-		ConversionConfig: ConversionConfig{
-			WithSuperInstructions: false,
-		},
-		WithShaCache: true,
+		ConversionConfig: ConversionConfig{},
+		WithShaCache:     true,
 	})
 }
 
@@ -47,35 +45,31 @@ func RegisterExperimentalInterpreterConfigurations() error {
 
 	configs := map[string]config{}
 
-	for _, si := range []string{"", "-si"} {
-		for _, shaCache := range []string{"", "-no-sha-cache"} {
-			for _, mode := range []string{"", "-stats", "-logging"} {
+	for _, shaCache := range []string{"", "-no-sha-cache"} {
+		for _, mode := range []string{"", "-stats", "-logging"} {
 
-				config := config{
-					ConversionConfig: ConversionConfig{
-						WithSuperInstructions: si == "-si",
-					},
-					WithShaCache: shaCache != "-no-sha-cache",
-				}
-
-				switch mode {
-				case "-stats":
-					config.runner = &statisticRunner{
-						stats: newStatistics(),
-					}
-				case "-logging":
-					config.runner = loggingRunner{
-						log: os.Stdout,
-					}
-				}
-
-				name := "sfvm" + si + shaCache + mode
-				if name == "sfvm" {
-					continue
-				}
-
-				configs[name] = config
+			config := config{
+				ConversionConfig: ConversionConfig{},
+				WithShaCache:     shaCache != "-no-sha-cache",
 			}
+
+			switch mode {
+			case "-stats":
+				config.runner = &statisticRunner{
+					stats: newStatistics(),
+				}
+			case "-logging":
+				config.runner = loggingRunner{
+					log: os.Stdout,
+				}
+			}
+
+			name := "sfvm" + shaCache + mode
+			if name == "sfvm" {
+				continue
+			}
+
+			configs[name] = config
 		}
 	}
 
