@@ -10,6 +10,8 @@
 
 package sfvm
 
+import "github.com/0xsoniclabs/tosca/go/tosca/vm"
+
 // stackUsage defines the combined effect of an instruction on the stack. Each
 // instruction is accessing a range of elements on the stack relative to the
 // stack pointer. The range is given by the interval [from, to) where from is
@@ -22,7 +24,7 @@ type stackUsage struct {
 // computeStackUsage computes the stack usage of the given opcode. The result
 // is a stackUsage struct that defines the combined effect of the instruction
 // on the stack. If the opcode is not known, zero stack usage is reported.
-func computeStackUsage(op OpCode) stackUsage {
+func computeStackUsage(op vm.OpCode) stackUsage {
 
 	// For single instructions it is easiest to define the stack usage based on
 	// the opcode's pops and pushes.
@@ -35,49 +37,49 @@ func computeStackUsage(op OpCode) stackUsage {
 		return stackUsage{from: -pops, to: to, delta: delta}
 	}
 
-	if PUSH1 <= op && op <= PUSH32 {
+	if vm.PUSH1 <= op && op <= vm.PUSH32 {
 		return makeUsage(0, 1)
 	}
-	if DUP1 <= op && op <= DUP16 {
-		return makeUsage(int(op-DUP1+1), int(op-DUP1+2))
+	if vm.DUP1 <= op && op <= vm.DUP16 {
+		return makeUsage(int(op-vm.DUP1+1), int(op-vm.DUP1+2))
 	}
-	if SWAP1 <= op && op <= SWAP16 {
-		return makeUsage(int(op-SWAP1+2), int(op-SWAP1+2))
+	if vm.SWAP1 <= op && op <= vm.SWAP16 {
+		return makeUsage(int(op-vm.SWAP1+2), int(op-vm.SWAP1+2))
 	}
-	if LOG0 <= op && op <= LOG4 {
-		return makeUsage(int(op-LOG0+2), 0)
+	if vm.LOG0 <= op && op <= vm.LOG4 {
+		return makeUsage(int(op-vm.LOG0+2), 0)
 	}
 
 	switch op {
-	case JUMPDEST, JUMP_TO, STOP:
+	case vm.JUMPDEST, vm.STOP:
 		return makeUsage(0, 0)
-	case PUSH0, MSIZE, ADDRESS, ORIGIN, CALLER, CALLVALUE, CALLDATASIZE,
-		CODESIZE, GASPRICE, COINBASE, TIMESTAMP, NUMBER,
-		PREVRANDAO, GASLIMIT, PC, GAS, RETURNDATASIZE,
-		SELFBALANCE, CHAINID, BASEFEE, BLOBBASEFEE:
+	case vm.PUSH0, vm.MSIZE, vm.ADDRESS, vm.ORIGIN, vm.CALLER, vm.CALLVALUE, vm.CALLDATASIZE,
+		vm.CODESIZE, vm.GASPRICE, vm.COINBASE, vm.TIMESTAMP, vm.NUMBER,
+		vm.PREVRANDAO, vm.GASLIMIT, vm.PC, vm.GAS, vm.RETURNDATASIZE,
+		vm.SELFBALANCE, vm.CHAINID, vm.BASEFEE, vm.BLOBBASEFEE:
 		return makeUsage(0, 1)
-	case POP, JUMP, SELFDESTRUCT:
+	case vm.POP, vm.JUMP, vm.SELFDESTRUCT:
 		return makeUsage(1, 0)
-	case ISZERO, NOT, BALANCE, CALLDATALOAD, EXTCODESIZE,
-		BLOCKHASH, MLOAD, SLOAD, TLOAD, EXTCODEHASH, BLOBHASH, CLZ:
+	case vm.ISZERO, vm.NOT, vm.BALANCE, vm.CALLDATALOAD, vm.EXTCODESIZE,
+		vm.BLOCKHASH, vm.MLOAD, vm.SLOAD, vm.TLOAD, vm.EXTCODEHASH, vm.BLOBHASH, vm.CLZ:
 		return makeUsage(1, 1)
-	case MSTORE, MSTORE8, SSTORE, TSTORE, JUMPI, RETURN, REVERT:
+	case vm.MSTORE, vm.MSTORE8, vm.SSTORE, vm.TSTORE, vm.JUMPI, vm.RETURN, vm.REVERT:
 		return makeUsage(2, 0)
-	case ADD, SUB, MUL, DIV, SDIV, MOD, SMOD, EXP, SIGNEXTEND,
-		SHA3, LT, GT, SLT, SGT, EQ, AND, XOR, OR, BYTE,
-		SHL, SHR, SAR:
+	case vm.ADD, vm.SUB, vm.MUL, vm.DIV, vm.SDIV, vm.MOD, vm.SMOD, vm.EXP, vm.SIGNEXTEND,
+		vm.SHA3, vm.LT, vm.GT, vm.SLT, vm.SGT, vm.EQ, vm.AND, vm.XOR, vm.OR, vm.BYTE,
+		vm.SHL, vm.SHR, vm.SAR:
 		return makeUsage(2, 1)
-	case CALLDATACOPY, CODECOPY, RETURNDATACOPY, MCOPY:
+	case vm.CALLDATACOPY, vm.CODECOPY, vm.RETURNDATACOPY, vm.MCOPY:
 		return makeUsage(3, 0)
-	case ADDMOD, MULMOD, CREATE:
+	case vm.ADDMOD, vm.MULMOD, vm.CREATE:
 		return makeUsage(3, 1)
-	case EXTCODECOPY:
+	case vm.EXTCODECOPY:
 		return makeUsage(4, 0)
-	case CREATE2:
+	case vm.CREATE2:
 		return makeUsage(4, 1)
-	case STATICCALL, DELEGATECALL:
+	case vm.STATICCALL, vm.DELEGATECALL:
 		return makeUsage(6, 1)
-	case CALL, CALLCODE:
+	case vm.CALL, vm.CALLCODE:
 		return makeUsage(7, 1)
 	}
 

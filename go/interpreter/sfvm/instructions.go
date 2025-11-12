@@ -31,13 +31,11 @@ func opEndWithResult(c *context) error {
 }
 
 func opPc(c *context) {
-	c.stack.pushUndefined().SetUint64(uint64(c.code[c.pc].arg))
+	c.stack.pushUndefined().SetUint64(uint64(c.pc))
 }
 
 func checkJumpDest(c *context) error {
-	if int(c.pc+1) >= len(c.code) || c.code[c.pc+1].opcode != JUMPDEST {
-		return errInvalidJump
-	}
+	// TODO: use bitmap for jumpdest analysis
 	return nil
 }
 
@@ -67,31 +65,38 @@ func opJumpi(c *context) error {
 	return nil
 }
 
-func opJumpTo(c *context) {
-	// Update the PC to the jump destination -1 since interpreter will increase PC by 1 afterward.
-	c.pc = int32(c.code[c.pc].arg) - 1
-}
-
 func opPop(c *context) {
 	c.stack.pop()
 }
 
 func opPush(c *context, n int) {
 	z := c.stack.pushUndefined()
-	num_instructions := int32(n/2 + n%2)
-	data := c.code[c.pc : c.pc+num_instructions]
+	z[3], z[2], z[1], z[0] = 0, 0, 0, 0
+	if len(c.code) <= int(c.pc)+n {
+		c.pc += int32(n)
+		return
+	}
 
-	_ = data[num_instructions-1]
-	var value [32]byte
-	for i := 0; i < n; i++ {
-		if i%2 == 0 {
-			value[i] = byte(data[i/2].arg >> 8)
-		} else {
-			value[i] = byte(data[i/2].arg)
+	// check how many uint64 (8 bytes) will be filled
+	fills := n / 8
+	if n%8 != 0 {
+		fills++
+	}
+	valueOffset := fills - 1
+
+	// Calculate the initial shiftOffset for the first filled uint64
+	shiftOffset := ((n - 1) % 8) * 8
+	for i := range n {
+		z[valueOffset] |= uint64(c.code[int(c.pc)+1+i]) << shiftOffset
+		shiftOffset -= 8
+
+		// if the shiftOffset is negative, we need to fill the next uint64
+		if shiftOffset < 0 {
+			valueOffset--
+			shiftOffset = 56
 		}
 	}
-	z.SetBytes(value[0:n])
-	c.pc += num_instructions - 1
+	c.pc += int32(n)
 }
 
 func opPush0(c *context) error {
@@ -106,44 +111,62 @@ func opPush0(c *context) error {
 func opPush1(c *context) {
 	z := c.stack.pushUndefined()
 	z[3], z[2], z[1] = 0, 0, 0
-	z[0] = uint64(c.code[c.pc].arg >> 8)
+	if len(c.code) <= int(c.pc)+1 {
+		z[0] = 0
+	} else {
+		z[0] = uint64(c.code[c.pc+1])
+	}
+	c.pc += 1
 }
 
 func opPush2(c *context) {
 	z := c.stack.pushUndefined()
 	z[3], z[2], z[1] = 0, 0, 0
-	z[0] = uint64(c.code[c.pc].arg)
+	if len(c.code) <= int(c.pc)+2 {
+		z[0] = 0
+	} else {
+		z[0] = uint64(c.code[c.pc+1])<<8 | uint64(c.code[c.pc+2])
+	}
+	c.pc += 2
 }
 
 func opPush3(c *context) {
 	z := c.stack.pushUndefined()
 	z[3], z[2], z[1] = 0, 0, 0
-	data := c.code[c.pc : c.pc+2]
-	_ = data[1]
-	z[0] = uint64(data[0].arg)<<8 | uint64(data[1].arg>>8)
-	c.pc += 1
+	if len(c.code) <= int(c.pc)+3 {
+		z[0] = 0
+	} else {
+		z[0] = uint64(c.code[c.pc+1])<<16 | uint64(c.code[c.pc+2])<<8 | uint64(c.code[c.pc+3])
+	}
+	c.pc += 3
 }
 
 func opPush4(c *context) {
 	z := c.stack.pushUndefined()
 	z[3], z[2], z[1] = 0, 0, 0
-
-	data := c.code[c.pc : c.pc+2]
-	_ = data[1] // causes bound check to be performed only once (may become unneeded in the future)
-	z[0] = (uint64(data[0].arg) << 16) | uint64(data[1].arg)
-	c.pc += 1
+	if len(c.code) <= int(c.pc)+4 {
+		z[0] = 0
+	} else {
+		z[0] = uint64(c.code[c.pc+1])<<24 | uint64(c.code[c.pc+2])<<16 | uint64(c.code[c.pc+3])<<8 | uint64(c.code[c.pc+4])
+	}
+	c.pc += 4
 }
 
 func opPush32(c *context) {
 	z := c.stack.pushUndefined()
-
-	data := c.code[c.pc : c.pc+16]
-	_ = data[15] // causes bound check to be performed only once (may become unneeded in the future)
-	z[3] = (uint64(data[0].arg) << 48) | (uint64(data[1].arg) << 32) | (uint64(data[2].arg) << 16) | uint64(data[3].arg)
-	z[2] = (uint64(data[4].arg) << 48) | (uint64(data[5].arg) << 32) | (uint64(data[6].arg) << 16) | uint64(data[7].arg)
-	z[1] = (uint64(data[8].arg) << 48) | (uint64(data[9].arg) << 32) | (uint64(data[10].arg) << 16) | uint64(data[11].arg)
-	z[0] = (uint64(data[12].arg) << 48) | (uint64(data[13].arg) << 32) | (uint64(data[14].arg) << 16) | uint64(data[15].arg)
-	c.pc += 15
+	if len(c.code) <= int(c.pc)+32 {
+		z[3], z[2], z[1], z[0] = 0, 0, 0, 0
+	} else {
+		z[3] = uint64(c.code[c.pc+1])<<56 | uint64(c.code[c.pc+2])<<48 | uint64(c.code[c.pc+3])<<40 | uint64(c.code[c.pc+4])<<32 |
+			uint64(c.code[c.pc+5])<<24 | uint64(c.code[c.pc+6])<<16 | uint64(c.code[c.pc+7])<<8 | uint64(c.code[c.pc+8])
+		z[2] = uint64(c.code[c.pc+9])<<56 | uint64(c.code[c.pc+10])<<48 | uint64(c.code[c.pc+11])<<40 | uint64(c.code[c.pc+12])<<32 |
+			uint64(c.code[c.pc+13])<<24 | uint64(c.code[c.pc+14])<<16 | uint64(c.code[c.pc+15])<<8 | uint64(c.code[c.pc+16])
+		z[1] = uint64(c.code[c.pc+17])<<56 | uint64(c.code[c.pc+18])<<48 | uint64(c.code[c.pc+19])<<40 | uint64(c.code[c.pc+20])<<32 |
+			uint64(c.code[c.pc+21])<<24 | uint64(c.code[c.pc+22])<<16 | uint64(c.code[c.pc+23])<<8 | uint64(c.code[c.pc+24])
+		z[0] = uint64(c.code[c.pc+25])<<56 | uint64(c.code[c.pc+26])<<48 | uint64(c.code[c.pc+27])<<40 | uint64(c.code[c.pc+28])<<32 |
+			uint64(c.code[c.pc+29])<<24 | uint64(c.code[c.pc+30])<<16 | uint64(c.code[c.pc+31])<<8 | uint64(c.code[c.pc+32])
+	}
+	c.pc += 32
 }
 
 func opDup(c *context, pos int) {
