@@ -8,7 +8,7 @@
 // On the date above, in accordance with the Business Source License, use of
 // this software will be governed by the GNU Lesser General Public License v3.
 
-package lfvm
+package sfvm
 
 import (
 	"fmt"
@@ -17,13 +17,13 @@ import (
 	"github.com/0xsoniclabs/tosca/go/tosca"
 )
 
-// Config provides a set of user-definable options for the LFVM interpreter.
+// Config provides a set of user-definable options for the SFVM interpreter.
 type Config struct {
 }
 
-// NewInterpreter creates a new LFVM interpreter instance with the official
+// NewInterpreter creates a new SFVM interpreter instance with the official
 // configuration for production purposes.
-func NewInterpreter(Config) (*lfvm, error) {
+func NewInterpreter(Config) (*sfvm, error) {
 	return newVm(config{
 		ConversionConfig: ConversionConfig{
 			WithSuperInstructions: false,
@@ -34,13 +34,13 @@ func NewInterpreter(Config) (*lfvm, error) {
 
 // Registers the long-form EVM as a possible interpreter implementation.
 func init() {
-	tosca.MustRegisterInterpreterFactory("lfvm", func(any) (tosca.Interpreter, error) {
+	tosca.MustRegisterInterpreterFactory("sfvm", func(any) (tosca.Interpreter, error) {
 		return NewInterpreter(Config{})
 	})
 }
 
 // RegisterExperimentalInterpreterConfigurations registers all experimental
-// LFVM interpreter configurations to Tosca's interpreter registry. This
+// SFVM interpreter configurations to Tosca's interpreter registry. This
 // function should not be called in production code, as the resulting VMs are
 // not officially supported.
 func RegisterExperimentalInterpreterConfigurations() error {
@@ -69,8 +69,8 @@ func RegisterExperimentalInterpreterConfigurations() error {
 					}
 				}
 
-				name := "lfvm" + si + shaCache + mode
-				if name == "lfvm" {
+				name := "sfvm" + si + shaCache + mode
+				if name == "sfvm" {
 					continue
 				}
 
@@ -79,7 +79,7 @@ func RegisterExperimentalInterpreterConfigurations() error {
 		}
 	}
 
-	configs["lfvm-no-code-cache"] = config{
+	configs["sfvm-no-code-cache"] = config{
 		ConversionConfig: ConversionConfig{CacheSize: -1},
 	}
 
@@ -104,23 +104,23 @@ type config struct {
 	runner       runner
 }
 
-type lfvm struct {
+type sfvm struct {
 	config    config
 	converter *Converter
 }
 
-func newVm(config config) (*lfvm, error) {
+func newVm(config config) (*sfvm, error) {
 	converter, err := NewConverter(config.ConversionConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create converter: %v", err)
 	}
-	return &lfvm{config: config, converter: converter}, nil
+	return &sfvm{config: config, converter: converter}, nil
 }
 
 // Defines the newest supported revision for this interpreter implementation
 const newestSupportedRevision = tosca.R15_Osaka
 
-func (e *lfvm) Run(params tosca.Parameters) (tosca.Result, error) {
+func (e *sfvm) Run(params tosca.Parameters) (tosca.Result, error) {
 	if params.Revision > newestSupportedRevision {
 		return tosca.Result{}, &tosca.ErrUnsupportedRevision{Revision: params.Revision}
 	}
@@ -136,13 +136,13 @@ func (e *lfvm) Run(params tosca.Parameters) (tosca.Result, error) {
 	return run(e.config, params, converted)
 }
 
-func (e *lfvm) DumpProfile() {
+func (e *sfvm) DumpProfile() {
 	if statsRunner, ok := e.config.runner.(*statisticRunner); ok {
 		fmt.Print(statsRunner.getSummary())
 	}
 }
 
-func (e *lfvm) ResetProfile() {
+func (e *sfvm) ResetProfile() {
 	if statsRunner, ok := e.config.runner.(*statisticRunner); ok {
 		statsRunner.reset()
 	}

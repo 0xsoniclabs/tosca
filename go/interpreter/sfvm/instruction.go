@@ -8,14 +8,14 @@
 // On the date above, in accordance with the Business Source License, use of
 // this software will be governed by the GNU Lesser General Public License v3.
 
-package lfvm
+package sfvm
 
 import (
 	"bytes"
 	"fmt"
 )
 
-// Instruction encodes an instruction for the long-form virtual machine (LFVM).
+// Instruction encodes an instruction for the long-form virtual machine (SFVM).
 type Instruction struct {
 	// The op-code of this instruction.
 	opcode OpCode
@@ -23,7 +23,7 @@ type Instruction struct {
 	arg uint16
 }
 
-// Code for the LFVM is a slice of instructions.
+// Code for the SFVM is a slice of instructions.
 type Code []Instruction
 
 func (i Instruction) String() string {

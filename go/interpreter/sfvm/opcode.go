@@ -8,7 +8,7 @@
 // On the date above, in accordance with the Business Source License, use of
 // this software will be governed by the GNU Lesser General Public License v3.
 
-package lfvm
+package sfvm
 
 import (
 	"fmt"
@@ -24,8 +24,8 @@ type OpCode uint16
 // The motivation for this is that the long-form EVM has a number of OpCodes
 // that are not part of the original EVM. For those, values beyond the range
 // [0-255] of the EVM's single-byte OpCodes are used. To that end, the OpCode
-// data type in the LFVM is increased to 16 bits. However, in several places
-// maps from LFVM OpCodes to properties are required to provide efficient
+// data type in the SFVM is increased to 16 bits. However, in several places
+// maps from SFVM OpCodes to properties are required to provide efficient
 // lookup tables for properties. To avoid the need to maintain tables of
 // 2^16 entries, the number of relevant bits is reduced to 9. Any leading bits
 // are ignored when comparing OpCodes.
@@ -34,7 +34,7 @@ const opCodeMask = 0x1ff
 // numOpCodes is the maximum number of OpCodes that can be defined.
 const numOpCodes = opCodeMask + 1
 
-// The following constants define the original EVM OpCodes, in the lfvm OpCode space.
+// The following constants define the original EVM OpCodes, in the sfvm OpCode space.
 const (
 	// Stack operations
 	POP    = OpCode(vm.POP)
@@ -237,7 +237,7 @@ const (
 	//  - they must target the immediate succeeding JUMPDEST instruction
 	//  - all instructions between the JUMP_TO and the JUMPDEST must be NOOPs
 	//
-	// These restrictions are enforced during the EVM to LFVM code conversion.
+	// These restrictions are enforced during the EVM to SFVM code conversion.
 	JUMP_TO OpCode = iota + 0x100
 
 	// NOOP is a special instruction that does nothing. It is used as a filler

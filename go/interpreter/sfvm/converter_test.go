@@ -8,7 +8,7 @@
 // On the date above, in accordance with the Business Source License, use of
 // this software will be governed by the GNU Lesser General Public License v3.
 
-package lfvm
+package sfvm
 
 import (
 	"bytes"
@@ -234,7 +234,7 @@ func TestConverter_ConverterIsThreadSafe(t *testing.T) {
 	}
 }
 
-func TestConvertWithObserver_MapsEvmToLfvmPositions(t *testing.T) {
+func TestConvertWithObserver_MapsEvmToSfvmPositions(t *testing.T) {
 	code := []byte{
 		byte(vm.ADD),
 		byte(vm.PUSH1), 1,
@@ -244,11 +244,11 @@ func TestConvertWithObserver_MapsEvmToLfvmPositions(t *testing.T) {
 	}
 
 	type pair struct {
-		evm, lfvm int
+		evm, sfvm int
 	}
 	var pairs []pair
-	res := convertWithObserver(code, ConversionConfig{}, func(evm, lfvm int) {
-		pairs = append(pairs, pair{evm, lfvm})
+	res := convertWithObserver(code, ConversionConfig{}, func(evm, sfvm int) {
+		pairs = append(pairs, pair{evm, sfvm})
 	})
 
 	want := []pair{
@@ -264,7 +264,7 @@ func TestConvertWithObserver_MapsEvmToLfvmPositions(t *testing.T) {
 	}
 
 	for _, p := range pairs {
-		if want, got := OpCode(code[p.evm]), res[p.lfvm].opcode; want != got {
+		if want, got := OpCode(code[p.evm]), res[p.sfvm].opcode; want != got {
 			t.Errorf("Expected %v, got %v", want, got)
 		}
 	}
@@ -278,25 +278,25 @@ func TestConvertWithObserver_PreservesJumpDestLocations(t *testing.T) {
 		r.Read(code)
 
 		mapping := map[int]int{}
-		res := convertWithObserver(code, ConversionConfig{}, func(evm, lfvm int) {
+		res := convertWithObserver(code, ConversionConfig{}, func(evm, sfvm int) {
 			if _, found := mapping[evm]; found {
 				t.Errorf("Duplicate mapping for EVM position %d", evm)
 			}
-			mapping[evm] = lfvm
+			mapping[evm] = sfvm
 		})
 
 		// Check that all operations are mapped to matching operations.
-		for evm, lfvm := range mapping {
-			if want, got := OpCode(code[evm]), res[lfvm].opcode; want != got {
+		for evm, sfvm := range mapping {
+			if want, got := OpCode(code[evm]), res[sfvm].opcode; want != got {
 				t.Errorf("Expected %v, got %v", want, got)
 			}
 		}
 
 		// Check that the position of JUMPDESTs is preserved.
-		for evm, lfvm := range mapping {
+		for evm, sfvm := range mapping {
 			if vm.OpCode(code[evm]) == vm.JUMPDEST {
-				if evm != lfvm {
-					t.Errorf("Expected JUMPDEST at %d, got %d", evm, lfvm)
+				if evm != sfvm {
+					t.Errorf("Expected JUMPDEST at %d, got %d", evm, sfvm)
 				}
 			}
 		}
@@ -483,7 +483,7 @@ func TestConvert_SI_WhenDisabledNoSuperInstructionsAreUsed(t *testing.T) {
 	}
 }
 
-func TestConverter_SI_FallsBackToLFVMInstructionsWhenNoSuperInstructionIsFit(t *testing.T) {
+func TestConverter_SI_FallsBackToSFVMInstructionsWhenNoSuperInstructionIsFit(t *testing.T) {
 
 	config := ConversionConfig{
 		WithSuperInstructions: true,
