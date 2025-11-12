@@ -36,6 +36,7 @@ var (
 		examples.GetStopAnalysisExample(),
 		examples.GetPush1AnalysisExample(),
 		examples.GetPush32AnalysisExample(),
+		examples.GetPushDataExample(),
 	}
 )
 
@@ -144,6 +145,14 @@ func BenchmarkFib(b *testing.B) {
 			benchmark(b, examples.GetFibExample(), i)
 		})
 	}
+}
+
+func BenchmarkPushData(b *testing.B) {
+	defer rust.DumpRustCoverageData("/tmp/pgo-data/push_data") // dump profiling data for pgo
+	b.Run("0", func(b *testing.B) {
+		benchmark(b, examples.GetPushDataExample(), 0)
+	})
+
 }
 
 func BenchmarkSha3(b *testing.B) {
