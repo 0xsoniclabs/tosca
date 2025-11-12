@@ -178,8 +178,7 @@ func TestInterpreter_step_DetectsUpperStackLimitViolation(t *testing.T) {
 	}
 }
 
-// TODO reenable once SFVM supports JUMPDEST marking
-func DisTestInterpreter_CanDispatchExecutableInstructions(t *testing.T) {
+func TestInterpreter_CanDispatchExecutableInstructions(t *testing.T) {
 	for _, op := range allOpCodesWhere(isExecutable) {
 		t.Run(op.String(), func(t *testing.T) {
 			forEachRevision(t, op, func(t *testing.T, revision tosca.Revision) {
@@ -292,7 +291,7 @@ func TestInterpreter_Vanilla_RunsWithoutOutput(t *testing.T) {
 	os.Stdout = w
 
 	// Run testing code
-	_, err := run(config{}, params)
+	_, err := run(analysis{}, config{}, params)
 	// read the output
 	_ = w.Close() // ignore error in test
 	out, _ := io.ReadAll(r)
@@ -312,7 +311,7 @@ func TestInterpreter_EmptyCodeBypassesRunnerAndSucceeds(t *testing.T) {
 	params := tosca.Parameters{Code: code}
 	config := config{}
 
-	result, err := run(config, params)
+	result, err := run(analysis{}, config, params)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}

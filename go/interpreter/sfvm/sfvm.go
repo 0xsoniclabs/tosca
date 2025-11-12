@@ -22,7 +22,8 @@ type Config struct {
 // configuration for production purposes.
 func NewInterpreter(Config) (*sfvm, error) {
 	return newVm(config{
-		WithShaCache: true,
+		withShaCache:      true,
+		withAnalysisCache: true,
 	})
 }
 
@@ -34,24 +35,37 @@ func init() {
 }
 
 type config struct {
-	WithShaCache bool
+	withShaCache      bool
+	withAnalysisCache bool
 }
 
 type sfvm struct {
-	config config
+	config   config
+	analysis analysis
 }
 
 func newVm(config config) (*sfvm, error) {
-	return &sfvm{config: config}, nil
+	var analysis analysis
+	if config.withAnalysisCache {
+		if config.withAnalysisCache {
+			analysis = newAnalysis(1 << 30) // = 1GiB
+		}
+	}
+
+	sfvm := &sfvm{
+		config:   config,
+		analysis: analysis,
+	}
+	return sfvm, nil
 }
 
 // Defines the newest supported revision for this interpreter implementation
 const newestSupportedRevision = tosca.R15_Osaka
 
-func (e *sfvm) Run(params tosca.Parameters) (tosca.Result, error) {
+func (s *sfvm) Run(params tosca.Parameters) (tosca.Result, error) {
 	if params.Revision > newestSupportedRevision {
 		return tosca.Result{}, &tosca.ErrUnsupportedRevision{Revision: params.Revision}
 	}
 
-	return run(e.config, params)
+	return run(s.analysis, s.config, params)
 }
