@@ -12,22 +12,24 @@ package sfvm
 
 import (
 	"testing"
+
+	"github.com/0xsoniclabs/tosca/go/tosca/vm"
 )
 
 func TestComputeStackUsage_ProducesValidResultsForSingleOps(t *testing.T) {
 	tests := []struct {
-		op    OpCode
+		op    vm.OpCode
 		usage stackUsage
 	}{
-		{STOP, stackUsage{from: 0, to: 0, delta: 0}},
-		{ADD, stackUsage{from: -2, to: 0, delta: -1}},
-		{POP, stackUsage{from: -1, to: 0, delta: -1}},
-		{PUSH5, stackUsage{from: 0, to: 1, delta: 1}},
-		{SWAP1, stackUsage{from: -2, to: 0, delta: 0}},
-		{SWAP10, stackUsage{from: -11, to: 0, delta: 0}},
-		{DUP1, stackUsage{from: -1, to: 1, delta: 1}},
-		{DUP12, stackUsage{from: -12, to: 1, delta: 1}},
-		{LOG3, stackUsage{from: -5, to: 0, delta: -5}},
+		{vm.STOP, stackUsage{from: 0, to: 0, delta: 0}},
+		{vm.ADD, stackUsage{from: -2, to: 0, delta: -1}},
+		{vm.POP, stackUsage{from: -1, to: 0, delta: -1}},
+		{vm.PUSH5, stackUsage{from: 0, to: 1, delta: 1}},
+		{vm.SWAP1, stackUsage{from: -2, to: 0, delta: 0}},
+		{vm.SWAP10, stackUsage{from: -11, to: 0, delta: 0}},
+		{vm.DUP1, stackUsage{from: -1, to: 1, delta: 1}},
+		{vm.DUP12, stackUsage{from: -12, to: 1, delta: 1}},
+		{vm.LOG3, stackUsage{from: -5, to: 0, delta: -5}},
 	}
 
 	for _, test := range tests {

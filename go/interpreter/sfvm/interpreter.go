@@ -14,9 +14,8 @@ import (
 	"fmt"
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/tosca/vm"
 )
-
-//go:generate mockgen -source interpreter.go -destination interpreter_mock.go -package sfvm
 
 // status is enumeration of the execution state of an interpreter run.
 type status byte
@@ -38,7 +37,7 @@ type context struct {
 	// Inputs
 	params  tosca.Parameters
 	context tosca.RunContext
-	code    Code // the contract code in SFVM format
+	code    tosca.Code
 
 	// Execution state
 	pc     int32
@@ -72,24 +71,12 @@ func (c *context) isAtLeast(revision tosca.Revision) bool {
 	return c.params.Revision >= revision
 }
 
-// --- Interpreter ---
-
-type runner interface {
-	// run executes the contract code in the given context.
-	// It returns the status of the execution:
-	// - Any logical error in the contract execution shall return statusFailed.
-	// - error is reserved to return runtime errors, which are not valid states
-	// and may not be recoverable.
-	run(*context) (status, error)
-}
-
 func run(
 	config config,
 	params tosca.Parameters,
-	code Code,
 ) (tosca.Result, error) {
 	// Don't bother with the execution if there's no code.
-	if len(code) == 0 {
+	if len(params.Code) == 0 {
 		return tosca.Result{
 			Output:  nil,
 			GasLeft: params.Gas,
@@ -104,19 +91,12 @@ func run(
 		gas:          params.Gas,
 		stack:        NewStack(),
 		memory:       NewMemory(),
-		code:         code,
+		code:         params.Code,
 		withShaCache: config.WithShaCache,
 	}
 	defer ReturnStack(ctxt.stack)
 
-	if config.runner == nil {
-		config.runner = vanillaRunner{}
-	}
-	status, err := config.runner.run(&ctxt)
-	if err != nil {
-		return tosca.Result{}, err
-	}
-
+	status := execute(&ctxt, false)
 	return generateResult(status, &ctxt)
 }
 
@@ -151,16 +131,6 @@ func generateResult(status status, ctxt *context) (tosca.Result, error) {
 	}
 }
 
-// --- Runners ---
-
-// vanillaRunner is the default runner that executes the contract code without
-// any additional features.
-type vanillaRunner struct{}
-
-func (r vanillaRunner) run(c *context) (status, error) {
-	return execute(c, false), nil
-}
-
 // --- Execution ---
 
 // execute runs the contract code in the given context. If oneStepOnly is true,
@@ -189,7 +159,7 @@ func steps(c *context, oneStepOnly bool) (status, error) {
 			return statusStopped, nil
 		}
 
-		op := c.code[c.pc].opcode
+		op := vm.OpCode(c.code[c.pc])
 
 		// Check stack boundary for every instruction
 		if err := checkStackLimits(c.stack.len(), op); err != nil {
@@ -205,307 +175,305 @@ func steps(c *context, oneStepOnly bool) (status, error) {
 
 		// Execute instruction
 		switch op {
-		case POP:
+		case vm.POP:
 			opPop(c)
-		case PUSH0:
+		case vm.PUSH0:
 			err = opPush0(c)
-		case PUSH1:
+		case vm.PUSH1:
 			opPush1(c)
-		case PUSH2:
+		case vm.PUSH2:
 			opPush2(c)
-		case PUSH3:
+		case vm.PUSH3:
 			opPush3(c)
-		case PUSH4:
+		case vm.PUSH4:
 			opPush4(c)
-		case PUSH5:
+		case vm.PUSH5:
 			opPush(c, 5)
-		case PUSH31:
+		case vm.PUSH31:
 			opPush(c, 31)
-		case PUSH32:
+		case vm.PUSH32:
 			opPush32(c)
-		case JUMP:
+		case vm.JUMP:
 			err = opJump(c)
-		case JUMPDEST:
+		case vm.JUMPDEST:
 			// nothing
-		case SWAP1:
+		case vm.SWAP1:
 			opSwap(c, 1)
-		case SWAP2:
+		case vm.SWAP2:
 			opSwap(c, 2)
-		case DUP3:
+		case vm.DUP3:
 			opDup(c, 3)
-		case AND:
+		case vm.AND:
 			opAnd(c)
-		case SWAP3:
+		case vm.SWAP3:
 			opSwap(c, 3)
-		case JUMPI:
+		case vm.JUMPI:
 			err = opJumpi(c)
-		case GT:
+		case vm.GT:
 			opGt(c)
-		case DUP4:
+		case vm.DUP4:
 			opDup(c, 4)
-		case DUP2:
+		case vm.DUP2:
 			opDup(c, 2)
-		case ISZERO:
+		case vm.ISZERO:
 			opIszero(c)
-		case ADD:
+		case vm.ADD:
 			opAdd(c)
-		case OR:
+		case vm.OR:
 			opOr(c)
-		case XOR:
+		case vm.XOR:
 			opXor(c)
-		case NOT:
+		case vm.NOT:
 			opNot(c)
-		case SUB:
+		case vm.SUB:
 			opSub(c)
-		case MUL:
+		case vm.MUL:
 			opMul(c)
-		case MULMOD:
+		case vm.MULMOD:
 			opMulMod(c)
-		case DIV:
+		case vm.DIV:
 			opDiv(c)
-		case SDIV:
+		case vm.SDIV:
 			opSDiv(c)
-		case MOD:
+		case vm.MOD:
 			opMod(c)
-		case SMOD:
+		case vm.SMOD:
 			opSMod(c)
-		case ADDMOD:
+		case vm.ADDMOD:
 			opAddMod(c)
-		case EXP:
+		case vm.EXP:
 			err = opExp(c)
-		case DUP5:
+		case vm.DUP5:
 			opDup(c, 5)
-		case DUP1:
+		case vm.DUP1:
 			opDup(c, 1)
-		case EQ:
+		case vm.EQ:
 			opEq(c)
-		case PC:
+		case vm.PC:
 			opPc(c)
-		case CALLER:
+		case vm.CALLER:
 			opCaller(c)
-		case CALLDATALOAD:
+		case vm.CALLDATALOAD:
 			opCallDataload(c)
-		case CALLDATASIZE:
+		case vm.CALLDATASIZE:
 			opCallDatasize(c)
-		case CALLDATACOPY:
+		case vm.CALLDATACOPY:
 			err = genericDataCopy(c, c.params.Input)
-		case MLOAD:
+		case vm.MLOAD:
 			err = opMload(c)
-		case MSTORE:
+		case vm.MSTORE:
 			err = opMstore(c)
-		case MSTORE8:
+		case vm.MSTORE8:
 			err = opMstore8(c)
-		case MSIZE:
+		case vm.MSIZE:
 			opMsize(c)
-		case MCOPY:
+		case vm.MCOPY:
 			err = opMcopy(c)
-		case LT:
+		case vm.LT:
 			opLt(c)
-		case SLT:
+		case vm.SLT:
 			opSlt(c)
-		case SGT:
+		case vm.SGT:
 			opSgt(c)
-		case SHR:
+		case vm.SHR:
 			opShr(c)
-		case SHL:
+		case vm.SHL:
 			opShl(c)
-		case SAR:
+		case vm.SAR:
 			opSar(c)
-		case CLZ:
+		case vm.CLZ:
 			err = opClz(c)
-		case SIGNEXTEND:
+		case vm.SIGNEXTEND:
 			opSignExtend(c)
-		case BYTE:
+		case vm.BYTE:
 			opByte(c)
-		case SHA3:
+		case vm.SHA3:
 			err = opSha3(c)
-		case CALLVALUE:
+		case vm.CALLVALUE:
 			opCallvalue(c)
-		case PUSH6:
+		case vm.PUSH6:
 			opPush(c, 6)
-		case PUSH7:
+		case vm.PUSH7:
 			opPush(c, 7)
-		case PUSH8:
+		case vm.PUSH8:
 			opPush(c, 8)
-		case PUSH9:
+		case vm.PUSH9:
 			opPush(c, 9)
-		case PUSH10:
+		case vm.PUSH10:
 			opPush(c, 10)
-		case PUSH11:
+		case vm.PUSH11:
 			opPush(c, 11)
-		case PUSH12:
+		case vm.PUSH12:
 			opPush(c, 12)
-		case PUSH13:
+		case vm.PUSH13:
 			opPush(c, 13)
-		case PUSH14:
+		case vm.PUSH14:
 			opPush(c, 14)
-		case PUSH15:
+		case vm.PUSH15:
 			opPush(c, 15)
-		case PUSH16:
+		case vm.PUSH16:
 			opPush(c, 16)
-		case PUSH17:
+		case vm.PUSH17:
 			opPush(c, 17)
-		case PUSH18:
+		case vm.PUSH18:
 			opPush(c, 18)
-		case PUSH19:
+		case vm.PUSH19:
 			opPush(c, 19)
-		case PUSH20:
+		case vm.PUSH20:
 			opPush(c, 20)
-		case PUSH21:
+		case vm.PUSH21:
 			opPush(c, 21)
-		case PUSH22:
+		case vm.PUSH22:
 			opPush(c, 22)
-		case PUSH23:
+		case vm.PUSH23:
 			opPush(c, 23)
-		case PUSH24:
+		case vm.PUSH24:
 			opPush(c, 24)
-		case PUSH25:
+		case vm.PUSH25:
 			opPush(c, 25)
-		case PUSH26:
+		case vm.PUSH26:
 			opPush(c, 26)
-		case PUSH27:
+		case vm.PUSH27:
 			opPush(c, 27)
-		case PUSH28:
+		case vm.PUSH28:
 			opPush(c, 28)
-		case PUSH29:
+		case vm.PUSH29:
 			opPush(c, 29)
-		case PUSH30:
+		case vm.PUSH30:
 			opPush(c, 30)
-		case SWAP4:
+		case vm.SWAP4:
 			opSwap(c, 4)
-		case SWAP5:
+		case vm.SWAP5:
 			opSwap(c, 5)
-		case SWAP6:
+		case vm.SWAP6:
 			opSwap(c, 6)
-		case SWAP7:
+		case vm.SWAP7:
 			opSwap(c, 7)
-		case SWAP8:
+		case vm.SWAP8:
 			opSwap(c, 8)
-		case SWAP9:
+		case vm.SWAP9:
 			opSwap(c, 9)
-		case SWAP10:
+		case vm.SWAP10:
 			opSwap(c, 10)
-		case SWAP11:
+		case vm.SWAP11:
 			opSwap(c, 11)
-		case SWAP12:
+		case vm.SWAP12:
 			opSwap(c, 12)
-		case SWAP13:
+		case vm.SWAP13:
 			opSwap(c, 13)
-		case SWAP14:
+		case vm.SWAP14:
 			opSwap(c, 14)
-		case SWAP15:
+		case vm.SWAP15:
 			opSwap(c, 15)
-		case SWAP16:
+		case vm.SWAP16:
 			opSwap(c, 16)
-		case DUP6:
+		case vm.DUP6:
 			opDup(c, 6)
-		case DUP7:
+		case vm.DUP7:
 			opDup(c, 7)
-		case DUP8:
+		case vm.DUP8:
 			opDup(c, 8)
-		case DUP9:
+		case vm.DUP9:
 			opDup(c, 9)
-		case DUP10:
+		case vm.DUP10:
 			opDup(c, 10)
-		case DUP11:
+		case vm.DUP11:
 			opDup(c, 11)
-		case DUP12:
+		case vm.DUP12:
 			opDup(c, 12)
-		case DUP13:
+		case vm.DUP13:
 			opDup(c, 13)
-		case DUP14:
+		case vm.DUP14:
 			opDup(c, 14)
-		case DUP15:
+		case vm.DUP15:
 			opDup(c, 15)
-		case DUP16:
+		case vm.DUP16:
 			opDup(c, 16)
-		case RETURN:
+		case vm.RETURN:
 			err = opEndWithResult(c)
 			status = statusReturned
-		case REVERT:
+		case vm.REVERT:
 			status = statusReverted
 			err = opEndWithResult(c)
-		case JUMP_TO:
-			opJumpTo(c)
-		case SLOAD:
+		case vm.SLOAD:
 			err = opSload(c)
-		case SSTORE:
+		case vm.SSTORE:
 			err = opSstore(c)
-		case TLOAD:
+		case vm.TLOAD:
 			err = opTload(c)
-		case TSTORE:
+		case vm.TSTORE:
 			err = opTstore(c)
-		case CODESIZE:
+		case vm.CODESIZE:
 			opCodeSize(c)
-		case CODECOPY:
+		case vm.CODECOPY:
 			err = genericDataCopy(c, c.params.Code)
-		case EXTCODESIZE:
+		case vm.EXTCODESIZE:
 			err = opExtcodesize(c)
-		case EXTCODEHASH:
+		case vm.EXTCODEHASH:
 			err = opExtcodehash(c)
-		case EXTCODECOPY:
+		case vm.EXTCODECOPY:
 			err = opExtCodeCopy(c)
-		case BALANCE:
+		case vm.BALANCE:
 			err = opBalance(c)
-		case SELFBALANCE:
+		case vm.SELFBALANCE:
 			opSelfbalance(c)
-		case BASEFEE:
+		case vm.BASEFEE:
 			err = opBaseFee(c)
-		case BLOBHASH:
+		case vm.BLOBHASH:
 			err = opBlobHash(c)
-		case BLOBBASEFEE:
+		case vm.BLOBBASEFEE:
 			err = opBlobBaseFee(c)
-		case SELFDESTRUCT:
+		case vm.SELFDESTRUCT:
 			status, err = opSelfdestruct(c)
-		case CHAINID:
+		case vm.CHAINID:
 			opChainId(c)
-		case GAS:
+		case vm.GAS:
 			opGas(c)
-		case PREVRANDAO:
+		case vm.PREVRANDAO:
 			opPrevRandao(c)
-		case TIMESTAMP:
+		case vm.TIMESTAMP:
 			opTimestamp(c)
-		case NUMBER:
+		case vm.NUMBER:
 			opNumber(c)
-		case GASLIMIT:
+		case vm.GASLIMIT:
 			opGasLimit(c)
-		case GASPRICE:
+		case vm.GASPRICE:
 			opGasPrice(c)
-		case CALL:
+		case vm.CALL:
 			err = opCall(c)
-		case CALLCODE:
+		case vm.CALLCODE:
 			err = opCallCode(c)
-		case STATICCALL:
+		case vm.STATICCALL:
 			err = opStaticCall(c)
-		case DELEGATECALL:
+		case vm.DELEGATECALL:
 			err = opDelegateCall(c)
-		case RETURNDATASIZE:
+		case vm.RETURNDATASIZE:
 			opReturnDataSize(c)
-		case RETURNDATACOPY:
+		case vm.RETURNDATACOPY:
 			err = opReturnDataCopy(c)
-		case BLOCKHASH:
+		case vm.BLOCKHASH:
 			opBlockhash(c)
-		case COINBASE:
+		case vm.COINBASE:
 			opCoinbase(c)
-		case ORIGIN:
+		case vm.ORIGIN:
 			opOrigin(c)
-		case ADDRESS:
+		case vm.ADDRESS:
 			opAddress(c)
-		case STOP:
+		case vm.STOP:
 			status = opStop()
-		case CREATE:
+		case vm.CREATE:
 			err = genericCreate(c, tosca.Create)
-		case CREATE2:
+		case vm.CREATE2:
 			err = genericCreate(c, tosca.Create2)
-		case LOG0:
+		case vm.LOG0:
 			err = opLog(c, 0)
-		case LOG1:
+		case vm.LOG1:
 			err = opLog(c, 1)
-		case LOG2:
+		case vm.LOG2:
 			err = opLog(c, 2)
-		case LOG3:
+		case vm.LOG3:
 			err = opLog(c, 3)
-		case LOG4:
+		case vm.LOG4:
 			err = opLog(c, 4)
 		default:
 			err = errInvalidOpCode
@@ -526,7 +494,7 @@ func steps(c *context, oneStepOnly bool) (status, error) {
 
 // checkStackLimits checks that the opCode will not make an out of bounds access
 // with the current stack size.
-func checkStackLimits(stackLen int, op OpCode) error {
+func checkStackLimits(stackLen int, op vm.OpCode) error {
 	limits := _precomputedStackLimits.get(op)
 	if stackLen < limits.min {
 		return errStackUnderflow
@@ -543,7 +511,7 @@ type stackLimits struct {
 	max int // The maximum stack size allowed before running an OpCode.
 }
 
-var _precomputedStackLimits = newOpCodePropertyMap(func(op OpCode) stackLimits {
+var _precomputedStackLimits = newOpCodePropertyMap(func(op vm.OpCode) stackLimits {
 	usage := computeStackUsage(op)
 	return stackLimits{
 		min: -usage.from,

@@ -55,13 +55,3 @@ func TestSfvm_InterpreterReturnsErrorWhenExecutingUnsupportedRevision(t *testing
 		t.Fatalf("unexpected error: want %q, got %q", want, got)
 	}
 }
-
-func TestSfvm_newVm_returnsErrorWithWrongConfiguration(t *testing.T) {
-	config := config{
-		ConversionConfig: ConversionConfig{CacheSize: maxCachedCodeLength / 2},
-	}
-	_, err := newVm(config)
-	if err == nil {
-		t.Fatalf("expected error, got nil")
-	}
-}
