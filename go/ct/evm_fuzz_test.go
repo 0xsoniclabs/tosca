@@ -22,6 +22,7 @@ import (
 	"github.com/0xsoniclabs/tosca/go/interpreter/evmzero"
 	"github.com/0xsoniclabs/tosca/go/interpreter/geth"
 	"github.com/0xsoniclabs/tosca/go/interpreter/lfvm"
+	"github.com/0xsoniclabs/tosca/go/interpreter/sfvm"
 	"github.com/0xsoniclabs/tosca/go/tosca"
 )
 
@@ -36,6 +37,11 @@ func FuzzGeth(f *testing.F) {
 // FuzzLfvm is a fuzzing test for lfvm
 func FuzzLfvm(f *testing.F) {
 	fuzzVm(lfvm.NewConformanceTestingTarget(), f)
+}
+
+// FuzzSfvm is a fuzzing test for sfvm
+func FuzzSfvm(f *testing.F) {
+	fuzzVm(sfvm.NewConformanceTestingTarget(), f)
 }
 
 // FuzzLfvm is a fuzzing test for evmzero
