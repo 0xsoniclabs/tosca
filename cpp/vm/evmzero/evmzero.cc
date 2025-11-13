@@ -99,8 +99,7 @@ evmc_step_status_code ToEvmcStepStatusCode(RunState state) {
 // infrastructure via the evmc interface.
 class VM : public evmc_vm {
  public:
-  VM()
-  noexcept
+  VM() noexcept
       : evmc_vm{
             .abi_version = EVMC_ABI_VERSION,
             .name = "evmzero",
