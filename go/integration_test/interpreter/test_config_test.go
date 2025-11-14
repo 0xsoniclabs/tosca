@@ -18,7 +18,7 @@ import (
 func TestCoveredVariants_ContainsMainConfigurations(t *testing.T) {
 	all := getAllInterpreterVariantsForTests()
 	wanted := []string{
-		"geth", "lfvm", "lfvm-si", "evmzero", "evmone",
+		"geth", "lfvm", "lfvm-si", "evmzero", "evmone", "sfvm",
 	}
 	for _, n := range wanted {
 		if !slices.Contains(all, n) {
