@@ -14,9 +14,6 @@ TOSCA_CPP_COVERAGE = OFF
 STATICCHECK_VERSION = 2025.1
 ERRCHECK_VERSION = v1.9.0
 
-CC ?= $(shell echo $$CC)
-CXX ?= $(shell echo $$CXX)
-
 .PHONY: all tosca tosca-go tosca-cpp tosca-rust test test-go test-cpp test-rust test-cpp-asan \
         bench bench-go clean clean-go clean-cpp clean-rust evmone evmone-clean license-headers
 
@@ -35,15 +32,11 @@ tosca-cpp:
 		-DCMAKE_SHARED_LIBRARY_SUFFIX_CXX=.so \
 		-DTOSCA_ASSERT="$(TOSCA_CPP_ASSERT)" \
 		-DTOSCA_COVERAGE="$(TOSCA_CPP_COVERAGE)" \
-		-DTOSCA_ASAN="$(TOSCA_CPP_ASAN)" \
-		-DCMAKE_C_COMPILER=$(CC) \
-		-DCMAKE_CXX_COMPILER=$(CXX) ; \
+		-DTOSCA_ASAN="$(TOSCA_CPP_ASAN)" ; \
 	cmake --build build --parallel
 
 tosca-cpp-coverage: TOSCA_CPP_BUILD = Debug
 tosca-cpp-coverage: TOSCA_CPP_COVERAGE = ON
-tosca-cpp-coverage: CC = gcc # coverage is only supported with gcc
-tosca-cpp-coverage: CXX = g++
 tosca-cpp-coverage: tosca-cpp
 
 tosca-rust:
