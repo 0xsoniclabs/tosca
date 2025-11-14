@@ -35,7 +35,11 @@ func (l loggingRunner) run(c *context) (status, error) {
 		if int(c.pc) < len(c.code) {
 			top := "-empty-"
 			if c.stack.len() > 0 {
-				top = c.stack.peek().ToBig().String()
+				top = fmt.Sprintf(
+					"%s (0x%s)",
+					c.stack.peek().ToBig().String(),
+					c.stack.peek().ToBig().Text(16),
+				)
 			}
 			if l.log != nil {
 				_, err = fmt.Fprintf(l.log, "%v, %d, %v\n", c.code[c.pc].opcode, c.gas, top)
