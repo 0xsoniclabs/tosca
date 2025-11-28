@@ -29,6 +29,7 @@ import (
 	"github.com/0xsoniclabs/tosca/go/interpreter/evmzero"
 	"github.com/0xsoniclabs/tosca/go/interpreter/geth"
 	"github.com/0xsoniclabs/tosca/go/interpreter/lfvm"
+	"github.com/0xsoniclabs/tosca/go/interpreter/sfvm"
 	"github.com/0xsoniclabs/tosca/go/lib/cpp"
 	"github.com/0xsoniclabs/tosca/go/lib/rust"
 	"github.com/0xsoniclabs/tosca/go/tosca"
@@ -57,6 +58,7 @@ var RunCmd = cliUtils.AddCommonFlags(cli.Command{
 
 var evms = map[string]ct.Evm{
 	"lfvm":    lfvm.NewConformanceTestingTarget(),
+	"sfvm":    sfvm.NewConformanceTestingTarget(),
 	"geth":    geth.NewConformanceTestingTarget(),
 	"evmzero": evmzero.NewConformanceTestingTarget(),
 	"evmrs":   evmrs.NewConformanceTestingTarget(),

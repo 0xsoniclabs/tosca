@@ -20,6 +20,7 @@ import (
 	_ "github.com/0xsoniclabs/tosca/go/interpreter/evmzero"
 	_ "github.com/0xsoniclabs/tosca/go/interpreter/geth"
 	"github.com/0xsoniclabs/tosca/go/interpreter/lfvm"
+	_ "github.com/0xsoniclabs/tosca/go/interpreter/sfvm"
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"golang.org/x/exp/maps"
 )
