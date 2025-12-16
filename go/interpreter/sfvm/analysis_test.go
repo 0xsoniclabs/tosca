@@ -1,0 +1,108 @@
+// Copyright (c) 2025 Sonic Operations Ltd
+//
+// Use of this software is governed by the Business Source License included
+// in the LICENSE file and at soniclabs.com/bsl11.
+//
+// Change Date: 2028-4-16
+//
+// On the date above, in accordance with the Business Source License, use of
+// this software will be governed by the GNU Lesser General Public License v3.
+
+package sfvm
+
+import (
+	"testing"
+
+	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/tosca/vm"
+	"github.com/stretchr/testify/require"
+)
+
+func TestAnalysisCache_PanicsOnNegativeSize(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("expected createAnalysisCache to panic on negative size")
+		}
+	}()
+	_ = newAnalysis(-1)
+}
+
+func TestAnalysis_NewAnalysisIsNonEmpty(t *testing.T) {
+	a := newJumpDestMap(10)
+	if a.codeSize == 0 {
+		t.Error("expected newAnalysis to return a non-empty Analysis")
+	}
+	if len(a.bitmap) == 0 {
+		t.Error("expected newAnalysis to return a non-empty data slice")
+	}
+}
+
+func TestAnalysis_MarkJumpDestAndIsJumpDest(t *testing.T) {
+	size := 10
+	a := newJumpDestMap(uint64(size))
+	a.markJumpDest(2)
+	a.markJumpDest(18)
+	// Check that the jump destination is marked correctly over boundaries
+	for i := 0; i < 2*size; i++ {
+		if i == 2 && !a.isJumpDest(uint64(i)) {
+			t.Errorf("expected index %d to be marked as jump destination", i)
+		}
+		if i != 2 && a.isJumpDest(uint64(i)) {
+			t.Errorf("expected index %d to not be marked as jump destination", i)
+		}
+	}
+}
+
+func TestAnalysis_MarksJumpDestAtCorrectIndex(t *testing.T) {
+	code := tosca.Code{byte(vm.JUMPDEST), byte(vm.PUSH1), byte(vm.JUMPDEST), byte(vm.JUMPDEST)}
+	analysis := jumpDestAnalysisInternal(code)
+	if !analysis.isJumpDest(0) {
+		t.Errorf("expected index 0 to be jump destination")
+	}
+	if analysis.isJumpDest(1) {
+		t.Errorf("expected index 1 to not be jump destination")
+	}
+	if analysis.isJumpDest(2) {
+		t.Errorf("expected index 2 to not be jump destination")
+	}
+	if !analysis.isJumpDest(3) {
+		t.Errorf("expected index 3 to be jump destination")
+	}
+}
+
+func TestAnalysis_PushDataIsSkipped(t *testing.T) {
+	code := tosca.Code{
+		byte(vm.PUSH9), byte(vm.JUMPDEST), byte(vm.JUMPDEST), byte(vm.JUMPDEST), byte(vm.JUMPDEST),
+		byte(vm.JUMPDEST), byte(vm.JUMPDEST), byte(vm.JUMPDEST), byte(vm.JUMPDEST), byte(vm.JUMPDEST),
+		byte(vm.JUMPDEST),
+		byte(vm.PUSH2), byte(vm.JUMPDEST), byte(vm.JUMPDEST),
+		byte(vm.JUMPDEST),
+	}
+	analysis := jumpDestAnalysisInternal(code)
+	for i := range code {
+		if analysis.isJumpDest(uint64(i)) && (i != 10 && i != 14) {
+			t.Errorf("expected index %d to be jump destination", i)
+		}
+		if !analysis.isJumpDest(uint64(i)) && (i == 10 || i == 14) {
+			t.Errorf("expected index %d to not be jump destination", i)
+		}
+	}
+}
+
+func TestAnalysis_InputsAreCachedUsingCodeHashAsKey(t *testing.T) {
+	analysis := newAnalysis(1 << 2)
+
+	code := []byte{byte(vm.STOP)}
+	hash := tosca.Hash{byte(1)}
+
+	want := analysis.analyzeJumpDest(code, &hash)
+	got := analysis.analyzeJumpDest(code, &hash)
+	if &want.bitmap != &got.bitmap { // < needs to be the same slice
+		t.Errorf("cached conversion result not returned")
+	}
+}
+
+func TestAnalysis_IsJumpDestCanHandleUninitializedMap(t *testing.T) {
+	var jumpDestMap *jumpDestMap
+	require.False(t, jumpDestMap.isJumpDest(uint64(0)), "expected isJumpDest to return false for uninitialized map")
+}
