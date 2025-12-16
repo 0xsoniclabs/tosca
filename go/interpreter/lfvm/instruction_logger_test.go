@@ -33,8 +33,8 @@ func TestInterpreter_Logger_ExecutesCodeAndLogs(t *testing.T) {
 			want: "STOP, 3, -empty-\n",
 		},
 		"multiple codes": {
-			code: []Instruction{{PUSH4, 0}, {DATA, 1}, {STOP, 0}},
-			want: "PUSH4, 3, -empty-\nSTOP, 0, 1\n",
+			code: []Instruction{{PUSH4, 0}, {DATA, 12}, {STOP, 0}},
+			want: "PUSH4, 3, -empty-\nSTOP, 0, 12 (0xc)\n",
 		},
 		"out of gas": {
 			code: []Instruction{
@@ -43,7 +43,7 @@ func TestInterpreter_Logger_ExecutesCodeAndLogs(t *testing.T) {
 				{MSTORE8, 0},
 				{STOP, 0},
 			},
-			want: "PUSH1, 3, -empty-\nPUSH1, 0, 0\n",
+			want: "PUSH1, 3, -empty-\nPUSH1, 0, 0 (0x0)\n",
 		},
 	}
 
