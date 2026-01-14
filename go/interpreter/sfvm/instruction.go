@@ -1,0 +1,42 @@
+// Copyright (c) 2025 Sonic Operations Ltd
+//
+// Use of this software is governed by the Business Source License included
+// in the LICENSE file and at soniclabs.com/bsl11.
+//
+// Change Date: 2028-4-16
+//
+// On the date above, in accordance with the Business Source License, use of
+// this software will be governed by the GNU Lesser General Public License v3.
+
+package sfvm
+
+import (
+	"bytes"
+	"fmt"
+)
+
+// Instruction encodes an instruction for the long-form virtual machine (SFVM).
+type Instruction struct {
+	// The op-code of this instruction.
+	opcode OpCode
+	// An argument value for this instruction.
+	arg uint16
+}
+
+// Code for the SFVM is a slice of instructions.
+type Code []Instruction
+
+func (i Instruction) String() string {
+	if i.opcode.HasArgument() {
+		return fmt.Sprintf("%v 0x%04x", i.opcode, i.arg)
+	}
+	return i.opcode.String()
+}
+
+func (c Code) String() string {
+	var buffer bytes.Buffer
+	for i, instruction := range c {
+		buffer.WriteString(fmt.Sprintf("0x%04x: %v\n", i, instruction))
+	}
+	return buffer.String()
+}
