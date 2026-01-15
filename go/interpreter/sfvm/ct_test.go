@@ -13,7 +13,6 @@ package sfvm
 import (
 	"bytes"
 	"errors"
-	"math"
 	"testing"
 
 	"github.com/0xsoniclabs/tosca/go/ct"
@@ -59,24 +58,6 @@ func TestCtAdapter_Interface(t *testing.T) {
 	var _ ct.Evm = &ctAdapter{}
 }
 
-func TestCTAdapter_DoesNotAddDuplicatedCodeToPCMap(t *testing.T) {
-	s := st.NewState(st.NewCode([]byte{
-		byte(vm.STOP),
-	}))
-	c := NewConformanceTestingTarget()
-
-	for i := 0; i < 3; i++ {
-		s.Status = st.Running
-		_, err := c.StepN(s, 1)
-		if err != nil {
-			t.Fatalf("unexpected conversion error: %v", err)
-		}
-		if want, got := 1, c.(*ctAdapter).pcMapCache.Len(); want != got {
-			t.Fatalf("unexpected pc map size, wanted %d, got %d", want, got)
-		}
-	}
-}
-
 func TestCtAdapter_ReturnsErrorForUnsupportedRevisions(t *testing.T) {
 	unsupportedRevision := newestSupportedRevision + 1
 	want := &tosca.ErrUnsupportedRevision{Revision: unsupportedRevision}
@@ -91,19 +72,6 @@ func TestCtAdapter_ReturnsErrorForUnsupportedRevisions(t *testing.T) {
 	var e *tosca.ErrUnsupportedRevision
 	if !errors.As(err, &e) {
 		t.Errorf("unexpected error, wanted %v, got %v", want, err)
-	}
-}
-
-func TestCtAdapter_ReturnsErrorIfCodeSizeExceeded(t *testing.T) {
-	s := st.NewState(st.NewCode(make([]byte, math.MaxUint16+1)))
-	s.Status = st.Running
-	s.Revision = tosca.R07_Istanbul
-
-	c := NewConformanceTestingTarget()
-	_, err := c.StepN(s, 1)
-
-	if !errors.Is(err, errCodeSizeExceeded) {
-		t.Errorf("unexpected error, wanted %v, got %v", errCodeSizeExceeded, err)
 	}
 }
 
@@ -190,146 +158,6 @@ func TestConvertToSfvm_StatusCodeFailsOnUnknownStatus(t *testing.T) {
 	}
 }
 
-func TestConvertToSfvm_Pc(t *testing.T) {
-	tests := map[string][]struct {
-		evmCode []byte
-		evmPc   uint16
-		sfvmPc  uint16
-	}{
-		"empty":        {{}},
-		"pos-0":        {{[]byte{byte(vm.STOP)}, 0, 0}},
-		"pos-1":        {{[]byte{byte(vm.STOP), byte(vm.STOP), byte(vm.STOP)}, 1, 1}},
-		"one-past-end": {{[]byte{byte(vm.STOP)}, 1, 1}},
-		"shifted": {{[]byte{
-			byte(vm.PUSH1), 0x01,
-			byte(vm.PUSH1), 0x02,
-			byte(vm.ADD)}, 2, 1}},
-		"jumpdest": {{[]byte{
-			byte(vm.PUSH3), 0x00, 0x00, 0x06,
-			byte(vm.JUMP),
-			byte(vm.INVALID),
-			byte(vm.JUMPDEST)},
-			6, 6}},
-		"extra padding for truncated push": {{[]byte{
-			byte(vm.PUSH14), 0x2e, 0x5a, 0x30, 0x10, 0x64,
-		}, 6, 7}},
-	}
-
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			for _, cur := range test {
-				pcMap := genPcMap(cur.evmCode)
-				sfvmPc := pcMap.evmToSfvm[cur.evmPc]
-				if want, got := cur.sfvmPc, sfvmPc; want != got {
-					t.Errorf("invalid conversion, wanted %d, got %d", want, got)
-				}
-			}
-		})
-	}
-}
-
-func TestConvertToSfvm_Code(t *testing.T) {
-	tests := map[string][]struct {
-		evmCode  []byte
-		sfvmCode Code
-	}{
-		"empty": {{}},
-		"stop":  {{[]byte{byte(vm.STOP)}, Code{Instruction{STOP, 0x0000}}}},
-		"add": {{[]byte{
-			byte(vm.PUSH1), 0x01,
-			byte(vm.PUSH1), 0x02,
-			byte(vm.ADD)},
-			Code{Instruction{PUSH1, 0x0100},
-				Instruction{PUSH1, 0x0200},
-				Instruction{ADD, 0x0000}}}},
-		"jump": {{[]byte{
-			byte(vm.PUSH1), 0x04,
-			byte(vm.JUMP),
-			byte(vm.INVALID),
-			byte(vm.JUMPDEST)},
-			Code{Instruction{PUSH1, 0x0400},
-				Instruction{JUMP, 0x0000},
-				Instruction{INVALID, 0x0000},
-				Instruction{JUMP_TO, 0x0004},
-				Instruction{JUMPDEST, 0x0000}}}},
-		"jumpdest": {{[]byte{
-			byte(vm.PUSH3), 0x00, 0x00, 0x06,
-			byte(vm.JUMP),
-			byte(vm.INVALID),
-			byte(vm.JUMPDEST)},
-			Code{Instruction{PUSH3, 0x0000},
-				Instruction{DATA, 0x0600},
-				Instruction{JUMP, 0x0000},
-				Instruction{INVALID, 0x0000},
-				Instruction{JUMP_TO, 0x0006},
-				Instruction{NOOP, 0x0000},
-				Instruction{JUMPDEST, 0x0000}}}},
-		"push2": {{[]byte{byte(vm.PUSH2), 0xBA, 0xAD}, Code{Instruction{PUSH2, 0xBAAD}}}},
-		"push3": {{[]byte{byte(vm.PUSH3), 0xBA, 0xAD, 0xC0}, Code{Instruction{PUSH3, 0xBAAD}, Instruction{DATA, 0xC000}}}},
-		"push31": {{[]byte{
-			byte(vm.PUSH31),
-			0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,
-			0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F},
-			Code{Instruction{PUSH31, 0x0102},
-				Instruction{DATA, 0x0304},
-				Instruction{DATA, 0x0506},
-				Instruction{DATA, 0x0708},
-				Instruction{DATA, 0x090A},
-				Instruction{DATA, 0x0B0C},
-				Instruction{DATA, 0x0D0E},
-				Instruction{DATA, 0x0F10},
-				Instruction{DATA, 0x1112},
-				Instruction{DATA, 0x1314},
-				Instruction{DATA, 0x1516},
-				Instruction{DATA, 0x1718},
-				Instruction{DATA, 0x191A},
-				Instruction{DATA, 0x1B1C},
-				Instruction{DATA, 0x1D1E},
-				Instruction{DATA, 0x1F00}}}},
-		"push32": {{[]byte{
-			byte(vm.PUSH32),
-			0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,
-			0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0xFF},
-			Code{Instruction{PUSH32, 0x0102},
-				Instruction{DATA, 0x0304},
-				Instruction{DATA, 0x0506},
-				Instruction{DATA, 0x0708},
-				Instruction{DATA, 0x090A},
-				Instruction{DATA, 0x0B0C},
-				Instruction{DATA, 0x0D0E},
-				Instruction{DATA, 0x0F10},
-				Instruction{DATA, 0x1112},
-				Instruction{DATA, 0x1314},
-				Instruction{DATA, 0x1516},
-				Instruction{DATA, 0x1718},
-				Instruction{DATA, 0x191A},
-				Instruction{DATA, 0x1B1C},
-				Instruction{DATA, 0x1D1E},
-				Instruction{DATA, 0x1FFF}}}},
-		"invalid": {{[]byte{byte(vm.INVALID)}, Code{Instruction{INVALID, 0x0000}}}},
-	}
-
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			for _, cur := range test {
-				got := convert(cur.evmCode, ConversionConfig{})
-
-				want := cur.sfvmCode
-
-				if wantSize, gotSize := len(want), len(got); wantSize != gotSize {
-					t.Fatalf("unexpected code size, wanted %d, got %d", wantSize, gotSize)
-				}
-
-				for i := 0; i < len(got); i++ {
-					if wantInst, gotInst := want[i], got[i]; wantInst != gotInst {
-						t.Errorf("unexpected instruction, wanted %v, got %v", wantInst, gotInst)
-					}
-				}
-			}
-		})
-	}
-}
-
 func TestConvertToSfvm_Stack(t *testing.T) {
 	newSfvmStack := func(values ...cc.U256) *stack {
 		stack := NewStack()
@@ -380,44 +208,6 @@ func TestConvertToSfvm_Stack(t *testing.T) {
 
 ////////////////////////////////////////////////////////////
 // sfvm -> ct
-
-func TestConvertToCt_Pc(t *testing.T) {
-	tests := map[string][]struct {
-		evmCode []byte
-		sfvmPc  uint16
-		evmPc   uint16
-	}{
-		"empty":        {{}},
-		"pos-0":        {{[]byte{byte(vm.STOP)}, 0, 0}},
-		"pos-1":        {{[]byte{byte(vm.STOP), byte(vm.STOP), byte(vm.STOP)}, 1, 1}},
-		"one-past-end": {{[]byte{byte(vm.STOP)}, 1, 1}},
-		"shifted": {{[]byte{
-			byte(vm.PUSH1), 0x01,
-			byte(vm.PUSH1), 0x02,
-			byte(vm.ADD)}, 1, 2}},
-		"jumpdest": {{[]byte{
-			byte(vm.PUSH3), 0x00, 0x00, 0x06,
-			byte(vm.JUMP),
-			byte(vm.INVALID),
-			byte(vm.JUMPDEST)},
-			6, 6}},
-		"extra padding for truncated push": {{[]byte{
-			byte(vm.PUSH14), 0x2e, 0x5a, 0x30, 0x10, 0x64,
-		}, 7, 6}},
-	}
-
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			for _, cur := range test {
-				pcMap := genPcMap(cur.evmCode)
-				evmPc := pcMap.sfvmToEvm[cur.sfvmPc]
-				if want, got := cur.evmPc, evmPc; want != got {
-					t.Errorf("invalid conversion, wanted %d, got %d", want, got)
-				}
-			}
-		})
-	}
-}
 
 func TestConvertToCt_Stack(t *testing.T) {
 	newSfvmStack := func(values ...cc.U256) *stack {

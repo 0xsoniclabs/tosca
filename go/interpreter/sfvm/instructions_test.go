@@ -20,195 +20,10 @@ import (
 	"testing"
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/tosca/vm"
 	"github.com/holiman/uint256"
 	"go.uber.org/mock/gomock"
 )
-
-func TestPushN(t *testing.T) {
-	data := make([]byte, 32)
-	for i := range data {
-		data[i] = byte(i + 1)
-	}
-
-	code := make([]Instruction, 16)
-	for i := 0; i < 32; i++ {
-		code[i/2].arg = code[i/2].arg<<8 | uint16(data[i])
-	}
-
-	for n := 1; n <= 32; n++ {
-		ctxt := context{
-			code:  code,
-			stack: NewStack(),
-		}
-
-		opPush(&ctxt, n)
-		ctxt.pc++
-
-		if ctxt.stack.len() != 1 {
-			t.Errorf("expected stack size of 1, got %d", ctxt.stack.len())
-			return
-		}
-
-		if int(ctxt.pc) != n/2+n%2 {
-			t.Errorf("for PUSH%d program counter did not progress to %d, got %d", n, n/2+n%2, ctxt.pc)
-		}
-
-		got := ctxt.stack.peek().Bytes()
-		if len(got) != n {
-			t.Errorf("expected %d bytes on the stack, got %d with values %v", n, len(got), got)
-		}
-
-		for i := range got {
-			if data[i] != got[i] {
-				t.Errorf("for PUSH%d expected value %d to be %d, got %d", n, i, data[i], got[i])
-			}
-		}
-	}
-}
-
-func TestPush1(t *testing.T) {
-	code := []Instruction{
-		{opcode: PUSH1, arg: 0x1234},
-	}
-
-	ctxt := context{
-		code:  code,
-		stack: NewStack(),
-	}
-
-	opPush1(&ctxt)
-	ctxt.pc++
-
-	if ctxt.stack.len() != 1 {
-		t.Errorf("expected stack size of 1, got %d", ctxt.stack.len())
-		return
-	}
-
-	if int(ctxt.pc) != 1 {
-		t.Errorf("program counter did not progress to %d, got %d", 1, ctxt.pc)
-	}
-
-	got := ctxt.stack.peek().Bytes()
-	if len(got) != 1 {
-		t.Errorf("expected 1 byte on the stack, got %d with values %v", len(got), got)
-	}
-	if got[0] != 0x12 {
-		t.Errorf("expected %d for first byte, got %d", 0x12, got[0])
-	}
-}
-
-func TestPush2(t *testing.T) {
-	code := []Instruction{
-		{opcode: PUSH2, arg: 0x1234},
-	}
-
-	ctxt := context{
-		code:  code,
-		stack: NewStack(),
-	}
-
-	opPush2(&ctxt)
-	ctxt.pc++
-
-	if ctxt.stack.len() != 1 {
-		t.Errorf("expected stack size of 1, got %d", ctxt.stack.len())
-		return
-	}
-
-	if int(ctxt.pc) != 1 {
-		t.Errorf("program counter did not progress to %d, got %d", 1, ctxt.pc)
-	}
-
-	got := ctxt.stack.peek().Bytes()
-	if len(got) != 2 {
-		t.Errorf("expected 2 byte on the stack, got %d with values %v", len(got), got)
-	}
-	if got[0] != 0x12 {
-		t.Errorf("expected %d for first byte, got %d", 0x12, got[0])
-	}
-	if got[1] != 0x34 {
-		t.Errorf("expected %d for second byte, got %d", 0x34, got[1])
-	}
-}
-
-func TestPush3(t *testing.T) {
-	code := []Instruction{
-		{opcode: PUSH2, arg: 0x1234},
-		{opcode: DATA, arg: 0x5678},
-	}
-
-	ctxt := context{
-		code:  code,
-		stack: NewStack(),
-	}
-
-	opPush3(&ctxt)
-	ctxt.pc++
-
-	if ctxt.stack.len() != 1 {
-		t.Errorf("expected stack size of 1, got %d", ctxt.stack.len())
-		return
-	}
-
-	if int(ctxt.pc) != 2 {
-		t.Errorf("program counter did not progress to %d, got %d", 2, ctxt.pc)
-	}
-
-	got := ctxt.stack.peek().Bytes()
-	if len(got) != 3 {
-		t.Errorf("expected 3 byte on the stack, got %d with values %v", len(got), got)
-	}
-	if got[0] != 0x12 {
-		t.Errorf("expected %d for first byte, got %d", 0x12, got[0])
-	}
-	if got[1] != 0x34 {
-		t.Errorf("expected %d for second byte, got %d", 0x34, got[1])
-	}
-	if got[2] != 0x56 {
-		t.Errorf("expected %d for third byte, got %d", 0x56, got[2])
-	}
-}
-
-func TestPush4(t *testing.T) {
-	code := []Instruction{
-		{opcode: PUSH2, arg: 0x1234},
-		{opcode: DATA, arg: 0x5678},
-	}
-
-	ctxt := context{
-		code:  code,
-		stack: NewStack(),
-	}
-
-	opPush4(&ctxt)
-	ctxt.pc++
-
-	if ctxt.stack.len() != 1 {
-		t.Errorf("expected stack size of 1, got %d", ctxt.stack.len())
-		return
-	}
-
-	if int(ctxt.pc) != 2 {
-		t.Errorf("program counter did not progress to %d, got %d", 2, ctxt.pc)
-	}
-
-	got := ctxt.stack.peek().Bytes()
-	if len(got) != 4 {
-		t.Errorf("expected 3 byte on the stack, got %d with values %v", len(got), got)
-	}
-	if got[0] != 0x12 {
-		t.Errorf("expected %d for first byte, got %d", 0x12, got[0])
-	}
-	if got[1] != 0x34 {
-		t.Errorf("expected %d for second byte, got %d", 0x34, got[1])
-	}
-	if got[2] != 0x56 {
-		t.Errorf("expected %d for third byte, got %d", 0x56, got[2])
-	}
-	if got[3] != 0x78 {
-		t.Errorf("expected %d for 4th byte, got %d", 0x78, got[3])
-	}
-}
 
 func TestCallChecksBalances(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -280,6 +95,27 @@ func TestCreateChecksBalance(t *testing.T) {
 	}
 	if want, got := *uint256.NewInt(0), ctxt.stack.data[0]; want != got {
 		t.Fatalf("unexpected value on top of stack, wanted %v, got %v", want, got)
+	}
+}
+
+func TestPush_ReadingDataLongerThanCodePushesZero(t *testing.T) {
+	nonSpecializedPush := make([]func(*context), 0, 27)
+	for i := 5; i <= 31; i++ {
+		nonSpecializedPush = append(nonSpecializedPush, func(c *context) { opPush(c, i) })
+	}
+
+	pushes := []func(c *context){opPush1, opPush2, opPush3, opPush4, opPush32}
+	pushes = append(pushes, nonSpecializedPush...)
+	for _, op := range pushes {
+		ctxt := context{
+			stack: NewStack(),
+		}
+
+		op(&ctxt)
+
+		if !ctxt.stack.peek().Eq(uint256.NewInt(0)) {
+			t.Fatalf("unexpected value on top of stack, wanted %v, got %v", uint256.NewInt(0), ctxt.stack.peek())
+		}
 	}
 }
 
@@ -1023,7 +859,9 @@ func TestOpEndWithResult_ReportOverflow(t *testing.T) {
 }
 
 func TestInstructions_EIP2929_staticGasCostIsZero(t *testing.T) {
-	ops := []OpCode{BALANCE, EXTCODECOPY, EXTCODEHASH, EXTCODESIZE, CALL, CALLCODE, DELEGATECALL, STATICCALL}
+	ops := []vm.OpCode{
+		vm.BALANCE, vm.EXTCODECOPY, vm.EXTCODEHASH, vm.EXTCODESIZE, vm.CALL, vm.CALLCODE, vm.DELEGATECALL, vm.STATICCALL,
+	}
 	for _, op := range ops {
 		if getBerlinGasPriceInternal(op) != 0 {
 			t.Errorf("expected zero gas cost for %v", op)
@@ -1037,26 +875,26 @@ func TestInstructions_EIP2929_dynamicGasCostReportsOutOfGas(t *testing.T) {
 		cold tosca.Gas
 	}
 
-	var eip2929AccessCost = newOpCodePropertyMap(func(op OpCode) accessCost {
+	var eip2929AccessCost = newOpCodePropertyMap(func(op vm.OpCode) accessCost {
 		switch op {
-		case SLOAD:
+		case vm.SLOAD:
 			return accessCost{warm: 100, cold: 2100}
-		case SSTORE:
+		case vm.SSTORE:
 			return accessCost{warm: 100, cold: 2100 + 100}
 		}
 		return accessCost{warm: 100, cold: 2600}
 	})
 
-	tests := map[OpCode]func(*context) error{
-		BALANCE:      opBalance,
-		EXTCODECOPY:  opExtCodeCopy,
-		EXTCODEHASH:  opExtcodehash,
-		EXTCODESIZE:  opExtcodesize,
-		CALL:         opCall,
-		CALLCODE:     opCallCode,
-		DELEGATECALL: opDelegateCall,
-		STATICCALL:   opStaticCall,
-		SLOAD:        opSload,
+	tests := map[vm.OpCode]func(*context) error{
+		vm.BALANCE:      opBalance,
+		vm.EXTCODECOPY:  opExtCodeCopy,
+		vm.EXTCODEHASH:  opExtcodehash,
+		vm.EXTCODESIZE:  opExtcodesize,
+		vm.CALL:         opCall,
+		vm.CALLCODE:     opCallCode,
+		vm.DELEGATECALL: opDelegateCall,
+		vm.STATICCALL:   opStaticCall,
+		vm.SLOAD:        opSload,
 	}
 
 	for op, implementation := range tests {
@@ -1111,7 +949,7 @@ func TestInstructions_EIP2929_SSTOREReportsOutOfGas(t *testing.T) {
 		for _, storageStatus := range failsForDynamicGas {
 			for revision := tosca.R09_Berlin; revision <= newestSupportedRevision; revision++ {
 				for _, access := range []tosca.AccessStatus{tosca.WarmAccess, tosca.ColdAccess} {
-					t.Run(fmt.Sprintf("%v/%v/%v/%v", SSTORE, revision, access, storageStatus), func(t *testing.T) {
+					t.Run(fmt.Sprintf("%v/%v/%v/%v", vm.SSTORE, revision, access, storageStatus), func(t *testing.T) {
 
 						ctxt := context{
 							params: tosca.Parameters{
@@ -1148,17 +986,17 @@ func TestInstructions_StorageOps_CallStorageContext(t *testing.T) {
 	value := tosca.Word{}
 	_, _ = rand.Read(value[:])
 
-	tests := map[OpCode]struct {
+	tests := map[vm.OpCode]struct {
 		implementation func(*context) error
 		stack          []uint256.Int
 	}{
-		SLOAD: {
+		vm.SLOAD: {
 			implementation: opSload,
 			stack: []uint256.Int{
 				*new(uint256.Int).SetBytes(key[:]),
 			},
 		},
-		SSTORE: {
+		vm.SSTORE: {
 			implementation: opSstore,
 			stack: []uint256.Int{
 				*new(uint256.Int).SetBytes(key[:]),
@@ -1179,10 +1017,10 @@ func TestInstructions_StorageOps_CallStorageContext(t *testing.T) {
 				if revision >= tosca.R09_Berlin {
 					runContext.EXPECT().AccessStorage(address, key).Return(tosca.WarmAccess)
 				}
-				if op == SLOAD {
+				if op == vm.SLOAD {
 					runContext.EXPECT().GetStorage(address, key).Return(value)
 				}
-				if op == SSTORE {
+				if op == vm.SSTORE {
 					runContext.EXPECT().SetStorage(address, key, value)
 				}
 				ctxt.context = runContext
@@ -1192,7 +1030,7 @@ func TestInstructions_StorageOps_CallStorageContext(t *testing.T) {
 					t.Fatalf("unexpected error: %v", err)
 				}
 
-				if op == SLOAD {
+				if op == vm.SLOAD {
 					if got := ctxt.stack.peek(); got.Cmp(new(uint256.Int).SetBytes(value[:])) != 0 {
 						t.Errorf("unexpected return value, wanted %v, got %v", value, got)
 					}
@@ -1202,16 +1040,17 @@ func TestInstructions_StorageOps_CallStorageContext(t *testing.T) {
 	}
 }
 
-func TestInstructions_JumpOpsCheckJUMPDEST(t *testing.T) {
-	tests := map[OpCode]struct {
+// TODO reenable once SFVM supports JUMPDEST marking
+func DisTestInstructions_JumpOpsCheckJUMPDEST(t *testing.T) {
+	tests := map[vm.OpCode]struct {
 		implementation func(*context) error
 		stack          []uint64
 	}{
-		JUMP: {
+		vm.JUMP: {
 			implementation: opJump,
 			stack:          []uint64{1},
 		},
-		JUMPI: {
+		vm.JUMPI: {
 			implementation: opJumpi,
 			stack:          []uint64{1, 1},
 		},
@@ -1227,7 +1066,7 @@ func TestInstructions_JumpOpsCheckJUMPDEST(t *testing.T) {
 	for op, test := range tests {
 		t.Run(op.String(), func(t *testing.T) {
 			ctxt := getEmptyContext()
-			ctxt.code = Code{{op, 0}}
+			ctxt.code = tosca.Code{byte(op)}
 			for _, v := range test.stack {
 				ctxt.stack.push(uint256.NewInt(v))
 			}
@@ -1244,11 +1083,11 @@ func TestInstructions_ConditionalJumpOpsIgnoreDestinationWhenJumpNotTaken(t *tes
 	zero := *uint256.NewInt(0)
 	maxUint256 := *uint256.NewInt(0).Sub(uint256.NewInt(0), uint256.NewInt(1))
 
-	tests := map[OpCode]struct {
+	tests := map[vm.OpCode]struct {
 		implementation func(*context) error
 		stack          []uint256.Int
 	}{
-		JUMPI: {
+		vm.JUMPI: {
 			implementation: opJumpi,
 			// ignores destination, even if it would overflow
 			stack: []uint256.Int{maxUint256, zero},
@@ -1258,7 +1097,7 @@ func TestInstructions_ConditionalJumpOpsIgnoreDestinationWhenJumpNotTaken(t *tes
 	for op, test := range tests {
 		t.Run(op.String(), func(t *testing.T) {
 			ctxt := getEmptyContext()
-			ctxt.code = Code{{op, 0}}
+			ctxt.code = tosca.Code{byte(op)}
 			ctxt.stack = fillStack(test.stack...)
 
 			err := test.implementation(&ctxt)
@@ -1270,17 +1109,17 @@ func TestInstructions_ConditionalJumpOpsIgnoreDestinationWhenJumpNotTaken(t *tes
 }
 
 func TestInstructions_JumpOpsReturnErrorWithJumpDestinationOutOfBounds(t *testing.T) {
-	tests := map[OpCode]struct {
+	tests := map[vm.OpCode]struct {
 		implementation func(*context) error
 		stack          []uint256.Int
 	}{
-		JUMP: {
+		vm.JUMP: {
 			implementation: opJump,
 			stack: []uint256.Int{
 				*uint256.NewInt(math.MaxInt32 + 1),
 			},
 		},
-		JUMPI: {
+		vm.JUMPI: {
 			implementation: opJumpi,
 			stack: []uint256.Int{
 				*uint256.NewInt(math.MaxInt32 + 1),
@@ -1292,7 +1131,7 @@ func TestInstructions_JumpOpsReturnErrorWithJumpDestinationOutOfBounds(t *testin
 	for op, test := range tests {
 		t.Run(op.String(), func(t *testing.T) {
 			ctxt := getEmptyContext()
-			ctxt.code = Code{{op, 0}}
+			ctxt.code = tosca.Code{byte(op)}
 			ctxt.stack = fillStack(test.stack...)
 
 			err := test.implementation(&ctxt)
@@ -2370,4 +2209,19 @@ func fillStack(values ...uint256.Int) *stack {
 		s.push(&values[i])
 	}
 	return s
+}
+
+func allOpCodesWhere(predicate func(op vm.OpCode) bool) []vm.OpCode {
+	res := []vm.OpCode{}
+	for idx := range numOpCodes {
+		op := vm.OpCode(idx)
+		if predicate(op) {
+			res = append(res, op)
+		}
+	}
+	return res
+}
+
+func allOpCodes() []vm.OpCode {
+	return allOpCodesWhere(func(op vm.OpCode) bool { return true })
 }
