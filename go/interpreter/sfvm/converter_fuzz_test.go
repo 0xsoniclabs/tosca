@@ -46,13 +46,6 @@ func FuzzSfvmConverter(f *testing.F) {
 			mapping[evm] = sfvm
 		})
 
-		// Check that no super-instructions have been used.
-		for _, op := range sfvmCode {
-			if op.opcode.isSuperInstruction() {
-				t.Errorf("Super-instruction %v used", op.opcode)
-			}
-		}
-
 		// Check that all operations are mapped to matching operations.
 		for i := 0; i < len(toscaCode); i++ {
 			originalPos := i

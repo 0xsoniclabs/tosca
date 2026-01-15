@@ -12,7 +12,6 @@ package sfvm
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
 )
@@ -25,10 +24,8 @@ type Config struct {
 // configuration for production purposes.
 func NewInterpreter(Config) (*sfvm, error) {
 	return newVm(config{
-		ConversionConfig: ConversionConfig{
-			WithSuperInstructions: false,
-		},
-		WithShaCache: true,
+		ConversionConfig: ConversionConfig{},
+		WithShaCache:     true,
 	})
 }
 
@@ -46,39 +43,6 @@ func init() {
 func RegisterExperimentalInterpreterConfigurations() error {
 
 	configs := map[string]config{}
-
-	for _, si := range []string{"", "-si"} {
-		for _, shaCache := range []string{"", "-no-sha-cache"} {
-			for _, mode := range []string{"", "-stats", "-logging"} {
-
-				config := config{
-					ConversionConfig: ConversionConfig{
-						WithSuperInstructions: si == "-si",
-					},
-					WithShaCache: shaCache != "-no-sha-cache",
-				}
-
-				switch mode {
-				case "-stats":
-					config.runner = &statisticRunner{
-						stats: newStatistics(),
-					}
-				case "-logging":
-					config.runner = loggingRunner{
-						log: os.Stdout,
-					}
-				}
-
-				name := "sfvm" + si + shaCache + mode
-				if name == "sfvm" {
-					continue
-				}
-
-				configs[name] = config
-			}
-		}
-	}
-
 	configs["sfvm-no-code-cache"] = config{
 		ConversionConfig: ConversionConfig{CacheSize: -1},
 	}
@@ -134,16 +98,4 @@ func (e *sfvm) Run(params tosca.Parameters) (tosca.Result, error) {
 	}
 
 	return run(e.config, params, converted)
-}
-
-func (e *sfvm) DumpProfile() {
-	if statsRunner, ok := e.config.runner.(*statisticRunner); ok {
-		fmt.Print(statsRunner.getSummary())
-	}
-}
-
-func (e *sfvm) ResetProfile() {
-	if statsRunner, ok := e.config.runner.(*statisticRunner); ok {
-		statsRunner.reset()
-	}
 }
