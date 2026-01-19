@@ -546,11 +546,7 @@ func TestInterpreter_ExecuteReturnsFailureOnExecutionError(t *testing.T) {
 // Benchmarks
 
 func BenchmarkFib10(b *testing.B) {
-	benchmarkFib(b, 10, false)
-}
-
-func BenchmarkFib10_SI(b *testing.B) {
-	benchmarkFib(b, 10, true)
+	benchmarkFib(b, 10)
 }
 
 func BenchmarkSatisfiesStackRequirements(b *testing.B) {
@@ -644,7 +640,7 @@ func isJump(op vm.OpCode) bool {
 	return op == vm.JUMP || op == vm.JUMPI
 }
 
-func benchmarkFib(b *testing.B, arg int, with_super_instructions bool) {
+func benchmarkFib(b *testing.B, arg int) {
 	example := getFibExample()
 	// See details of argument encoding: t.ly/kBl6
 	data := make([]byte, 4+32) // < the parameter is padded up to 32 bytes

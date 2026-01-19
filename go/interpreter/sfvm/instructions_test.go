@@ -104,6 +104,7 @@ func TestPush_ReadingDataLongerThanCodePushesZero(t *testing.T) {
 		nonSpecializedPush = append(nonSpecializedPush, func(c *context) { opPush(c, i) })
 	}
 
+	// push0 does not read any data, so it is not included here.
 	pushes := []func(c *context){opPush1, opPush2, opPush3, opPush4, opPush32}
 	pushes = append(pushes, nonSpecializedPush...)
 	for _, op := range pushes {
