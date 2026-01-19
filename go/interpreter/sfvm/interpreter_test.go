@@ -13,7 +13,6 @@ package sfvm
 import (
 	"bytes"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -178,8 +177,7 @@ func TestInterpreter_step_DetectsUpperStackLimitViolation(t *testing.T) {
 	}
 }
 
-// TODO reenable once SFVM supports JUMPDEST marking
-func DisTestInterpreter_CanDispatchExecutableInstructions(t *testing.T) {
+func TestInterpreter_CanDispatchExecutableInstructions(t *testing.T) {
 	for _, op := range allOpCodesWhere(isExecutable) {
 		t.Run(op.String(), func(t *testing.T) {
 			forEachRevision(t, op, func(t *testing.T, revision tosca.Revision) {
@@ -221,11 +219,13 @@ func DisTestInterpreter_CanDispatchExecutableInstructions(t *testing.T) {
 				}
 
 				_, err = steps(&ctx, false)
-				if op == vm.JUMP || op == vm.JUMPI {
-					if !errors.Is(err, errInvalidJump) {
-						t.Errorf("expected invalid jump error for %v, got %v", op, err)
-					}
-				} else if err != nil {
+				// TODO: re-enable jump error check when jumps are supported by sfvm
+				// if op == vm.JUMP || op == vm.JUMPI {
+				// 	if !errors.Is(err, errInvalidJump) {
+				// 		t.Errorf("expected invalid jump error for %v, got %v", op, err)
+				// 	}
+				// } else
+				if err != nil {
 					t.Errorf("unexpected error: %v", err)
 				}
 			})
