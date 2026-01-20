@@ -131,7 +131,12 @@ func TestPush_DifferentPushSizesPushCorrectValues(t *testing.T) {
 		pushes[i] = func(c *context) { opPush(c, i) }
 	}
 
-	data := bytes.Repeat([]byte{0x0a}, 32)
+	data := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+		0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,
+		0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
+		0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20,
+	}
+
 	for count, push := range pushes {
 		ctxt := context{
 			stack: NewStack(),
@@ -198,12 +203,22 @@ func TestInstructions_ParameterValuesArePushedCorrectly(t *testing.T) {
 			expected:  *uint256.NewInt(0).SetBytes(params.PrevRandao[:]),
 		},
 		"basefee": {
-			operation: func(ctx *context) { opBaseFee(ctx) },
-			expected:  *uint256.NewInt(0).SetBytes(params.BaseFee[:]),
+			operation: func(ctx *context) {
+				err := opBaseFee(ctx)
+				if err != nil {
+					t.Fatalf("opBaseFee failed: %v", err)
+				}
+			},
+			expected: *uint256.NewInt(0).SetBytes(params.BaseFee[:]),
 		},
 		"blobbasefee": {
-			operation: func(ctx *context) { opBlobBaseFee(ctx) },
-			expected:  *uint256.NewInt(0).SetBytes(params.BlobBaseFee[:]),
+			operation: func(ctx *context) {
+				err := opBlobBaseFee(ctx)
+				if err != nil {
+					t.Fatalf("opBlobBaseFee failed: %v", err)
+				}
+			},
+			expected: *uint256.NewInt(0).SetBytes(params.BlobBaseFee[:]),
 		},
 		"origin": {
 			operation: opOrigin,
@@ -2300,6 +2315,17 @@ func TestInstructions_MemoryOperationsAltersMemory(t *testing.T) {
 		t.Fatalf("unexpected value on top of stack, wanted %v, got %v", want, got)
 	}
 
+	// load value using MLOAD at offset 0
+	context.stack.push(uint256.NewInt(0)) // offset
+	err = opMload(context)
+	if err != nil {
+		t.Fatalf("unexpected return: %v", err)
+	}
+	want := uint256.NewInt(0).SetBytes(append([]byte{0x24}, bytes.Repeat([]byte{0x00}, 31)...))
+	if got := context.stack.pop(); !want.Eq(got) {
+		t.Fatalf("unexpected value on top of stack, wanted %v, got %v", want, got)
+	}
+
 	// save value using MSTORE at offset 32
 	context.stack.push(uint256.NewInt(0).SetBytes([]byte{0x42})) // value
 	context.stack.push(uint256.NewInt(32))                       // offset
@@ -2314,17 +2340,6 @@ func TestInstructions_MemoryOperationsAltersMemory(t *testing.T) {
 		t.Fatalf("unexpected value on top of stack, wanted %v, got %v", want, got)
 	}
 
-	// load value using MLOAD at offset 0
-	context.stack.push(uint256.NewInt(0)) // offset
-	err = opMload(context)
-	if err != nil {
-		t.Fatalf("unexpected return: %v", err)
-	}
-	want := uint256.NewInt(0).SetBytes(append([]byte{0x24}, bytes.Repeat([]byte{0x00}, 31)...))
-	if got := context.stack.pop(); !want.Eq(got) {
-		t.Fatalf("unexpected value on top of stack, wanted %v, got %v", want, got)
-	}
-
 	// load value using MLOAD at offset 32
 	context.stack.push(uint256.NewInt(32)) // offset
 	err = opMload(context)
@@ -2332,6 +2347,31 @@ func TestInstructions_MemoryOperationsAltersMemory(t *testing.T) {
 		t.Fatalf("unexpected return: %v", err)
 	}
 	want = uint256.NewInt(0).SetBytes([]byte{0x42})
+	if got := context.stack.pop(); !want.Eq(got) {
+		t.Fatalf("unexpected value on top of stack, wanted %v, got %v", want, got)
+	}
+
+	// save another value using MSTORE at offset 21
+	context.stack.push(uint256.NewInt(0).SetBytes([]byte{0x66})) // value
+	context.stack.push(uint256.NewInt(21))                       // offset
+	err = opMstore(context)
+	if err != nil {
+		t.Fatalf("unexpected return: %v", err)
+	}
+
+	// check memory size
+	opMsize(context)
+	if want, got := uint256.NewInt(64), context.stack.pop(); !want.Eq(got) {
+		t.Fatalf("unexpected value on top of stack, wanted %v, got %v", want, got)
+	}
+
+	// load value from different offset using MLOAD at offset 22
+	context.stack.push(uint256.NewInt(22)) // offset
+	err = opMload(context)
+	if err != nil {
+		t.Fatalf("unexpected return: %v", err)
+	}
+	want = uint256.NewInt(0).SetBytes([]byte{0x66, 0x00})
 	if got := context.stack.pop(); !want.Eq(got) {
 		t.Fatalf("unexpected value on top of stack, wanted %v, got %v", want, got)
 	}
