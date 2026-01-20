@@ -11,8 +11,6 @@
 package sfvm
 
 import (
-	"fmt"
-
 	"github.com/0xsoniclabs/tosca/go/tosca"
 )
 
@@ -24,8 +22,7 @@ type Config struct {
 // configuration for production purposes.
 func NewInterpreter(Config) (*sfvm, error) {
 	return newVm(config{
-		ConversionConfig: ConversionConfig{},
-		WithShaCache:     true,
+		WithShaCache: true,
 	})
 }
 
@@ -36,49 +33,16 @@ func init() {
 	})
 }
 
-// RegisterExperimentalInterpreterConfigurations registers all experimental
-// SFVM interpreter configurations to Tosca's interpreter registry. This
-// function should not be called in production code, as the resulting VMs are
-// not officially supported.
-func RegisterExperimentalInterpreterConfigurations() error {
-
-	configs := map[string]config{}
-	configs["sfvm-no-code-cache"] = config{
-		ConversionConfig: ConversionConfig{CacheSize: -1},
-	}
-
-	for name, config := range configs {
-		err := tosca.RegisterInterpreterFactory(
-			name,
-			func(any) (tosca.Interpreter, error) {
-				return newVm(config)
-			},
-		)
-		if err != nil {
-			return fmt.Errorf("failed to register interpreter %q: %v", name, err)
-		}
-	}
-
-	return nil
-}
-
 type config struct {
-	ConversionConfig
 	WithShaCache bool
-	runner       runner
 }
 
 type sfvm struct {
-	config    config
-	converter *Converter
+	config config
 }
 
 func newVm(config config) (*sfvm, error) {
-	converter, err := NewConverter(config.ConversionConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create converter: %v", err)
-	}
-	return &sfvm{config: config, converter: converter}, nil
+	return &sfvm{config: config}, nil
 }
 
 // Defines the newest supported revision for this interpreter implementation
@@ -89,13 +53,5 @@ func (e *sfvm) Run(params tosca.Parameters) (tosca.Result, error) {
 		return tosca.Result{}, &tosca.ErrUnsupportedRevision{Revision: params.Revision}
 	}
 
-	converted, err := e.converter.Convert(
-		params.Code,
-		params.CodeHash,
-	)
-	if err != nil {
-		return tosca.Result{}, fmt.Errorf("failed to convert code: %w", err)
-	}
-
-	return run(e.config, params, converted)
+	return run(e.config, params)
 }

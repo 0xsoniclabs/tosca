@@ -13,7 +13,6 @@ package sfvm
 import (
 	"bytes"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -25,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/tosca/vm"
 	"github.com/holiman/uint256"
 	"go.uber.org/mock/gomock"
 )
@@ -105,12 +105,12 @@ const MAX_STACK_SIZE int = 1024
 const GAS_START tosca.Gas = 1 << 32
 
 func getEmptyContext() context {
-	code := make([]Instruction, 0)
+	code := make([]byte, 0)
 	data := make([]byte, 0)
 	return getContext(code, data, nil, 0, GAS_START, tosca.R07_Istanbul)
 }
 
-func getContext(code Code, data []byte, runContext tosca.RunContext, stackPtr int, gas tosca.Gas, revision tosca.Revision) context {
+func getContext(code tosca.Code, data []byte, runContext tosca.RunContext, stackPtr int, gas tosca.Gas, revision tosca.Revision) context {
 
 	// Create execution context.
 	ctxt := context{
@@ -148,7 +148,7 @@ func TestInterpreter_step_DetectsLowerStackLimitViolation(t *testing.T) {
 		}
 
 		ctxt := getEmptyContext()
-		ctxt.code = []Instruction{{op, 0}}
+		ctxt.code = []byte{byte(op)}
 
 		_, err := steps(&ctxt, false)
 		if want, got := errStackUnderflow, err; want != got {
@@ -167,7 +167,7 @@ func TestInterpreter_step_DetectsUpperStackLimitViolation(t *testing.T) {
 		}
 
 		ctxt := getEmptyContext()
-		ctxt.code = []Instruction{{op, 0}}
+		ctxt.code = []byte{byte(op)}
 		ctxt.stack.stackPointer = maxStackSize
 
 		_, err := steps(&ctxt, false)
@@ -178,7 +178,6 @@ func TestInterpreter_step_DetectsUpperStackLimitViolation(t *testing.T) {
 }
 
 func TestInterpreter_CanDispatchExecutableInstructions(t *testing.T) {
-
 	for _, op := range allOpCodesWhere(isExecutable) {
 		t.Run(op.String(), func(t *testing.T) {
 			forEachRevision(t, op, func(t *testing.T, revision tosca.Revision) {
@@ -219,9 +218,15 @@ func TestInterpreter_CanDispatchExecutableInstructions(t *testing.T) {
 					t.Fatalf("unexpected creating stack: %v", err)
 				}
 
-				_, err = vanillaRunner{}.run(&ctx)
+				_, err = steps(&ctx, false)
+				// TODO: re-enable jump error check when jumps are supported by sfvm
+				// if op == vm.JUMP || op == vm.JUMPI {
+				// 	if !errors.Is(err, errInvalidJump) {
+				// 		t.Errorf("expected invalid jump error for %v, got %v", op, err)
+				// 	}
+				// } else
 				if err != nil {
-					t.Errorf("execution failed: %v", err)
+					t.Errorf("unexpected error: %v", err)
 				}
 			})
 		})
@@ -231,14 +236,14 @@ func TestInterpreter_CanDispatchExecutableInstructions(t *testing.T) {
 func TestInterpreter_ExecutionTerminates(t *testing.T) {
 
 	tests := map[string]struct {
-		code []Instruction
+		code tosca.Code
 	}{
-		"empty code":          {code: []Instruction{}},
-		"single stop":         {code: []Instruction{{STOP, 0}}},
-		"pc bigger than code": {code: []Instruction{{PUSH1, 0}}},
-		"revert":              {code: []Instruction{{REVERT, 0}}},
-		"return":              {code: []Instruction{{RETURN, 0}}},
-		"selfdestruct":        {code: []Instruction{{SELFDESTRUCT, 0}}},
+		"empty code":          {code: tosca.Code{}},
+		"single stop":         {code: tosca.Code{byte(vm.STOP)}},
+		"pc bigger than code": {code: tosca.Code{byte(vm.PUSH1)}},
+		"revert":              {code: tosca.Code{byte(vm.REVERT)}},
+		"return":              {code: tosca.Code{byte(vm.RETURN)}},
+		"selfdestruct":        {code: tosca.Code{byte(vm.SELFDESTRUCT)}},
 	}
 
 	for name, test := range tests {
@@ -269,16 +274,16 @@ func TestInterpreter_ExecutionTerminates(t *testing.T) {
 
 func TestInterpreter_Vanilla_RunsWithoutOutput(t *testing.T) {
 
-	code := []Instruction{
-		{PUSH1, 1},
-		{STOP, 0},
+	code := tosca.Code{
+		byte(vm.PUSH1), byte(1),
+		byte(vm.STOP),
 	}
 
 	params := tosca.Parameters{
 		Input:  []byte{},
 		Static: true,
 		Gas:    10,
-		Code:   []byte{0x0},
+		Code:   code,
 	}
 
 	// redirect stdout
@@ -287,7 +292,7 @@ func TestInterpreter_Vanilla_RunsWithoutOutput(t *testing.T) {
 	os.Stdout = w
 
 	// Run testing code
-	_, err := run(config{}, params, code)
+	_, err := run(config{}, params)
 	// read the output
 	_ = w.Close() // ignore error in test
 	out, _ := io.ReadAll(r)
@@ -303,36 +308,17 @@ func TestInterpreter_Vanilla_RunsWithoutOutput(t *testing.T) {
 }
 
 func TestInterpreter_EmptyCodeBypassesRunnerAndSucceeds(t *testing.T) {
-	code := []Instruction{}
-	params := tosca.Parameters{}
-	config := config{
-		runner: NewMockrunner(gomock.NewController(t)),
-	}
+	code := tosca.Code{}
+	params := tosca.Parameters{Code: code}
+	config := config{}
 
-	result, err := run(config, params, code)
+	result, err := run(config, params)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
 
 	if !result.Success {
 		t.Errorf("unexpected result: want success, got %v", result.Success)
-	}
-}
-
-func TestInterpreter_run_ReturnsErrorOnRuntimeError(t *testing.T) {
-
-	runner := NewMockrunner(gomock.NewController(t))
-	code := []Instruction{{JUMPDEST, 0}}
-	params := tosca.Parameters{Gas: 20}
-	config := config{runner: runner}
-
-	expectedError := fmt.Errorf("runtime error")
-
-	runner.EXPECT().run(gomock.Any()).Return(statusFailed, expectedError)
-
-	_, err := run(config, params, code)
-	if !errors.Is(err, expectedError) {
-		t.Errorf("unexpected error: %v", err)
 	}
 }
 
@@ -416,41 +402,14 @@ func TestRun_GenerateResult(t *testing.T) {
 	}
 }
 
-func TestStepsProperlyHandlesJUMP_TO(t *testing.T) {
-	ctxt := getEmptyContext()
-	instructions := []Instruction{
-		{JUMP_TO, 0x02},
-		{RETURN, 0},
-		{STOP, 0},
-	}
-
-	ctxt.params = tosca.Parameters{
-		Input:  []byte{},
-		Static: false,
-		Gas:    10,
-		Code:   []byte{0x0},
-	}
-	ctxt.code = instructions
-
-	status, err := steps(&ctxt, false)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-	if status != statusStopped {
-		t.Errorf("unexpected status: want STOPPED, got %v", status)
-	}
-}
-
 func TestSteps_DetectsNonExecutableCode(t *testing.T) {
 
-	nonExecutableOpCodes := []OpCode{
-		INVALID,
-		NOOP,
-		DATA,
+	nonExecutableOpCodes := []vm.OpCode{
+		vm.INVALID,
 	}
 	undefinedOpCodeRegex := regexp.MustCompile(`^op\(0x[0-9a-fA-F]+\)`)
 	isUndefined :=
-		func(op OpCode) bool {
+		func(op vm.OpCode) bool {
 			return undefinedOpCodeRegex.MatchString(op.String())
 		}
 	nonExecutableOpCodes = append(nonExecutableOpCodes, allOpCodesWhere(isUndefined)...)
@@ -458,7 +417,7 @@ func TestSteps_DetectsNonExecutableCode(t *testing.T) {
 	for _, opCode := range nonExecutableOpCodes {
 		t.Run(opCode.String(), func(t *testing.T) {
 			ctxt := getEmptyContext()
-			ctxt.code = []Instruction{{opCode, 0}}
+			ctxt.code = tosca.Code{byte(opCode)}
 
 			_, err := steps(&ctxt, false)
 			if want, got := errInvalidOpCode, err; want != got {
@@ -470,25 +429,25 @@ func TestSteps_DetectsNonExecutableCode(t *testing.T) {
 
 func TestSteps_StaticContextViolation(t *testing.T) {
 	tests := []struct {
-		op          OpCode
+		op          vm.OpCode
 		stack       []uint256.Int
 		minRevision tosca.Revision
 	}{
-		{op: SSTORE},
-		{op: LOG0},
-		{op: LOG1},
-		{op: LOG2},
-		{op: LOG3},
-		{op: LOG4},
-		{op: CREATE},
-		{op: CREATE2},
-		{op: SELFDESTRUCT},
+		{op: vm.SSTORE},
+		{op: vm.LOG0},
+		{op: vm.LOG1},
+		{op: vm.LOG2},
+		{op: vm.LOG3},
+		{op: vm.LOG4},
+		{op: vm.CREATE},
+		{op: vm.CREATE2},
+		{op: vm.SELFDESTRUCT},
 		{
-			op:          TSTORE,
+			op:          vm.TSTORE,
 			minRevision: tosca.R13_Cancun,
 		},
 		{
-			op: CALL,
+			op: vm.CALL,
 			stack: []uint256.Int{
 				{}, {}, {}, {},
 				*uint256.NewInt(1), // value != 0: static violation
@@ -507,7 +466,7 @@ func TestSteps_StaticContextViolation(t *testing.T) {
 				Gas:    10,
 				Code:   []byte{0x0},
 			}
-			ctxt.code = []Instruction{{test.op, 0}}
+			ctxt.code = tosca.Code{byte(test.op)}
 			ctxt.params.Revision = test.minRevision
 
 			if len(test.stack) == 0 {
@@ -528,7 +487,6 @@ func TestSteps_StaticContextViolation(t *testing.T) {
 }
 
 func TestSteps_FailsWithLessGasThanStaticCost(t *testing.T) {
-
 	for _, op := range allOpCodes() {
 		t.Run(op.String(), func(t *testing.T) {
 			forEachRevision(t, op, func(t *testing.T, revision tosca.Revision) {
@@ -539,7 +497,7 @@ func TestSteps_FailsWithLessGasThanStaticCost(t *testing.T) {
 				}
 
 				ctxt := getEmptyContext()
-				ctxt.code = []Instruction{{op, 0}}
+				ctxt.code = tosca.Code{byte(op)}
 				ctxt.stack.stackPointer = 20
 				ctxt.gas = expectedGas - 1
 
@@ -558,7 +516,7 @@ func TestInterpreter_InstructionsFailWhenExecutedInRevisionsEarlierThanIntroduce
 		for revision := tosca.R07_Istanbul; revision < introducedIn; revision++ {
 			t.Run(fmt.Sprintf("%v/%v", op, revision), func(t *testing.T) {
 				ctxt := getEmptyContext()
-				ctxt.code = []Instruction{{op, 0}}
+				ctxt.code = tosca.Code{byte(op)}
 				ctxt.params.Revision = revision
 				ctxt.stack.stackPointer = 20
 
@@ -574,7 +532,7 @@ func TestInterpreter_InstructionsFailWhenExecutedInRevisionsEarlierThanIntroduce
 func TestInterpreter_ExecuteReturnsFailureOnExecutionError(t *testing.T) {
 
 	ctxt := context{
-		code:  generateCodeFor(INVALID),
+		code:  generateCodeFor(vm.INVALID),
 		stack: NewStack(),
 	}
 
@@ -606,15 +564,15 @@ func BenchmarkSatisfiesStackRequirements(b *testing.B) {
 // test utilities
 
 func Test_generateCodeForOps(t *testing.T) {
-	tests := map[OpCode]int{
-		PUSH1:  1,
-		PUSH2:  1,
-		PUSH3:  2,
-		PUSH4:  2,
-		PUSH5:  3,
-		PUSH6:  3,
-		PUSH31: 16,
-		PUSH32: 16,
+	tests := map[vm.OpCode]int{
+		vm.PUSH1:  2,
+		vm.PUSH2:  3,
+		vm.PUSH3:  4,
+		vm.PUSH4:  5,
+		vm.PUSH5:  6,
+		vm.PUSH6:  7,
+		vm.PUSH31: 32,
+		vm.PUSH32: 33,
 	}
 	for op, test := range tests {
 		t.Run(op.String(), func(t *testing.T) {
@@ -629,27 +587,18 @@ func Test_generateCodeForOps(t *testing.T) {
 // generateCodeFor generates valid SFVM code for one instruction.
 // Appends necessary DATA instructions to the code to satisfy stack requirements.
 // Adds JUMPDEST instruction after JUMP instructions.
-func generateCodeFor(op OpCode) Code {
+func generateCodeFor(op vm.OpCode) tosca.Code {
+	var code tosca.Code
+	code = append(code, byte(op))
 
-	var code []Instruction
-	code = append(code, Instruction{op, 0})
-
-	if PUSH3 <= op && op <= PUSH32 {
-		n := int(op) - int(PUSH3) + 3
-		numInstructions := n/2 + n%2
-		for i := 0; i < numInstructions-1; i++ {
-			code = append(code, Instruction{DATA, 0})
+	if op >= vm.PUSH1 && op <= vm.PUSH32 {
+		for i := 0; i < int(op-vm.PUSH1+1); i++ {
+			code = append(code, 0x42)
 		}
 	}
 
 	if isJump(op) {
-		code = append(code, Instruction{JUMPDEST, 0})
-	}
-
-	if op == JUMP_TO {
-		// prevent endless loop by having jump to itself
-		code[0].arg = uint16(len(code))
-		code = append(code, Instruction{JUMPDEST, 0})
+		code = append(code, byte(vm.JUMPDEST))
 	}
 
 	return code
@@ -657,14 +606,14 @@ func generateCodeFor(op OpCode) Code {
 
 // fillStackFor fills the stack with the required number of elements for the given opcode.
 // For Jump instructions, it also encodes the PC for the the first jump destination found in code
-func fillStackFor(op OpCode, stack *stack, code Code) error {
+func fillStackFor(op vm.OpCode, stack *stack, code tosca.Code) error {
 	limits := _precomputedStackLimits.get(op)
 	stack.stackPointer = limits.min
 
 	// jump instructions need a valid jump destination
 	if isJump(op) {
-		counter := slices.IndexFunc(code, func(v Instruction) bool {
-			return v.opcode == JUMPDEST
+		counter := slices.IndexFunc(code, func(v byte) bool {
+			return v == byte(vm.JUMPDEST)
 		})
 		if counter == -1 {
 			return fmt.Errorf("missing JUMPDEST instruction")
@@ -680,25 +629,19 @@ func fillStackFor(op OpCode, stack *stack, code Code) error {
 
 var _isUndefinedOpCodeRegex = regexp.MustCompile(`^op\(0x[0-9A-Fa-f]+\)$`)
 
-func isExecutable(op OpCode) bool {
-	if slices.Contains([]OpCode{INVALID, NOOP, DATA}, op) {
+func isExecutable(op vm.OpCode) bool {
+	if slices.Contains([]vm.OpCode{vm.INVALID}, op) {
 		return false
 	}
 	return !_isUndefinedOpCodeRegex.MatchString(op.String())
 }
 
-func isJump(op OpCode) bool {
-	return op == JUMP || op == JUMPI
+func isJump(op vm.OpCode) bool {
+	return op == vm.JUMP || op == vm.JUMPI
 }
 
 func benchmarkFib(b *testing.B, arg int) {
 	example := getFibExample()
-
-	// Convert example to SFVM format.
-	converted := convert(example.code, ConversionConfig{})
-
-	// Create input data.
-
 	// See details of argument encoding: t.ly/kBl6
 	data := make([]byte, 4+32) // < the parameter is padded up to 32 bytes
 
@@ -721,7 +664,7 @@ func benchmarkFib(b *testing.B, arg int) {
 			Static: true,
 		},
 		gas:    1 << 62,
-		code:   converted,
+		code:   example.code,
 		stack:  NewStack(),
 		memory: NewMemory(),
 	}
@@ -736,11 +679,7 @@ func benchmarkFib(b *testing.B, arg int) {
 		ctxt.stack.stackPointer = 0
 
 		// Run the code (actual benchmark).
-		status, err := vanillaRunner{}.run(&ctxt)
-		if err != nil {
-			b.Fatalf("execution failed: %v", err)
-		}
-
+		status := execute(&ctxt, false)
 		if status != statusReturned {
 			b.Fatalf("execution failed: status is %v", status)
 		}
@@ -775,24 +714,24 @@ func fib(x int) int {
 	return fib(x-1) + fib(x-2)
 }
 
-var _introducedIn = newOpCodePropertyMap(func(op OpCode) tosca.Revision {
+var _introducedIn = newOpCodePropertyMap(func(op vm.OpCode) tosca.Revision {
 	switch op {
-	case CLZ:
-		return tosca.R15_Osaka
-	case BASEFEE:
+	case vm.BASEFEE:
 		return tosca.R10_London
-	case PUSH0:
+	case vm.PUSH0:
 		return tosca.R12_Shanghai
-	case BLOBHASH:
+	case vm.BLOBHASH:
 		return tosca.R13_Cancun
-	case BLOBBASEFEE:
+	case vm.BLOBBASEFEE:
 		return tosca.R13_Cancun
-	case TLOAD:
+	case vm.TLOAD:
 		return tosca.R13_Cancun
-	case TSTORE:
+	case vm.TSTORE:
 		return tosca.R13_Cancun
-	case MCOPY:
+	case vm.MCOPY:
 		return tosca.R13_Cancun
+	case vm.CLZ:
+		return tosca.R15_Osaka
 	}
 	return tosca.R07_Istanbul
 })
@@ -801,7 +740,7 @@ var _introducedIn = newOpCodePropertyMap(func(op OpCode) tosca.Revision {
 // where the operation was introduced.
 // It creates a new testing scope to name the test after the revision.
 func forEachRevision(
-	t *testing.T, op OpCode,
+	t *testing.T, op vm.OpCode,
 	f func(t *testing.T, revision tosca.Revision)) {
 
 	for revision := tosca.R07_Istanbul; revision <= newestSupportedRevision; revision++ {
