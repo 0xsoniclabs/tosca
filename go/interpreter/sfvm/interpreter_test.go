@@ -13,6 +13,7 @@ package sfvm
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -219,13 +220,11 @@ func TestInterpreter_CanDispatchExecutableInstructions(t *testing.T) {
 				}
 
 				_, err = steps(&ctx, false)
-				// TODO: re-enable jump error check when jumps are supported by sfvm
-				// if op == vm.JUMP || op == vm.JUMPI {
-				// 	if !errors.Is(err, errInvalidJump) {
-				// 		t.Errorf("expected invalid jump error for %v, got %v", op, err)
-				// 	}
-				// } else
-				if err != nil {
+				if op == vm.JUMP || op == vm.JUMPI {
+					if !errors.Is(err, errInvalidJump) {
+						t.Errorf("expected invalid jump error for %v, got %v", op, err)
+					}
+				} else if err != nil {
 					t.Errorf("unexpected error: %v", err)
 				}
 			})
@@ -292,7 +291,7 @@ func TestInterpreter_Vanilla_RunsWithoutOutput(t *testing.T) {
 	os.Stdout = w
 
 	// Run testing code
-	_, err := run(config{}, params)
+	_, err := run(analysis{}, config{}, params)
 	// read the output
 	_ = w.Close() // ignore error in test
 	out, _ := io.ReadAll(r)
@@ -312,7 +311,7 @@ func TestInterpreter_EmptyCodeBypassesRunnerAndSucceeds(t *testing.T) {
 	params := tosca.Parameters{Code: code}
 	config := config{}
 
-	result, err := run(config, params)
+	result, err := run(analysis{}, config, params)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}

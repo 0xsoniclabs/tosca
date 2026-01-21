@@ -35,7 +35,9 @@ func opPc(c *context) {
 }
 
 func checkJumpDest(c *context) error {
-	// TODO: use bitmap for jumpdest analysis
+	if int(c.pc+1) >= len(c.code) || !c.analysis.isJumpDest(uint64(c.pc+1)) {
+		return errInvalidJump
+	}
 	return nil
 }
 
