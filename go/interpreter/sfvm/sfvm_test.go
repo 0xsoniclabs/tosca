@@ -22,7 +22,7 @@ func TestNewInterpreter_ProducesInstanceWithSanctionedProperties(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create SFVM instance: %v", err)
 	}
-	if sfvm.config.WithShaCache != true {
+	if sfvm.config.withShaCache != true {
 		t.Fatalf("SFVM is not configured with sha cache")
 	}
 }
@@ -36,7 +36,7 @@ func TestSfvm_OfficialConfigurationHasSanctionedProperties(t *testing.T) {
 	if !ok {
 		t.Fatalf("unexpected interpreter implementation, got %T", vm)
 	}
-	if sfvm.config.WithShaCache != true {
+	if sfvm.config.withShaCache != true {
 		t.Fatalf("sfvm is not configured with sha cache")
 	}
 }
