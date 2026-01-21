@@ -369,6 +369,40 @@ func TestMemory_getSlice_ExpandsWithZeros(t *testing.T) {
 	}
 }
 
+func TestMemory_readWord_returnsExpectedResult(t *testing.T) {
+	tests := map[string]struct {
+		memoryData []byte
+		offset     *uint256.Int
+		expected   *uint256.Int
+	}{
+		"read from empty memory returns zero": {
+			memoryData: []byte{},
+			offset:     uint256.NewInt(0),
+			expected:   uint256.NewInt(0),
+		},
+		"read from memory returns zero-padded word": {
+			memoryData: []byte{0x01},
+			offset:     uint256.NewInt(0),
+			expected:   uint256.NewInt(0).SetBytes(append([]byte{0x01}, bytes.Repeat([]byte{0}, 31)...)),
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			memory := NewMemory()
+			memory.store = test.memoryData
+			target := uint256.NewInt(0)
+			err := memory.readWord(test.offset, target, &context{gas: 42})
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if target.Cmp(test.expected) != 0 {
+				t.Errorf("expected %v, got %v", test.expected, target)
+			}
+		})
+	}
+}
+
 func TestMemory_readWord_ErrorCases(t *testing.T) {
 	c := context{gas: 0}
 	m := NewMemory()

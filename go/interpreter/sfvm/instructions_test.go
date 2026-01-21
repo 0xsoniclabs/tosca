@@ -120,6 +120,265 @@ func TestPush_ReadingDataLongerThanCodePushesZero(t *testing.T) {
 	}
 }
 
+func TestPush_DifferentPushSizesPushCorrectValues(t *testing.T) {
+	pushes := make(map[int]func(*context), 32)
+	pushes[1] = opPush1
+	pushes[2] = opPush2
+	pushes[3] = opPush3
+	pushes[4] = opPush4
+	pushes[32] = opPush32
+	for i := 5; i <= 31; i++ {
+		pushes[i] = func(c *context) { opPush(c, i) }
+	}
+
+	data := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+		0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,
+		0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
+		0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20,
+	}
+
+	for count, push := range pushes {
+		ctxt := context{
+			stack: NewStack(),
+			code:  append([]byte{byte(vm.PUSH0) + byte(count)}, data...),
+		}
+		push(&ctxt)
+		expected := uint256.NewInt(0).SetBytes(append(bytes.Repeat([]byte{0}, 32-count), data[:count]...))
+
+		if !ctxt.stack.peek().Eq(expected) {
+			t.Fatalf("unexpected value on top of stack for push%d, wanted %v, got %v", count, expected, ctxt.stack.peek())
+		}
+	}
+}
+
+func TestInstructions_ParameterValuesArePushedCorrectly(t *testing.T) {
+	params := tosca.Parameters{
+		BlockParameters: tosca.BlockParameters{
+			ChainID:     tosca.Word{1},
+			BlockNumber: 2,
+			Timestamp:   3,
+			Coinbase:    tosca.Address{4},
+			GasLimit:    tosca.Gas(5),
+			PrevRandao:  tosca.Hash{6},
+			BaseFee:     tosca.Value{7},
+			BlobBaseFee: tosca.Value{8},
+			Revision:    tosca.R13_Cancun,
+		},
+		TransactionParameters: tosca.TransactionParameters{
+			Origin:   tosca.Address{9},
+			GasPrice: tosca.Value{10},
+		},
+		Recipient: tosca.Address{13},
+		Sender:    tosca.Address{14},
+		Input:     tosca.Data{15},
+		Value:     tosca.Value{16},
+		Code:      tosca.Code{17},
+	}
+	tests := map[string]struct {
+		operation func(*context)
+		expected  uint256.Int
+	}{
+		"chainid": {
+			operation: opChainId,
+			expected:  *uint256.NewInt(0).SetBytes(params.ChainID[:]),
+		},
+		"blocknumber": {
+			operation: opNumber,
+			expected:  *uint256.NewInt(uint64(params.BlockNumber)),
+		},
+		"timestamp": {
+			operation: opTimestamp,
+			expected:  *uint256.NewInt(uint64(params.Timestamp)),
+		},
+		"coinbase": {
+			operation: opCoinbase,
+			expected:  *uint256.NewInt(0).SetBytes(params.Coinbase[:]),
+		},
+		"gaslimit": {
+			operation: opGasLimit,
+			expected:  *uint256.NewInt(uint64(params.GasLimit)),
+		},
+		"prevrandao": {
+			operation: opPrevRandao,
+			expected:  *uint256.NewInt(0).SetBytes(params.PrevRandao[:]),
+		},
+		"basefee": {
+			operation: func(ctx *context) {
+				err := opBaseFee(ctx)
+				if err != nil {
+					t.Fatalf("opBaseFee failed: %v", err)
+				}
+			},
+			expected: *uint256.NewInt(0).SetBytes(params.BaseFee[:]),
+		},
+		"blobbasefee": {
+			operation: func(ctx *context) {
+				err := opBlobBaseFee(ctx)
+				if err != nil {
+					t.Fatalf("opBlobBaseFee failed: %v", err)
+				}
+			},
+			expected: *uint256.NewInt(0).SetBytes(params.BlobBaseFee[:]),
+		},
+		"origin": {
+			operation: opOrigin,
+			expected:  *uint256.NewInt(0).SetBytes(params.Origin[:]),
+		},
+		"gasprice": {
+			operation: opGasPrice,
+			expected:  *uint256.NewInt(0).SetBytes(params.GasPrice[:]),
+		},
+		"recipient": {
+			operation: opAddress,
+			expected:  *uint256.NewInt(0).SetBytes(params.Recipient[:]),
+		},
+		"sender": {
+			operation: opCaller,
+			expected:  *uint256.NewInt(0).SetBytes(params.Sender[:]),
+		},
+		"calldatasize": {
+			operation: opCallDatasize,
+			expected:  *uint256.NewInt(uint64(len(params.Input))),
+		},
+		"callvalue": {
+			operation: opCallvalue,
+			expected:  *uint256.NewInt(0).SetBytes(params.Value[:]),
+		},
+		"codesize": {
+			operation: opCodeSize,
+			expected:  *uint256.NewInt(uint64(len(params.Code))),
+		},
+		"pc": {
+			operation: opPc,
+			expected:  *uint256.NewInt(18),
+		},
+		"gas": {
+			operation: opGas,
+			expected:  *uint256.NewInt(19),
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctxt := context{
+				params: params,
+				stack:  NewStack(),
+				pc:     18,
+				gas:    19,
+			}
+			test.operation(&ctxt)
+			if want, got := &test.expected, ctxt.stack.peek(); !want.Eq(got) {
+				t.Fatalf("unexpected value on top of stack, wanted %v, got %v", want, got)
+			}
+		})
+	}
+}
+
+func TestInstructions_BinaryOperationsPushTheCorrectValues(t *testing.T) {
+	tests := map[string]struct {
+		operation func(*context)
+		expected  uint256.Int
+	}{
+		"signExtend": {
+			operation: opSignExtend,
+			expected:  *uint256.NewInt(1),
+		},
+		"byte": {
+			operation: opByte,
+			expected:  *uint256.NewInt(0),
+		},
+		"and": {
+			operation: opAnd,
+			expected:  *uint256.NewInt(0),
+		},
+		"or": {
+			operation: opOr,
+			expected:  *uint256.NewInt(3),
+		},
+		"xor": {
+			operation: opXor,
+			expected:  *uint256.NewInt(3),
+		},
+		"add": {
+			operation: opAdd,
+			expected:  *uint256.NewInt(3),
+		},
+		"sub": {
+			operation: opSub,
+			expected:  *uint256.NewInt(1),
+		},
+		"mul": {
+			operation: opMul,
+			expected:  *uint256.NewInt(2),
+		},
+		"div": {
+			operation: opDiv,
+			expected:  *uint256.NewInt(2),
+		},
+		"sdiv": {
+			operation: opSDiv,
+			expected:  *uint256.NewInt(2),
+		},
+		"mod": {
+			operation: opMod,
+			expected:  *uint256.NewInt(0),
+		},
+		"smod": {
+			operation: opSMod,
+			expected:  *uint256.NewInt(0),
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctxt := context{
+				stack: NewStack(),
+			}
+
+			ctxt.stack.push(uint256.NewInt(1))
+			ctxt.stack.push(uint256.NewInt(2))
+
+			test.operation(&ctxt)
+			if want, got := &test.expected, ctxt.stack.peek(); !want.Eq(got) {
+				t.Fatalf("unexpected value on top of stack, wanted %v, got %v", want, got)
+			}
+		})
+	}
+}
+
+func TestInstructions_TernaryOperationsPushTheCorrectValues(t *testing.T) {
+	tests := map[string]struct {
+		operation func(*context)
+		expected  uint256.Int
+	}{
+		"addmod": {
+			operation: opAddMod,
+			expected:  *uint256.NewInt(0),
+		},
+		"mulmod": {
+			operation: opMulMod,
+			expected:  *uint256.NewInt(0),
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctxt := context{
+				stack: NewStack(),
+			}
+
+			ctxt.stack.push(uint256.NewInt(1))
+			ctxt.stack.push(uint256.NewInt(2))
+			ctxt.stack.push(uint256.NewInt(3))
+
+			test.operation(&ctxt)
+			if want, got := &test.expected, ctxt.stack.peek(); !want.Eq(got) {
+				t.Fatalf("unexpected value on top of stack, wanted %v, got %v", want, got)
+			}
+		})
+	}
+}
+
 func TestBlobHash_PushesCorrectValueOnStack(t *testing.T) {
 	hash := tosca.Hash{1}
 
@@ -2032,6 +2291,89 @@ func TestInstructions_opLog(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestInstructions_MemoryOperationsAltersMemory(t *testing.T) {
+	context := &context{
+		stack:  NewStack(),
+		memory: NewMemory(),
+		gas:    1 << 20,
+	}
+
+	// save value using MSTORE8 at offset 0
+	context.stack.push(uint256.NewInt(0).SetBytes([]byte{0x24})) // value
+	context.stack.push(uint256.NewInt(0))                        // offset
+	err := opMstore8(context)
+	if err != nil {
+		t.Fatalf("unexpected return: %v", err)
+	}
+
+	// check memory size
+	opMsize(context)
+	if want, got := uint256.NewInt(32), context.stack.pop(); !want.Eq(got) {
+		t.Fatalf("unexpected value on top of stack, wanted %v, got %v", want, got)
+	}
+
+	// load value using MLOAD at offset 0
+	context.stack.push(uint256.NewInt(0)) // offset
+	err = opMload(context)
+	if err != nil {
+		t.Fatalf("unexpected return: %v", err)
+	}
+	want := uint256.NewInt(0).SetBytes(append([]byte{0x24}, bytes.Repeat([]byte{0x00}, 31)...))
+	if got := context.stack.pop(); !want.Eq(got) {
+		t.Fatalf("unexpected value on top of stack, wanted %v, got %v", want, got)
+	}
+
+	// save value using MSTORE at offset 32
+	context.stack.push(uint256.NewInt(0).SetBytes([]byte{0x42})) // value
+	context.stack.push(uint256.NewInt(32))                       // offset
+	err = opMstore(context)
+	if err != nil {
+		t.Fatalf("unexpected return: %v", err)
+	}
+
+	// check memory size
+	opMsize(context)
+	if want, got := uint256.NewInt(64), context.stack.pop(); !want.Eq(got) {
+		t.Fatalf("unexpected value on top of stack, wanted %v, got %v", want, got)
+	}
+
+	// load value using MLOAD at offset 32
+	context.stack.push(uint256.NewInt(32)) // offset
+	err = opMload(context)
+	if err != nil {
+		t.Fatalf("unexpected return: %v", err)
+	}
+	want = uint256.NewInt(0).SetBytes([]byte{0x42})
+	if got := context.stack.pop(); !want.Eq(got) {
+		t.Fatalf("unexpected value on top of stack, wanted %v, got %v", want, got)
+	}
+
+	// save another value using MSTORE at offset 21
+	context.stack.push(uint256.NewInt(0).SetBytes([]byte{0x66})) // value
+	context.stack.push(uint256.NewInt(21))                       // offset
+	err = opMstore(context)
+	if err != nil {
+		t.Fatalf("unexpected return: %v", err)
+	}
+
+	// check memory size
+	opMsize(context)
+	if want, got := uint256.NewInt(64), context.stack.pop(); !want.Eq(got) {
+		t.Fatalf("unexpected value on top of stack, wanted %v, got %v", want, got)
+	}
+
+	// load value from different offset using MLOAD at offset 22
+	context.stack.push(uint256.NewInt(22)) // offset
+	err = opMload(context)
+	if err != nil {
+		t.Fatalf("unexpected return: %v", err)
+	}
+	want = uint256.NewInt(0).SetBytes([]byte{0x66, 0x00})
+	if got := context.stack.pop(); !want.Eq(got) {
+		t.Fatalf("unexpected value on top of stack, wanted %v, got %v", want, got)
 	}
 }
 
