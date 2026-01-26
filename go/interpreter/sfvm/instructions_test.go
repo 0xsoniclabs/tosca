@@ -151,6 +151,203 @@ func TestPush_DifferentPushSizesPushCorrectValues(t *testing.T) {
 	}
 }
 
+func TestPush_StartingFromShanghaiPush0PushesZero(t *testing.T) {
+	tests := map[string]struct {
+		revision      tosca.Revision
+		expectedError error
+	}{
+		"pre-shanghai": {
+			revision:      tosca.R11_Paris,
+			expectedError: errInvalidRevision,
+		},
+		"shanghai": {
+			revision:      tosca.R12_Shanghai,
+			expectedError: nil,
+		},
+		"post-shanghai": {
+			revision:      tosca.R13_Cancun,
+			expectedError: nil,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctxt := context{
+				params: tosca.Parameters{
+					BlockParameters: tosca.BlockParameters{
+						Revision: test.revision,
+					},
+				},
+				stack: NewStack(),
+			}
+
+			err := opPush0(&ctxt)
+			if !errors.Is(err, test.expectedError) {
+				t.Fatalf("unexpected return, wanted %v, got %v", test.expectedError, err)
+			}
+
+			if err == nil && !ctxt.stack.peek().Eq(uint256.NewInt(0)) {
+				t.Fatalf("unexpected value on top of stack, wanted %v, got %v", uint256.NewInt(0), ctxt.stack.peek())
+			}
+		})
+	}
+}
+
+func TestInstructions_DupXDuplicatesStackValuesCorrectly(t *testing.T) {
+	ctxt := context{
+		stack: NewStack(),
+	}
+
+	value := uint256.NewInt(42)
+	ctxt.stack.push(value)
+
+	for i := 1; i <= 16; i++ {
+		opDup(&ctxt, i)
+	}
+
+	for range 16 + 1 {
+		if want, got := value, ctxt.stack.pop(); !want.Eq(got) {
+			t.Fatalf("unexpected value popped from stack, wanted %v, got %v", want, got)
+		}
+	}
+
+	if ctxt.stack.len() != 0 {
+		t.Fatalf("unexpected stack size after pops, wanted 0, got %d", ctxt.stack.len())
+	}
+}
+
+func TestInstructions_SwapXExchangesStackValuesCorrectly(t *testing.T) {
+	ctxt := context{
+		stack: NewStack(),
+	}
+
+	for swapDistance := 1; swapDistance <= 16; swapDistance++ {
+		for range 16 {
+			ctxt.stack.push(uint256.NewInt(42))
+		}
+		ctxt.stack.push(uint256.NewInt(24))
+
+		opSwap(&ctxt, swapDistance)
+
+		for stackIdx := range 16 + 1 {
+			if swapDistance == stackIdx {
+				if want, got := uint256.NewInt(24), ctxt.stack.pop(); !want.Eq(got) {
+					t.Fatalf("unexpected value popped from stack, wanted %v, got %v", want, got)
+				}
+			} else {
+				if want, got := uint256.NewInt(42), ctxt.stack.pop(); !want.Eq(got) {
+					t.Fatalf("unexpected value popped from stack, wanted %v, got %v", want, got)
+				}
+			}
+		}
+
+		if ctxt.stack.len() != 0 {
+			t.Fatalf("unexpected stack size after pops, wanted 0, got %d", ctxt.stack.len())
+		}
+	}
+}
+
+func TestInstructions_CallDataOperationsReadParameterInput(t *testing.T) {
+	inputData := tosca.Data{
+		0x00, 0x01, 0x02, 0x03, 0x04, 0x05,
+	}
+
+	ctxt := context{
+		params: tosca.Parameters{
+			Input: inputData,
+		},
+		stack:  NewStack(),
+		memory: NewMemory(),
+	}
+
+	// Test callDatasize
+	opCallDatasize(&ctxt)
+	if want, got := uint256.NewInt(uint64(len(inputData))), ctxt.stack.pop(); !want.Eq(got) {
+		t.Fatalf("unexpected value on top of stack after callDatasize, wanted %v, got %v", want, got)
+	}
+
+	// Test callDatacopy
+	dataOffset := 2
+	ctxt.stack.push(uint256.NewInt(uint64(dataOffset))) // offset
+	opCallDataload(&ctxt)
+
+	zeroPadding := bytes.Repeat([]byte{0}, 32-(len(inputData)-dataOffset))
+	expected := uint256.NewInt(0).SetBytes(append(inputData[dataOffset:], zeroPadding...))
+	if got := ctxt.stack.pop(); !expected.Eq(got) {
+		t.Fatalf("unexpected value on top of stack after callDataload, wanted %v, got %v", expected, got)
+	}
+}
+
+func TestInstructions_ReturnDataOperationsReadContextReturnData(t *testing.T) {
+	ctxt := context{
+		gas:    100000, // sufficient gas
+		stack:  NewStack(),
+		memory: NewMemory(),
+		returnData: tosca.Data{
+			0x00, 0x01, 0x02, 0x03, 0x04, 0x05,
+		},
+	}
+
+	// Test returnDataSize
+	opReturnDataSize(&ctxt)
+	if want, got := uint256.NewInt(uint64(len(ctxt.returnData))), ctxt.stack.pop(); !want.Eq(got) {
+		t.Fatalf("unexpected value on top of stack after returnDataSize, wanted %v, got %v", want, got)
+	}
+
+	// Test returnDataCopy
+	copySize := 3
+	ctxt.stack.push(uint256.NewInt(uint64(copySize))) // size
+	ctxt.stack.push(uint256.NewInt(2))                // data offset
+	ctxt.stack.push(uint256.NewInt(0))                // mem offset
+
+	err := opReturnDataCopy(&ctxt)
+	if err != nil {
+		t.Fatalf("opReturnDataCopy failed: %v", err)
+	}
+
+	// Memory is padded to 32 bytes.
+	expected := append([]byte{0x02, 0x03, 0x04}, bytes.Repeat([]byte{0}, 32-copySize)...)
+	if want, got := expected, ctxt.memory.store; !bytes.Equal(want, got) {
+		t.Fatalf("unexpected memory store after returnDataCopy, wanted %v, got %v", want, got)
+	}
+}
+
+func TestInstructions_BalanceOperations(t *testing.T) {
+	selfAddress := tosca.Address{1}
+	otherAddress := tosca.Address{2}
+	selfBalance := tosca.Value{5}
+	otherBalance := tosca.Value{10}
+
+	ctrl := gomock.NewController(t)
+	runContext := tosca.NewMockRunContext(ctrl)
+	runContext.EXPECT().GetBalance(selfAddress).Return(selfBalance)
+	runContext.EXPECT().GetBalance(otherAddress).Return(otherBalance)
+
+	ctxt := &context{
+		params: tosca.Parameters{
+			Recipient: selfAddress,
+		},
+		context: runContext,
+		stack:   NewStack(),
+	}
+
+	// Test balance of self
+	opSelfbalance(ctxt)
+	if want, got := uint256.NewInt(0).SetBytes(selfBalance[:]), ctxt.stack.pop(); !want.Eq(got) {
+		t.Fatalf("unexpected self balance on top of stack, wanted %v, got %v", want, got)
+	}
+
+	// Test balance of other
+	ctxt.stack.push(uint256.NewInt(0).SetBytes(otherAddress[:]))
+	err := opBalance(ctxt)
+	if err != nil {
+		t.Fatalf("opBalance failed: %v", err)
+	}
+	if want, got := uint256.NewInt(0).SetBytes(otherBalance[:]), ctxt.stack.pop(); !want.Eq(got) {
+		t.Fatalf("unexpected other balance on top of stack, wanted %v, got %v", want, got)
+	}
+}
+
 func TestInstructions_ParameterValuesArePushedCorrectly(t *testing.T) {
 	params := tosca.Parameters{
 		BlockParameters: tosca.BlockParameters{
@@ -376,6 +573,19 @@ func TestInstructions_TernaryOperationsPushTheCorrectValues(t *testing.T) {
 				t.Fatalf("unexpected value on top of stack, wanted %v, got %v", want, got)
 			}
 		})
+	}
+}
+
+func TestInstructions_NotNegatesInput(t *testing.T) {
+	ctxt := context{
+		stack: NewStack(),
+	}
+
+	ctxt.stack.push(uint256.NewInt(0x0F0F))
+	opNot(&ctxt)
+	expected := uint256.NewInt(0).SetBytes(append(bytes.Repeat([]byte{0xFF}, 32-2), []byte{0xF0, 0xF0}...))
+	if got := ctxt.stack.pop(); !expected.Eq(got) {
+		t.Fatalf("unexpected value on top of stack after NOT, wanted %v, got %v", expected, got)
 	}
 }
 
