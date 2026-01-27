@@ -28,6 +28,7 @@ import (
 
 	_ "github.com/0xsoniclabs/tosca/go/interpreter/evmzero" // < registers evmzero interpreter for testing
 	_ "github.com/0xsoniclabs/tosca/go/interpreter/lfvm"    // < registers lfvm interpreter for testing
+	_ "github.com/0xsoniclabs/tosca/go/interpreter/sfvm"    // < registers sfvm interpreter for testing
 )
 
 // This file contains a few initial shake-down tests or a Processor implementation.
@@ -220,9 +221,9 @@ func TestGetProcessors_ContainsMainConfigurations(t *testing.T) {
 	// and interpreters are registered and available for testing.
 	all := maps.Keys(getProcessors())
 	wanted := []string{
-		"opera/geth", "opera/lfvm", "opera/evmzero",
-		"floria/geth", "floria/lfvm", "floria/evmzero",
-		"geth-sonic/geth", "geth-sonic/lfvm", "geth-sonic/evmzero",
+		"opera/geth", "opera/lfvm", "opera/sfvm", "opera/evmzero",
+		"floria/geth", "floria/lfvm", "floria/sfvm", "floria/evmzero",
+		"geth-sonic/geth", "geth-sonic/lfvm", "geth-sonic/sfvm", "geth-sonic/evmzero",
 	}
 	for _, n := range wanted {
 		if !slices.Contains(all, n) {
