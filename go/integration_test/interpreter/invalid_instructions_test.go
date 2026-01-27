@@ -12,7 +12,6 @@ package interpreter_test
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/0xsoniclabs/tosca/go/tosca/vm"
@@ -22,11 +21,6 @@ func TestInterpreterDetectsInvalidInstruction(t *testing.T) {
 	for _, rev := range revisions {
 		for _, variant := range getAllInterpreterVariantsForTests() {
 			evm := GetCleanEVM(rev, variant, nil)
-			// LFVM currently does not support detection of invalid codes!
-			// TODO: fix this
-			if strings.Contains(variant, "lfvm") {
-				continue
-			}
 			instructions := getInstructions(rev)
 			for i := 0; i < 256; i++ {
 				op := vm.OpCode(i)
