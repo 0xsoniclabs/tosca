@@ -25,6 +25,9 @@ func TestNewInterpreter_ProducesInstanceWithSanctionedProperties(t *testing.T) {
 	if sfvm.config.withShaCache != true {
 		t.Fatalf("SFVM is not configured with sha cache")
 	}
+	if sfvm.config.withAnalysisCache != true {
+		t.Fatalf("sfvm is not configured with analysis cache")
+	}
 }
 
 func TestSfvm_OfficialConfigurationHasSanctionedProperties(t *testing.T) {
@@ -38,6 +41,32 @@ func TestSfvm_OfficialConfigurationHasSanctionedProperties(t *testing.T) {
 	}
 	if sfvm.config.withShaCache != true {
 		t.Fatalf("sfvm is not configured with sha cache")
+	}
+	if sfvm.config.withAnalysisCache != true {
+		t.Fatalf("sfvm is not configured with analysis cache")
+	}
+}
+
+func TestSfvm_CachesCanBeEnabledAndDisabledInConfig(t *testing.T) {
+	for _, withShaCache := range []bool{true, false} {
+		for _, withAnalysisCache := range []bool{true, false} {
+			config := config{
+				withShaCache:      withShaCache,
+				withAnalysisCache: withAnalysisCache,
+			}
+			vm, err := newVm(config)
+			if err != nil {
+				t.Fatalf("failed to create sfvm instance: %v", err)
+			}
+			if vm.config.withShaCache != withShaCache {
+				t.Fatalf("sfvm sha cache config mismatch: expected %v, got %v",
+					withShaCache, vm.config.withShaCache)
+			}
+			if vm.config.withAnalysisCache != withAnalysisCache {
+				t.Fatalf("sfvm analysis cache config mismatch: expected %v, got %v",
+					withAnalysisCache, vm.config.withAnalysisCache)
+			}
+		}
 	}
 }
 

@@ -47,7 +47,7 @@ type sfvm struct {
 func newVm(config config) (*sfvm, error) {
 	var analysis analysis
 	if config.withAnalysisCache {
-		analysis = newAnalysis(1 << 30) // = 1GiB
+		analysis = newAnalysis(1 << 10) // Cache up to 1024 analyses
 	}
 
 	sfvm := &sfvm{

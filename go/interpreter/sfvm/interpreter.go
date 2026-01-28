@@ -94,7 +94,7 @@ func run(
 		stack:        NewStack(),
 		memory:       NewMemory(),
 		code:         params.Code,
-		analysis:     *analysis.analyzeJumpDest(params.Code, params.CodeHash),
+		analysis:     analysis.analyzeJumpDest(params.Code, params.CodeHash),
 		withShaCache: config.withShaCache,
 	}
 	defer ReturnStack(ctxt.stack)

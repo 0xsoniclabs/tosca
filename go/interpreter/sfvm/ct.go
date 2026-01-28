@@ -55,7 +55,7 @@ func (a *ctAdapter) StepN(state *st.State, numSteps int) (*st.State, error) {
 		stack:        convertCtStackToSfvmStack(state.Stack),
 		memory:       memory,
 		code:         params.Code,
-		analysis:     *a.vm.analysis.analyzeJumpDest(params.Code, params.CodeHash),
+		analysis:     a.vm.analysis.analyzeJumpDest(params.Code, params.CodeHash),
 		returnData:   state.LastCallReturnData.ToBytes(),
 		withShaCache: a.vm.config.withShaCache,
 	}

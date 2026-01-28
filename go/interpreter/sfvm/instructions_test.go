@@ -1313,7 +1313,7 @@ func TestJumps_checkJumpDestOnlyContainsValidDestinations(t *testing.T) {
 	}
 	var analysis analysis
 
-	context.analysis = *analysis.analyzeJumpDest(context.code, &codeHash)
+	context.analysis = analysis.analyzeJumpDest(context.code, &codeHash)
 
 	for pc := range 5 {
 		context.pc = int32(pc)

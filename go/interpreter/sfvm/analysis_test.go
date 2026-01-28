@@ -19,12 +19,9 @@ import (
 )
 
 func TestAnalysisCache_PanicsOnNegativeSize(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("expected createAnalysisCache to panic on negative size")
-		}
-	}()
-	_ = newAnalysis(-1)
+	require.Panics(t, func() {
+		newAnalysis(-1)
+	})
 }
 
 func TestAnalysis_NewAnalysisIsNonEmpty(t *testing.T) {
@@ -96,7 +93,7 @@ func TestAnalysis_MarkJumpDestAndIsJumpDest(t *testing.T) {
 
 func TestAnalysis_MarksJumpDestAtCorrectIndex(t *testing.T) {
 	code := tosca.Code{byte(vm.JUMPDEST), byte(vm.PUSH1), byte(vm.JUMPDEST), byte(vm.JUMPDEST)}
-	analysis := jumpDestAnalysisInternal(code)
+	analysis := findJumpDestinations(code)
 	if !analysis.isJumpDest(0) {
 		t.Errorf("expected index 0 to be jump destination")
 	}
@@ -119,7 +116,7 @@ func TestAnalysis_PushDataIsSkipped(t *testing.T) {
 		byte(vm.PUSH2), byte(vm.JUMPDEST), byte(vm.JUMPDEST),
 		byte(vm.JUMPDEST),
 	}
-	analysis := jumpDestAnalysisInternal(code)
+	analysis := findJumpDestinations(code)
 	for i := range code {
 		if analysis.isJumpDest(uint64(i)) && (i != 10 && i != 14) {
 			t.Errorf("expected index %d to be jump destination", i)
@@ -138,8 +135,22 @@ func TestAnalysis_InputsAreCachedUsingCodeHashAsKey(t *testing.T) {
 
 	want := analysis.analyzeJumpDest(code, &hash)
 	got := analysis.analyzeJumpDest(code, &hash)
-	if &want.bitmap != &got.bitmap { // < needs to be the same slice
-		t.Errorf("cached conversion result not returned")
+	if &want.bitmap[0] != &got.bitmap[0] {
+		t.Fatal("cached conversion result not returned")
+	}
+}
+
+func TestAnalysis_CodesBiggerThanMaxCachedLengthAreNotCached(t *testing.T) {
+	analysis := newAnalysis(1 << 2)
+
+	code := make([]byte, maxCachedCodeLength+1)
+	hash := tosca.Hash{byte(1)}
+
+	want := analysis.analyzeJumpDest(code, &hash)
+	got := analysis.analyzeJumpDest(code, &hash)
+
+	if &want.bitmap[0] == &got.bitmap[0] {
+		t.Fatal("expected conversion result to not be cached for large code")
 	}
 }
 
