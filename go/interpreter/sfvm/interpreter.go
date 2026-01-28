@@ -35,9 +35,10 @@ const (
 // stack, and memory. For each contract execution, a new context is created.
 type context struct {
 	// Inputs
-	params  tosca.Parameters
-	context tosca.RunContext
-	code    tosca.Code
+	params   tosca.Parameters
+	context  tosca.RunContext
+	code     tosca.Code
+	analysis jumpDestMap
 
 	// Execution state
 	pc     int32
@@ -72,6 +73,7 @@ func (c *context) isAtLeast(revision tosca.Revision) bool {
 }
 
 func run(
+	analysis analysis,
 	config config,
 	params tosca.Parameters,
 ) (tosca.Result, error) {
@@ -92,7 +94,8 @@ func run(
 		stack:        NewStack(),
 		memory:       NewMemory(),
 		code:         params.Code,
-		withShaCache: config.WithShaCache,
+		analysis:     analysis.analyzeJumpDest(params.Code, params.CodeHash),
+		withShaCache: config.withShaCache,
 	}
 	defer ReturnStack(ctxt.stack)
 
