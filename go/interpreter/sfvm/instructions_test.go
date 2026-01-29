@@ -189,6 +189,10 @@ func TestPush_StartingFromShanghaiPush0PushesZero(t *testing.T) {
 			if err == nil && !ctxt.stack.peek().Eq(uint256.NewInt(0)) {
 				t.Fatalf("unexpected value on top of stack, wanted %v, got %v", uint256.NewInt(0), ctxt.stack.peek())
 			}
+
+			if err == nil && ctxt.stack.len() != 1 {
+				t.Fatalf("unexpected stack size")
+			}
 		})
 	}
 }
@@ -198,21 +202,21 @@ func TestInstructions_DupXDuplicatesStackValuesCorrectly(t *testing.T) {
 		stack: NewStack(),
 	}
 
-	value := uint256.NewInt(42)
-	ctxt.stack.push(value)
-
-	for i := 1; i <= 16; i++ {
-		opDup(&ctxt, i)
-	}
-
-	for range 16 + 1 {
-		if want, got := value, ctxt.stack.pop(); !want.Eq(got) {
-			t.Fatalf("unexpected value popped from stack, wanted %v, got %v", want, got)
+	for dupDistance := 1; dupDistance <= 16; dupDistance++ {
+		for i := range 16 {
+			ctxt.stack.push(uint256.NewInt(uint64(16 - i)))
 		}
-	}
 
-	if ctxt.stack.len() != 0 {
-		t.Fatalf("unexpected stack size after pops, wanted 0, got %d", ctxt.stack.len())
+		opDup(&ctxt, dupDistance)
+
+		popAndAssertEqual(t, ctxt.stack, dupDistance)
+		for stackIdx := 1; stackIdx <= 16; stackIdx++ {
+			popAndAssertEqual(t, ctxt.stack, stackIdx)
+		}
+
+		if ctxt.stack.len() != 0 {
+			t.Fatalf("unexpected stack size after pops, wanted 0, got %d", ctxt.stack.len())
+		}
 	}
 }
 
@@ -222,22 +226,20 @@ func TestInstructions_SwapXExchangesStackValuesCorrectly(t *testing.T) {
 	}
 
 	for swapDistance := 1; swapDistance <= 16; swapDistance++ {
-		for range 16 {
-			ctxt.stack.push(uint256.NewInt(42))
+		for i := range 16 {
+			ctxt.stack.push(uint256.NewInt(uint64(16 - i)))
 		}
-		ctxt.stack.push(uint256.NewInt(24))
+		// Push top to be swapped
+		ctxt.stack.push(uint256.NewInt(42))
 
 		opSwap(&ctxt, swapDistance)
 
-		for stackIdx := range 16 + 1 {
+		popAndAssertEqual(t, ctxt.stack, swapDistance)
+		for stackIdx := 1; stackIdx <= 16; stackIdx++ {
 			if swapDistance == stackIdx {
-				if want, got := uint256.NewInt(24), ctxt.stack.pop(); !want.Eq(got) {
-					t.Fatalf("unexpected value popped from stack, wanted %v, got %v", want, got)
-				}
+				popAndAssertEqual(t, ctxt.stack, 42)
 			} else {
-				if want, got := uint256.NewInt(42), ctxt.stack.pop(); !want.Eq(got) {
-					t.Fatalf("unexpected value popped from stack, wanted %v, got %v", want, got)
-				}
+				popAndAssertEqual(t, ctxt.stack, stackIdx)
 			}
 		}
 
@@ -248,67 +250,54 @@ func TestInstructions_SwapXExchangesStackValuesCorrectly(t *testing.T) {
 }
 
 func TestInstructions_CallDataOperationsReadParameterInput(t *testing.T) {
-	inputData := tosca.Data{
-		0x00, 0x01, 0x02, 0x03, 0x04, 0x05,
+	data := tosca.Data{
+		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+		0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
+		0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+		0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F,
 	}
+	zero := []byte{0}
 
-	ctxt := context{
-		params: tosca.Parameters{
-			Input: inputData,
+	tests := map[string]struct {
+		offset   uint64
+		expected []byte
+	}{
+		"base case": {
+			offset:   0,
+			expected: data,
 		},
-		stack:  NewStack(),
-		memory: NewMemory(),
-	}
-
-	// Test callDatasize
-	opCallDatasize(&ctxt)
-	if want, got := uint256.NewInt(uint64(len(inputData))), ctxt.stack.pop(); !want.Eq(got) {
-		t.Fatalf("unexpected value on top of stack after callDatasize, wanted %v, got %v", want, got)
-	}
-
-	// Test callDatacopy
-	dataOffset := 2
-	ctxt.stack.push(uint256.NewInt(uint64(dataOffset))) // offset
-	opCallDataload(&ctxt)
-
-	zeroPadding := bytes.Repeat([]byte{0}, 32-(len(inputData)-dataOffset))
-	expected := uint256.NewInt(0).SetBytes(append(inputData[dataOffset:], zeroPadding...))
-	if got := ctxt.stack.pop(); !expected.Eq(got) {
-		t.Fatalf("unexpected value on top of stack after callDataload, wanted %v, got %v", expected, got)
-	}
-}
-
-func TestInstructions_ReturnDataOperationsReadContextReturnData(t *testing.T) {
-	ctxt := context{
-		gas:    100000, // sufficient gas
-		stack:  NewStack(),
-		memory: NewMemory(),
-		returnData: tosca.Data{
-			0x00, 0x01, 0x02, 0x03, 0x04, 0x05,
+		"offset in data": {
+			offset:   24,
+			expected: append(data[24:], bytes.Repeat(zero, 24)...),
+		},
+		"offset out of data": {
+			offset:   48,
+			expected: bytes.Repeat(zero, 32),
 		},
 	}
 
-	// Test returnDataSize
-	opReturnDataSize(&ctxt)
-	if want, got := uint256.NewInt(uint64(len(ctxt.returnData))), ctxt.stack.pop(); !want.Eq(got) {
-		t.Fatalf("unexpected value on top of stack after returnDataSize, wanted %v, got %v", want, got)
-	}
+	for testName, test := range tests {
+		t.Run(testName, func(t *testing.T) {
+			ctxt := context{
+				params: tosca.Parameters{
+					Input: data,
+				},
+				stack:  NewStack(),
+				memory: NewMemory(),
+			}
 
-	// Test returnDataCopy
-	copySize := 3
-	ctxt.stack.push(uint256.NewInt(uint64(copySize))) // size
-	ctxt.stack.push(uint256.NewInt(2))                // data offset
-	ctxt.stack.push(uint256.NewInt(0))                // mem offset
+			// Test callDatasize
+			opCallDatasize(&ctxt)
+			popAndAssertEqual(t, ctxt.stack, len(data))
 
-	err := opReturnDataCopy(&ctxt)
-	if err != nil {
-		t.Fatalf("opReturnDataCopy failed: %v", err)
-	}
+			// Test callDatacopy
+			ctxt.stack.push(uint256.NewInt(test.offset)) // offset
+			opCallDataload(&ctxt)
 
-	// Memory is padded to 32 bytes.
-	expected := append([]byte{0x02, 0x03, 0x04}, bytes.Repeat([]byte{0}, 32-copySize)...)
-	if want, got := expected, ctxt.memory.store; !bytes.Equal(want, got) {
-		t.Fatalf("unexpected memory store after returnDataCopy, wanted %v, got %v", want, got)
+			if want, got := uint256.NewInt(0).SetBytes(test.expected), ctxt.stack.pop(); !want.Eq(got) {
+				t.Fatalf("unexpected value on top of stack after callDataload, wanted %v, got %v", want, got)
+			}
+		})
 	}
 }
 
@@ -2333,6 +2322,92 @@ func TestInstructions_ReturnDataCopy_ReturnsErrorOn(t *testing.T) {
 	}
 }
 
+func TestInstructions_ReturnDataOperationsReadContextReturnData(t *testing.T) {
+	data := tosca.Data{
+		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+		0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
+		0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+		0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F,
+	}
+	zero := []byte{0}
+
+	tests := map[string]struct {
+		size         uint64
+		dataOffset   uint64
+		memoryOffset uint64
+		expected     []byte
+	}{
+		"base case": {
+			size:         32,
+			dataOffset:   0,
+			memoryOffset: 0,
+			expected:     data[0:32],
+		},
+		"zero size": {
+			size:         0,
+			dataOffset:   0,
+			memoryOffset: 0,
+			expected:     []byte{},
+		},
+		"data offSet": {
+			size:         16, // smaller size to ensure no return data overflow
+			dataOffset:   8,
+			memoryOffset: 0,
+			expected:     append(data[8:8+16], bytes.Repeat(zero, 32-16)...),
+		},
+		"memory offset": {
+			size:         32,
+			dataOffset:   0,
+			memoryOffset: 8,
+			expected: append(
+				append(bytes.Repeat(zero, 8), data...), bytes.Repeat(zero, 24)...),
+		},
+		"data and memory offset": {
+			size:         16,
+			dataOffset:   8,
+			memoryOffset: 10,
+			expected: append(
+				append(bytes.Repeat(zero, 10), data[8:24]...), bytes.Repeat(zero, 6)...),
+		},
+		"big memory offset": {
+			size:         1,
+			dataOffset:   0,
+			memoryOffset: 100,
+			expected:     bytes.Repeat(zero, 128),
+		},
+	}
+
+	for testname, test := range tests {
+		t.Run(testname, func(t *testing.T) {
+			ctxt := context{
+				gas:        100000, // sufficient gas
+				stack:      NewStack(),
+				memory:     NewMemory(),
+				returnData: data,
+			}
+
+			// Test returnDataSize
+			opReturnDataSize(&ctxt)
+			popAndAssertEqual(t, ctxt.stack, len(data))
+
+			// Test returnDataCopy
+			ctxt.stack.push(uint256.NewInt(test.size))         // size
+			ctxt.stack.push(uint256.NewInt(test.dataOffset))   // data offset
+			ctxt.stack.push(uint256.NewInt(test.memoryOffset)) // mem offset
+
+			err := opReturnDataCopy(&ctxt)
+			if err != nil {
+				t.Fatalf("opReturnDataCopy failed: %v", err)
+			}
+
+			// Memory is padded to 32 bytes.
+			if want, got := test.expected, ctxt.memory.store; !bytes.Equal(want, got) {
+				t.Fatalf("unexpected memory store after returnDataCopy, wanted %v, got %v", want, got)
+			}
+		})
+	}
+}
+
 func TestOpExp_ProducesCorrectResults(t *testing.T) {
 	ctxt := context{gas: tosca.Gas(uint256.NewInt(8).ByteLen() * 50)}
 	ctxt.stack = NewStack()
@@ -2803,4 +2878,10 @@ func allOpCodesWhere(predicate func(op vm.OpCode) bool) []vm.OpCode {
 
 func allOpCodes() []vm.OpCode {
 	return allOpCodesWhere(func(op vm.OpCode) bool { return true })
+}
+
+func popAndAssertEqual(t *testing.T, stack *stack, value int) {
+	if want, got := uint256.NewInt(uint64(value)), stack.pop(); !want.Eq(got) {
+		t.Fatalf("unexpected value popped from stack, wanted %v, got %v", want, got)
+	}
 }
