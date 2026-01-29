@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewInterpreter_ProducesInstanceWithSanctionedProperties(t *testing.T) {
@@ -66,6 +67,9 @@ func TestSfvm_CachesCanBeEnabledAndDisabledInConfig(t *testing.T) {
 				t.Fatalf("sfvm analysis cache config mismatch: expected %v, got %v",
 					withAnalysisCache, vm.config.withAnalysisCache)
 			}
+			require.Equal(t, withAnalysisCache, vm.analysis.cache != nil,
+				"sfvm analysis cache presence mismatch",
+			)
 		}
 	}
 }

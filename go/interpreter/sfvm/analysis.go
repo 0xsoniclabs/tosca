@@ -21,7 +21,9 @@ type analysis struct {
 	cache *lru.Cache[tosca.Hash, jumpDestMap]
 }
 
-// newAnalysis creates a new analysis cache with the given size.
+// newAnalysis creates a new analysis cache with the given size. The size
+// parameter is the maximum number of codes for which the analysis results
+// are to be retained in the resulting cache.
 func newAnalysis(size int) analysis {
 	cache, err := lru.New[tosca.Hash, jumpDestMap](size)
 	if err != nil {
@@ -101,10 +103,10 @@ func (a *jumpDestMap) isJumpDest(idx uint64) bool {
 	if a == nil {
 		return false
 	}
-	if idx >= a.codeSize {
+	uintIdx, mask := idxToAnalysisIdxAndMask(idx)
+	if uintIdx >= uint64(len(a.bitmap)) {
 		return false
 	}
-	uintIdx, mask := idxToAnalysisIdxAndMask(idx)
 	return a.bitmap[uintIdx]&mask != 0
 }
 
@@ -113,7 +115,12 @@ func (a *jumpDestMap) markJumpDest(idx uint64) {
 	if idx >= uint64(a.codeSize) {
 		return
 	}
+
 	uintIdx, mask := idxToAnalysisIdxAndMask(idx)
+	if uintIdx >= uint64(len(a.bitmap)) {
+		return
+	}
+
 	a.bitmap[uintIdx] |= mask
 }
 

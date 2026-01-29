@@ -91,6 +91,24 @@ func TestAnalysis_MarkJumpDestAndIsJumpDest(t *testing.T) {
 	}
 }
 
+func TestAnalysis_MarkJumpDestDoesNotCrashWithWronglySetUpJumpDestMap(t *testing.T) {
+	size := 200
+	analysis := newJumpDestMap(uint64(size))
+	analysis.bitmap = analysis.bitmap[:3] // Incorrectly resize the bitmap to be smaller
+	analysis.markJumpDest(2)
+	analysis.markJumpDest(199) // No out of bounds crash
+
+	// Index 2 should still be marked correctly
+	if !analysis.isJumpDest(2) {
+		t.Errorf("expected index 2 to be marked as jump destination")
+	}
+
+	// Index 199 is out of bounds and should therefore not be marked
+	if analysis.isJumpDest(199) {
+		t.Errorf("expected index 199 to not be marked as jump destination")
+	}
+}
+
 func TestAnalysis_MarksJumpDestAtCorrectIndex(t *testing.T) {
 	code := tosca.Code{byte(vm.JUMPDEST), byte(vm.PUSH1), byte(vm.JUMPDEST), byte(vm.JUMPDEST)}
 	analysis := findJumpDestinations(code)
