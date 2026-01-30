@@ -1300,8 +1300,34 @@ func TestInstructions_StorageOps_CallStorageContext(t *testing.T) {
 	}
 }
 
-// TODO reenable once SFVM supports JUMPDEST marking
-func DisTestInstructions_JumpOpsCheckJUMPDEST(t *testing.T) {
+func TestJumps_checkJumpDestOnlyContainsValidDestinations(t *testing.T) {
+	codeHash := tosca.Hash{0x42}
+	context := getEmptyContext()
+	context.code = tosca.Code{
+		byte(vm.STOP),
+		byte(vm.ADD),
+		byte(vm.JUMPDEST),
+		byte(vm.PUSH1),
+		byte(0),
+		byte(vm.JUMPDEST),
+	}
+	var analysis analysis
+
+	context.analysis = analysis.analyzeJumpDest(context.code, &codeHash)
+
+	for pc := range 5 {
+		context.pc = int32(pc)
+		err := checkJumpDest(&context)
+		if context.code[context.pc+1] == byte(vm.JUMPDEST) && err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if context.code[context.pc+1] != byte(vm.JUMPDEST) && err != errInvalidJump {
+			t.Errorf("expected errInvalidJump, but got: %v", err)
+		}
+	}
+}
+
+func TestInstructions_JumpOpsCheckJUMPDEST(t *testing.T) {
 	tests := map[vm.OpCode]struct {
 		implementation func(*context) error
 		stack          []uint64
