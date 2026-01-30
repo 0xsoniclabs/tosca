@@ -22,6 +22,7 @@ import (
 	"github.com/0xsoniclabs/tosca/go/interpreter/evmzero"
 	"github.com/0xsoniclabs/tosca/go/interpreter/geth"
 	"github.com/0xsoniclabs/tosca/go/interpreter/lfvm"
+	"github.com/0xsoniclabs/tosca/go/interpreter/sfvm"
 	"github.com/0xsoniclabs/tosca/go/tosca"
 )
 
@@ -38,7 +39,12 @@ func FuzzLfvm(f *testing.F) {
 	fuzzVm(lfvm.NewConformanceTestingTarget(), f)
 }
 
-// FuzzLfvm is a fuzzing test for evmzero
+// FuzzSfvm is a fuzzing test for sfvm
+func FuzzSfvm(f *testing.F) {
+	fuzzVm(sfvm.NewConformanceTestingTarget(), f)
+}
+
+// FuzzEvmzero is a fuzzing test for evmzero
 func FuzzEvmzero(f *testing.F) {
 	fuzzVm(evmzero.NewConformanceTestingTarget(), f)
 }
@@ -51,7 +57,15 @@ func FuzzDifferentialLfvmVsGeth(f *testing.F) {
 	)
 }
 
-// FuzzDifferentialLfvmVsGeth compares state output between evmzero and geth
+// FuzzDifferentialSfvmVsGeth compares state output between sfvm and geth
+func FuzzDifferentialSfvmVsGeth(f *testing.F) {
+	differentialFuzz(f,
+		sfvm.NewConformanceTestingTarget(),
+		geth.NewConformanceTestingTarget(),
+	)
+}
+
+// FuzzDifferentialEvmzeroVsGeth compares state output between evmzero and geth
 func FuzzDifferentialEvmzeroVsGeth(f *testing.F) {
 	differentialFuzz(f,
 		evmzero.NewConformanceTestingTarget(),
