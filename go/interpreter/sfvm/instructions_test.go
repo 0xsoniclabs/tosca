@@ -2400,7 +2400,6 @@ func TestInstructions_ReturnDataOperationsReadContextReturnData(t *testing.T) {
 				t.Fatalf("opReturnDataCopy failed: %v", err)
 			}
 
-			// Memory is padded to 32 bytes.
 			if want, got := test.expected, ctxt.memory.store; !bytes.Equal(want, got) {
 				t.Fatalf("unexpected memory store after returnDataCopy, wanted %v, got %v", want, got)
 			}
