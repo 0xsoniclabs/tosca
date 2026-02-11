@@ -74,7 +74,7 @@ func (c *context) isAtLeast(revision tosca.Revision) bool {
 
 func run(
 	analysis analysis,
-	config config,
+	config Config,
 	params tosca.Parameters,
 ) (tosca.Result, error) {
 	// Don't bother with the execution if there's no code.
@@ -95,7 +95,7 @@ func run(
 		memory:       NewMemory(),
 		code:         params.Code,
 		analysis:     analysis.analyzeJumpDest(params.Code, params.CodeHash),
-		withShaCache: config.withShaCache,
+		withShaCache: config.WithShaCache,
 	}
 	defer ReturnStack(ctxt.stack)
 

@@ -16,38 +16,28 @@ import (
 
 // Config provides a set of user-definable options for the SFVM interpreter.
 type Config struct {
+	WithShaCache      bool // Whether to enable caching of SHA3 computations
+	WithAnalysisCache bool // Whether to enable caching of jump destination analyses
+	AnalysisCacheSize int  // Maximum size of the analysis cache in bytes (default: 256 MB)
+	MaxCachedCodeSize int  // Maximum code size in bytes for which analyses are cached (default: 24 KB)
 }
 
-// NewInterpreter creates a new SFVM interpreter instance with the official
-// configuration for production purposes.
-func NewInterpreter(Config) (*sfvm, error) {
-	return newVm(config{
-		withShaCache:      true,
-		withAnalysisCache: true,
-	})
-}
-
-// Registers the long-form EVM as a possible interpreter implementation.
-func init() {
-	tosca.MustRegisterInterpreterFactory("sfvm", func(any) (tosca.Interpreter, error) {
-		return NewInterpreter(Config{})
-	})
-}
-
-type config struct {
-	withShaCache      bool
-	withAnalysisCache bool
-}
-
-type sfvm struct {
-	config   config
-	analysis analysis
-}
-
-func newVm(config config) (*sfvm, error) {
+// NewInterpreter creates a new SFVM interpreter instance with the given configuration.
+func NewInterpreter(config Config) (*sfvm, error) {
 	var analysis analysis
-	if config.withAnalysisCache {
-		analysis = newAnalysis(1 << 10) // Cache up to 1024 analyses
+	if config.WithAnalysisCache {
+
+		maxCachedCodeSize := 1<<14 + 1<<13 // 24 KB
+		if config.MaxCachedCodeSize > 0 {
+			maxCachedCodeSize = config.MaxCachedCodeSize
+		}
+
+		analysisCacheSize := 1 << 28 // 256 MB
+		if config.AnalysisCacheSize > 0 {
+			analysisCacheSize = config.AnalysisCacheSize
+		}
+
+		analysis = newAnalysis(analysisCacheSize, maxCachedCodeSize)
 	}
 
 	sfvm := &sfvm{
@@ -55,6 +45,21 @@ func newVm(config config) (*sfvm, error) {
 		analysis: analysis,
 	}
 	return sfvm, nil
+}
+
+// Registers the simple form EVM as a possible interpreter implementation.
+func init() {
+	tosca.MustRegisterInterpreterFactory("sfvm", func(any) (tosca.Interpreter, error) {
+		return NewInterpreter(Config{
+			WithShaCache:      true,
+			WithAnalysisCache: true,
+		})
+	})
+}
+
+type sfvm struct {
+	config   Config
+	analysis analysis
 }
 
 // Defines the newest supported revision for this interpreter implementation

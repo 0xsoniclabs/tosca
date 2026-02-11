@@ -20,7 +20,7 @@ import (
 
 func TestAnalysisCache_PanicsOnNegativeSize(t *testing.T) {
 	require.Panics(t, func() {
-		newAnalysis(-1)
+		newAnalysis(-1, 1)
 	})
 }
 
@@ -146,7 +146,7 @@ func TestAnalysis_PushDataIsSkipped(t *testing.T) {
 }
 
 func TestAnalysis_InputsAreCachedUsingCodeHashAsKey(t *testing.T) {
-	analysis := newAnalysis(1 << 2)
+	analysis := newAnalysis(1<<2, 1)
 
 	code := []byte{byte(vm.STOP)}
 	hash := tosca.Hash{byte(1)}
@@ -159,7 +159,8 @@ func TestAnalysis_InputsAreCachedUsingCodeHashAsKey(t *testing.T) {
 }
 
 func TestAnalysis_CodesBiggerThanMaxCachedLengthAreNotCached(t *testing.T) {
-	analysis := newAnalysis(1 << 2)
+	maxCachedCodeLength := 2
+	analysis := newAnalysis(1<<2, maxCachedCodeLength)
 
 	code := make([]byte, maxCachedCodeLength+1)
 	hash := tosca.Hash{byte(1)}

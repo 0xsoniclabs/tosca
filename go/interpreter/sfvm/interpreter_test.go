@@ -291,7 +291,7 @@ func TestInterpreter_Vanilla_RunsWithoutOutput(t *testing.T) {
 	os.Stdout = w
 
 	// Run testing code
-	_, err := run(analysis{}, config{}, params)
+	_, err := run(analysis{}, Config{}, params)
 	// read the output
 	_ = w.Close() // ignore error in test
 	out, _ := io.ReadAll(r)
@@ -309,7 +309,7 @@ func TestInterpreter_Vanilla_RunsWithoutOutput(t *testing.T) {
 func TestInterpreter_EmptyCodeBypassesRunnerAndSucceeds(t *testing.T) {
 	code := tosca.Code{}
 	params := tosca.Parameters{Code: code}
-	config := config{}
+	config := Config{}
 
 	result, err := run(analysis{}, config, params)
 	if err != nil {
