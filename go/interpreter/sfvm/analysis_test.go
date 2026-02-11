@@ -11,6 +11,7 @@
 package sfvm
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
@@ -160,16 +161,68 @@ func TestAnalysis_InputsAreCachedUsingCodeHashAsKey(t *testing.T) {
 
 func TestAnalysis_CodesBiggerThanMaxCachedLengthAreNotCached(t *testing.T) {
 	maxCachedCodeLength := 2
-	analysis := newAnalysis(1<<2, maxCachedCodeLength)
 
-	code := make([]byte, maxCachedCodeLength+1)
-	hash := tosca.Hash{byte(1)}
+	tests := map[string]struct {
+		code   tosca.Code
+		cached bool
+	}{
+		"maxCachedCodeLength-1": {
+			code:   bytes.Repeat([]byte{0x42}, maxCachedCodeLength-1),
+			cached: true,
+		},
+		"maxCachedCodeLength": {
+			code:   bytes.Repeat([]byte{0x42}, maxCachedCodeLength),
+			cached: true,
+		},
+		"maxCachedCodeLength+1": {
+			code:   bytes.Repeat([]byte{0x42}, maxCachedCodeLength+1),
+			cached: false,
+		},
+	}
 
-	want := analysis.analyzeJumpDest(code, &hash)
-	got := analysis.analyzeJumpDest(code, &hash)
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			analysis := newAnalysis(1<<2, maxCachedCodeLength)
 
-	if &want.bitmap[0] == &got.bitmap[0] {
-		t.Fatal("expected conversion result to not be cached for large code")
+			hash := tosca.Hash{byte(1)}
+			analysis0 := analysis.analyzeJumpDest(test.code, &hash)
+			analysis1 := analysis.analyzeJumpDest(test.code, &hash)
+
+			want := &analysis0.bitmap[0]
+			got := &analysis1.bitmap[0]
+
+			if test.cached && want != got {
+				t.Fatal("expected conversion result to be cached")
+			}
+			if !test.cached && want == got {
+				t.Fatal("expected conversion result to not be cached")
+			}
+		})
+	}
+}
+
+func TestAnalysis_NewAnalysisEnsuresMaxCachedCodeSizeIsInBounds(t *testing.T) {
+	cacheSize := 128
+	tests := map[string]int{
+		"negative maxCachedCodeSize": -1,
+		"zero maxCachedCodeSize":     0,
+		"positive maxCachedCodeSize": 1,
+		"cacheSize":                  cacheSize,
+		"lager than cacheSize":       cacheSize + 1,
+		"huge":                       1 << 30,
+	}
+
+	for name, maxCachedCodeSize := range tests {
+		t.Run(name, func(t *testing.T) {
+			analysis := newAnalysis(cacheSize, maxCachedCodeSize)
+
+			if analysis.maxCachedCodeSize < 1 {
+				t.Fatalf("maxCachedCodeSize is smaller than 1: %d", analysis.maxCachedCodeSize)
+			}
+			if analysis.maxCachedCodeSize > cacheSize {
+				t.Fatalf("maxCachedCodeSize is larger than cache size: %d", analysis.maxCachedCodeSize)
+			}
+		})
 	}
 }
 

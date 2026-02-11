@@ -24,6 +24,10 @@ type analysis struct {
 
 // newAnalysis creates a new analysis cache with the given size and maximum cached code size.
 func newAnalysis(sizeInByte int, maxCachedCodeSize int) analysis {
+
+	// ensure maxCachedCodeSize is at least 1 and does not exceed the provided sizeInByte
+	maxCachedCodeSize = max(1, min(maxCachedCodeSize, sizeInByte))
+
 	// convert the cache size in bytes to the number of entries
 	size := (sizeInByte / maxCachedCodeSize) * 8 // each instruction requires 1 bit in the jumpDestMap
 

@@ -27,10 +27,10 @@ func TestSfvm_OfficialConfigurationHasSanctionedProperties(t *testing.T) {
 	if !ok {
 		t.Fatalf("unexpected interpreter implementation, got %T", vm)
 	}
-	if sfvm.config.WithShaCache != true {
+	if !sfvm.config.WithShaCache {
 		t.Fatalf("sfvm is not configured with sha cache")
 	}
-	if sfvm.config.WithAnalysisCache != true {
+	if !sfvm.config.WithAnalysisCache {
 		t.Fatalf("sfvm is not configured with analysis cache")
 	}
 	if sfvm.analysis.maxCachedCodeSize != 1<<14+1<<13 {
@@ -77,12 +77,12 @@ func TestNewInterpreter_AnalysisCacheArgumentsAreForwarded(t *testing.T) {
 		t.Fatalf("failed to create sfvm instance: %v", err)
 	}
 
-	if vm.config.WithAnalysisCache != true {
-		t.Fatalf("unexpected default value for WithAnalysisCache: expected true, got %v",
+	if !vm.config.WithAnalysisCache {
+		t.Fatalf("config value has not been forwarded correctly expected true, got %v",
 			vm.config.WithAnalysisCache)
 	}
 	if vm.analysis.maxCachedCodeSize != maxCachedCodeSize {
-		t.Fatalf("unexpected default value for AnalysisCacheSize: expected %d, got %d",
+		t.Fatalf("unexpected maxCachedCodeSize: expected %d, got %d",
 			maxCachedCodeSize, vm.analysis.maxCachedCodeSize)
 	}
 }
