@@ -57,7 +57,7 @@ func (a *ctAdapter) StepN(state *st.State, numSteps int) (*st.State, error) {
 		code:         params.Code,
 		analysis:     a.vm.analysis.analyzeJumpDest(params.Code, params.CodeHash),
 		returnData:   state.LastCallReturnData.ToBytes(),
-		withShaCache: a.vm.config.withShaCache,
+		withShaCache: a.vm.config.WithShaCache,
 	}
 
 	defer func() {

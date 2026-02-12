@@ -18,18 +18,25 @@ import (
 
 // analysis is a cache for jump destination analyses of smart contract codes.
 type analysis struct {
-	cache *lru.Cache[tosca.Hash, jumpDestMap]
+	cache             *lru.Cache[tosca.Hash, jumpDestMap]
+	maxCachedCodeSize int
 }
 
-// newAnalysis creates a new analysis cache with the given size. The size
-// parameter is the maximum number of codes for which the analysis results
-// are to be retained in the resulting cache.
-func newAnalysis(size int) analysis {
+// newAnalysis creates a new analysis cache with the given size and maximum cached code size.
+func newAnalysis(sizeInByte int, maxCachedCodeSize int) analysis {
+
+	// ensure maxCachedCodeSize is at least 1 and does not exceed the provided sizeInByte
+	maxCachedCodeSize = max(1, min(maxCachedCodeSize, sizeInByte))
+
+	// convert the cache size in bytes to the number of entries
+	size := (sizeInByte / maxCachedCodeSize) * 8 // each instruction requires 1 bit in the jumpDestMap
+
 	cache, err := lru.New[tosca.Hash, jumpDestMap](size)
 	if err != nil {
 		panic("failed to create analysis cache: " + err.Error())
 	}
-	return analysis{cache: cache}
+
+	return analysis{cache: cache, maxCachedCodeSize: maxCachedCodeSize}
 }
 
 // analyzeJumpDest analyzes the given code for jump destinations. If a cache
@@ -45,7 +52,7 @@ func (a *analysis) analyzeJumpDest(code tosca.Code, codehash *tosca.Hash) jumpDe
 		return analysis
 	}
 
-	if len(code) > maxCachedCodeLength {
+	if len(code) > a.maxCachedCodeSize {
 		return findJumpDestinations(code)
 	}
 
@@ -53,15 +60,6 @@ func (a *analysis) analyzeJumpDest(code tosca.Code, codehash *tosca.Hash) jumpDe
 	a.cache.Add(*codehash, jumpDests)
 	return jumpDests
 }
-
-// maxCachedCodeLength is the maximum length of a code in bytes that are
-// retained in the cache. To avoid excessive memory usage, longer codes are not
-// cached. The defined limit is the current limit for codes stored on the chain.
-// Only initialization codes can be longer. Since the Shanghai hard fork, the
-// maximum size of initialization codes is 2 * 24_576 = 49_152 bytes (see
-// https://eips.ethereum.org/EIPS/eip-3860). Such init codes are deliberately
-// not cached due to the expected limited re-use and the missing code hash.
-const maxCachedCodeLength = 1<<14 + 1<<13 // = 24_576 bytes
 
 // jumpDestMap represents a bitmap of valid jump destinations within a smart contract code.
 type jumpDestMap struct {
@@ -71,7 +69,10 @@ type jumpDestMap struct {
 
 // newJumpDestMap creates a new jumpDestMap for the given code size.
 func newJumpDestMap(size uint64) jumpDestMap {
-	analysisSize := size/64 + 1
+	analysisSize := size / 64
+	if size%64 != 0 {
+		analysisSize++
+	}
 	analysis := jumpDestMap{
 		bitmap:   make([]uint64, analysisSize),
 		codeSize: size,
