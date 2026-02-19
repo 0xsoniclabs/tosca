@@ -309,12 +309,8 @@ func TestRunContextAdapter_SelfDestruct(t *testing.T) {
 			stateDb.EXPECT().GetBalance(address).Return(uint256.NewInt(42))
 			stateDb.EXPECT().AddBalance(common.Address(beneficiary), uint256.NewInt(42), tracing.BalanceDecreaseSelfdestruct)
 
-			if test.blockTime < cancunTime {
-				stateDb.EXPECT().SelfDestruct(address)
-			} else {
-				stateDb.EXPECT().SubBalance(address, uint256.NewInt(42), tracing.BalanceDecreaseSelfdestruct)
-				stateDb.EXPECT().SelfDestruct6780(address)
-			}
+			stateDb.EXPECT().SubBalance(address, uint256.NewInt(42), tracing.BalanceDecreaseSelfdestruct)
+			stateDb.EXPECT().SelfDestruct(address)
 
 			got := adapter.SelfDestruct(tosca.Address(address), tosca.Address(beneficiary))
 			if got == test.selfdestructed {
@@ -966,7 +962,6 @@ func TestGethAdapter_CorruptValuesReturnErrors(t *testing.T) {
 		baseFee     *big.Int
 		chainID     *big.Int
 		blobBaseFee *big.Int
-		gasPrice    *big.Int
 		difficulty  *big.Int
 	}{
 		"revision": {
@@ -980,9 +975,6 @@ func TestGethAdapter_CorruptValuesReturnErrors(t *testing.T) {
 		},
 		"blobBaseFee": {
 			blobBaseFee: big.NewInt(-1),
-		},
-		"gasPrice": {
-			gasPrice: big.NewInt(-1),
 		},
 		"difficulty": {
 			difficulty: big.NewInt(-1),
@@ -1008,7 +1000,7 @@ func TestGethAdapter_CorruptValuesReturnErrors(t *testing.T) {
 			chainConfig := &params.ChainConfig{ChainID: test.chainID, IstanbulBlock: test.firstBlock}
 			evm := geth.NewEVM(blockParameters, stateDb, chainConfig, geth.Config{})
 			evm.TxContext = geth.TxContext{
-				GasPrice: test.gasPrice,
+				GasPrice: uint256.NewInt(1),
 			}
 
 			adapter := &gethInterpreterAdapter{

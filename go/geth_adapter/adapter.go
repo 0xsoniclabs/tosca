@@ -85,8 +85,9 @@ func (a *gethInterpreterAdapter) Interpret(contract *geth.Contract, input []byte
 		return nil, fmt.Errorf("unsupported revision: %w", err)
 	}
 
-	// Convert the value from big-int to tosca.Value.
+	gasPrice := tosca.ValueFromUint256(a.evm.GasPrice)
 	value := tosca.ValueFromUint256(contract.Value())
+
 	// BaseFee can be assumed zero unless set.
 	baseFee, err := bigIntToValue(a.evm.Context.BaseFee)
 	if err != nil {
@@ -99,10 +100,6 @@ func (a *gethInterpreterAdapter) Interpret(contract *geth.Contract, input []byte
 	blobBaseFee, err := bigIntToValue(a.evm.Context.BlobBaseFee)
 	if err != nil {
 		return nil, fmt.Errorf("could not convert blob-base fee: %v", err)
-	}
-	gasPrice, err := bigIntToValue(a.evm.GasPrice)
-	if err != nil {
-		return nil, fmt.Errorf("could not convert gas price: %v", err)
 	}
 	prevRandao, err := getPrevRandao(&a.evm.Context, revision)
 	if err != nil {
@@ -498,12 +495,8 @@ func (a *runContextAdapter) SelfDestruct(addr tosca.Address, beneficiary tosca.A
 	balance := stateDb.GetBalance(a.caller)
 	stateDb.AddBalance(common.Address(beneficiary), balance, tracing.BalanceDecreaseSelfdestruct)
 
-	if a.evm.ChainConfig().IsCancun(a.evm.Context.BlockNumber, a.evm.Context.Time) {
-		stateDb.SubBalance(a.caller, balance, tracing.BalanceDecreaseSelfdestruct)
-		stateDb.SelfDestruct6780(common.Address(addr))
-	} else {
-		stateDb.SelfDestruct(common.Address(addr))
-	}
+	stateDb.SubBalance(a.caller, balance, tracing.BalanceDecreaseSelfdestruct)
+	stateDb.SelfDestruct(common.Address(addr))
 
 	return selfdestructed
 }

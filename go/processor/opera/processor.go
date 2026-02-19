@@ -125,7 +125,7 @@ func (p *processor) Run(
 	// Create empty tx context
 	txCtx := geth.TxContext{
 		Origin:   common.Address(transaction.Sender),
-		GasPrice: new(big.Int).SetBytes(gasPrice[:]),
+		GasPrice: uint256.NewInt(0).SetBytes(gasPrice[:]),
 	}
 
 	// Create a configuration for the geth EVM.
