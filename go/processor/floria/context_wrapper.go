@@ -23,8 +23,5 @@ type floriaContext struct {
 // within the interpreter, but in Tosca, the updates are managed by the processor
 // for consistency with calls and creates.
 func (c floriaContext) SelfDestruct(address tosca.Address, beneficiary tosca.Address) bool {
-	balance := c.GetBalance(address)
-	c.SetBalance(address, tosca.Value{})
-	c.SetBalance(beneficiary, tosca.Add(c.GetBalance(beneficiary), balance))
 	return c.TransactionContext.SelfDestruct(address, beneficiary)
 }

@@ -20,7 +20,7 @@ import (
 func TestSelfDestructedGenerator_UnconstrainedGeneratorCanGenerate(t *testing.T) {
 	rnd := rand.New(0)
 	generator := NewSelfDestructedGenerator()
-	_, err := generator.Generate(rnd)
+	_, _, err := generator.Generate(rnd)
 	if err != nil {
 		t.Errorf("unexpected error during generation: %v", err)
 	}
@@ -41,7 +41,7 @@ func TestSelfDestructedGenerator_SelfDestructedConstraintIsEnforced(t *testing.T
 		t.Run(name, func(t *testing.T) {
 			generator := NewSelfDestructedGenerator()
 			test.constraintEffet(generator)
-			hasSelfDestructed, err := generator.Generate(rnd)
+			hasSelfDestructed, _, err := generator.Generate(rnd)
 
 			if err != nil {
 				t.Errorf("Unexpected error during generation: %v", err)
@@ -60,7 +60,7 @@ func TestSelfDestructedGenerator_ConflictingSelfDestructedConstraintsAreDetected
 	generator.MarkAsSelfDestructed()
 	generator.MarkAsNotSelfDestructed()
 
-	_, err := generator.Generate(rnd)
+	_, _, err := generator.Generate(rnd)
 	if !errors.Is(err, ErrUnsatisfiable) {
 		t.Errorf("Conflicting has-self-destructed constraints not detected")
 	}

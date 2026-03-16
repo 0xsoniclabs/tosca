@@ -67,9 +67,8 @@ func (p *Processor) Run(
 
 	txContext := vm.TxContext{
 		Origin:     common.Address(transaction.Sender),
-		GasPrice:   gasPrice.ToBig(),
+		GasPrice:   uint256.NewInt(0).SetBytes(gasPrice[:]),
 		BlobHashes: blobHashes,
-		BlobFeeCap: transaction.BlobGasFeeCap.ToBig(),
 	}
 	stateDB := geth_adapter.NewStateDB(context)
 	chainConfig := blockParametersToChainConfig(blockParameters)

@@ -210,9 +210,13 @@ func (c *ctRunContext) GetNonce(tosca.Address) uint64 {
 	return 0
 }
 
+func (c *ctRunContext) IsNewContract(tosca.Address) bool {
+	return c.state.IsNewContract
+}
+
 // --- API only needed in the context of a full transaction, which is not covered by CT ---
 
-func (c *ctRunContext) CreateAccount(tosca.Address) {
+func (c *ctRunContext) CreateContract(tosca.Address) {
 	panic("should not be needed")
 }
 

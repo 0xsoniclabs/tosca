@@ -675,8 +675,22 @@ func opSelfdestruct(c *context) (status, error) {
 		return statusStopped, err
 	}
 
-	destructed := c.context.SelfDestruct(c.params.Recipient, beneficiary)
-	c.refund += selfDestructRefund(destructed, c.params.Revision)
+	thisAddress := c.params.Recipient
+	balance := c.context.GetBalance(thisAddress)
+	if c.params.Revision < tosca.R13_Cancun || c.context.IsNewContract(thisAddress) {
+		if thisAddress != beneficiary {
+			c.context.SetBalance(beneficiary, tosca.Add(c.context.GetBalance(beneficiary), balance))
+		}
+		c.context.SetBalance(thisAddress, tosca.Value{})
+		destructed := c.context.SelfDestruct(thisAddress, beneficiary)
+		c.refund += selfDestructRefund(destructed, c.params.Revision)
+	}
+
+	if c.params.Revision >= tosca.R13_Cancun && !c.context.IsNewContract(thisAddress) && thisAddress != beneficiary {
+		c.context.SetBalance(thisAddress, tosca.Value{})
+		c.context.SetBalance(beneficiary, tosca.Add(c.context.GetBalance(beneficiary), balance))
+	}
+
 	return statusSelfDestructed, nil
 }
 

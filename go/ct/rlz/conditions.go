@@ -824,6 +824,72 @@ func restrictAccountWarmCold(bindKey BindableExpression[U256]) func(generator *g
 }
 
 ////////////////////////////////////////////////////////////
+// Is new contract
+
+type isNewContract struct {
+}
+
+func IsNewContract() Condition {
+	return &isNewContract{}
+}
+
+func (c *isNewContract) Check(s *st.State) (bool, error) {
+	return s.IsNewContract, nil
+}
+
+func (c *isNewContract) Restrict(generator *gen.StateGenerator) {
+	generator.MustBeNewContract()
+}
+
+func (c *isNewContract) GetTestValues() []TestValue {
+	property := Property(c.String())
+	domain := boolDomain{}
+	restrict := func(generator *gen.StateGenerator, isNewContract bool) {
+		if isNewContract {
+			generator.MustBeNewContract()
+		} else {
+			generator.MustNotBeNewContract()
+		}
+	}
+	return []TestValue{
+		NewTestValue(property, domain, true, restrict),
+		NewTestValue(property, domain, false, restrict),
+	}
+}
+
+func (c *isNewContract) String() string {
+	return "isNewContract()"
+
+}
+
+////////////////////////////////////////////////////////////
+// Is not new contract
+
+type isNotNewContract struct {
+}
+
+func IsNotNewContract() Condition {
+	return &isNotNewContract{}
+}
+
+func (c *isNotNewContract) Check(s *st.State) (bool, error) {
+	res, err := IsNewContract().Check(s)
+	return !res, err
+}
+
+func (c *isNotNewContract) Restrict(generator *gen.StateGenerator) {
+	generator.MustNotBeNewContract()
+}
+
+func (c *isNotNewContract) GetTestValues() []TestValue {
+	return IsNewContract().GetTestValues()
+}
+
+func (c *isNotNewContract) String() string {
+	return "isNotNewContract()"
+}
+
+////////////////////////////////////////////////////////////
 // Has Self-Destructed
 
 type hasSelfDestructed struct {
