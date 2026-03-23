@@ -80,6 +80,10 @@ func (c *ctRunContext) AccountExists(addr tosca.Address) bool {
 	return c.state.Accounts.Exists(addr)
 }
 
+func (c *ctRunContext) IsNewContract(addr tosca.Address) bool {
+	return true // TODO: add support for newly created contracts
+}
+
 func (c *ctRunContext) GetStorage(addr tosca.Address, key tosca.Key) tosca.Word {
 	k := cc.NewU256FromBytes(key[:]...)
 	return c.state.Storage.GetCurrent(k).Bytes32be()
@@ -152,11 +156,13 @@ func (c *ctRunContext) Call(kind tosca.CallKind, parameter tosca.CallParameters)
 }
 
 func (c *ctRunContext) SelfDestruct(address tosca.Address, beneficiary tosca.Address) bool {
-	c.state.SelfDestructedJournal = append(c.state.SelfDestructedJournal, st.NewSelfDestructEntry(address, beneficiary))
-	if c.state.HasSelfDestructed {
-		return false
+	if c.state.Revision < tosca.R13_Cancun || c.IsNewContract(address) {
+		c.state.SelfDestructedJournal = append(c.state.SelfDestructedJournal, st.NewSelfDestructEntry(address, beneficiary))
+		if c.state.HasSelfDestructed {
+			return false
+		}
+		c.state.HasSelfDestructed = true
 	}
-	c.state.HasSelfDestructed = true
 	return true
 }
 
@@ -212,7 +218,7 @@ func (c *ctRunContext) GetNonce(tosca.Address) uint64 {
 
 // --- API only needed in the context of a full transaction, which is not covered by CT ---
 
-func (c *ctRunContext) CreateAccount(tosca.Address) {
+func (c *ctRunContext) CreateContract(tosca.Address) {
 	panic("should not be needed")
 }
 

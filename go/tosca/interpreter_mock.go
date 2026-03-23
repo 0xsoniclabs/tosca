@@ -145,16 +145,16 @@ func (mr *MockRunContextMockRecorder) Call(kind, parameter any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Call", reflect.TypeOf((*MockRunContext)(nil).Call), kind, parameter)
 }
 
-// CreateAccount mocks base method.
-func (m *MockRunContext) CreateAccount(arg0 Address) {
+// CreateContract mocks base method.
+func (m *MockRunContext) CreateContract(arg0 Address) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "CreateAccount", arg0)
+	m.ctrl.Call(m, "CreateContract", arg0)
 }
 
-// CreateAccount indicates an expected call of CreateAccount.
-func (mr *MockRunContextMockRecorder) CreateAccount(arg0 any) *gomock.Call {
+// CreateContract indicates an expected call of CreateContract.
+func (mr *MockRunContextMockRecorder) CreateContract(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAccount", reflect.TypeOf((*MockRunContext)(nil).CreateAccount), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateContract", reflect.TypeOf((*MockRunContext)(nil).CreateContract), arg0)
 }
 
 // CreateSnapshot mocks base method.
@@ -365,6 +365,20 @@ func (mr *MockRunContextMockRecorder) IsAddressInAccessList(addr any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsAddressInAccessList", reflect.TypeOf((*MockRunContext)(nil).IsAddressInAccessList), addr)
 }
 
+// IsNewContract mocks base method.
+func (m *MockRunContext) IsNewContract(arg0 Address) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsNewContract", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsNewContract indicates an expected call of IsNewContract.
+func (mr *MockRunContextMockRecorder) IsNewContract(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsNewContract", reflect.TypeOf((*MockRunContext)(nil).IsNewContract), arg0)
+}
+
 // IsSlotInAccessList mocks base method.
 func (m *MockRunContext) IsSlotInAccessList(addr Address, key Key) (bool, bool) {
 	m.ctrl.T.Helper()
@@ -534,16 +548,16 @@ func (mr *MockTransactionContextMockRecorder) AccountExists(arg0 any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AccountExists", reflect.TypeOf((*MockTransactionContext)(nil).AccountExists), arg0)
 }
 
-// CreateAccount mocks base method.
-func (m *MockTransactionContext) CreateAccount(arg0 Address) {
+// CreateContract mocks base method.
+func (m *MockTransactionContext) CreateContract(arg0 Address) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "CreateAccount", arg0)
+	m.ctrl.Call(m, "CreateContract", arg0)
 }
 
-// CreateAccount indicates an expected call of CreateAccount.
-func (mr *MockTransactionContextMockRecorder) CreateAccount(arg0 any) *gomock.Call {
+// CreateContract indicates an expected call of CreateContract.
+func (mr *MockTransactionContextMockRecorder) CreateContract(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAccount", reflect.TypeOf((*MockTransactionContext)(nil).CreateAccount), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateContract", reflect.TypeOf((*MockTransactionContext)(nil).CreateContract), arg0)
 }
 
 // CreateSnapshot mocks base method.
@@ -752,6 +766,20 @@ func (m *MockTransactionContext) IsAddressInAccessList(addr Address) bool {
 func (mr *MockTransactionContextMockRecorder) IsAddressInAccessList(addr any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsAddressInAccessList", reflect.TypeOf((*MockTransactionContext)(nil).IsAddressInAccessList), addr)
+}
+
+// IsNewContract mocks base method.
+func (m *MockTransactionContext) IsNewContract(arg0 Address) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsNewContract", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsNewContract indicates an expected call of IsNewContract.
+func (mr *MockTransactionContextMockRecorder) IsNewContract(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsNewContract", reflect.TypeOf((*MockTransactionContext)(nil).IsNewContract), arg0)
 }
 
 // IsSlotInAccessList mocks base method.

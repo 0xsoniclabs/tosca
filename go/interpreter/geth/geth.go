@@ -174,8 +174,7 @@ func createGethInterpreterContext(parameters tosca.Parameters) (*geth.EVM, *geth
 
 	// Create empty tx context
 	txCtx := geth.TxContext{
-		GasPrice:   new(big.Int).SetBytes(parameters.GasPrice[:]),
-		BlobFeeCap: new(big.Int).SetBytes(parameters.BlobBaseFee[:]),
+		GasPrice: parameters.GasPrice.ToUint256(),
 	}
 
 	for _, hash := range parameters.BlobHashes {

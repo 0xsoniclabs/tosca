@@ -323,7 +323,7 @@ func (s *State) String() string {
 	for k, v := range s.TransientStorage.storage {
 		write("\t    [%v]=%v\n", k, v)
 	}
-	write(s.Accounts.String())
+	write("%s", s.Accounts.String())
 	write("\tLogs:\n")
 	for entryId, entry := range s.Logs.Entries {
 		write("\t    entry %02d:\n", entryId)
