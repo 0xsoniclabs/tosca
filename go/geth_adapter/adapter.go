@@ -496,20 +496,15 @@ func (a *runContextAdapter) SelfDestruct(addr tosca.Address, beneficiary tosca.A
 	// HasSelfDestructed only returns true if it is the first call to SelfDestruct
 	selfdestructed := !stateDb.HasSelfDestructed(common.Address(addr))
 
+	// Transfer balance to beneficiary
 	balance := stateDb.GetBalance(common.Address(addr))
-	if !a.evm.ChainConfig().IsCancun(a.evm.Context.BlockNumber, a.evm.Context.Time) || stateDb.IsNewContract(common.Address(addr)) {
-		if addr != beneficiary {
-			stateDb.AddBalance(common.Address(beneficiary), balance, tracing.BalanceIncreaseSelfdestruct)
-		}
-		stateDb.SubBalance(common.Address(addr), balance, tracing.BalanceDecreaseSelfdestruct)
-		stateDb.SelfDestruct(common.Address(addr))
-	}
+	stateDb.SubBalance(common.Address(addr), balance, tracing.BalanceDecreaseSelfdestruct)
+	stateDb.AddBalance(common.Address(beneficiary), balance, tracing.BalanceIncreaseSelfdestruct)
 
-	if a.evm.ChainConfig().IsCancun(a.evm.Context.BlockNumber, a.evm.Context.Time) &&
-		!stateDb.IsNewContract(common.Address(addr)) &&
-		common.Address(addr) != common.Address(beneficiary) {
-		stateDb.SubBalance(common.Address(addr), balance, tracing.BalanceDecreaseSelfdestruct)
-		stateDb.AddBalance(common.Address(beneficiary), balance, tracing.BalanceIncreaseSelfdestruct)
+	// Contracts are only destructed before Cancun or if they are marked as new
+	if !a.evm.ChainConfig().IsCancun(a.evm.Context.BlockNumber, a.evm.Context.Time) ||
+		stateDb.IsNewContract(common.Address(addr)) {
+		stateDb.SelfDestruct(common.Address(addr))
 	}
 
 	return selfdestructed
