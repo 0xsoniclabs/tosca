@@ -381,9 +381,6 @@ func gethToVMErrors(err error, gas tosca.Gas) (tosca.CallResult, error) {
 }
 
 func (a *runContextAdapter) CreateContract(addr tosca.Address) {
-	if !a.evm.StateDB.Exist(common.Address(addr)) {
-		a.evm.StateDB.CreateAccount(common.Address(addr))
-	}
 	a.evm.StateDB.CreateContract(common.Address(addr))
 }
 

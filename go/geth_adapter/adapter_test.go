@@ -697,9 +697,6 @@ func TestRunContextAdapter_AccountOperations(t *testing.T) {
 		t.Errorf("Account should exist")
 	}
 
-	// Ensure that both CreateAccount and CreateContract are called when the account does not exist
-	stateDb.EXPECT().Exist(common.Address(address)).Return(false)
-	stateDb.EXPECT().CreateAccount(common.Address(address))
 	stateDb.EXPECT().CreateContract(common.Address(address))
 	adapter.CreateContract(address)
 
