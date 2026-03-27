@@ -208,7 +208,7 @@ func TestProcessor_SuccessfulCreateSetsContractAddress(t *testing.T) {
 	context.EXPECT().HasEmptyStorage(createdAddress).Return(true)
 	context.EXPECT().GetCodeHash(createdAddress)
 	context.EXPECT().CreateSnapshot()
-	context.EXPECT().CreateAccount(createdAddress)
+	context.EXPECT().CreateContract(createdAddress)
 	context.EXPECT().SetNonce(createdAddress, gomock.Any())
 	interpreter.EXPECT().Run(gomock.Any()).Return(tosca.Result{Success: true}, nil)
 	context.EXPECT().SetCode(createdAddress, gomock.Any())

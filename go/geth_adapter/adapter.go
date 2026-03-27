@@ -85,8 +85,9 @@ func (a *gethInterpreterAdapter) Interpret(contract *geth.Contract, input []byte
 		return nil, fmt.Errorf("unsupported revision: %w", err)
 	}
 
-	// Convert the value from big-int to tosca.Value.
+	gasPrice := tosca.ValueFromUint256(a.evm.GasPrice)
 	value := tosca.ValueFromUint256(contract.Value())
+
 	// BaseFee can be assumed zero unless set.
 	baseFee, err := bigIntToValue(a.evm.Context.BaseFee)
 	if err != nil {
@@ -99,10 +100,6 @@ func (a *gethInterpreterAdapter) Interpret(contract *geth.Contract, input []byte
 	blobBaseFee, err := bigIntToValue(a.evm.Context.BlobBaseFee)
 	if err != nil {
 		return nil, fmt.Errorf("could not convert blob-base fee: %v", err)
-	}
-	gasPrice, err := bigIntToValue(a.evm.GasPrice)
-	if err != nil {
-		return nil, fmt.Errorf("could not convert gas price: %v", err)
 	}
 	prevRandao, err := getPrevRandao(&a.evm.Context, revision)
 	if err != nil {
@@ -383,11 +380,12 @@ func gethToVMErrors(err error, gas tosca.Gas) (tosca.CallResult, error) {
 	return tosca.CallResult{Success: false}, err
 }
 
-func (a *runContextAdapter) CreateAccount(addr tosca.Address) {
-	if !a.evm.StateDB.Exist(common.Address(addr)) {
-		a.evm.StateDB.CreateAccount(common.Address(addr))
-	}
+func (a *runContextAdapter) CreateContract(addr tosca.Address) {
 	a.evm.StateDB.CreateContract(common.Address(addr))
+}
+
+func (a *runContextAdapter) IsNewContract(addr tosca.Address) bool {
+	return a.evm.StateDB.IsNewContract(common.Address(addr))
 }
 
 func (a *runContextAdapter) HasEmptyStorage(addr tosca.Address) bool {
@@ -495,13 +493,14 @@ func (a *runContextAdapter) SelfDestruct(addr tosca.Address, beneficiary tosca.A
 	// HasSelfDestructed only returns true if it is the first call to SelfDestruct
 	selfdestructed := !stateDb.HasSelfDestructed(common.Address(addr))
 
-	balance := stateDb.GetBalance(a.caller)
-	stateDb.AddBalance(common.Address(beneficiary), balance, tracing.BalanceDecreaseSelfdestruct)
+	// Transfer balance to beneficiary
+	balance := stateDb.GetBalance(common.Address(addr))
+	stateDb.SubBalance(common.Address(addr), balance, tracing.BalanceDecreaseSelfdestruct)
+	stateDb.AddBalance(common.Address(beneficiary), balance, tracing.BalanceIncreaseSelfdestruct)
 
-	if a.evm.ChainConfig().IsCancun(a.evm.Context.BlockNumber, a.evm.Context.Time) {
-		stateDb.SubBalance(a.caller, balance, tracing.BalanceDecreaseSelfdestruct)
-		stateDb.SelfDestruct6780(common.Address(addr))
-	} else {
+	// Contracts are only destructed before Cancun or if they are marked as new
+	if !a.evm.ChainConfig().IsCancun(a.evm.Context.BlockNumber, a.evm.Context.Time) ||
+		stateDb.IsNewContract(common.Address(addr)) {
 		stateDb.SelfDestruct(common.Address(addr))
 	}
 

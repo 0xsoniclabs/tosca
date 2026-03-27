@@ -18,7 +18,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/trie/utils"
 	"github.com/holiman/uint256"
 )
 
@@ -80,7 +79,11 @@ func (s *StateDB) CreateAccount(common.Address) {
 
 func (s *StateDB) CreateContract(address common.Address) {
 	s.createdContract = &address
-	s.context.CreateAccount(tosca.Address(address))
+	s.context.CreateContract(tosca.Address(address))
+}
+
+func (s *StateDB) IsNewContract(address common.Address) bool {
+	return s.context.IsNewContract(tosca.Address(address))
 }
 
 func (s *StateDB) SubBalance(address common.Address, value *uint256.Int, tracing tracing.BalanceChangeReason) uint256.Int {
@@ -170,21 +173,13 @@ func (s *StateDB) SetTransientState(address common.Address, key, value common.Ha
 	s.context.SetTransientStorage(tosca.Address(address), tosca.Key(key), tosca.Word(value))
 }
 
-func (s *StateDB) SelfDestruct(address common.Address) uint256.Int {
-	balance := s.context.GetBalance(tosca.Address(address))
+func (s *StateDB) SelfDestruct(address common.Address) {
 	s.context.SelfDestruct(tosca.Address(address), tosca.Address(s.beneficiary))
-	return *balance.ToUint256()
 }
 
 // HasSelfDestructed should only be used by geth_adapter
 func (s *StateDB) HasSelfDestructed(address common.Address) bool {
 	return s.context.HasSelfDestructed(tosca.Address(address))
-}
-
-func (s *StateDB) SelfDestruct6780(address common.Address) (uint256.Int, bool) {
-	balance := s.context.GetBalance(tosca.Address(address))
-	hasSelfDestructed := s.context.SelfDestruct(tosca.Address(address), tosca.Address(s.beneficiary))
-	return *balance.ToUint256(), hasSelfDestructed
 }
 
 func (s *StateDB) Exist(address common.Address) bool {
@@ -213,10 +208,6 @@ func (s *StateDB) AddAddressToAccessList(address common.Address) {
 
 func (s *StateDB) AddSlotToAccessList(address common.Address, slot common.Hash) {
 	s.context.AccessStorage(tosca.Address(address), tosca.Key(slot))
-}
-
-func (s *StateDB) PointCache() *utils.PointCache {
-	panic("not implemented")
 }
 
 func (s *StateDB) Prepare(rules params.Rules, sender, coinbase common.Address, dest *common.Address, precompiles []common.Address, txAccesses types.AccessList) {

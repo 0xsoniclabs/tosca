@@ -20,7 +20,8 @@ import "fmt"
 type WorldState interface {
 	AccountExists(Address) bool
 
-	CreateAccount(Address)
+	CreateContract(Address)
+	IsNewContract(Address) bool
 
 	GetBalance(Address) Value
 	SetBalance(Address, Value)

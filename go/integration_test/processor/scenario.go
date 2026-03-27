@@ -132,8 +132,13 @@ func newScenarioContext(initial WorldState) *scenarioContext {
 	}
 }
 
-func (c *scenarioContext) CreateAccount(addr tosca.Address) {
+func (c *scenarioContext) CreateContract(addr tosca.Address) {
 	c.current[addr] = Account{}
+}
+
+func (c *scenarioContext) IsNewContract(addr tosca.Address) bool {
+	_, ok := c.current[addr]
+	return ok
 }
 
 func (c *scenarioContext) HasEmptyStorage(addr tosca.Address) bool {

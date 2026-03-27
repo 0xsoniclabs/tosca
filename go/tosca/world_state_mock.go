@@ -63,16 +63,16 @@ func (mr *MockWorldStateMockRecorder) AccountExists(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AccountExists", reflect.TypeOf((*MockWorldState)(nil).AccountExists), arg0)
 }
 
-// CreateAccount mocks base method.
-func (m *MockWorldState) CreateAccount(arg0 Address) {
+// CreateContract mocks base method.
+func (m *MockWorldState) CreateContract(arg0 Address) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "CreateAccount", arg0)
+	m.ctrl.Call(m, "CreateContract", arg0)
 }
 
-// CreateAccount indicates an expected call of CreateAccount.
-func (mr *MockWorldStateMockRecorder) CreateAccount(arg0 any) *gomock.Call {
+// CreateContract indicates an expected call of CreateContract.
+func (mr *MockWorldStateMockRecorder) CreateContract(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAccount", reflect.TypeOf((*MockWorldState)(nil).CreateAccount), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateContract", reflect.TypeOf((*MockWorldState)(nil).CreateContract), arg0)
 }
 
 // GetBalance mocks base method.
@@ -171,6 +171,20 @@ func (m *MockWorldState) HasEmptyStorage(arg0 Address) bool {
 func (mr *MockWorldStateMockRecorder) HasEmptyStorage(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasEmptyStorage", reflect.TypeOf((*MockWorldState)(nil).HasEmptyStorage), arg0)
+}
+
+// IsNewContract mocks base method.
+func (m *MockWorldState) IsNewContract(arg0 Address) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsNewContract", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsNewContract indicates an expected call of IsNewContract.
+func (mr *MockWorldStateMockRecorder) IsNewContract(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsNewContract", reflect.TypeOf((*MockWorldState)(nil).IsNewContract), arg0)
 }
 
 // SelfDestruct mocks base method.

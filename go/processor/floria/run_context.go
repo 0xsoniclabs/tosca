@@ -135,7 +135,7 @@ func (r *runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallPar
 		}
 	}()
 
-	r.CreateAccount(createdAddress)
+	r.CreateContract(createdAddress)
 	r.SetNonce(createdAddress, 1)
 
 	transferValue(r, parameters.Value, parameters.Sender, createdAddress)

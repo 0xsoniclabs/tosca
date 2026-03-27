@@ -224,8 +224,12 @@ func (a *runContextAdapter) SelfDestruct(address tosca.Address, beneficiary tosc
 	return balance != (tosca.Value{})
 }
 
-func (a *runContextAdapter) CreateAccount(addr tosca.Address) {
+func (a *runContextAdapter) CreateContract(addr tosca.Address) {
 	// no effect required in interpreter tests
+}
+
+func (a *runContextAdapter) IsNewContract(addr tosca.Address) bool {
+	return true
 }
 
 func (a *runContextAdapter) HasEmptyStorage(tosca.Address) bool {
