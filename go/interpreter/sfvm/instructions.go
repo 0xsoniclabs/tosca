@@ -72,42 +72,18 @@ func opPop(c *context) {
 }
 
 func opPush(c *context, n int) {
-	z := c.stack.pushUndefined()
-	z[3], z[2], z[1], z[0] = 0, 0, 0, 0
-	if len(c.code) <= int(c.pc)+n {
-		c.pc += int32(n)
-		return
+	codeLength := len(c.code)
+	start := min(codeLength, int(c.pc+1))
+	end := min(codeLength, start+n)
+
+	c.stack.pushUndefined().SetBytes(c.code[start:end])
+
+	// Missing bytes: n - len(pushData)
+	if missing := n - (end - start); missing > 0 {
+		c.stack.peek().Lsh(c.stack.peek(), uint(8*missing))
 	}
 
-	// check how many uint64 (8 bytes) will be filled
-	fills := n / 8
-	if n%8 != 0 {
-		fills++
-	}
-	valueOffset := fills - 1
-
-	// Calculate the initial shiftOffset for the first filled uint64
-	shiftOffset := ((n - 1) % 8) * 8
-	for i := range n {
-		z[valueOffset] |= uint64(c.code[int(c.pc)+1+i]) << shiftOffset
-		shiftOffset -= 8
-
-		// if the shiftOffset is negative, we need to fill the next uint64
-		if shiftOffset < 0 {
-			valueOffset--
-			shiftOffset = 56
-		}
-	}
 	c.pc += int32(n)
-}
-
-func opPush0(c *context) error {
-	if !c.isAtLeast(tosca.R12_Shanghai) {
-		return errInvalidRevision
-	}
-	z := c.stack.pushUndefined()
-	z[3], z[2], z[1], z[0] = 0, 0, 0, 0
-	return nil
 }
 
 func opPush1(c *context) {
@@ -124,51 +100,23 @@ func opPush1(c *context) {
 func opPush2(c *context) {
 	z := c.stack.pushUndefined()
 	z[3], z[2], z[1] = 0, 0, 0
-	if len(c.code) <= int(c.pc)+2 {
+	if len(c.code) <= int(c.pc)+1 {
 		z[0] = 0
+	} else if len(c.code) <= int(c.pc)+2 {
+		z[0] = uint64(c.code[c.pc+1]) << 8
 	} else {
 		z[0] = uint64(c.code[c.pc+1])<<8 | uint64(c.code[c.pc+2])
 	}
 	c.pc += 2
 }
 
-func opPush3(c *context) {
-	z := c.stack.pushUndefined()
-	z[3], z[2], z[1] = 0, 0, 0
-	if len(c.code) <= int(c.pc)+3 {
-		z[0] = 0
-	} else {
-		z[0] = uint64(c.code[c.pc+1])<<16 | uint64(c.code[c.pc+2])<<8 | uint64(c.code[c.pc+3])
+func opPush0(c *context) error {
+	if !c.isAtLeast(tosca.R12_Shanghai) {
+		return errInvalidRevision
 	}
-	c.pc += 3
-}
-
-func opPush4(c *context) {
 	z := c.stack.pushUndefined()
-	z[3], z[2], z[1] = 0, 0, 0
-	if len(c.code) <= int(c.pc)+4 {
-		z[0] = 0
-	} else {
-		z[0] = uint64(c.code[c.pc+1])<<24 | uint64(c.code[c.pc+2])<<16 | uint64(c.code[c.pc+3])<<8 | uint64(c.code[c.pc+4])
-	}
-	c.pc += 4
-}
-
-func opPush32(c *context) {
-	z := c.stack.pushUndefined()
-	if len(c.code) <= int(c.pc)+32 {
-		z[3], z[2], z[1], z[0] = 0, 0, 0, 0
-	} else {
-		z[3] = uint64(c.code[c.pc+1])<<56 | uint64(c.code[c.pc+2])<<48 | uint64(c.code[c.pc+3])<<40 | uint64(c.code[c.pc+4])<<32 |
-			uint64(c.code[c.pc+5])<<24 | uint64(c.code[c.pc+6])<<16 | uint64(c.code[c.pc+7])<<8 | uint64(c.code[c.pc+8])
-		z[2] = uint64(c.code[c.pc+9])<<56 | uint64(c.code[c.pc+10])<<48 | uint64(c.code[c.pc+11])<<40 | uint64(c.code[c.pc+12])<<32 |
-			uint64(c.code[c.pc+13])<<24 | uint64(c.code[c.pc+14])<<16 | uint64(c.code[c.pc+15])<<8 | uint64(c.code[c.pc+16])
-		z[1] = uint64(c.code[c.pc+17])<<56 | uint64(c.code[c.pc+18])<<48 | uint64(c.code[c.pc+19])<<40 | uint64(c.code[c.pc+20])<<32 |
-			uint64(c.code[c.pc+21])<<24 | uint64(c.code[c.pc+22])<<16 | uint64(c.code[c.pc+23])<<8 | uint64(c.code[c.pc+24])
-		z[0] = uint64(c.code[c.pc+25])<<56 | uint64(c.code[c.pc+26])<<48 | uint64(c.code[c.pc+27])<<40 | uint64(c.code[c.pc+28])<<32 |
-			uint64(c.code[c.pc+29])<<24 | uint64(c.code[c.pc+30])<<16 | uint64(c.code[c.pc+31])<<8 | uint64(c.code[c.pc+32])
-	}
-	c.pc += 32
+	z[3], z[2], z[1], z[0] = 0, 0, 0, 0
+	return nil
 }
 
 func opDup(c *context, pos int) {

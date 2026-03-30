@@ -187,15 +187,15 @@ func steps(c *context, oneStepOnly bool) (status, error) {
 		case vm.PUSH2:
 			opPush2(c)
 		case vm.PUSH3:
-			opPush3(c)
+			opPush(c, 3)
 		case vm.PUSH4:
-			opPush4(c)
+			opPush(c, 4)
 		case vm.PUSH5:
 			opPush(c, 5)
 		case vm.PUSH31:
 			opPush(c, 31)
 		case vm.PUSH32:
-			opPush32(c)
+			opPush(c, 32)
 		case vm.JUMP:
 			err = opJump(c)
 		case vm.JUMPDEST:

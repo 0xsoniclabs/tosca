@@ -98,24 +98,37 @@ func TestCreateChecksBalance(t *testing.T) {
 	}
 }
 
-func TestPush_ReadingDataLongerThanCodePushesZero(t *testing.T) {
-	nonSpecializedPush := make([]func(*context), 0, 27)
-	for i := 5; i <= 31; i++ {
-		nonSpecializedPush = append(nonSpecializedPush, func(c *context) { opPush(c, i) })
+func TestPush_PushingDataLongerThanCodeUsesZeroPadding(t *testing.T) {
+	pushes := make(map[int]func(*context), 32)
+	pushes[1] = opPush1
+	pushes[2] = opPush2
+	for i := 3; i <= 32; i++ {
+		pushes[i] = func(c *context) { opPush(c, i) }
 	}
 
-	// push0 does not read any data, so it is not included here.
-	pushes := []func(c *context){opPush1, opPush2, opPush3, opPush4, opPush32}
-	pushes = append(pushes, nonSpecializedPush...)
-	for _, op := range pushes {
-		ctxt := context{
-			stack: NewStack(),
-		}
+	for expectedBytes, push := range pushes {
+		for _, providedBytes := range []int{0, expectedBytes / 2, expectedBytes - 1} {
+			t.Run(fmt.Sprintf("Push%d with %d data bytes", expectedBytes, providedBytes), func(t *testing.T) {
+				code := []byte{byte(vm.PUSH0) + byte(expectedBytes)} // PUSHX
+				for range providedBytes {
+					code = append(code, byte(0xFF))
+				}
 
-		op(&ctxt)
+				ctxt := context{
+					stack: NewStack(),
+					code:  code,
+				}
 
-		if !ctxt.stack.peek().Eq(uint256.NewInt(0)) {
-			t.Fatalf("unexpected value on top of stack, wanted %v, got %v", uint256.NewInt(0), ctxt.stack.peek())
+				push(&ctxt)
+
+				expected := bytes.Repeat([]byte{0xFF}, providedBytes)
+				// the missing bytes need to be replaced with zero
+				expected = append(expected, bytes.Repeat([]byte{0x00}, expectedBytes-providedBytes)...)
+
+				if expected := uint256.NewInt(0).SetBytes(expected); !ctxt.stack.peek().Eq(expected) {
+					t.Errorf("unexpected value on top of stack, wanted %v, got %v", expected, ctxt.stack.peek())
+				}
+			})
 		}
 	}
 }
@@ -124,10 +137,7 @@ func TestPush_DifferentPushSizesPushCorrectValues(t *testing.T) {
 	pushes := make(map[int]func(*context), 32)
 	pushes[1] = opPush1
 	pushes[2] = opPush2
-	pushes[3] = opPush3
-	pushes[4] = opPush4
-	pushes[32] = opPush32
-	for i := 5; i <= 31; i++ {
+	for i := 3; i <= 32; i++ {
 		pushes[i] = func(c *context) { opPush(c, i) }
 	}
 
@@ -146,7 +156,8 @@ func TestPush_DifferentPushSizesPushCorrectValues(t *testing.T) {
 		expected := uint256.NewInt(0).SetBytes(append(bytes.Repeat([]byte{0}, 32-count), data[:count]...))
 
 		if !ctxt.stack.peek().Eq(expected) {
-			t.Fatalf("unexpected value on top of stack for push%d, wanted %v, got %v", count, expected, ctxt.stack.peek())
+			t.Fatalf("unexpected value on top of stack for push%d, wanted %v, got %v",
+				count, expected, ctxt.stack.peek())
 		}
 	}
 }
