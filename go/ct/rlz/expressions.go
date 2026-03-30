@@ -16,6 +16,7 @@ import (
 
 	. "github.com/0xsoniclabs/tosca/go/ct/common"
 	"github.com/0xsoniclabs/tosca/go/ct/gen"
+	"github.com/0xsoniclabs/tosca/go/ct/smt"
 	"github.com/0xsoniclabs/tosca/go/ct/st"
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"github.com/0xsoniclabs/tosca/go/tosca/vm"
@@ -46,6 +47,8 @@ type Expression[T any] interface {
 	fmt.Stringer
 
 	Py() string
+	// Cvc produces a CVC5 term representing this expression.
+	Cvc(ctx smt.Context) smt.Term
 }
 
 // BindableExpression is an Expression that can be referenced as a Variable.
@@ -91,6 +94,10 @@ func (status) Py() string {
 	return "status"
 }
 
+func (status) Cvc(ctx smt.Context) smt.Term {
+	return ctx.StatusTerm()
+}
+
 ////////////////////////////////////////////////////////////
 // Program Counter
 
@@ -134,6 +141,10 @@ func (pc) Py() string {
 	return "pc"
 }
 
+func (pc) Cvc(ctx smt.Context) smt.Term {
+	return ctx.PcTerm()
+}
+
 ////////////////////////////////////////////////////////////
 // Gas Counter
 
@@ -172,6 +183,10 @@ func (gas) String() string {
 
 func (gas) Py() string {
 	return "gas"
+}
+
+func (gas) Cvc(ctx smt.Context) smt.Term {
+	return ctx.GasTerm()
 }
 
 ////////////////////////////////////////////////////////////
@@ -214,6 +229,10 @@ func (selfAddress) Py() string {
 	return "self"
 }
 
+func (selfAddress) Cvc(ctx smt.Context) smt.Term {
+	return ctx.IntVar("self")
+}
+
 // //////////////////////////////////////////////////////////
 // Read Only Mode
 type readOnly struct{}
@@ -243,6 +262,10 @@ func (readOnly) String() string {
 
 func (readOnly) Py() string {
 	return "readOnly"
+}
+
+func (readOnly) Cvc(ctx smt.Context) smt.Term {
+	return ctx.ReadOnlyTerm()
 }
 
 ////////////////////////////////////////////////////////////
@@ -295,6 +318,10 @@ func (b balance) Py() string {
 	return fmt.Sprintf("balance(%v)", b.account.Py())
 }
 
+func (b balance) Cvc(ctx smt.Context) smt.Term {
+	return ctx.Balance(b.account.Py())
+}
+
 ////////////////////////////////////////////////////////////
 // Code Operation
 
@@ -344,6 +371,10 @@ func (e op) Py() string {
 	return fmt.Sprintf("code(%v)", e.position.Py())
 }
 
+func (e op) Cvc(ctx smt.Context) smt.Term {
+	return ctx.Code(e.position.Cvc(ctx))
+}
+
 ////////////////////////////////////////////////////////////
 // Stack Size
 
@@ -382,6 +413,10 @@ func (stackSize) String() string {
 
 func (stackSize) Py() string {
 	return "stackSize"
+}
+
+func (stackSize) Cvc(ctx smt.Context) smt.Term {
+	return ctx.StackSizeTerm()
 }
 
 ////////////////////////////////////////////////////////////
@@ -437,6 +472,10 @@ func (p param) Py() string {
 	return fmt.Sprintf("param(%v)", p.position)
 }
 
+func (p param) Cvc(ctx smt.Context) smt.Term {
+	return ctx.Param(p.position)
+}
+
 ////////////////////////////////////////////////////////////
 // Constants
 
@@ -487,6 +526,12 @@ func (c constant) Py() string {
 	return fmt.Sprintf("%v", c.value)
 }
 
+func (c constant) Cvc(ctx smt.Context) smt.Term {
+	if c.value.IsUint64() {
+		return ctx.IntConst(int64(c.value.Uint64()))
+	}
+	return ctx.IntConstStr(c.value.ToBigInt().String())
+}
 
 ////////////////////////////////////////////////////////////
 // ToAddress
@@ -530,3 +575,6 @@ func (a toAddress) Py() string {
 	return fmt.Sprintf("toAddress(%v)", a.expr.Py())
 }
 
+func (a toAddress) Cvc(ctx smt.Context) smt.Term {
+	return a.expr.Cvc(ctx)
+}

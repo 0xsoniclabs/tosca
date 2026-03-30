@@ -14,6 +14,7 @@ import (
 	"math"
 
 	. "github.com/0xsoniclabs/tosca/go/ct/common"
+	"github.com/0xsoniclabs/tosca/go/ct/smt"
 	"github.com/0xsoniclabs/tosca/go/ct/st"
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"github.com/0xsoniclabs/tosca/go/tosca/vm"
@@ -28,6 +29,8 @@ type Domain[T any] interface {
 	SomethingNotEqual(T) T
 	Samples(T) []T
 	SamplesForAll([]T) []T
+	// CvcValue converts a domain value to a CVC5 term.
+	CvcValue(T, smt.Context) smt.Term
 }
 
 ////////////////////////////////////////////////////////////
@@ -52,6 +55,13 @@ func (boolDomain) SamplesForAll(_ []bool) []bool {
 	return []bool{false, true}
 }
 
+func (boolDomain) CvcValue(v bool, ctx smt.Context) smt.Term {
+	if v {
+		return ctx.True()
+	}
+	return ctx.False()
+}
+
 ////////////////////////////////////////////////////////////
 // readOnlyDomain
 
@@ -65,6 +75,13 @@ func (readOnlyDomain) Samples(value bool) []bool {
 
 func (readOnlyDomain) SamplesForAll(values []bool) []bool {
 	return values
+}
+
+func (readOnlyDomain) CvcValue(v bool, ctx smt.Context) smt.Term {
+	if v {
+		return ctx.True()
+	}
+	return ctx.False()
 }
 
 ////////////////////////////////////////////////////////////
@@ -100,6 +117,10 @@ func (uint16Domain) SamplesForAll(as []uint16) []uint16 {
 	res = removeDuplicatesGeneric[uint16](res)
 
 	return res
+}
+
+func (uint16Domain) CvcValue(v uint16, ctx smt.Context) smt.Term {
+	return ctx.IntConst(int64(v))
 }
 
 ////////////////////////////////////////////////////////////
@@ -138,6 +159,13 @@ func (d u256Domain) SamplesForAll(as []U256) []U256 {
 	return res
 }
 
+func (u256Domain) CvcValue(v U256, ctx smt.Context) smt.Term {
+	if v.IsUint64() {
+		return ctx.IntConst(int64(v.Uint64()))
+	}
+	return ctx.IntConstStr(v.ToBigInt().String())
+}
+
 ////////////////////////////////////////////////////////////
 // Address
 
@@ -159,6 +187,10 @@ func (d addressDomain) Samples(a tosca.Address) []tosca.Address {
 
 func (d addressDomain) SamplesForAll(as []tosca.Address) []tosca.Address {
 	panic("not implemented")
+}
+
+func (addressDomain) CvcValue(_ tosca.Address, _ smt.Context) smt.Term {
+	panic("address domain does not support CvcValue")
 }
 
 ////////////////////////////////////////////////////////////
@@ -184,6 +216,13 @@ func (d valueDomain) SamplesForAll(as []U256) []U256 {
 	}
 
 	return res
+}
+
+func (valueDomain) CvcValue(v U256, ctx smt.Context) smt.Term {
+	if v.IsUint64() {
+		return ctx.IntConst(int64(v.Uint64()))
+	}
+	return ctx.IntConstStr(v.ToBigInt().String())
 }
 
 ////////////////////////////////////////////////////////////
@@ -230,6 +269,10 @@ func (revisionDomain) SamplesForAll(a []tosca.Revision) []tosca.Revision {
 	return res
 }
 
+func (revisionDomain) CvcValue(v tosca.Revision, ctx smt.Context) smt.Term {
+	return ctx.IntConst(int64(v))
+}
+
 ////////////////////////////////////////////////////////////
 // st.Status
 
@@ -253,6 +296,10 @@ func (statusCodeDomain) Samples(a st.StatusCode) []st.StatusCode {
 
 func (statusCodeDomain) SamplesForAll(a []st.StatusCode) []st.StatusCode {
 	return a
+}
+
+func (statusCodeDomain) CvcValue(v st.StatusCode, ctx smt.Context) smt.Term {
+	return ctx.IntConst(int64(v))
 }
 
 ////////////////////////////////////////////////////////////
@@ -287,6 +334,13 @@ func (pcDomain) SamplesForAll(as []U256) []U256 {
 	return res
 }
 
+func (pcDomain) CvcValue(v U256, ctx smt.Context) smt.Term {
+	if v.IsUint64() {
+		return ctx.IntConst(int64(v.Uint64()))
+	}
+	return ctx.IntConstStr(v.ToBigInt().String())
+}
+
 ////////////////////////////////////////////////////////////
 // Op Codes
 
@@ -305,6 +359,10 @@ func (opCodeDomain) SamplesForAll([]vm.OpCode) []vm.OpCode {
 		res = append(res, vm.OpCode(i))
 	}
 	return res
+}
+
+func (opCodeDomain) CvcValue(v vm.OpCode, ctx smt.Context) smt.Term {
+	return ctx.IntConst(int64(v))
 }
 
 ////////////////////////////////////////////////////////////
@@ -342,6 +400,10 @@ func (stackSizeDomain) SamplesForAll(as []int) []int {
 	return res
 }
 
+func (stackSizeDomain) CvcValue(v int, ctx smt.Context) smt.Term {
+	return ctx.IntConst(int64(v))
+}
+
 ////////////////////////////////////////////////////////////
 // Gas with upper bound
 
@@ -377,6 +439,10 @@ func (gasDomain) SamplesForAll(as []tosca.Gas) []tosca.Gas {
 	return res
 }
 
+func (gasDomain) CvcValue(v tosca.Gas, ctx smt.Context) smt.Term {
+	return ctx.IntConst(int64(v))
+}
+
 ////////////////////////////////////////////////////////////
 // BlockNumber Range Domain
 
@@ -407,6 +473,10 @@ func (BlockNumberOffsetDomain) SamplesForAll(as []int64) []int64 {
 	res = removeDuplicatesGeneric[int64](res)
 
 	return res
+}
+
+func (BlockNumberOffsetDomain) CvcValue(v int64, ctx smt.Context) smt.Term {
+	return ctx.IntConst(v)
 }
 
 func removeDuplicatesGeneric[T comparable](slice []T) []T {
@@ -487,4 +557,8 @@ func (DelegationDesignatorDomain) SamplesForAll([]DelegationDesignatorState) []D
 		WarmDelegationDesignation,
 		ColdDelegationDesignation,
 	}
+}
+
+func (DelegationDesignatorDomain) CvcValue(v DelegationDesignatorState, ctx smt.Context) smt.Term {
+	return ctx.IntConst(int64(v))
 }

@@ -17,6 +17,7 @@ import (
 
 	. "github.com/0xsoniclabs/tosca/go/ct/common"
 	"github.com/0xsoniclabs/tosca/go/ct/gen"
+	"github.com/0xsoniclabs/tosca/go/ct/smt"
 	"github.com/0xsoniclabs/tosca/go/ct/st"
 	"github.com/0xsoniclabs/tosca/go/tosca"
 )
@@ -37,6 +38,8 @@ type Condition interface {
 	fmt.Stringer
 
 	Py() string
+	// Cvc produces a CVC5 term representing this condition.
+	Cvc(ctx smt.Context) smt.Term
 }
 
 ////////////////////////////////////////////////////////////
@@ -123,6 +126,14 @@ func (c *conjunction) Py() string {
 
 }
 
+func (c *conjunction) Cvc(ctx smt.Context) smt.Term {
+	children := make([]smt.Term, len(c.conditions))
+	for i, cur := range c.conditions {
+		children[i] = cur.Cvc(ctx)
+	}
+	return ctx.And(children...)
+}
+
 ////////////////////////////////////////////////////////////
 // Equal
 
@@ -166,7 +177,11 @@ func (e *eq[T]) String() string {
 }
 
 func (e *eq[T]) Py() string {
-	return fmt.Sprintf("%s == %v", e.lhs.Py(), e.rhs) 
+	return fmt.Sprintf("%s == %v", e.lhs.Py(), e.rhs)
+}
+
+func (e *eq[T]) Cvc(ctx smt.Context) smt.Term {
+	return ctx.Eq(e.lhs.Cvc(ctx), e.lhs.Domain().CvcValue(e.rhs, ctx))
 }
 
 ////////////////////////////////////////////////////////////
@@ -207,6 +222,10 @@ func (e *ne[T]) Py() string {
 	return fmt.Sprintf("%s != %v", e.lhs.Py(), e.rhs)
 }
 
+func (e *ne[T]) Cvc(ctx smt.Context) smt.Term {
+	return ctx.Not(ctx.Eq(e.lhs.Cvc(ctx), e.lhs.Domain().CvcValue(e.rhs, ctx)))
+}
+
 ////////////////////////////////////////////////////////////
 // Less Than
 
@@ -245,6 +264,9 @@ func (c *lt[T]) Py() string {
 	return fmt.Sprintf("%s < %v", c.lhs.Py(), c.rhs)
 }
 
+func (c *lt[T]) Cvc(ctx smt.Context) smt.Term {
+	return ctx.Lt(c.lhs.Cvc(ctx), c.lhs.Domain().CvcValue(c.rhs, ctx))
+}
 
 ////////////////////////////////////////////////////////////
 // Less Equal
@@ -281,6 +303,10 @@ func (c *le[T]) String() string {
 
 func (c *le[T]) Py() string {
 	return fmt.Sprintf("%s <= %v", c.lhs.Py(), c.rhs)
+}
+
+func (c *le[T]) Cvc(ctx smt.Context) smt.Term {
+	return ctx.Leq(c.lhs.Cvc(ctx), c.lhs.Domain().CvcValue(c.rhs, ctx))
 }
 
 ////////////////////////////////////////////////////////////
@@ -321,6 +347,10 @@ func (c *gt[T]) Py() string {
 	return fmt.Sprintf("%s > %v", c.lhs.Py(), c.rhs)
 }
 
+func (c *gt[T]) Cvc(ctx smt.Context) smt.Term {
+	return ctx.Gt(c.lhs.Cvc(ctx), c.lhs.Domain().CvcValue(c.rhs, ctx))
+}
+
 ////////////////////////////////////////////////////////////
 // Greater Equal
 
@@ -356,6 +386,10 @@ func (c *ge[T]) String() string {
 
 func (c *ge[T]) Py() string {
 	return fmt.Sprintf("%s >= %v", c.lhs.Py(), c.rhs)
+}
+
+func (c *ge[T]) Cvc(ctx smt.Context) smt.Term {
+	return ctx.Geq(c.lhs.Cvc(ctx), c.lhs.Domain().CvcValue(c.rhs, ctx))
 }
 
 ////////////////////////////////////////////////////////////
@@ -433,6 +467,18 @@ func (c *revisionBounds) Py() string {
 	return fmt.Sprintf("And(%v <= revision, revision <= %v)", c.min, c.max)
 }
 
+func (c *revisionBounds) Cvc(ctx smt.Context) smt.Term {
+	if c.min == c.max {
+		if c.min != 99 {
+			return ctx.Eq(ctx.RevisionTerm(), ctx.IntConst(int64(c.min)))
+		}
+		return ctx.Or(ctx.Lt(ctx.RevisionTerm(), ctx.IntConst(0)), ctx.Geq(ctx.RevisionTerm(), ctx.IntConst(smt.NumRevisions)))
+	}
+	return ctx.And(
+		ctx.Leq(ctx.IntConst(int64(c.min)), ctx.RevisionTerm()),
+		ctx.Leq(ctx.RevisionTerm(), ctx.IntConst(int64(c.max))),
+	)
+}
 
 ////////////////////////////////////////////////////////////
 // Is Code
@@ -486,7 +532,17 @@ func (c *isCode) String() string {
 
 func (c *isCode) Py() string {
 	s := c.position.Py()
-	return fmt.Sprintf("And(0<=%s,%s<49152,isCode(%s))", s,s,s)
+	return fmt.Sprintf("And(0<=%s,%s<49152,isCode(%s))", s, s, s)
+}
+
+func (c *isCode) Cvc(ctx smt.Context) smt.Term {
+	s := c.position.Py()
+	pos := c.position.Cvc(ctx)
+	return ctx.And(
+		ctx.Geq(pos, ctx.IntConst(0)),
+		ctx.Lt(pos, ctx.IntConst(smt.MaxCodeLen)),
+		ctx.IsCode(s),
+	)
 }
 
 ////////////////////////////////////////////////////////////
@@ -527,7 +583,17 @@ func (c *isData) String() string {
 
 func (c *isData) Py() string {
 	s := c.position.Py()
-	return fmt.Sprintf("Or(%s<0,%s>=49152,isData(%s))", s,s,s)
+	return fmt.Sprintf("Or(%s<0,%s>=49152,isData(%s))", s, s, s)
+}
+
+func (c *isData) Cvc(ctx smt.Context) smt.Term {
+	s := c.position.Py()
+	pos := c.position.Cvc(ctx)
+	return ctx.Or(
+		ctx.Lt(pos, ctx.IntConst(0)),
+		ctx.Geq(pos, ctx.IntConst(smt.MaxCodeLen)),
+		ctx.IsData(s),
+	)
 }
 
 ////////////////////////////////////////////////////////////
@@ -581,6 +647,10 @@ func (c *isStorageWarm) Py() string {
 	return fmt.Sprintf("Not(storage_cold(%v))", c.key.Py())
 }
 
+func (c *isStorageWarm) Cvc(ctx smt.Context) smt.Term {
+	return ctx.Not(ctx.StorageCold(c.key.Py()))
+}
+
 ////////////////////////////////////////////////////////////
 // Is Storage Cold
 
@@ -616,6 +686,10 @@ func (c *isStorageCold) String() string {
 
 func (c *isStorageCold) Py() string {
 	return fmt.Sprintf("storage_cold(%v)", c.key.Py())
+}
+
+func (c *isStorageCold) Cvc(ctx smt.Context) smt.Term {
+	return ctx.StorageCold(c.key.Py())
 }
 
 ////////////////////////////////////////////////////////////
@@ -672,6 +746,10 @@ func (c *storageConfiguration) Py() string {
 	return fmt.Sprintf("storageConf(%v, %v, %v)", c.config, c.key.Py(), c.newValue.Py())
 }
 
+func (c *storageConfiguration) Cvc(ctx smt.Context) smt.Term {
+	return ctx.StorageConf(int64(c.config), c.key.Py(), c.newValue.Py())
+}
+
 ////////////////////////////////////////////////////////////
 // Bind Transient Storage to non zero value
 
@@ -723,6 +801,10 @@ func (c *bindTransientStorageToNonZero) Py() string {
 	return fmt.Sprintf("tranStorageNonZero(%v)", c.key.Py())
 }
 
+func (c *bindTransientStorageToNonZero) Cvc(ctx smt.Context) smt.Term {
+	return ctx.TranStorageNonZero(c.key.Py())
+}
+
 ////////////////////////////////////////////////////////////
 // Bind Transient Storage to zero value
 
@@ -755,6 +837,10 @@ func (c *bindTransientStorageToZero) String() string {
 
 func (c *bindTransientStorageToZero) Py() string {
 	return fmt.Sprintf("tranStorageToZero(%v)", c.key.Py())
+}
+
+func (c *bindTransientStorageToZero) Cvc(ctx smt.Context) smt.Term {
+	return ctx.TranStorageToZero(c.key.Py())
 }
 
 ////////////////////////////////////////////////////////////
@@ -805,6 +891,10 @@ func (c *accountIsEmpty) Py() string {
 	return fmt.Sprintf("account_empty(%v)", c.address.Py())
 }
 
+func (c *accountIsEmpty) Cvc(ctx smt.Context) smt.Term {
+	return ctx.AccountEmpty(c.address.Py())
+}
+
 ////////////////////////////////////////////////////////////
 // Address not empty
 
@@ -837,6 +927,10 @@ func (c *accountIsNotEmpty) String() string {
 
 func (c *accountIsNotEmpty) Py() string {
 	return fmt.Sprintf("Not(account_empty(%v))", c.address.Py())
+}
+
+func (c *accountIsNotEmpty) Cvc(ctx smt.Context) smt.Term {
+	return ctx.Not(ctx.AccountEmpty(c.address.Py()))
 }
 
 ////////////////////////////////////////////////////////////
@@ -877,6 +971,10 @@ func (c *isAddressWarm) String() string {
 
 func (c *isAddressWarm) Py() string {
 	return fmt.Sprintf("account_warm(%v)", c.key.Py())
+}
+
+func (c *isAddressWarm) Cvc(ctx smt.Context) smt.Term {
+	return ctx.AccountWarm(c.key.Py())
 }
 
 ////////////////////////////////////////////////////////////
@@ -928,6 +1026,10 @@ func (c *isAddressCold) Py() string {
 	return fmt.Sprintf("account_cold(%v)", c.key.Py())
 }
 
+func (c *isAddressCold) Cvc(ctx smt.Context) smt.Term {
+	return ctx.AccountCold(c.key.Py())
+}
+
 ////////////////////////////////////////////////////////////
 // Has Self-Destructed
 
@@ -970,6 +1072,10 @@ func (c *hasSelfDestructed) Py() string {
 	return "hasSelfDestructed"
 }
 
+func (c *hasSelfDestructed) Cvc(ctx smt.Context) smt.Term {
+	return ctx.SelfDestructedTerm()
+}
+
 ////////////////////////////////////////////////////////////
 // Has Not Self-Destructed
 
@@ -998,6 +1104,10 @@ func (c *hasNotSelfDestructed) String() string {
 
 func (c *hasNotSelfDestructed) Py() string {
 	return "Not(hasSelfDestructed)"
+}
+
+func (c *hasNotSelfDestructed) Cvc(ctx smt.Context) smt.Term {
+	return ctx.Not(ctx.SelfDestructedTerm())
 }
 
 ////////////////////////////////////////////////////////////
@@ -1057,6 +1167,10 @@ func (c *inRange256FromCurrentBlock) Py() string {
 	return fmt.Sprintf("inRange256FromCurrentBlock(%v)", c.blockNumber.Py())
 }
 
+func (c *inRange256FromCurrentBlock) Cvc(ctx smt.Context) smt.Term {
+	return ctx.InRange256FromCurrentBlock(c.blockNumber.Py())
+}
+
 ////////////////////////////////////////////////////////////
 // Out Of Range 256 From Current Block
 
@@ -1089,6 +1203,10 @@ func (c *outOfRange256FromCurrentBlock) String() string {
 
 func (c *outOfRange256FromCurrentBlock) Py() string {
 	return fmt.Sprintf("Not(inRange256FromCurrentBlock(%v))", c.blockNumber.Py())
+}
+
+func (c *outOfRange256FromCurrentBlock) Cvc(ctx smt.Context) smt.Term {
+	return ctx.Not(ctx.InRange256FromCurrentBlock(c.blockNumber.Py()))
 }
 
 ////////////////////////////////////////////////////////////
@@ -1148,6 +1266,10 @@ func (c *hasBlobHash) Py() string {
 	return fmt.Sprintf("hasBlobHash(%v)", c.index.Py())
 }
 
+func (c *hasBlobHash) Cvc(ctx smt.Context) smt.Term {
+	return ctx.HasBlobHash(c.index.Py())
+}
+
 ////////////////////////////////////////////////////////////
 // index does not have a blob hash
 
@@ -1180,6 +1302,10 @@ func (c *hasNoBlobHash) String() string {
 
 func (c *hasNoBlobHash) Py() string {
 	return fmt.Sprintf("Not(hasBlobHash(%v))", c.index.Py())
+}
+
+func (c *hasNoBlobHash) Cvc(ctx smt.Context) smt.Term {
+	return ctx.Not(ctx.HasBlobHash(c.index.Py()))
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1269,6 +1395,20 @@ func (c *containsDelegationDesignation) Py() string {
 	case ColdDelegationDesignation:
 		return fmt.Sprintf("ColdDelegationDesignation(%v)", c.address.Py())
 	default:
-		return "n/a"  // should produce an error
+		return "n/a" // should produce an error
+	}
+}
+
+func (c *containsDelegationDesignation) Cvc(ctx smt.Context) smt.Term {
+	x := c.address.Py()
+	switch c.state {
+	case NoDelegationDesignation:
+		return ctx.NoDelegationDesignation(x)
+	case WarmDelegationDesignation:
+		return ctx.WarmDelegationDesignation(x)
+	case ColdDelegationDesignation:
+		return ctx.ColdDelegationDesignation(x)
+	default:
+		panic("unknown DelegationDesignatorState")
 	}
 }

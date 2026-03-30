@@ -23,6 +23,7 @@ import (
 
 	"github.com/0xsoniclabs/tosca/go/ct/gen"
 	"github.com/0xsoniclabs/tosca/go/ct/rlz"
+	"github.com/0xsoniclabs/tosca/go/ct/smt"
 	"github.com/0xsoniclabs/tosca/go/ct/st"
 )
 
@@ -38,6 +39,10 @@ func condition(fitsRule bool, numStates int) rlz.Condition {
 
 func (e testCondition) Py() string {
 	return "not supported in test condition"
+}
+
+func (e testCondition) Cvc(_ smt.Context) smt.Term {
+	panic("not supported in test condition")
 }
 
 func (e testCondition) Check(s *st.State) (bool, error) {
