@@ -155,7 +155,7 @@ func (a *Accounts) Diff(b *Accounts) (res []string) {
 func (a *Accounts) String() string {
 	res := strings.Builder{}
 	write := func(pattern string, args ...any) {
-		res.WriteString(fmt.Sprintf(pattern, args...))
+		fmt.Fprintf(&res, pattern, args...)
 	}
 
 	order := func(a, b tosca.Address) bool {

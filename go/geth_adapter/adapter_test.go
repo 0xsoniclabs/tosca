@@ -258,7 +258,6 @@ func TestRunContextAdapter_GetAndSetTransientStorage(t *testing.T) {
 
 func TestRunContextAdapter_SelfDestructReportsWhetherTheAccountHasAlreadyBeenSelfDestructed(t *testing.T) {
 	cancunTime := uint64(42)
-	londonBlock := big.NewInt(42)
 	tests := map[string]struct {
 		blockTime      uint64
 		selfdestructed bool
@@ -290,12 +289,12 @@ func TestRunContextAdapter_SelfDestructReportsWhetherTheAccountHasAlreadyBeenSel
 			beneficiary := common.Address{0x43}
 
 			blockContext := geth.BlockContext{
-				BlockNumber: londonBlock.Add(londonBlock, big.NewInt(1)),
+				BlockNumber: big.NewInt(43),
 				Time:        test.blockTime,
 			}
 			chainConfig := &params.ChainConfig{
 				CancunTime:  &cancunTime,
-				LondonBlock: londonBlock,
+				LondonBlock: big.NewInt(42),
 				ChainID:     big.NewInt(42),
 			}
 			evm := geth.NewEVM(blockContext,

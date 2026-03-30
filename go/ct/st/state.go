@@ -156,6 +156,7 @@ type State struct {
 	CallData              Bytes
 	LastCallReturnData    Bytes
 	ReturnData            Bytes
+	IsNewContract         bool
 	HasSelfDestructed     bool
 	SelfDestructedJournal []SelfDestructEntry
 	RecentBlockHashes     ImmutableHashArray
@@ -210,6 +211,7 @@ func (s *State) Clone() *State {
 	clone.CallData = s.CallData
 	clone.LastCallReturnData = s.LastCallReturnData
 	clone.ReturnData = s.ReturnData
+	clone.IsNewContract = s.IsNewContract
 	clone.HasSelfDestructed = s.HasSelfDestructed
 	clone.SelfDestructedJournal = slices.Clone(s.SelfDestructedJournal)
 	clone.RecentBlockHashes = s.RecentBlockHashes
@@ -246,6 +248,7 @@ func (s *State) Eq(other *State) bool {
 		s.TransientStorage.Eq(other.TransientStorage) &&
 		s.Accounts.Eq(other.Accounts) &&
 		s.Logs.Eq(other.Logs) &&
+		s.IsNewContract == other.IsNewContract &&
 		s.HasSelfDestructed == other.HasSelfDestructed &&
 		slices.Equal(s.SelfDestructedJournal, other.SelfDestructedJournal) &&
 		s.RecentBlockHashes.Equal(other.RecentBlockHashes) &&
@@ -381,6 +384,7 @@ func (s *State) String() string {
 		write("\tReturnData: %x\n", s.ReturnData)
 	}
 
+	write("\tIsNewContract: %v\n", s.IsNewContract)
 	write("\tHasSelfDestructed: %v\n", s.HasSelfDestructed)
 	write("\tSelfDestructedJournal: %v\n", s.SelfDestructedJournal)
 
@@ -478,6 +482,10 @@ func (s *State) Diff(o *State) []string {
 
 	if (s.Status == Stopped || s.Status == Reverted) && s.ReturnData != o.ReturnData {
 		res = append(res, fmt.Sprintf("Different return data: %x vs %x", s.ReturnData, o.ReturnData))
+	}
+
+	if s.IsNewContract != o.IsNewContract {
+		res = append(res, fmt.Sprintf("Different is-new-contract: %v vs %v ", s.IsNewContract, o.IsNewContract))
 	}
 
 	if s.HasSelfDestructed != o.HasSelfDestructed {
