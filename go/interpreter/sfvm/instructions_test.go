@@ -119,6 +119,10 @@ func TestPush_PushingDataLongerThanCodeUsesZeroPadding(t *testing.T) {
 					code:  code,
 				}
 
+				// push random data to ensure that all bytes are overwritten by the push operation
+				ctxt.stack.push(uint256.NewInt(0).SetBytes(bytes.Repeat([]byte{0xAA}, 32)))
+				ctxt.stack.pop()
+
 				push(&ctxt)
 
 				expected := bytes.Repeat([]byte{0xFF}, providedBytes)
