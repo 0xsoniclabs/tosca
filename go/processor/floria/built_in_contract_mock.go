@@ -51,7 +51,7 @@ func (m *MockBuiltInContract) EXPECT() *MockBuiltInContractMockRecorder {
 }
 
 // Run mocks base method.
-func (m *MockBuiltInContract) Run(state tosca.WorldState, sender, receiver tosca.Address, input []byte, gas tosca.Gas) tosca.CallResult {
+func (m *MockBuiltInContract) Run(state tosca.ProcessorContext, sender, receiver tosca.Address, input []byte, gas tosca.Gas) tosca.CallResult {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Run", state, sender, receiver, input, gas)
 	ret0, _ := ret[0].(tosca.CallResult)

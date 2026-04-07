@@ -19,7 +19,7 @@ package tosca
 // the integration of precompiled contracts, and the creation of new contracts.
 type Processor interface {
 	// Run executes the transaction provided by the parameters in the specified context.
-	Run(BlockParameters, Transaction, TransactionContext) (Receipt, error)
+	Run(BlockParameters, Transaction, ProcessorContext) (Receipt, error)
 }
 
 // Transaction summarizes the parameters of a transaction to be executed on a chain.

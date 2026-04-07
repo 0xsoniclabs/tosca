@@ -227,7 +227,7 @@ func TestTransactionToMessage_AuthorizationList(t *testing.T) {
 
 func TestProcessor_ReceiptIsDefaultInitializedInCaseOfError(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	context := tosca.NewMockTransactionContext(ctrl)
+	context := tosca.NewMockProcessorContext(ctrl)
 	context.EXPECT().CreateSnapshot()
 	context.EXPECT().GetNonce(gomock.Any())
 	context.EXPECT().GetCode(gomock.Any())

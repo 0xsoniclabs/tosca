@@ -116,20 +116,6 @@ func (mr *MockRunContextMockRecorder) AccessStorage(arg0, arg1 any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AccessStorage", reflect.TypeOf((*MockRunContext)(nil).AccessStorage), arg0, arg1)
 }
 
-// AccountExists mocks base method.
-func (m *MockRunContext) AccountExists(arg0 Address) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AccountExists", arg0)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// AccountExists indicates an expected call of AccountExists.
-func (mr *MockRunContextMockRecorder) AccountExists(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AccountExists", reflect.TypeOf((*MockRunContext)(nil).AccountExists), arg0)
-}
-
 // Call mocks base method.
 func (m *MockRunContext) Call(kind CallKind, parameter CallParameters) (CallResult, error) {
 	m.ctrl.T.Helper()
@@ -143,32 +129,6 @@ func (m *MockRunContext) Call(kind CallKind, parameter CallParameters) (CallResu
 func (mr *MockRunContextMockRecorder) Call(kind, parameter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Call", reflect.TypeOf((*MockRunContext)(nil).Call), kind, parameter)
-}
-
-// CreateContract mocks base method.
-func (m *MockRunContext) CreateContract(arg0 Address) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "CreateContract", arg0)
-}
-
-// CreateContract indicates an expected call of CreateContract.
-func (mr *MockRunContextMockRecorder) CreateContract(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateContract", reflect.TypeOf((*MockRunContext)(nil).CreateContract), arg0)
-}
-
-// CreateSnapshot mocks base method.
-func (m *MockRunContext) CreateSnapshot() Snapshot {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateSnapshot")
-	ret0, _ := ret[0].(Snapshot)
-	return ret0
-}
-
-// CreateSnapshot indicates an expected call of CreateSnapshot.
-func (mr *MockRunContextMockRecorder) CreateSnapshot() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSnapshot", reflect.TypeOf((*MockRunContext)(nil).CreateSnapshot))
 }
 
 // EmitLog mocks base method.
@@ -198,17 +158,17 @@ func (mr *MockRunContextMockRecorder) GetBalance(arg0 any) *gomock.Call {
 }
 
 // GetBlockHash mocks base method.
-func (m *MockRunContext) GetBlockHash(number int64) Hash {
+func (m *MockRunContext) GetBlockHash(arg0 int64) Hash {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetBlockHash", number)
+	ret := m.ctrl.Call(m, "GetBlockHash", arg0)
 	ret0, _ := ret[0].(Hash)
 	return ret0
 }
 
 // GetBlockHash indicates an expected call of GetBlockHash.
-func (mr *MockRunContextMockRecorder) GetBlockHash(number any) *gomock.Call {
+func (mr *MockRunContextMockRecorder) GetBlockHash(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockHash", reflect.TypeOf((*MockRunContext)(nil).GetBlockHash), number)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockHash", reflect.TypeOf((*MockRunContext)(nil).GetBlockHash), arg0)
 }
 
 // GetCode mocks base method.
@@ -267,20 +227,6 @@ func (mr *MockRunContextMockRecorder) GetCommittedStorage(addr, key any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCommittedStorage", reflect.TypeOf((*MockRunContext)(nil).GetCommittedStorage), addr, key)
 }
 
-// GetLogs mocks base method.
-func (m *MockRunContext) GetLogs() []Log {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetLogs")
-	ret0, _ := ret[0].([]Log)
-	return ret0
-}
-
-// GetLogs indicates an expected call of GetLogs.
-func (mr *MockRunContextMockRecorder) GetLogs() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLogs", reflect.TypeOf((*MockRunContext)(nil).GetLogs))
-}
-
 // GetNonce mocks base method.
 func (m *MockRunContext) GetNonce(arg0 Address) uint64 {
 	m.ctrl.T.Helper()
@@ -321,20 +267,6 @@ func (m *MockRunContext) GetTransientStorage(arg0 Address, arg1 Key) Word {
 func (mr *MockRunContextMockRecorder) GetTransientStorage(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTransientStorage", reflect.TypeOf((*MockRunContext)(nil).GetTransientStorage), arg0, arg1)
-}
-
-// HasEmptyStorage mocks base method.
-func (m *MockRunContext) HasEmptyStorage(arg0 Address) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HasEmptyStorage", arg0)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// HasEmptyStorage indicates an expected call of HasEmptyStorage.
-func (mr *MockRunContextMockRecorder) HasEmptyStorage(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasEmptyStorage", reflect.TypeOf((*MockRunContext)(nil).HasEmptyStorage), arg0)
 }
 
 // HasSelfDestructed mocks base method.
@@ -394,30 +326,18 @@ func (mr *MockRunContextMockRecorder) IsSlotInAccessList(addr, key any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSlotInAccessList", reflect.TypeOf((*MockRunContext)(nil).IsSlotInAccessList), addr, key)
 }
 
-// RestoreSnapshot mocks base method.
-func (m *MockRunContext) RestoreSnapshot(arg0 Snapshot) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RestoreSnapshot", arg0)
-}
-
-// RestoreSnapshot indicates an expected call of RestoreSnapshot.
-func (mr *MockRunContextMockRecorder) RestoreSnapshot(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RestoreSnapshot", reflect.TypeOf((*MockRunContext)(nil).RestoreSnapshot), arg0)
-}
-
 // SelfDestruct mocks base method.
-func (m *MockRunContext) SelfDestruct(addr, beneficiary Address) bool {
+func (m *MockRunContext) SelfDestruct(address, beneficiary Address) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelfDestruct", addr, beneficiary)
+	ret := m.ctrl.Call(m, "SelfDestruct", address, beneficiary)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
 // SelfDestruct indicates an expected call of SelfDestruct.
-func (mr *MockRunContextMockRecorder) SelfDestruct(addr, beneficiary any) *gomock.Call {
+func (mr *MockRunContextMockRecorder) SelfDestruct(address, beneficiary any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelfDestruct", reflect.TypeOf((*MockRunContext)(nil).SelfDestruct), addr, beneficiary)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelfDestruct", reflect.TypeOf((*MockRunContext)(nil).SelfDestruct), address, beneficiary)
 }
 
 // SetBalance mocks base method.
@@ -430,30 +350,6 @@ func (m *MockRunContext) SetBalance(arg0 Address, arg1 Value) {
 func (mr *MockRunContextMockRecorder) SetBalance(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBalance", reflect.TypeOf((*MockRunContext)(nil).SetBalance), arg0, arg1)
-}
-
-// SetCode mocks base method.
-func (m *MockRunContext) SetCode(arg0 Address, arg1 Code) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetCode", arg0, arg1)
-}
-
-// SetCode indicates an expected call of SetCode.
-func (mr *MockRunContextMockRecorder) SetCode(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCode", reflect.TypeOf((*MockRunContext)(nil).SetCode), arg0, arg1)
-}
-
-// SetNonce mocks base method.
-func (m *MockRunContext) SetNonce(arg0 Address, arg1 uint64) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetNonce", arg0, arg1)
-}
-
-// SetNonce indicates an expected call of SetNonce.
-func (mr *MockRunContextMockRecorder) SetNonce(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNonce", reflect.TypeOf((*MockRunContext)(nil).SetNonce), arg0, arg1)
 }
 
 // SetStorage mocks base method.
@@ -482,32 +378,32 @@ func (mr *MockRunContextMockRecorder) SetTransientStorage(arg0, arg1, arg2 any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTransientStorage", reflect.TypeOf((*MockRunContext)(nil).SetTransientStorage), arg0, arg1, arg2)
 }
 
-// MockTransactionContext is a mock of TransactionContext interface.
-type MockTransactionContext struct {
+// MockProcessorContext is a mock of ProcessorContext interface.
+type MockProcessorContext struct {
 	ctrl     *gomock.Controller
-	recorder *MockTransactionContextMockRecorder
+	recorder *MockProcessorContextMockRecorder
 	isgomock struct{}
 }
 
-// MockTransactionContextMockRecorder is the mock recorder for MockTransactionContext.
-type MockTransactionContextMockRecorder struct {
-	mock *MockTransactionContext
+// MockProcessorContextMockRecorder is the mock recorder for MockProcessorContext.
+type MockProcessorContextMockRecorder struct {
+	mock *MockProcessorContext
 }
 
-// NewMockTransactionContext creates a new mock instance.
-func NewMockTransactionContext(ctrl *gomock.Controller) *MockTransactionContext {
-	mock := &MockTransactionContext{ctrl: ctrl}
-	mock.recorder = &MockTransactionContextMockRecorder{mock}
+// NewMockProcessorContext creates a new mock instance.
+func NewMockProcessorContext(ctrl *gomock.Controller) *MockProcessorContext {
+	mock := &MockProcessorContext{ctrl: ctrl}
+	mock.recorder = &MockProcessorContextMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockTransactionContext) EXPECT() *MockTransactionContextMockRecorder {
+func (m *MockProcessorContext) EXPECT() *MockProcessorContextMockRecorder {
 	return m.recorder
 }
 
 // AccessAccount mocks base method.
-func (m *MockTransactionContext) AccessAccount(arg0 Address) AccessStatus {
+func (m *MockProcessorContext) AccessAccount(arg0 Address) AccessStatus {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AccessAccount", arg0)
 	ret0, _ := ret[0].(AccessStatus)
@@ -515,13 +411,13 @@ func (m *MockTransactionContext) AccessAccount(arg0 Address) AccessStatus {
 }
 
 // AccessAccount indicates an expected call of AccessAccount.
-func (mr *MockTransactionContextMockRecorder) AccessAccount(arg0 any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) AccessAccount(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AccessAccount", reflect.TypeOf((*MockTransactionContext)(nil).AccessAccount), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AccessAccount", reflect.TypeOf((*MockProcessorContext)(nil).AccessAccount), arg0)
 }
 
 // AccessStorage mocks base method.
-func (m *MockTransactionContext) AccessStorage(arg0 Address, arg1 Key) AccessStatus {
+func (m *MockProcessorContext) AccessStorage(arg0 Address, arg1 Key) AccessStatus {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AccessStorage", arg0, arg1)
 	ret0, _ := ret[0].(AccessStatus)
@@ -529,13 +425,13 @@ func (m *MockTransactionContext) AccessStorage(arg0 Address, arg1 Key) AccessSta
 }
 
 // AccessStorage indicates an expected call of AccessStorage.
-func (mr *MockTransactionContextMockRecorder) AccessStorage(arg0, arg1 any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) AccessStorage(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AccessStorage", reflect.TypeOf((*MockTransactionContext)(nil).AccessStorage), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AccessStorage", reflect.TypeOf((*MockProcessorContext)(nil).AccessStorage), arg0, arg1)
 }
 
 // AccountExists mocks base method.
-func (m *MockTransactionContext) AccountExists(arg0 Address) bool {
+func (m *MockProcessorContext) AccountExists(arg0 Address) bool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AccountExists", arg0)
 	ret0, _ := ret[0].(bool)
@@ -543,25 +439,25 @@ func (m *MockTransactionContext) AccountExists(arg0 Address) bool {
 }
 
 // AccountExists indicates an expected call of AccountExists.
-func (mr *MockTransactionContextMockRecorder) AccountExists(arg0 any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) AccountExists(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AccountExists", reflect.TypeOf((*MockTransactionContext)(nil).AccountExists), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AccountExists", reflect.TypeOf((*MockProcessorContext)(nil).AccountExists), arg0)
 }
 
 // CreateContract mocks base method.
-func (m *MockTransactionContext) CreateContract(arg0 Address) {
+func (m *MockProcessorContext) CreateContract(arg0 Address) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "CreateContract", arg0)
 }
 
 // CreateContract indicates an expected call of CreateContract.
-func (mr *MockTransactionContextMockRecorder) CreateContract(arg0 any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) CreateContract(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateContract", reflect.TypeOf((*MockTransactionContext)(nil).CreateContract), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateContract", reflect.TypeOf((*MockProcessorContext)(nil).CreateContract), arg0)
 }
 
 // CreateSnapshot mocks base method.
-func (m *MockTransactionContext) CreateSnapshot() Snapshot {
+func (m *MockProcessorContext) CreateSnapshot() Snapshot {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateSnapshot")
 	ret0, _ := ret[0].(Snapshot)
@@ -569,25 +465,25 @@ func (m *MockTransactionContext) CreateSnapshot() Snapshot {
 }
 
 // CreateSnapshot indicates an expected call of CreateSnapshot.
-func (mr *MockTransactionContextMockRecorder) CreateSnapshot() *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) CreateSnapshot() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSnapshot", reflect.TypeOf((*MockTransactionContext)(nil).CreateSnapshot))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSnapshot", reflect.TypeOf((*MockProcessorContext)(nil).CreateSnapshot))
 }
 
 // EmitLog mocks base method.
-func (m *MockTransactionContext) EmitLog(arg0 Log) {
+func (m *MockProcessorContext) EmitLog(arg0 Log) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "EmitLog", arg0)
 }
 
 // EmitLog indicates an expected call of EmitLog.
-func (mr *MockTransactionContextMockRecorder) EmitLog(arg0 any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) EmitLog(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EmitLog", reflect.TypeOf((*MockTransactionContext)(nil).EmitLog), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EmitLog", reflect.TypeOf((*MockProcessorContext)(nil).EmitLog), arg0)
 }
 
 // GetBalance mocks base method.
-func (m *MockTransactionContext) GetBalance(arg0 Address) Value {
+func (m *MockProcessorContext) GetBalance(arg0 Address) Value {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetBalance", arg0)
 	ret0, _ := ret[0].(Value)
@@ -595,27 +491,27 @@ func (m *MockTransactionContext) GetBalance(arg0 Address) Value {
 }
 
 // GetBalance indicates an expected call of GetBalance.
-func (mr *MockTransactionContextMockRecorder) GetBalance(arg0 any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) GetBalance(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBalance", reflect.TypeOf((*MockTransactionContext)(nil).GetBalance), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBalance", reflect.TypeOf((*MockProcessorContext)(nil).GetBalance), arg0)
 }
 
 // GetBlockHash mocks base method.
-func (m *MockTransactionContext) GetBlockHash(number int64) Hash {
+func (m *MockProcessorContext) GetBlockHash(arg0 int64) Hash {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetBlockHash", number)
+	ret := m.ctrl.Call(m, "GetBlockHash", arg0)
 	ret0, _ := ret[0].(Hash)
 	return ret0
 }
 
 // GetBlockHash indicates an expected call of GetBlockHash.
-func (mr *MockTransactionContextMockRecorder) GetBlockHash(number any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) GetBlockHash(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockHash", reflect.TypeOf((*MockTransactionContext)(nil).GetBlockHash), number)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBlockHash", reflect.TypeOf((*MockProcessorContext)(nil).GetBlockHash), arg0)
 }
 
 // GetCode mocks base method.
-func (m *MockTransactionContext) GetCode(arg0 Address) Code {
+func (m *MockProcessorContext) GetCode(arg0 Address) Code {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetCode", arg0)
 	ret0, _ := ret[0].(Code)
@@ -623,13 +519,13 @@ func (m *MockTransactionContext) GetCode(arg0 Address) Code {
 }
 
 // GetCode indicates an expected call of GetCode.
-func (mr *MockTransactionContextMockRecorder) GetCode(arg0 any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) GetCode(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCode", reflect.TypeOf((*MockTransactionContext)(nil).GetCode), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCode", reflect.TypeOf((*MockProcessorContext)(nil).GetCode), arg0)
 }
 
 // GetCodeHash mocks base method.
-func (m *MockTransactionContext) GetCodeHash(arg0 Address) Hash {
+func (m *MockProcessorContext) GetCodeHash(arg0 Address) Hash {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetCodeHash", arg0)
 	ret0, _ := ret[0].(Hash)
@@ -637,13 +533,13 @@ func (m *MockTransactionContext) GetCodeHash(arg0 Address) Hash {
 }
 
 // GetCodeHash indicates an expected call of GetCodeHash.
-func (mr *MockTransactionContextMockRecorder) GetCodeHash(arg0 any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) GetCodeHash(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCodeHash", reflect.TypeOf((*MockTransactionContext)(nil).GetCodeHash), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCodeHash", reflect.TypeOf((*MockProcessorContext)(nil).GetCodeHash), arg0)
 }
 
 // GetCodeSize mocks base method.
-func (m *MockTransactionContext) GetCodeSize(arg0 Address) int {
+func (m *MockProcessorContext) GetCodeSize(arg0 Address) int {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetCodeSize", arg0)
 	ret0, _ := ret[0].(int)
@@ -651,13 +547,13 @@ func (m *MockTransactionContext) GetCodeSize(arg0 Address) int {
 }
 
 // GetCodeSize indicates an expected call of GetCodeSize.
-func (mr *MockTransactionContextMockRecorder) GetCodeSize(arg0 any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) GetCodeSize(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCodeSize", reflect.TypeOf((*MockTransactionContext)(nil).GetCodeSize), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCodeSize", reflect.TypeOf((*MockProcessorContext)(nil).GetCodeSize), arg0)
 }
 
 // GetCommittedStorage mocks base method.
-func (m *MockTransactionContext) GetCommittedStorage(addr Address, key Key) Word {
+func (m *MockProcessorContext) GetCommittedStorage(addr Address, key Key) Word {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetCommittedStorage", addr, key)
 	ret0, _ := ret[0].(Word)
@@ -665,13 +561,13 @@ func (m *MockTransactionContext) GetCommittedStorage(addr Address, key Key) Word
 }
 
 // GetCommittedStorage indicates an expected call of GetCommittedStorage.
-func (mr *MockTransactionContextMockRecorder) GetCommittedStorage(addr, key any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) GetCommittedStorage(addr, key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCommittedStorage", reflect.TypeOf((*MockTransactionContext)(nil).GetCommittedStorage), addr, key)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCommittedStorage", reflect.TypeOf((*MockProcessorContext)(nil).GetCommittedStorage), addr, key)
 }
 
 // GetLogs mocks base method.
-func (m *MockTransactionContext) GetLogs() []Log {
+func (m *MockProcessorContext) GetLogs() []Log {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetLogs")
 	ret0, _ := ret[0].([]Log)
@@ -679,13 +575,13 @@ func (m *MockTransactionContext) GetLogs() []Log {
 }
 
 // GetLogs indicates an expected call of GetLogs.
-func (mr *MockTransactionContextMockRecorder) GetLogs() *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) GetLogs() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLogs", reflect.TypeOf((*MockTransactionContext)(nil).GetLogs))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLogs", reflect.TypeOf((*MockProcessorContext)(nil).GetLogs))
 }
 
 // GetNonce mocks base method.
-func (m *MockTransactionContext) GetNonce(arg0 Address) uint64 {
+func (m *MockProcessorContext) GetNonce(arg0 Address) uint64 {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetNonce", arg0)
 	ret0, _ := ret[0].(uint64)
@@ -693,13 +589,13 @@ func (m *MockTransactionContext) GetNonce(arg0 Address) uint64 {
 }
 
 // GetNonce indicates an expected call of GetNonce.
-func (mr *MockTransactionContextMockRecorder) GetNonce(arg0 any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) GetNonce(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNonce", reflect.TypeOf((*MockTransactionContext)(nil).GetNonce), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNonce", reflect.TypeOf((*MockProcessorContext)(nil).GetNonce), arg0)
 }
 
 // GetStorage mocks base method.
-func (m *MockTransactionContext) GetStorage(arg0 Address, arg1 Key) Word {
+func (m *MockProcessorContext) GetStorage(arg0 Address, arg1 Key) Word {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetStorage", arg0, arg1)
 	ret0, _ := ret[0].(Word)
@@ -707,13 +603,13 @@ func (m *MockTransactionContext) GetStorage(arg0 Address, arg1 Key) Word {
 }
 
 // GetStorage indicates an expected call of GetStorage.
-func (mr *MockTransactionContextMockRecorder) GetStorage(arg0, arg1 any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) GetStorage(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStorage", reflect.TypeOf((*MockTransactionContext)(nil).GetStorage), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStorage", reflect.TypeOf((*MockProcessorContext)(nil).GetStorage), arg0, arg1)
 }
 
 // GetTransientStorage mocks base method.
-func (m *MockTransactionContext) GetTransientStorage(arg0 Address, arg1 Key) Word {
+func (m *MockProcessorContext) GetTransientStorage(arg0 Address, arg1 Key) Word {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetTransientStorage", arg0, arg1)
 	ret0, _ := ret[0].(Word)
@@ -721,13 +617,13 @@ func (m *MockTransactionContext) GetTransientStorage(arg0 Address, arg1 Key) Wor
 }
 
 // GetTransientStorage indicates an expected call of GetTransientStorage.
-func (mr *MockTransactionContextMockRecorder) GetTransientStorage(arg0, arg1 any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) GetTransientStorage(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTransientStorage", reflect.TypeOf((*MockTransactionContext)(nil).GetTransientStorage), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTransientStorage", reflect.TypeOf((*MockProcessorContext)(nil).GetTransientStorage), arg0, arg1)
 }
 
 // HasEmptyStorage mocks base method.
-func (m *MockTransactionContext) HasEmptyStorage(arg0 Address) bool {
+func (m *MockProcessorContext) HasEmptyStorage(arg0 Address) bool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "HasEmptyStorage", arg0)
 	ret0, _ := ret[0].(bool)
@@ -735,13 +631,13 @@ func (m *MockTransactionContext) HasEmptyStorage(arg0 Address) bool {
 }
 
 // HasEmptyStorage indicates an expected call of HasEmptyStorage.
-func (mr *MockTransactionContextMockRecorder) HasEmptyStorage(arg0 any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) HasEmptyStorage(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasEmptyStorage", reflect.TypeOf((*MockTransactionContext)(nil).HasEmptyStorage), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasEmptyStorage", reflect.TypeOf((*MockProcessorContext)(nil).HasEmptyStorage), arg0)
 }
 
 // HasSelfDestructed mocks base method.
-func (m *MockTransactionContext) HasSelfDestructed(addr Address) bool {
+func (m *MockProcessorContext) HasSelfDestructed(addr Address) bool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "HasSelfDestructed", addr)
 	ret0, _ := ret[0].(bool)
@@ -749,13 +645,13 @@ func (m *MockTransactionContext) HasSelfDestructed(addr Address) bool {
 }
 
 // HasSelfDestructed indicates an expected call of HasSelfDestructed.
-func (mr *MockTransactionContextMockRecorder) HasSelfDestructed(addr any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) HasSelfDestructed(addr any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasSelfDestructed", reflect.TypeOf((*MockTransactionContext)(nil).HasSelfDestructed), addr)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasSelfDestructed", reflect.TypeOf((*MockProcessorContext)(nil).HasSelfDestructed), addr)
 }
 
 // IsAddressInAccessList mocks base method.
-func (m *MockTransactionContext) IsAddressInAccessList(addr Address) bool {
+func (m *MockProcessorContext) IsAddressInAccessList(addr Address) bool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsAddressInAccessList", addr)
 	ret0, _ := ret[0].(bool)
@@ -763,13 +659,13 @@ func (m *MockTransactionContext) IsAddressInAccessList(addr Address) bool {
 }
 
 // IsAddressInAccessList indicates an expected call of IsAddressInAccessList.
-func (mr *MockTransactionContextMockRecorder) IsAddressInAccessList(addr any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) IsAddressInAccessList(addr any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsAddressInAccessList", reflect.TypeOf((*MockTransactionContext)(nil).IsAddressInAccessList), addr)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsAddressInAccessList", reflect.TypeOf((*MockProcessorContext)(nil).IsAddressInAccessList), addr)
 }
 
 // IsNewContract mocks base method.
-func (m *MockTransactionContext) IsNewContract(arg0 Address) bool {
+func (m *MockProcessorContext) IsNewContract(arg0 Address) bool {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsNewContract", arg0)
 	ret0, _ := ret[0].(bool)
@@ -777,13 +673,13 @@ func (m *MockTransactionContext) IsNewContract(arg0 Address) bool {
 }
 
 // IsNewContract indicates an expected call of IsNewContract.
-func (mr *MockTransactionContextMockRecorder) IsNewContract(arg0 any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) IsNewContract(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsNewContract", reflect.TypeOf((*MockTransactionContext)(nil).IsNewContract), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsNewContract", reflect.TypeOf((*MockProcessorContext)(nil).IsNewContract), arg0)
 }
 
 // IsSlotInAccessList mocks base method.
-func (m *MockTransactionContext) IsSlotInAccessList(addr Address, key Key) (bool, bool) {
+func (m *MockProcessorContext) IsSlotInAccessList(addr Address, key Key) (bool, bool) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsSlotInAccessList", addr, key)
 	ret0, _ := ret[0].(bool)
@@ -792,75 +688,75 @@ func (m *MockTransactionContext) IsSlotInAccessList(addr Address, key Key) (bool
 }
 
 // IsSlotInAccessList indicates an expected call of IsSlotInAccessList.
-func (mr *MockTransactionContextMockRecorder) IsSlotInAccessList(addr, key any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) IsSlotInAccessList(addr, key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSlotInAccessList", reflect.TypeOf((*MockTransactionContext)(nil).IsSlotInAccessList), addr, key)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSlotInAccessList", reflect.TypeOf((*MockProcessorContext)(nil).IsSlotInAccessList), addr, key)
 }
 
 // RestoreSnapshot mocks base method.
-func (m *MockTransactionContext) RestoreSnapshot(arg0 Snapshot) {
+func (m *MockProcessorContext) RestoreSnapshot(arg0 Snapshot) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "RestoreSnapshot", arg0)
 }
 
 // RestoreSnapshot indicates an expected call of RestoreSnapshot.
-func (mr *MockTransactionContextMockRecorder) RestoreSnapshot(arg0 any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) RestoreSnapshot(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RestoreSnapshot", reflect.TypeOf((*MockTransactionContext)(nil).RestoreSnapshot), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RestoreSnapshot", reflect.TypeOf((*MockProcessorContext)(nil).RestoreSnapshot), arg0)
 }
 
 // SelfDestruct mocks base method.
-func (m *MockTransactionContext) SelfDestruct(addr, beneficiary Address) bool {
+func (m *MockProcessorContext) SelfDestruct(address, beneficiary Address) bool {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelfDestruct", addr, beneficiary)
+	ret := m.ctrl.Call(m, "SelfDestruct", address, beneficiary)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
 // SelfDestruct indicates an expected call of SelfDestruct.
-func (mr *MockTransactionContextMockRecorder) SelfDestruct(addr, beneficiary any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) SelfDestruct(address, beneficiary any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelfDestruct", reflect.TypeOf((*MockTransactionContext)(nil).SelfDestruct), addr, beneficiary)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelfDestruct", reflect.TypeOf((*MockProcessorContext)(nil).SelfDestruct), address, beneficiary)
 }
 
 // SetBalance mocks base method.
-func (m *MockTransactionContext) SetBalance(arg0 Address, arg1 Value) {
+func (m *MockProcessorContext) SetBalance(arg0 Address, arg1 Value) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SetBalance", arg0, arg1)
 }
 
 // SetBalance indicates an expected call of SetBalance.
-func (mr *MockTransactionContextMockRecorder) SetBalance(arg0, arg1 any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) SetBalance(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBalance", reflect.TypeOf((*MockTransactionContext)(nil).SetBalance), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBalance", reflect.TypeOf((*MockProcessorContext)(nil).SetBalance), arg0, arg1)
 }
 
 // SetCode mocks base method.
-func (m *MockTransactionContext) SetCode(arg0 Address, arg1 Code) {
+func (m *MockProcessorContext) SetCode(arg0 Address, arg1 Code) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SetCode", arg0, arg1)
 }
 
 // SetCode indicates an expected call of SetCode.
-func (mr *MockTransactionContextMockRecorder) SetCode(arg0, arg1 any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) SetCode(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCode", reflect.TypeOf((*MockTransactionContext)(nil).SetCode), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCode", reflect.TypeOf((*MockProcessorContext)(nil).SetCode), arg0, arg1)
 }
 
 // SetNonce mocks base method.
-func (m *MockTransactionContext) SetNonce(arg0 Address, arg1 uint64) {
+func (m *MockProcessorContext) SetNonce(arg0 Address, arg1 uint64) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SetNonce", arg0, arg1)
 }
 
 // SetNonce indicates an expected call of SetNonce.
-func (mr *MockTransactionContextMockRecorder) SetNonce(arg0, arg1 any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) SetNonce(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNonce", reflect.TypeOf((*MockTransactionContext)(nil).SetNonce), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNonce", reflect.TypeOf((*MockProcessorContext)(nil).SetNonce), arg0, arg1)
 }
 
 // SetStorage mocks base method.
-func (m *MockTransactionContext) SetStorage(arg0 Address, arg1 Key, arg2 Word) StorageStatus {
+func (m *MockProcessorContext) SetStorage(arg0 Address, arg1 Key, arg2 Word) StorageStatus {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetStorage", arg0, arg1, arg2)
 	ret0, _ := ret[0].(StorageStatus)
@@ -868,21 +764,21 @@ func (m *MockTransactionContext) SetStorage(arg0 Address, arg1 Key, arg2 Word) S
 }
 
 // SetStorage indicates an expected call of SetStorage.
-func (mr *MockTransactionContextMockRecorder) SetStorage(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) SetStorage(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetStorage", reflect.TypeOf((*MockTransactionContext)(nil).SetStorage), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetStorage", reflect.TypeOf((*MockProcessorContext)(nil).SetStorage), arg0, arg1, arg2)
 }
 
 // SetTransientStorage mocks base method.
-func (m *MockTransactionContext) SetTransientStorage(arg0 Address, arg1 Key, arg2 Word) {
+func (m *MockProcessorContext) SetTransientStorage(arg0 Address, arg1 Key, arg2 Word) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SetTransientStorage", arg0, arg1, arg2)
 }
 
 // SetTransientStorage indicates an expected call of SetTransientStorage.
-func (mr *MockTransactionContextMockRecorder) SetTransientStorage(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockProcessorContextMockRecorder) SetTransientStorage(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTransientStorage", reflect.TypeOf((*MockTransactionContext)(nil).SetTransientStorage), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTransientStorage", reflect.TypeOf((*MockProcessorContext)(nil).SetTransientStorage), arg0, arg1, arg2)
 }
 
 // MockProfilingInterpreter is a mock of ProfilingInterpreter interface.

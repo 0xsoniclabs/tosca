@@ -14,34 +14,38 @@ import "fmt"
 
 //go:generate mockgen -source world_state.go -destination world_state_mock.go -package tosca
 
-// WorldState is an interface to access and manipulate the state of the block chain.
+// InterpreterContext is an interface to access and manipulate the state of the block chain.
 // The state of the chain is a collection of accounts, each with a balance, a nonce,
 // optional code and storage.
-type WorldState interface {
-	AccountExists(Address) bool
-
-	CreateContract(Address)
-	IsNewContract(Address) bool
-
-	GetBalance(Address) Value
-	SetBalance(Address, Value)
-
+type InterpreterContext interface {
 	GetNonce(Address) uint64
-	SetNonce(Address, uint64)
-
+	GetBalance(Address) Value
 	GetCode(Address) Code
 	GetCodeHash(Address) Hash
 	GetCodeSize(Address) int
-	SetCode(Address, Code)
+	GetBlockHash(int64) Hash
 
-	// HasEmptyStorage returns whether the account has an empty storage.
-	HasEmptyStorage(Address) bool
+	AccessAccount(Address) AccessStatus
+	AccessStorage(Address, Key) AccessStatus
+
 	GetStorage(Address, Key) Word
 	SetStorage(Address, Key, Word) StorageStatus
 
-	// SelfDestruct destroys addr and transfers its balance to beneficiary.
-	// Returns true if the given account is destructed for the first time in the ongoing transaction, false otherwise.
-	SelfDestruct(addr Address, beneficiary Address) bool
+	GetTransientStorage(Address, Key) Word
+	SetTransientStorage(Address, Key, Word)
+
+	EmitLog(Log)
+	SelfDestruct(address Address, beneficiary Address) bool
+
+	// only here due to geth selfdestruct
+	IsNewContract(Address) bool
+	SetBalance(Address, Value)
+
+	// -- legacy API needed by Geth, to be removed in the future ---
+	GetCommittedStorage(addr Address, key Key) Word
+	IsAddressInAccessList(addr Address) bool
+	IsSlotInAccessList(addr Address, key Key) (addressPresent, slotPresent bool)
+	HasSelfDestructed(addr Address) bool
 }
 
 // Address represents the 160-bit (20 bytes) address of an account.

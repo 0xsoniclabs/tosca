@@ -15,7 +15,7 @@ import "github.com/0xsoniclabs/tosca/go/tosca"
 // floriaContext is a wrapper around the tosca.TransactionContext
 // that adds the balance transfer to the selfdestruct function
 type floriaContext struct {
-	tosca.TransactionContext
+	tosca.ProcessorContext
 }
 
 // SelfDestruct overrides the SelfDestruct method to perform the balance update
@@ -26,5 +26,5 @@ func (c floriaContext) SelfDestruct(address tosca.Address, beneficiary tosca.Add
 	balance := c.GetBalance(address)
 	c.SetBalance(address, tosca.Value{})
 	c.SetBalance(beneficiary, tosca.Add(c.GetBalance(beneficiary), balance))
-	return c.TransactionContext.SelfDestruct(address, beneficiary)
+	return c.ProcessorContext.SelfDestruct(address, beneficiary)
 }

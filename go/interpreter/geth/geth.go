@@ -42,8 +42,9 @@ func (m *gethVm) Run(parameters tosca.Parameters) (tosca.Result, error) {
 		return tosca.Result{}, &tosca.ErrUnsupportedRevision{Revision: parameters.Revision}
 	}
 	evm, contract, stateDb := createGethInterpreterContext(parameters)
+	evm.CallInterceptor = &callInterceptor{parameters, stateDb, parameters.Static}
 
-	output, err := evm.Run(contract, parameters.Input, false)
+	output, err := evm.Run(contract, parameters.Input, parameters.Static)
 
 	result := tosca.Result{
 		Output:    output,
@@ -141,7 +142,7 @@ func currentBlock(revision tosca.Revision) *big.Int {
 	return big.NewInt(int64(block + 2))
 }
 
-func createGethInterpreterContext(parameters tosca.Parameters) (*geth.EVM, *geth.Contract, *geth_adapter.StateDB) {
+func createGethInterpreterContext(parameters tosca.Parameters) (*geth.EVM, *geth.Contract, *geth_adapter.InterpreterStateDB) {
 	// Set hard forks for chainconfig
 	chainConfig :=
 		MakeChainConfig(*params.AllEthashProtocolChanges,
@@ -184,7 +185,7 @@ func createGethInterpreterContext(parameters tosca.Parameters) (*geth.EVM, *geth
 	// Set interpreter variant for this VM
 	config := geth.Config{}
 
-	stateDb := geth_adapter.NewStateDB(parameters.Context)
+	stateDb := geth_adapter.NewInterpreterStateDB(parameters.Context)
 	evm := geth.NewEVM(blockCtx, stateDb, &chainConfig, config)
 	evm.TxContext = txCtx
 

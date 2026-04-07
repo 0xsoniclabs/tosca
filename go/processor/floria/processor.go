@@ -69,7 +69,7 @@ type Processor struct {
 
 // BuiltInContract defines the Run function for special build in contracts that are not deployed as smart contracts.
 type BuiltInContract interface {
-	Run(state tosca.WorldState, sender tosca.Address, receiver tosca.Address, input []byte, gas tosca.Gas) tosca.CallResult
+	Run(state tosca.ProcessorContext, sender tosca.Address, receiver tosca.Address, input []byte, gas tosca.Gas) tosca.CallResult
 }
 
 // Config holds configuration options for the Floria processor.
@@ -96,7 +96,7 @@ type Config struct {
 func (p *Processor) Run(
 	blockParameters tosca.BlockParameters,
 	transaction tosca.Transaction,
-	context tosca.TransactionContext,
+	context tosca.ProcessorContext,
 ) (tosca.Receipt, error) {
 	if err := checkTransaction(blockParameters, transaction, context, p.Config); err != nil {
 		return tosca.Receipt{}, err
@@ -135,7 +135,7 @@ func (p *Processor) Run(
 func checkTransaction(
 	blockParameters tosca.BlockParameters,
 	transaction tosca.Transaction,
-	context tosca.TransactionContext,
+	context tosca.ProcessorContext,
 	config Config,
 ) error {
 	if err := nonceCheck(transaction.Nonce, context.GetNonce(transaction.Sender)); !config.OffChainSimulation && err != nil {
@@ -163,7 +163,7 @@ func checkTransaction(
 func calculateAvailableGas(
 	blockParameters tosca.BlockParameters,
 	transaction tosca.Transaction,
-	context tosca.TransactionContext,
+	context tosca.ProcessorContext,
 	config Config,
 ) (tosca.Value, tosca.Gas, error) {
 	gasPrice, err := calculateGasPrice(blockParameters.BaseFee, transaction.GasFeeCap, transaction.GasTipCap, config.OffChainSimulation)
@@ -192,7 +192,7 @@ func calculateAvailableGas(
 func (p *Processor) runTransaction(
 	blockParameters tosca.BlockParameters,
 	transaction tosca.Transaction,
-	context tosca.TransactionContext,
+	context tosca.ProcessorContext,
 	gasPrice tosca.Value,
 	gas tosca.Gas) (tosca.CallResult, error) {
 
@@ -203,7 +203,7 @@ func (p *Processor) runTransaction(
 	}
 
 	runContext := runContext{
-		TransactionContext:    floriaContext{context},
+		ProcessorContext:      floriaContext{context},
 		interpreter:           p.Interpreter,
 		config:                p.Config,
 		blockParameters:       blockParameters,
@@ -231,7 +231,7 @@ func (p *Processor) runTransaction(
 func returnExcessGas(
 	blockParameters tosca.BlockParameters,
 	transaction tosca.Transaction,
-	context tosca.TransactionContext,
+	context tosca.ProcessorContext,
 	gasPrice tosca.Value,
 	result tosca.CallResult,
 	ethCompatible bool,
@@ -324,7 +324,7 @@ func initCodeSizeCheck(revision tosca.Revision, transaction tosca.Transaction) e
 
 // Decreases the sender balance by the transaction gas limit.
 // This function does not check for sufficient balance and requires the balance check to be performed in advance.
-func buyGasInternal(transaction tosca.Transaction, gasPrice tosca.Value, blobGasPrice tosca.Value, context tosca.TransactionContext) {
+func buyGasInternal(transaction tosca.Transaction, gasPrice tosca.Value, blobGasPrice tosca.Value, context tosca.ProcessorContext) {
 	gas := gasPrice.Scale(uint64(transaction.GasLimit))
 
 	if len(transaction.BlobHashes) > 0 {
@@ -338,7 +338,7 @@ func buyGasInternal(transaction tosca.Transaction, gasPrice tosca.Value, blobGas
 }
 
 // setUpAccessList sets up the access list for the transaction by adding accounts and storage keys.
-func setUpAccessList(transaction tosca.Transaction, context tosca.TransactionContext, revision tosca.Revision, coinBase tosca.Address) {
+func setUpAccessList(transaction tosca.Transaction, context tosca.ProcessorContext, revision tosca.Revision, coinBase tosca.Address) {
 	if transaction.AccessList == nil {
 		return
 	}
@@ -421,7 +421,7 @@ func calculateGasLeft(transaction tosca.Transaction, result tosca.CallResult, re
 }
 
 // refundGasInternal transfers the remaining gas back to the sender.
-func refundGasInternal(context tosca.TransactionContext, sender tosca.Address, gasPrice tosca.Value, gasLeft tosca.Gas) {
+func refundGasInternal(context tosca.ProcessorContext, sender tosca.Address, gasPrice tosca.Value, gasLeft tosca.Gas) {
 	refundValue := gasPrice.Scale(uint64(gasLeft))
 	senderBalance := context.GetBalance(sender)
 	senderBalance = tosca.Add(senderBalance, refundValue)
@@ -472,7 +472,7 @@ func calculateSetupGas(transaction tosca.Transaction, revision tosca.Revision) t
 }
 
 // paymentToCoinbase transfers the tip to the coinbase, only applicable for ethereum compatible version
-func paymentToCoinbase(gasPrice tosca.Value, gasUsed tosca.Gas, blockParameters tosca.BlockParameters, context tosca.TransactionContext) {
+func paymentToCoinbase(gasPrice tosca.Value, gasUsed tosca.Gas, blockParameters tosca.BlockParameters, context tosca.ProcessorContext) {
 	effectiveTip := gasPrice
 	if blockParameters.Revision >= tosca.R10_London {
 		effectiveTip = tosca.Sub(gasPrice, blockParameters.BaseFee)

@@ -380,30 +380,27 @@ func gethToVMErrors(err error, gas tosca.Gas) (tosca.CallResult, error) {
 	return tosca.CallResult{Success: false}, err
 }
 
-func (a *runContextAdapter) CreateContract(addr tosca.Address) {
-	a.evm.StateDB.CreateContract(common.Address(addr))
-}
-
 func (a *runContextAdapter) IsNewContract(addr tosca.Address) bool {
 	return a.evm.StateDB.IsNewContract(common.Address(addr))
 }
 
-func (a *runContextAdapter) HasEmptyStorage(addr tosca.Address) bool {
-	// The storage is empty if the root is the empty or zero hash.
-	rootHash := a.evm.StateDB.GetStorageRoot(common.Address(addr))
-	return rootHash == common.Hash{} || rootHash == types.EmptyRootHash
-}
+func (a *runContextAdapter) SetBalance(addr tosca.Address, value tosca.Value) {
+	trg := common.Address(addr)
+	balance := a.evm.StateDB.GetBalance(trg)
+	have := tosca.ValueFromUint256(balance)
 
-func (a *runContextAdapter) AccountExists(addr tosca.Address) bool {
-	return a.evm.StateDB.Exist(common.Address(addr))
+	order := have.Cmp(value)
+	if order < 0 {
+		diff := tosca.Sub(value, have)
+		a.evm.StateDB.AddBalance(trg, diff.ToUint256(), tracing.BalanceChangeUnspecified)
+	} else if order > 0 {
+		diff := tosca.Sub(have, value)
+		a.evm.StateDB.SubBalance(trg, diff.ToUint256(), tracing.BalanceChangeUnspecified)
+	}
 }
 
 func (a *runContextAdapter) GetNonce(addr tosca.Address) uint64 {
 	return a.evm.StateDB.GetNonce(common.Address(addr))
-}
-
-func (a *runContextAdapter) SetNonce(addr tosca.Address, nonce uint64) {
-	a.evm.StateDB.SetNonce(common.Address(addr), nonce, tracing.NonceChangeUnspecified)
 }
 
 func (a *runContextAdapter) GetStorage(addr tosca.Address, key tosca.Key) tosca.Word {
@@ -431,21 +428,6 @@ func (a *runContextAdapter) GetBalance(addr tosca.Address) tosca.Value {
 	return tosca.ValueFromUint256(a.evm.StateDB.GetBalance(common.Address(addr)))
 }
 
-func (a *runContextAdapter) SetBalance(addr tosca.Address, value tosca.Value) {
-	trg := common.Address(addr)
-	balance := a.evm.StateDB.GetBalance(trg)
-	have := tosca.ValueFromUint256(balance)
-
-	order := have.Cmp(value)
-	if order < 0 {
-		diff := tosca.Sub(value, have)
-		a.evm.StateDB.AddBalance(trg, diff.ToUint256(), tracing.BalanceChangeUnspecified)
-	} else if order > 0 {
-		diff := tosca.Sub(have, value)
-		a.evm.StateDB.SubBalance(trg, diff.ToUint256(), tracing.BalanceChangeUnspecified)
-	}
-}
-
 func (a *runContextAdapter) GetCodeSize(addr tosca.Address) int {
 	return a.evm.StateDB.GetCodeSize(common.Address(addr))
 }
@@ -456,10 +438,6 @@ func (a *runContextAdapter) GetCodeHash(addr tosca.Address) tosca.Hash {
 
 func (a *runContextAdapter) GetCode(addr tosca.Address) tosca.Code {
 	return a.evm.StateDB.GetCode(common.Address(addr))
-}
-
-func (a *runContextAdapter) SetCode(addr tosca.Address, code tosca.Code) {
-	a.evm.StateDB.SetCode(common.Address(addr), code, tracing.CodeChangeUnspecified)
 }
 
 func (a *runContextAdapter) GetBlockHash(number int64) tosca.Hash {
@@ -482,12 +460,6 @@ func (a *runContextAdapter) EmitLog(log tosca.Log) {
 	})
 }
 
-// GetLogs is not supported by the runContextAdapter.
-// It returns nil to indicate that no logs are available.
-func (a *runContextAdapter) GetLogs() []tosca.Log {
-	return nil
-}
-
 func (a *runContextAdapter) SelfDestruct(addr tosca.Address, beneficiary tosca.Address) bool {
 	stateDb := a.evm.StateDB
 	// HasSelfDestructed only returns true if it is the first call to SelfDestruct
@@ -505,14 +477,6 @@ func (a *runContextAdapter) SelfDestruct(addr tosca.Address, beneficiary tosca.A
 	}
 
 	return selfdestructed
-}
-
-func (a *runContextAdapter) CreateSnapshot() tosca.Snapshot {
-	return tosca.Snapshot(a.evm.StateDB.Snapshot())
-}
-
-func (a *runContextAdapter) RestoreSnapshot(snapshot tosca.Snapshot) {
-	a.evm.StateDB.RevertToSnapshot(int(snapshot))
 }
 
 func (a *runContextAdapter) AccessAccount(addr tosca.Address) tosca.AccessStatus {
@@ -533,8 +497,7 @@ func (a *runContextAdapter) AccessStorage(addr tosca.Address, key tosca.Key) tos
 	return tosca.ColdAccess
 }
 
-// -- legacy API needed by LFVM and Geth, to be removed in the future ---
-
+// -- legacy API needed by Geth, to be removed in the future ---
 func (a *runContextAdapter) GetCommittedStorage(addr tosca.Address, key tosca.Key) tosca.Word {
 	_, committed := a.evm.StateDB.GetStateAndCommittedState(common.Address(addr), common.Hash(key))
 	return tosca.Word(committed)

@@ -80,7 +80,7 @@ type processor struct {
 func (p *processor) Run(
 	blockParams tosca.BlockParameters,
 	transaction tosca.Transaction,
-	context tosca.TransactionContext,
+	context tosca.ProcessorContext,
 ) (tosca.Receipt, error) {
 
 	// --- setup ---
@@ -312,7 +312,7 @@ func keccak(data []byte) tosca.Hash {
 	return res
 }
 
-func preCheck(transaction tosca.Transaction, state tosca.WorldState, gasPrice tosca.Value) error {
+func preCheck(transaction tosca.Transaction, state tosca.ProcessorContext, gasPrice tosca.Value) error {
 	// Only check transactions that are not fake
 	// TODO: add support for non-checked transactions
 
@@ -337,7 +337,7 @@ func preCheck(transaction tosca.Transaction, state tosca.WorldState, gasPrice to
 	return buyGas(transaction, state, gasPrice)
 }
 
-func buyGas(tx tosca.Transaction, state tosca.WorldState, gasPrice tosca.Value) error {
+func buyGas(tx tosca.Transaction, state tosca.ProcessorContext, gasPrice tosca.Value) error {
 	// TODO: support arithmetic operations with Value type
 	mgval := uint256.NewInt(uint64(tx.GasLimit))
 	mgval = mgval.Mul(mgval, gasPrice.ToUint256())
@@ -363,7 +363,7 @@ func buyGas(tx tosca.Transaction, state tosca.WorldState, gasPrice tosca.Value) 
 	return nil
 }
 
-func refundGas(tx tosca.Transaction, gasLeft tosca.Gas, gasPrice tosca.Value, state tosca.WorldState) {
+func refundGas(tx tosca.Transaction, gasLeft tosca.Gas, gasPrice tosca.Value, state tosca.ProcessorContext) {
 
 	// Return wei for remaining gas, exchanged at the original rate.
 	refund := new(uint256.Int).Mul(new(uint256.Int).SetUint64(uint64(gasLeft)), gasPrice.ToUint256())

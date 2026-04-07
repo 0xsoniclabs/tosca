@@ -23,7 +23,7 @@ import (
 var emptyCodeHash = tosca.Hash(crypto.Keccak256(nil))
 
 type runContext struct {
-	tosca.TransactionContext
+	tosca.ProcessorContext
 	interpreter           tosca.Interpreter
 	config                Config
 	blockParameters       tosca.BlockParameters
@@ -111,13 +111,13 @@ func (r *runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallPar
 	}
 	defer func() { r.depth-- }()
 
-	if err := senderCreateSetUp(parameters, r.TransactionContext); err != nil {
+	if err := senderCreateSetUp(parameters, r.ProcessorContext); err != nil {
 		// the set up only fails if the create can not be executed in the current state,
 		// a unsuccessful receipt is returned but no gas is consumed.
 		return errResult, nil
 	}
 
-	createdAddress, err := createAddress(kind, parameters, r.blockParameters.Revision, r.TransactionContext)
+	createdAddress, err := createAddress(kind, parameters, r.blockParameters.Revision, r.ProcessorContext)
 	if err != nil {
 		// the address has been generated, therefore the gas is consumed in case of an error.
 		return tosca.CallResult{}, nil
@@ -166,7 +166,7 @@ func (r *runContext) executeCreate(kind tosca.CallKind, parameters tosca.CallPar
 }
 
 // handleStateContracts checks if the code address is a state contract and runs it if so.
-func handleStateContracts(r tosca.WorldState, config Config, parameters tosca.CallParameters) (tosca.CallResult, bool) {
+func handleStateContracts(r tosca.ProcessorContext, config Config, parameters tosca.CallParameters) (tosca.CallResult, bool) {
 	if config.BuiltInContracts == nil {
 		return tosca.CallResult{}, false
 	}
@@ -179,7 +179,7 @@ func handleStateContracts(r tosca.WorldState, config Config, parameters tosca.Ca
 }
 
 // senderCreateSetUp performs necessary steps before creating a contract.
-func senderCreateSetUp(parameters tosca.CallParameters, context tosca.TransactionContext) error {
+func senderCreateSetUp(parameters tosca.CallParameters, context tosca.ProcessorContext) error {
 	if !canTransferValue(context, parameters.Value, parameters.Sender, &parameters.Recipient) {
 		return fmt.Errorf("insufficient balance for value transfer")
 	}
@@ -196,7 +196,7 @@ func createAddress(
 	kind tosca.CallKind,
 	parameters tosca.CallParameters,
 	revision tosca.Revision,
-	context tosca.TransactionContext,
+	context tosca.ProcessorContext,
 ) (tosca.Address, error) {
 	var createdAddress tosca.Address
 
@@ -229,7 +229,7 @@ func createAddress(
 }
 
 // isEmpty checks whether an account has no nonce update, no code and empty storage.
-func isEmpty(context tosca.TransactionContext, address tosca.Address) bool {
+func isEmpty(context tosca.ProcessorContext, address tosca.Address) bool {
 	return context.GetNonce(address) == 0 && context.HasEmptyStorage(address) &&
 		(context.GetCodeHash(address) == (tosca.Hash{}) ||
 			context.GetCodeHash(address) == emptyCodeHash)
@@ -242,7 +242,7 @@ func checkAndDeployCode(
 	result tosca.Result,
 	createdAddress tosca.Address,
 	revision tosca.Revision,
-	context tosca.TransactionContext,
+	context tosca.ProcessorContext,
 ) tosca.Result {
 	outCode := result.Output
 	// check code size
@@ -317,7 +317,7 @@ func (r *runContext) incrementDepth() error {
 }
 
 func canTransferValue(
-	context tosca.TransactionContext,
+	context tosca.ProcessorContext,
 	value tosca.Value,
 	sender tosca.Address,
 	recipient *tosca.Address,
@@ -344,7 +344,7 @@ func canTransferValue(
 	return true
 }
 
-func incrementNonce(context tosca.TransactionContext, address tosca.Address) error {
+func incrementNonce(context tosca.ProcessorContext, address tosca.Address) error {
 	nonce := context.GetNonce(address)
 	if nonce+1 < nonce {
 		return fmt.Errorf("nonce overflow")
@@ -355,7 +355,7 @@ func incrementNonce(context tosca.TransactionContext, address tosca.Address) err
 
 // Only to be called after canTransferValue
 func transferValue(
-	context tosca.TransactionContext,
+	context tosca.ProcessorContext,
 	value tosca.Value,
 	sender tosca.Address,
 	recipient tosca.Address,

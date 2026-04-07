@@ -75,13 +75,12 @@ type ctRunContext struct {
 	state *st.State
 }
 
-// TODO: add unit test
-func (c *ctRunContext) AccountExists(addr tosca.Address) bool {
-	return c.state.Accounts.Exists(addr)
-}
-
 func (c *ctRunContext) IsNewContract(addr tosca.Address) bool {
 	return true // TODO: add support for newly created contracts
+}
+
+func (c *ctRunContext) SetBalance(addr tosca.Address, value tosca.Value) {
+	c.state.Accounts.SetBalance(addr, cc.NewU256FromBytes(value[:]...))
 }
 
 func (c *ctRunContext) GetStorage(addr tosca.Address, key tosca.Key) tosca.Word {
@@ -122,10 +121,6 @@ func (c *ctRunContext) GetCodeHash(addr tosca.Address) tosca.Hash {
 
 func (c *ctRunContext) GetCode(addr tosca.Address) tosca.Code {
 	return c.state.Accounts.GetCode(addr).ToBytes()
-}
-
-func (c *ctRunContext) SetCode(addr tosca.Address, code tosca.Code) {
-	panic("not implemented")
 }
 
 func (c *ctRunContext) GetBlockHash(number int64) tosca.Hash {
@@ -186,11 +181,17 @@ func (c *ctRunContext) AccessStorage(addr tosca.Address, key tosca.Key) tosca.Ac
 	return tosca.ColdAccess
 }
 
-// --- legacy API ---
+func (c *ctRunContext) GetNonce(tosca.Address) uint64 {
+	// Required to identify empty accounts. Nonces are not explicitly modeled
+	// by the CT state, so they are always considered to be 0. Any other value
+	// would make it impossible to have empty accounts.
+	return 0
+}
 
-func (c *ctRunContext) GetCommittedStorage(addr tosca.Address, key tosca.Key) tosca.Word {
-	k := cc.NewU256FromBytes(key[:]...)
-	return c.state.Storage.GetOriginal(k).Bytes32be()
+// -- legacy API needed by Geth, to be removed in the future ---
+func (a *ctRunContext) GetCommittedStorage(addr tosca.Address, key tosca.Key) tosca.Word {
+	committed := a.state.Storage.GetOriginal(cc.NewU256FromBytes(key[:]...))
+	return tosca.Word(committed.Bytes32be())
 }
 
 func (c *ctRunContext) IsAddressInAccessList(addr tosca.Address) bool {
@@ -203,41 +204,4 @@ func (c *ctRunContext) IsSlotInAccessList(addr tosca.Address, key tosca.Key) (ad
 
 func (c *ctRunContext) HasSelfDestructed(addr tosca.Address) bool {
 	return c.state.HasSelfDestructed
-}
-
-func (c *ctRunContext) SetBalance(tosca.Address, tosca.Value) {
-	// -- ignored, since balances are not tracked in the context of a CT run --
-}
-
-func (c *ctRunContext) GetNonce(tosca.Address) uint64 {
-	// Required to identify empty accounts. Nonces are not explicitly modeled
-	// by the CT state, so they are always considered to be 0. Any other value
-	// would make it impossible to have empty accounts.
-	return 0
-}
-
-// --- API only needed in the context of a full transaction, which is not covered by CT ---
-
-func (c *ctRunContext) CreateContract(tosca.Address) {
-	panic("should not be needed")
-}
-
-func (c *ctRunContext) HasEmptyStorage(tosca.Address) bool {
-	panic("should not be needed")
-}
-
-func (c *ctRunContext) SetNonce(tosca.Address, uint64) {
-	panic("should not be needed")
-}
-
-func (c *ctRunContext) CreateSnapshot() tosca.Snapshot {
-	panic("should not be needed")
-}
-
-func (c *ctRunContext) RestoreSnapshot(tosca.Snapshot) {
-	panic("should not be needed")
-}
-
-func (c *ctRunContext) GetLogs() []tosca.Log {
-	panic("should not be needed")
 }

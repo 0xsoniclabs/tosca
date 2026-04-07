@@ -72,44 +72,29 @@ type TransactionParameters struct {
 // RunContext provides an interface to access and manipulate state and transaction
 // properties as needed by individual EVM instructions.
 type RunContext interface {
-	TransactionContext
+	InterpreterContext
 
 	Call(kind CallKind, parameter CallParameters) (CallResult, error)
 }
 
-// TransactionContext is an interface to access and manipulate the state of the
+// ProcessorContext is an interface to access and manipulate the state of the
 // the world state in a transaction. All modifications on the world state are
 // buffered in a transaction context, which can be snapshot and restored.
-// Additionally, a transaction context provides infrastructure for tracking
-// transaction state information beyond the world state. In particular,
-// transient storage, access lists, and logs are managed.
-type TransactionContext interface {
-	WorldState
+type ProcessorContext interface {
+	InterpreterContext
+
+	AccountExists(Address) bool
+	CreateContract(Address)
+
+	SetCode(Address, Code)
+	SetNonce(Address, uint64)
 
 	CreateSnapshot() Snapshot
 	RestoreSnapshot(Snapshot)
 
-	GetTransientStorage(Address, Key) Word
-	SetTransientStorage(Address, Key, Word)
+	HasEmptyStorage(Address) bool
 
-	AccessAccount(Address) AccessStatus
-	AccessStorage(Address, Key) AccessStatus
-
-	EmitLog(Log)
 	GetLogs() []Log
-
-	// GetBlockHash returns the hash of the block with the given number.
-	GetBlockHash(number int64) Hash
-
-	// -- legacy API needed by LFVM and Geth, to be removed in the future ---
-
-	// TODO: split into two interfaces: ExtendedTransactionContext with the
-	// legacy methods and TransactionContext with the current methods
-
-	GetCommittedStorage(addr Address, key Key) Word
-	IsAddressInAccessList(addr Address) bool
-	IsSlotInAccessList(addr Address, key Key) (addressPresent, slotPresent bool)
-	HasSelfDestructed(addr Address) bool
 }
 
 // AccessStatus is an enum utilized to indicate cold and warm account or

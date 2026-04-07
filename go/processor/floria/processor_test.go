@@ -52,7 +52,7 @@ func TestProcessorRegistry_InitProcessor(t *testing.T) {
 
 func TestProcessor_Run_SuccessfulExecution(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	context := tosca.NewMockRunContext(ctrl)
+	context := tosca.NewMockProcessorContext(ctrl)
 	interpreter := tosca.NewMockInterpreter(ctrl)
 
 	context.EXPECT().CreateSnapshot().AnyTimes()
@@ -61,7 +61,6 @@ func TestProcessor_Run_SuccessfulExecution(t *testing.T) {
 	context.EXPECT().GetBalance(gomock.Any()).AnyTimes()
 	context.EXPECT().SetBalance(gomock.Any(), gomock.Any()).AnyTimes()
 	context.EXPECT().SetNonce(gomock.Any(), gomock.Any()).AnyTimes()
-	context.EXPECT().Call(gomock.Any(), gomock.Any()).AnyTimes()
 	context.EXPECT().GetCode(gomock.Any()).AnyTimes()
 	interpreter.EXPECT().Run(gomock.Any()).Return(tosca.Result{Success: true}, nil).AnyTimes()
 	context.EXPECT().GetLogs().AnyTimes()
@@ -86,7 +85,7 @@ func TestProcessor_Run_SuccessfulExecution(t *testing.T) {
 
 func TestProcessor_Run_BlobTransactionWithoutBlobsIsUnsuccessful(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	context := tosca.NewMockRunContext(ctrl)
+	context := tosca.NewMockProcessorContext(ctrl)
 	interpreter := tosca.NewMockInterpreter(ctrl)
 
 	context.EXPECT().GetNonce(gomock.Any())
@@ -159,7 +158,7 @@ func TestProcessor_Run_BeforeGasIsBoughtErrorsHaveNoEffect(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			context := tosca.NewMockRunContext(ctrl)
+			context := tosca.NewMockProcessorContext(ctrl)
 			interpreter := tosca.NewMockInterpreter(ctrl)
 
 			sender := tosca.Address{1}
@@ -192,7 +191,7 @@ func TestProcessor_Run_BeforeGasIsBoughtErrorsHaveNoEffect(t *testing.T) {
 
 func TestProcessor_SuccessfulCreateSetsContractAddress(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	context := tosca.NewMockRunContext(ctrl)
+	context := tosca.NewMockProcessorContext(ctrl)
 	interpreter := tosca.NewMockInterpreter(ctrl)
 
 	sender := tosca.Address{1}
@@ -231,7 +230,7 @@ func TestProcessor_SuccessfulCreateSetsContractAddress(t *testing.T) {
 
 func TestProcessor_InterpreterErrorsAreForwarded(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	context := tosca.NewMockRunContext(ctrl)
+	context := tosca.NewMockProcessorContext(ctrl)
 	interpreter := tosca.NewMockInterpreter(ctrl)
 	testError := fmt.Errorf("test error")
 	sender := tosca.Address{1}
@@ -268,7 +267,7 @@ func TestProcessor_InterpreterErrorsAreForwarded(t *testing.T) {
 
 func TestProcessor_HandleNonce(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	context := tosca.NewMockTransactionContext(ctrl)
+	context := tosca.NewMockProcessorContext(ctrl)
 
 	context.EXPECT().GetNonce(tosca.Address{1}).Return(uint64(9))
 
@@ -475,7 +474,7 @@ func TestProcessor_IsSimulationSkipsSelectedChecks(t *testing.T) {
 		for testName, test := range tests {
 			t.Run(fmt.Sprintf("%s_simulation=%t", testName, isSimulation), func(t *testing.T) {
 				ctrl := gomock.NewController(t)
-				context := tosca.NewMockRunContext(ctrl)
+				context := tosca.NewMockProcessorContext(ctrl)
 
 				sender := tosca.Address{1}
 				context.EXPECT().GetNonce(sender).Return(uint64(1))
@@ -912,7 +911,7 @@ func TestProcessor_BuyGasAccountsForBlobs(t *testing.T) {
 	for testName, test := range tests {
 		t.Run(testName, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			context := tosca.NewMockTransactionContext(ctrl)
+			context := tosca.NewMockProcessorContext(ctrl)
 
 			sender := tosca.Address{1}
 			transaction := tosca.Transaction{
@@ -942,7 +941,7 @@ func TestProcessor_runTransactionSetsUpAccessListAfterBerlin(t *testing.T) {
 	addressInAccessList := tosca.Address{4}
 	keyInAccessList := tosca.Key{1}
 
-	addPrecompiles := func(context *tosca.MockTransactionContext, revision tosca.Revision) {
+	addPrecompiles := func(context *tosca.MockProcessorContext, revision tosca.Revision) {
 		for i := range 100 {
 			if address := test_utils.NewAddress(byte(i)); isPrecompiled(address, revision) {
 				context.EXPECT().AccessAccount(address)
@@ -952,17 +951,17 @@ func TestProcessor_runTransactionSetsUpAccessListAfterBerlin(t *testing.T) {
 
 	tests := map[string]struct {
 		revision        tosca.Revision
-		mockAccessSetup func(context *tosca.MockTransactionContext)
+		mockAccessSetup func(context *tosca.MockProcessorContext)
 	}{
 		"Istanbul": {
 			revision: tosca.R07_Istanbul,
-			mockAccessSetup: func(context *tosca.MockTransactionContext) {
+			mockAccessSetup: func(context *tosca.MockProcessorContext) {
 				// no access list before Berlin, therefore no access calls.
 			},
 		},
 		"Berlin": {
 			revision: tosca.R09_Berlin,
-			mockAccessSetup: func(context *tosca.MockTransactionContext) {
+			mockAccessSetup: func(context *tosca.MockProcessorContext) {
 				context.EXPECT().AccessAccount(sender)
 				context.EXPECT().AccessAccount(recipient)
 				context.EXPECT().AccessAccount(addressInAccessList)
@@ -972,7 +971,7 @@ func TestProcessor_runTransactionSetsUpAccessListAfterBerlin(t *testing.T) {
 		},
 		"Shanghai": {
 			revision: tosca.R12_Shanghai,
-			mockAccessSetup: func(context *tosca.MockTransactionContext) {
+			mockAccessSetup: func(context *tosca.MockProcessorContext) {
 				context.EXPECT().AccessAccount(sender)
 				context.EXPECT().AccessAccount(recipient)
 				context.EXPECT().AccessAccount(addressInAccessList)
@@ -984,7 +983,7 @@ func TestProcessor_runTransactionSetsUpAccessListAfterBerlin(t *testing.T) {
 		},
 		"Cancun": {
 			revision: tosca.R13_Cancun,
-			mockAccessSetup: func(context *tosca.MockTransactionContext) {
+			mockAccessSetup: func(context *tosca.MockProcessorContext) {
 				context.EXPECT().AccessAccount(sender)
 				context.EXPECT().AccessAccount(recipient)
 				context.EXPECT().AccessAccount(addressInAccessList)
@@ -999,7 +998,7 @@ func TestProcessor_runTransactionSetsUpAccessListAfterBerlin(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			context := tosca.NewMockTransactionContext(ctrl)
+			context := tosca.NewMockProcessorContext(ctrl)
 			interpreter := tosca.NewMockInterpreter(ctrl)
 			processor := Processor{
 				Interpreter: interpreter,
@@ -1102,7 +1101,7 @@ func TestProcessor_CallParameters(t *testing.T) {
 
 func TestProcessor_SetUpAccessList(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	context := tosca.NewMockTransactionContext(ctrl)
+	context := tosca.NewMockProcessorContext(ctrl)
 
 	sender := tosca.Address{1}
 	recipient := tosca.Address{2}
@@ -1135,7 +1134,7 @@ func TestProcessor_SetUpAccessList(t *testing.T) {
 
 func TestProcessor_AccessListIsNotCreatedIfTransactionHasNone(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	context := tosca.NewMockTransactionContext(ctrl)
+	context := tosca.NewMockProcessorContext(ctrl)
 	// No calls to context
 
 	sender := tosca.Address{1}
@@ -1301,7 +1300,7 @@ func TestProcessor_RefundGas(t *testing.T) {
 	sender := tosca.Address{1}
 
 	ctrl := gomock.NewController(t)
-	context := tosca.NewMockTransactionContext(ctrl)
+	context := tosca.NewMockProcessorContext(ctrl)
 
 	context.EXPECT().GetBalance(sender).Return(tosca.NewValue(uint64(senderBalance)))
 	context.EXPECT().SetBalance(sender, tosca.NewValue(uint64(senderBalance+gasLeft*gasPrice)))
@@ -1331,7 +1330,7 @@ func TestProcessor_PaymentToCoinbase(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			context := tosca.NewMockTransactionContext(ctrl)
+			context := tosca.NewMockProcessorContext(ctrl)
 
 			initialBalance := tosca.NewValue(100)
 			coinbase := tosca.Address{42}
@@ -1372,7 +1371,7 @@ func TestProcessor_ethCompatibleReturnDoesNotConsumeExtraGasAndUpdatesCoinbase(t
 	for testName, test := range tests {
 		t.Run(testName, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			context := tosca.NewMockTransactionContext(ctrl)
+			context := tosca.NewMockProcessorContext(ctrl)
 
 			coinbase := tosca.Address{42}
 			sender := tosca.Address{1}

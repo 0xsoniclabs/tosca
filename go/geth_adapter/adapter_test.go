@@ -105,42 +105,6 @@ func TestRunContextAdapter_SetBalanceHasCorrectEffect(t *testing.T) {
 	}
 }
 
-func TestRunContextAdapter_SetAndGetNonce(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	stateDb := NewMockStateDb(ctrl)
-	adapter := &runContextAdapter{evm: &geth.EVM{StateDB: stateDb}}
-
-	address := tosca.Address{0x42}
-	nonce := uint64(123)
-
-	stateDb.EXPECT().SetNonce(common.Address(address), nonce, tracing.NonceChangeUnspecified)
-	adapter.SetNonce(address, nonce)
-
-	stateDb.EXPECT().GetNonce(common.Address(address)).Return(nonce)
-	got := adapter.GetNonce(address)
-	if got != nonce {
-		t.Errorf("Got wrong nonce %v, expected %v", got, nonce)
-	}
-}
-
-func TestRunContextAdapter_SetAndGetCode(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	stateDb := NewMockStateDb(ctrl)
-	adapter := &runContextAdapter{evm: &geth.EVM{StateDB: stateDb}}
-
-	address := tosca.Address{0x42}
-	code := []byte{1, 2, 3}
-
-	stateDb.EXPECT().SetCode(common.Address(address), code, gomock.Any())
-	adapter.SetCode(address, code)
-
-	stateDb.EXPECT().GetCode(common.Address(address)).Return(code)
-	got := adapter.GetCode(address)
-	if !bytes.Equal(got, code) {
-		t.Errorf("Got wrong code %v, expected %v", got, code)
-	}
-}
-
 func TestRunContextAdapter_SetAndGetStorage(t *testing.T) {
 	tests := map[tosca.StorageStatus]struct {
 		current tosca.Word
@@ -389,23 +353,6 @@ func TestRunContextAdapter_SelfdestructDependsOnIsNewContract(t *testing.T) {
 	}
 }
 
-func TestRunContextAdapter_SnapshotHandling(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	stateDb := NewMockStateDb(ctrl)
-	adapter := &runContextAdapter{evm: &geth.EVM{StateDB: stateDb}}
-
-	snapshot := tosca.Snapshot(1)
-
-	stateDb.EXPECT().RevertToSnapshot(int(snapshot))
-	adapter.RestoreSnapshot(snapshot)
-
-	stateDb.EXPECT().Snapshot().Return(int(snapshot))
-	got := adapter.CreateSnapshot()
-	if got != snapshot {
-		t.Errorf("Got wrong snapshot %v, expected %v", got, snapshot)
-	}
-}
-
 func TestRunContextAdapter_GettersReturnTheCorrectStateDbValues(t *testing.T) {
 	tests := map[string]struct {
 		primingMock  func(stateDb *MockStateDb)
@@ -507,15 +454,6 @@ func TestRunContextAdapter_SettersForwardTheCorrectStateDbValues(t *testing.T) {
 		primingMock  func(stateDb *MockStateDb)
 		functionCall func(adapter *runContextAdapter)
 	}{
-		"nonce": {
-			primingMock: func(stateDb *MockStateDb) {
-				stateDb.EXPECT().SetNonce(common.Address{0x42}, uint64(42), tracing.NonceChangeUnspecified)
-
-			},
-			functionCall: func(adapter *runContextAdapter) {
-				adapter.SetNonce(tosca.Address{0x42}, 42)
-			},
-		},
 		"storage": {
 			primingMock: func(stateDb *MockStateDb) {
 				stateDb.EXPECT().GetStateAndCommittedState(common.Address{0x42}, common.Hash{0x10}).Return(common.Hash{0x01}, common.Hash{0x02})
@@ -531,14 +469,6 @@ func TestRunContextAdapter_SettersForwardTheCorrectStateDbValues(t *testing.T) {
 			},
 			functionCall: func(adapter *runContextAdapter) {
 				adapter.SetTransientStorage(tosca.Address{0x42}, tosca.Key{0x10}, tosca.Word{0x03})
-			},
-		},
-		"code": {
-			primingMock: func(stateDb *MockStateDb) {
-				stateDb.EXPECT().SetCode(common.Address{0x42}, []byte{1, 2, 3}, gomock.Any())
-			},
-			functionCall: func(adapter *runContextAdapter) {
-				adapter.SetCode(tosca.Address{0x42}, []byte{1, 2, 3})
 			},
 		},
 		// "balance" is tested separately
@@ -587,46 +517,12 @@ func TestRunContextAdapter_LogDataIsCastedCorrectly(t *testing.T) {
 	adapter.EmitLog(log)
 }
 
-func TestRunContextAdapter_GetLogsIsNotSupportedInRunContextAdapter(t *testing.T) {
-	adapter := &runContextAdapter{evm: &geth.EVM{}}
-	if logs := adapter.GetLogs(); logs != nil {
-		t.Errorf("GetLogs is not supported and should return nil, got %v", logs)
-	}
-}
-
 func TestRunContextAdapter_BooleanChecksReturnCorrectValues(t *testing.T) {
 	tests := map[string]struct {
 		primingMock  func(stateDb *MockStateDb)
 		want         bool
 		functionCall func(adapter *runContextAdapter) bool
 	}{
-		"hasEmptyStorage-empty": {
-			primingMock: func(stateDb *MockStateDb) {
-				stateDb.EXPECT().GetStorageRoot(common.Address{0x42}).Return(common.Hash{})
-			},
-			want: true,
-			functionCall: func(adapter *runContextAdapter) bool {
-				return adapter.HasEmptyStorage(tosca.Address{0x42})
-			},
-		},
-		"hasEmptyStorage-emptyHash": {
-			primingMock: func(stateDb *MockStateDb) {
-				stateDb.EXPECT().GetStorageRoot(common.Address{0x42}).Return(types.EmptyRootHash)
-			},
-			want: true,
-			functionCall: func(adapter *runContextAdapter) bool {
-				return adapter.HasEmptyStorage(tosca.Address{0x42})
-			},
-		},
-		"hasEmptyStorage-nonEmpty": {
-			primingMock: func(stateDb *MockStateDb) {
-				stateDb.EXPECT().GetStorageRoot(common.Address{0x42}).Return(common.Hash{0x01})
-			},
-			want: false,
-			functionCall: func(adapter *runContextAdapter) bool {
-				return adapter.HasEmptyStorage(tosca.Address{0x42})
-			},
-		},
 		"hasSelfdestructed-true": {
 			primingMock: func(stateDb *MockStateDb) {
 				stateDb.EXPECT().HasSelfDestructed(common.Address{0x42}).Return(true)
@@ -643,6 +539,24 @@ func TestRunContextAdapter_BooleanChecksReturnCorrectValues(t *testing.T) {
 			want: false,
 			functionCall: func(adapter *runContextAdapter) bool {
 				return adapter.HasSelfDestructed(tosca.Address{0x42})
+			},
+		},
+		"isNewContract-true": {
+			primingMock: func(stateDb *MockStateDb) {
+				stateDb.EXPECT().IsNewContract(common.Address{0x42}).Return(true)
+			},
+			want: true,
+			functionCall: func(adapter *runContextAdapter) bool {
+				return adapter.IsNewContract(tosca.Address{0x42})
+			},
+		},
+		"isNewContract-false": {
+			primingMock: func(stateDb *MockStateDb) {
+				stateDb.EXPECT().IsNewContract(common.Address{0x42}).Return(false)
+			},
+			want: false,
+			functionCall: func(adapter *runContextAdapter) bool {
+				return adapter.IsNewContract(tosca.Address{0x42})
 			},
 		},
 	}
@@ -690,15 +604,6 @@ func TestRunContextAdapter_AccountOperations(t *testing.T) {
 	if accessStatus != tosca.ColdAccess {
 		t.Errorf("Got wrong access type %v, expected %v", accessStatus, tosca.ColdAccess)
 	}
-
-	stateDb.EXPECT().Exist(common.Address(address)).Return(true)
-	exits := adapter.AccountExists(address)
-	if !exits {
-		t.Errorf("Account should exist")
-	}
-
-	stateDb.EXPECT().CreateContract(common.Address(address))
-	adapter.CreateContract(address)
 
 	stateDb.EXPECT().AddressInAccessList(common.Address(address)).Return(true)
 	inAccessList := adapter.IsAddressInAccessList(address)

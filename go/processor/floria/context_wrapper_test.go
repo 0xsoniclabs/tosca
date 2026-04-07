@@ -22,7 +22,7 @@ func TestFloriaContext_SelfDestructPerformsTheBalanceUpdate(t *testing.T) {
 	for _, revision := range revisions {
 		t.Run(revision.String(), func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			context := tosca.NewMockTransactionContext(ctrl)
+			context := tosca.NewMockProcessorContext(ctrl)
 
 			beneficiary := tosca.Address{0x01}
 			address := tosca.Address{0x02}
@@ -36,7 +36,7 @@ func TestFloriaContext_SelfDestructPerformsTheBalanceUpdate(t *testing.T) {
 			context.EXPECT().SelfDestruct(address, beneficiary).Return(true)
 
 			floriaContext := floriaContext{
-				TransactionContext: context,
+				ProcessorContext: context,
 			}
 
 			selfdestructed := floriaContext.SelfDestruct(address, beneficiary)

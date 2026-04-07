@@ -78,7 +78,7 @@ func init() {
 
 type StateContract struct{}
 
-func (StateContract) Run(state tosca.WorldState, sender tosca.Address, receiver tosca.Address, input []byte, gas tosca.Gas) tosca.CallResult {
+func (StateContract) Run(state tosca.ProcessorContext, sender tosca.Address, receiver tosca.Address, input []byte, gas tosca.Gas) tosca.CallResult {
 	return runStateContract(state, sender, receiver, input, gas)
 }
 
@@ -93,7 +93,7 @@ func isStateContract(address tosca.Address) bool {
 // It is used to handle epochs and allows to set balance, copy code, swap code, set storage, and increment nonce.
 // Source: https://github.com/Fantom-foundation/Sonic/blob/main/opera/contracts/evmwriter/evm_writer.go#L24
 func runStateContract(
-	state tosca.WorldState,
+	state tosca.ProcessorContext,
 	sender tosca.Address,
 	receiver tosca.Address,
 	input []byte,
@@ -133,7 +133,7 @@ func runStateContract(
 	}
 }
 
-func executeStateSetBalance(state tosca.WorldState, sender tosca.Address, input []byte, gas tosca.Gas) (tosca.Gas, error) {
+func executeStateSetBalance(state tosca.ProcessorContext, sender tosca.Address, input []byte, gas tosca.Gas) (tosca.Gas, error) {
 	if gas < callValueTransferGas {
 		return 0, ErrOutOfGas
 	}
@@ -154,7 +154,7 @@ func executeStateSetBalance(state tosca.WorldState, sender tosca.Address, input 
 	return gas, nil
 }
 
-func executeStateContractCopyCode(state tosca.WorldState, input []byte, gas tosca.Gas) (tosca.Gas, error) {
+func executeStateContractCopyCode(state tosca.ProcessorContext, input []byte, gas tosca.Gas) (tosca.Gas, error) {
 	if gas < createGas {
 		return 0, ErrOutOfGas
 	}
@@ -179,7 +179,7 @@ func executeStateContractCopyCode(state tosca.WorldState, input []byte, gas tosc
 	return gas, nil
 }
 
-func executeStateContractSwapCode(state tosca.WorldState, input []byte, gas tosca.Gas) (tosca.Gas, error) {
+func executeStateContractSwapCode(state tosca.ProcessorContext, input []byte, gas tosca.Gas) (tosca.Gas, error) {
 	cost := 2 * createGas
 	if gas < cost {
 		return 0, ErrOutOfGas
@@ -209,7 +209,7 @@ func executeStateContractSwapCode(state tosca.WorldState, input []byte, gas tosc
 	return gas, nil
 }
 
-func executeStateContractSetStorage(state tosca.WorldState, input []byte, gas tosca.Gas) (tosca.Gas, error) {
+func executeStateContractSetStorage(state tosca.ProcessorContext, input []byte, gas tosca.Gas) (tosca.Gas, error) {
 	if gas < sStoreSetGasEIP2200 {
 		return 0, ErrOutOfGas
 	}
@@ -227,7 +227,7 @@ func executeStateContractSetStorage(state tosca.WorldState, input []byte, gas to
 	return gas, nil
 }
 
-func executeStateContractIncNonce(state tosca.WorldState, sender tosca.Address, input []byte, gas tosca.Gas) (tosca.Gas, error) {
+func executeStateContractIncNonce(state tosca.ProcessorContext, sender tosca.Address, input []byte, gas tosca.Gas) (tosca.Gas, error) {
 	if gas < callValueTransferGas {
 		return 0, ErrOutOfGas
 	}

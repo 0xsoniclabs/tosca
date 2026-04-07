@@ -141,7 +141,7 @@ func convertGethStackToCtStack(state *geth_vm.InterpreterState, stack *st.Stack)
 
 type callInterceptor struct {
 	parameters tosca.Parameters
-	stateDb    *geth_adapter.StateDB
+	stateDb    geth_adapter.ToscaStateDB
 	static     bool
 }
 

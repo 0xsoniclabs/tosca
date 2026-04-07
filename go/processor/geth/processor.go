@@ -46,7 +46,7 @@ type Processor struct {
 func (p *Processor) Run(
 	blockParameters tosca.BlockParameters,
 	transaction tosca.Transaction,
-	context tosca.TransactionContext,
+	context tosca.ProcessorContext,
 ) (tosca.Receipt, error) {
 	internal := isInternal(transaction)
 
@@ -128,7 +128,7 @@ func calculateGasPrice(baseFee, gasFeeCap, gasTipCap tosca.Value, internal bool)
 	return tosca.Add(baseFee, tosca.Min(gasTipCap, tosca.Sub(gasFeeCap, baseFee))), nil
 }
 
-func newBlockContext(blockParameters tosca.BlockParameters, context tosca.TransactionContext, ethereumCompatible bool) vm.BlockContext {
+func newBlockContext(blockParameters tosca.BlockParameters, context tosca.ProcessorContext, ethereumCompatible bool) vm.BlockContext {
 	canTransfer := func(stateDB vm.StateDB, address common.Address, value *uint256.Int) bool {
 		return stateDB.GetBalance(address).Cmp(value) >= 0
 	}

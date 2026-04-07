@@ -51,11 +51,11 @@ func TestCalls_InterpreterResultIsHandledCorrectly(t *testing.T) {
 	}
 
 	ctrl := gomock.NewController(t)
-	context := tosca.NewMockTransactionContext(ctrl)
+	context := tosca.NewMockProcessorContext(ctrl)
 	interpreter := tosca.NewMockInterpreter(ctrl)
 	runContext := runContext{
-		TransactionContext: context,
-		interpreter:        interpreter,
+		ProcessorContext: context,
+		interpreter:      interpreter,
 	}
 
 	params := tosca.CallParameters{
@@ -91,11 +91,11 @@ func TestCalls_InterpreterResultIsHandledCorrectly(t *testing.T) {
 
 func TestCall_TransferValueInCall(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	context := tosca.NewMockTransactionContext(ctrl)
+	context := tosca.NewMockProcessorContext(ctrl)
 	interpreter := tosca.NewMockInterpreter(ctrl)
 	runContext := runContext{
-		TransactionContext: context,
-		interpreter:        interpreter,
+		ProcessorContext: context,
+		interpreter:      interpreter,
 	}
 
 	params := tosca.CallParameters{
@@ -125,11 +125,11 @@ func TestCall_TransferValueInCall(t *testing.T) {
 
 func TestCall_TransferValueInCreate(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	context := tosca.NewMockTransactionContext(ctrl)
+	context := tosca.NewMockProcessorContext(ctrl)
 	interpreter := tosca.NewMockInterpreter(ctrl)
 	runContext := runContext{
-		TransactionContext: context,
-		interpreter:        interpreter,
+		ProcessorContext: context,
+		interpreter:      interpreter,
 	}
 
 	params := tosca.CallParameters{
@@ -171,11 +171,11 @@ func TestCall_TransferValueInCreate(t *testing.T) {
 
 func TestTransferValue_InCallRestoreFailed(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	context := tosca.NewMockTransactionContext(ctrl)
+	context := tosca.NewMockProcessorContext(ctrl)
 	interpreter := tosca.NewMockInterpreter(ctrl)
 	runContext := runContext{
-		TransactionContext: context,
-		interpreter:        interpreter,
+		ProcessorContext: context,
+		interpreter:      interpreter,
 	}
 
 	params := tosca.CallParameters{
@@ -214,11 +214,11 @@ func TestCall_CanTransferValueDependsOnKind(t *testing.T) {
 	for _, call := range calls {
 		t.Run(call.String(), func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			context := tosca.NewMockTransactionContext(ctrl)
+			context := tosca.NewMockProcessorContext(ctrl)
 			interpreter := tosca.NewMockInterpreter(ctrl)
 			runContext := runContext{
-				TransactionContext: context,
-				interpreter:        interpreter,
+				ProcessorContext: context,
+				interpreter:      interpreter,
 			}
 
 			parameters := tosca.CallParameters{
@@ -264,7 +264,7 @@ func TestTransferValue_SuccessfulValueTransfer(t *testing.T) {
 	recipientBalance := tosca.NewValue(0)
 
 	ctrl := gomock.NewController(t)
-	context := tosca.NewMockTransactionContext(ctrl)
+	context := tosca.NewMockProcessorContext(ctrl)
 
 	for name, value := range values {
 		t.Run(name, func(t *testing.T) {
@@ -307,7 +307,7 @@ func TestTransferValue_FailedValueTransfer(t *testing.T) {
 	for name, transfer := range transfers {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			context := tosca.NewMockTransactionContext(ctrl)
+			context := tosca.NewMockProcessorContext(ctrl)
 
 			context.EXPECT().GetBalance(tosca.Address{1}).Return(transfer.senderBalance).AnyTimes()
 			context.EXPECT().GetBalance(tosca.Address{2}).Return(transfer.receiverBalance).AnyTimes()
@@ -330,7 +330,7 @@ func TestCanTransferValue_SameSenderAndReceiver(t *testing.T) {
 
 	for _, test := range tests {
 		ctrl := gomock.NewController(t)
-		context := tosca.NewMockTransactionContext(ctrl)
+		context := tosca.NewMockProcessorContext(ctrl)
 		context.EXPECT().GetBalance(gomock.Any()).Return(tosca.NewValue(100))
 
 		canTransfer := canTransferValue(context, test.value, tosca.Address{1}, &tosca.Address{1})
@@ -348,7 +348,7 @@ func TestCanTransferValue_SameSenderAndReceiver(t *testing.T) {
 
 func TestTransferValue_BalanceIsNotChangedWhenValueIsTransferredToTheSameAccount(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	context := tosca.NewMockTransactionContext(ctrl)
+	context := tosca.NewMockProcessorContext(ctrl)
 
 	address := tosca.Address{1}
 	value := tosca.NewValue(10)
@@ -396,7 +396,7 @@ func TestCreate_CreateAddress_ProducesTheCorrectAddress(t *testing.T) {
 				}
 
 				ctrl := gomock.NewController(t)
-				context := tosca.NewMockTransactionContext(ctrl)
+				context := tosca.NewMockProcessorContext(ctrl)
 				// the sender nonce is already updated before the createAddress function.
 				context.EXPECT().GetNonce(test.sender).Return(test.nonce + 1).AnyTimes()
 				if revision > tosca.R07_Istanbul {
@@ -426,7 +426,7 @@ func TestCreate_CreateAddress_ProducesTheCorrectAddress(t *testing.T) {
 
 func TestCreate_CreateAddress_UnsupportedKindTriggersError(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	context := tosca.NewMockTransactionContext(ctrl)
+	context := tosca.NewMockProcessorContext(ctrl)
 
 	_, err := createAddress(tosca.Call, tosca.CallParameters{}, tosca.R07_Istanbul, context)
 	require.ErrorContains(t, err, "invalid call kind for create")
@@ -474,7 +474,7 @@ func TestCreate_CreateAddressReturnErrorIfAddressIsNotEmpty(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			context := tosca.NewMockTransactionContext(ctrl)
+			context := tosca.NewMockProcessorContext(ctrl)
 			context.EXPECT().GetNonce(gomock.Any()).Return(test.nonce).MinTimes(1)
 			context.EXPECT().HasEmptyStorage(gomock.Any()).Return(test.emptyStorage).AnyTimes()
 			context.EXPECT().GetCodeHash(gomock.Any()).Return(test.codeHash).AnyTimes()
@@ -537,7 +537,7 @@ func TestCreate_CheckAndDeployCode_SetsCodeOrResetsResult(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			context := tosca.NewMockTransactionContext(ctrl)
+			context := tosca.NewMockProcessorContext(ctrl)
 
 			createdAddress := tosca.Address{1}
 			result := tosca.Result{
@@ -587,7 +587,7 @@ func TestCreate_senderCreateSetUp_ReturnsError(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			context := tosca.NewMockTransactionContext(ctrl)
+			context := tosca.NewMockProcessorContext(ctrl)
 
 			sender := tosca.Address{1}
 			context.EXPECT().GetBalance(sender).Return(tosca.NewValue(100)).AnyTimes()
@@ -627,7 +627,7 @@ func TestIncrementNonce(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			context := tosca.NewMockTransactionContext(ctrl)
+			context := tosca.NewMockProcessorContext(ctrl)
 			context.EXPECT().GetNonce(gomock.Any()).Return(test.nonce)
 			context.EXPECT().SetNonce(gomock.Any(), test.nonce+1).AnyTimes()
 
@@ -684,11 +684,11 @@ func TestRunContext_AccountIsOnlyCreatedIfItIsEmptyAndDoesNotExist(t *testing.T)
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			context := tosca.NewMockTransactionContext(ctrl)
+			context := tosca.NewMockProcessorContext(ctrl)
 			interpreter := tosca.NewMockInterpreter(ctrl)
 			runContext := runContext{
-				TransactionContext: context,
-				interpreter:        interpreter,
+				ProcessorContext: context,
+				interpreter:      interpreter,
 			}
 
 			params := tosca.CallParameters{
@@ -735,45 +735,45 @@ func TestRunContext_runInterpreterSelectsCodeBasedOnType(t *testing.T) {
 
 	tests := map[string]struct {
 		kind      tosca.CallKind
-		mockSetup func(context *tosca.MockTransactionContext)
+		mockSetup func(context *tosca.MockProcessorContext)
 	}{
 		"call": {
 			kind: tosca.Call,
-			mockSetup: func(context *tosca.MockTransactionContext) {
+			mockSetup: func(context *tosca.MockProcessorContext) {
 				context.EXPECT().GetCodeHash(recipient).Return(codeHash)
 				context.EXPECT().GetCode(recipient).Return(code)
 			},
 		},
 		"staticCall": {
 			kind: tosca.StaticCall,
-			mockSetup: func(context *tosca.MockTransactionContext) {
+			mockSetup: func(context *tosca.MockProcessorContext) {
 				context.EXPECT().GetCodeHash(recipient).Return(codeHash)
 				context.EXPECT().GetCode(recipient).Return(code)
 			},
 		},
 		"delegateCall": {
 			kind: tosca.DelegateCall,
-			mockSetup: func(context *tosca.MockTransactionContext) {
+			mockSetup: func(context *tosca.MockProcessorContext) {
 				context.EXPECT().GetCodeHash(codeAddress).Return(codeHash)
 				context.EXPECT().GetCode(codeAddress).Return(code)
 			},
 		},
 		"codeCall": {
 			kind: tosca.CallCode,
-			mockSetup: func(context *tosca.MockTransactionContext) {
+			mockSetup: func(context *tosca.MockProcessorContext) {
 				context.EXPECT().GetCodeHash(codeAddress).Return(codeHash)
 				context.EXPECT().GetCode(codeAddress).Return(code)
 			},
 		},
 		"create": {
 			kind: tosca.Create,
-			mockSetup: func(context *tosca.MockTransactionContext) {
+			mockSetup: func(context *tosca.MockProcessorContext) {
 				// no calls to state DB
 			},
 		},
 		"create2": {
 			kind: tosca.Create2,
-			mockSetup: func(context *tosca.MockTransactionContext) {
+			mockSetup: func(context *tosca.MockProcessorContext) {
 				// no calls to state DB
 			},
 		},
@@ -782,11 +782,11 @@ func TestRunContext_runInterpreterSelectsCodeBasedOnType(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			context := tosca.NewMockTransactionContext(ctrl)
+			context := tosca.NewMockProcessorContext(ctrl)
 			interpreter := tosca.NewMockInterpreter(ctrl)
 			runContext := runContext{
-				TransactionContext: context,
-				interpreter:        interpreter,
+				ProcessorContext: context,
+				interpreter:      interpreter,
 			}
 
 			parameters := tosca.CallParameters{
@@ -842,11 +842,11 @@ func TestRunContext_runInterpreterCreateComputesCorrectCodeHash(t *testing.T) {
 
 func TestRunContext_runInterpreterForwardsValuesCorrectly(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	context := tosca.NewMockTransactionContext(ctrl)
+	context := tosca.NewMockProcessorContext(ctrl)
 	interpreter := tosca.NewMockInterpreter(ctrl)
 	runContext := runContext{
-		TransactionContext: context,
-		interpreter:        interpreter,
+		ProcessorContext: context,
+		interpreter:      interpreter,
 		blockParameters: tosca.BlockParameters{
 			ChainID: tosca.Word{0x01},
 		},
@@ -916,14 +916,14 @@ func TestCall_PrecompiledCheckDependsOnCodeAddress(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			context := tosca.NewMockTransactionContext(ctrl)
+			context := tosca.NewMockProcessorContext(ctrl)
 			context.EXPECT().CreateSnapshot()
 
 			// No calls to the interpreter because the call is handled by the precompiled contract.
 			interpreter := tosca.NewMockInterpreter(ctrl)
 			runContext := runContext{
-				TransactionContext: context,
-				interpreter:        interpreter,
+				ProcessorContext: context,
+				interpreter:      interpreter,
 				config: Config{
 					BuiltInContracts: map[tosca.Address]BuiltInContract{
 						StateContractAddress(): StateContract{},
@@ -968,10 +968,10 @@ func TestCall_StateAndPrecompileErrorRestoresSnapshot(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			context := tosca.NewMockTransactionContext(ctrl)
+			context := tosca.NewMockProcessorContext(ctrl)
 
 			runContext := runContext{
-				TransactionContext: context,
+				ProcessorContext: context,
 				config: Config{
 					BuiltInContracts: map[tosca.Address]BuiltInContract{
 						StateContractAddress(): StateContract{},
@@ -1025,7 +1025,7 @@ func TestRunContext_HandleStateContracts(t *testing.T) {
 	for testName, test := range tests {
 		t.Run(testName, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			context := tosca.NewMockTransactionContext(ctrl)
+			context := tosca.NewMockProcessorContext(ctrl)
 
 			var contracts map[tosca.Address]BuiltInContract
 			if test.contract != nil {
@@ -1060,11 +1060,11 @@ func TestRunContext_InterpreterErrorIsForwardedAndSnapshotIsRestored(t *testing.
 	for _, call := range calls {
 		t.Run(call.String(), func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			context := tosca.NewMockTransactionContext(ctrl)
+			context := tosca.NewMockProcessorContext(ctrl)
 			interpreter := tosca.NewMockInterpreter(ctrl)
 			runContext := runContext{
-				TransactionContext: context,
-				interpreter:        interpreter,
+				ProcessorContext: context,
+				interpreter:      interpreter,
 			}
 
 			parameters := tosca.CallParameters{
@@ -1108,11 +1108,11 @@ func TestRunContext_UnsuccessfulInterpreterExecutionRestoresSnapshot(t *testing.
 	for _, call := range allCallTypes() {
 		t.Run(call.String(), func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			context := tosca.NewMockTransactionContext(ctrl)
+			context := tosca.NewMockProcessorContext(ctrl)
 			interpreter := tosca.NewMockInterpreter(ctrl)
 			runContext := runContext{
-				TransactionContext: context,
-				interpreter:        interpreter,
+				ProcessorContext: context,
+				interpreter:      interpreter,
 			}
 
 			parameters := tosca.CallParameters{
@@ -1180,11 +1180,11 @@ func allCallTypes() []tosca.CallKind {
 
 func TestCall_StaticFlagStaysSetInNestedStaticCalls(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	context := tosca.NewMockTransactionContext(ctrl)
+	context := tosca.NewMockProcessorContext(ctrl)
 	interpreter := tosca.NewMockInterpreter(ctrl)
 	contextDepth0 := runContext{
-		TransactionContext: context,
-		interpreter:        interpreter,
+		ProcessorContext: context,
+		interpreter:      interpreter,
 	}
 	parameters := tosca.CallParameters{}
 
@@ -1244,11 +1244,11 @@ func TestCall_StaticFlagStaysSetInNestedStaticCalls(t *testing.T) {
 
 func TestCall_StaticCallIsResetAfterStaticCall(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	context := tosca.NewMockTransactionContext(ctrl)
+	context := tosca.NewMockProcessorContext(ctrl)
 	interpreter := tosca.NewMockInterpreter(ctrl)
 	contextDepth0 := runContext{
-		TransactionContext: context,
-		interpreter:        interpreter,
+		ProcessorContext: context,
+		interpreter:      interpreter,
 	}
 	parameters := tosca.CallParameters{}
 
@@ -1308,11 +1308,11 @@ func TestCall_StaticCallIsResetAfterStaticCall(t *testing.T) {
 
 func TestRunContext_DepthHasTheCorrectValueInsideNestedCalls(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	context := tosca.NewMockTransactionContext(ctrl)
+	context := tosca.NewMockProcessorContext(ctrl)
 	interpreter := tosca.NewMockInterpreter(ctrl)
 	contextDepth0 := runContext{
-		TransactionContext: context,
-		interpreter:        interpreter,
+		ProcessorContext: context,
+		interpreter:      interpreter,
 	}
 	parameters := tosca.CallParameters{}
 

@@ -19,7 +19,7 @@ import (
 
 func TestProcessor_ReceiptIsDefaultInitializedInCaseOfError(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	context := tosca.NewMockTransactionContext(ctrl)
+	context := tosca.NewMockProcessorContext(ctrl)
 	context.EXPECT().GetNonce(gomock.Any())
 	context.EXPECT().GetCodeHash(gomock.Any())
 	context.EXPECT().GetBalance(gomock.Any())

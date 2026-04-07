@@ -21,18 +21,18 @@ import (
 )
 
 func TestStateDB_implementsVmStateDBInterface(t *testing.T) {
-	var _ vm.StateDB = &StateDB{}
+	var _ vm.StateDB = &ProcessorStateDB{}
 }
 
 func TestStateDB_RefundSnapshots_RecoversProperRefund(t *testing.T) {
 	require := require.New(t)
 	ctrl := gomock.NewController(t)
-	context := tosca.NewMockTransactionContext(ctrl)
+	context := tosca.NewMockProcessorContext(ctrl)
 
 	context.EXPECT().CreateSnapshot().Return(tosca.Snapshot(12)).AnyTimes()
 	context.EXPECT().RestoreSnapshot(tosca.Snapshot(12)).AnyTimes()
 
-	db := StateDB{context: context}
+	db := ProcessorStateDB{context: context}
 
 	require.Equal(uint64(0), db.GetRefund())
 	s1 := db.Snapshot()
@@ -67,9 +67,9 @@ func TestStateDB_RevertToSnapshot_InvalidSnapshot_IsIgnored(t *testing.T) {
 	for name, snapshot := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			context := tosca.NewMockTransactionContext(ctrl)
+			context := tosca.NewMockProcessorContext(ctrl)
 
-			db := StateDB{context: context}
+			db := ProcessorStateDB{context: context}
 			db.RevertToSnapshot(snapshot)
 		})
 	}
@@ -77,7 +77,7 @@ func TestStateDB_RevertToSnapshot_InvalidSnapshot_IsIgnored(t *testing.T) {
 
 func TestStateDB_GetStateAndCommittedStateReturnsOriginalAndCurrentState(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	context := tosca.NewMockTransactionContext(ctrl)
+	context := tosca.NewMockProcessorContext(ctrl)
 
 	address := tosca.Address{0x1}
 	key := tosca.Key{0x2}
