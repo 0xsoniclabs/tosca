@@ -18,6 +18,7 @@ import (
 	"github.com/0xsoniclabs/tosca/go/ct/st"
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"github.com/0xsoniclabs/tosca/go/tosca/vm"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -332,6 +333,57 @@ func TestAdapter_ParameterConversion(t *testing.T) {
 			want, got := property.get(params)
 			if !reflect.DeepEqual(want, got) {
 				t.Errorf("failed to verify property, wanted %v, got %v of type %v and %v", want, got, reflect.TypeOf(want), reflect.TypeOf(got))
+			}
+		})
+	}
+}
+
+func TestAdapter_SelfDestructIsOnlyCalledWhenDestroying(t *testing.T) {
+	tests := map[string]struct {
+		revision               tosca.Revision
+		newContract            bool
+		expectedSelfDestructed bool
+	}{
+		"pre-cancun old account": {
+			revision:               tosca.R12_Shanghai,
+			newContract:            false,
+			expectedSelfDestructed: true,
+		},
+		"pre-cancun new account": {
+			revision:               tosca.R12_Shanghai,
+			newContract:            true,
+			expectedSelfDestructed: true,
+		},
+		"cancun new account": {
+			revision:               tosca.R13_Cancun,
+			newContract:            true,
+			expectedSelfDestructed: true,
+		},
+		"cancun old account": {
+			revision:               tosca.R13_Cancun,
+			newContract:            false,
+			expectedSelfDestructed: false,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			state := st.State{
+				Revision:      test.revision,
+				IsNewContract: test.newContract,
+			}
+			c := ctRunContext{
+				state: &state,
+			}
+			address := tosca.Address{1, 2, 3}
+
+			selfdestructed := c.SelfDestruct(address, tosca.Address{4, 5, 6})
+			if test.expectedSelfDestructed {
+				require.True(t, selfdestructed)
+				require.True(t, state.HasSelfDestructed)
+			} else {
+				require.False(t, selfdestructed)
+				require.False(t, state.HasSelfDestructed)
 			}
 		})
 	}

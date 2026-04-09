@@ -293,6 +293,14 @@ func (g *StateGenerator) BindToColdAddress(key Variable) {
 	g.accountsGen.BindCold(key)
 }
 
+func (g *StateGenerator) MustBeNewContract() {
+	g.hasSelfDestructedGen.MarkAsNewContract()
+}
+
+func (g *StateGenerator) MustNotBeNewContract() {
+	g.hasSelfDestructedGen.MarkAsNotNewContract()
+}
+
 func (g *StateGenerator) MustBeSelfDestructed() {
 	g.hasSelfDestructedGen.MarkAsSelfDestructed()
 }
@@ -484,7 +492,7 @@ func (g *StateGenerator) generateWith(rnd *rand.Rand, assignment Assignment) (*s
 	resultLastCallReturnData := RandomBytes(rnd, st.MaxDataSize)
 
 	// Invoke SelfDestructedGenerator
-	resultHasSelfdestructed, err := g.hasSelfDestructedGen.Generate(rnd)
+	resultHasSelfdestructed, resultIsNewContract, err := g.hasSelfDestructedGen.Generate(rnd)
 	if err != nil {
 		return nil, err
 	}
@@ -560,6 +568,7 @@ func (g *StateGenerator) generateWith(rnd *rand.Rand, assignment Assignment) (*s
 	result.CallData = resultCallData
 	result.LastCallReturnData = resultLastCallReturnData
 	result.HasSelfDestructed = resultHasSelfdestructed
+	result.IsNewContract = resultIsNewContract
 	result.RecentBlockHashes = resultRecentBlockHashes
 
 	return result, nil

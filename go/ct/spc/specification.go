@@ -1700,13 +1700,16 @@ func getAllRules() []Rule {
 			for _, beneficiaryAccountEmpty := range []bool{true, false} {
 				for _, beneficiaryAccountIsWarm := range []bool{true, false} {
 					for _, hasSelfDestructed := range []bool{true, false} {
-						rules = append(rules, makeSelfDestructRules(
-							revision,
-							originatorHasFunds,
-							hasSelfDestructed,
-							beneficiaryAccountEmpty,
-							beneficiaryAccountIsWarm,
-						)...)
+						for _, isNewContract := range []bool{true, false} {
+							rules = append(rules, makeSelfDestructRules(
+								revision,
+								originatorHasFunds,
+								hasSelfDestructed,
+								beneficiaryAccountEmpty,
+								beneficiaryAccountIsWarm,
+								isNewContract,
+							)...)
+						}
 					}
 				}
 			}
@@ -2215,6 +2218,7 @@ func makeSelfDestructRules(
 	originatorHasSelfDestructedBefore bool,
 	beneficiaryAccountIsEmpty bool,
 	beneficiaryAccountIsWarm bool,
+	isNewContract bool,
 ) []Rule {
 
 	name := "_" + revision.String()
@@ -2255,6 +2259,15 @@ func makeSelfDestructRules(
 		name += "_originator_has_not_self_destructed"
 	}
 
+	var isNewContractCondition Condition
+	if isNewContract {
+		isNewContractCondition = IsNewContract()
+		name += "_is_new_contract"
+	} else {
+		isNewContractCondition = IsNotNewContract()
+		name += "_is_not_new_contract"
+	}
+
 	instruction := instruction{
 		op:        vm.SELFDESTRUCT,
 		name:      name,
@@ -2267,6 +2280,7 @@ func makeSelfDestructRules(
 			hasSelfDestructedCondition,
 			beneficiaryIsEmpty,
 			beneficiaryWarm,
+			isNewContractCondition,
 		},
 		parameters: []Parameter{AddressParameter{}},
 		effect:     selfDestructEffect,
@@ -2318,14 +2332,17 @@ func selfDestructEffect(s *st.State) {
 	s.GasRefund += refund
 
 	// Keep a record of the self-destruct operation.
-	s.HasSelfDestructed = true
-	s.SelfDestructedJournal = append(
-		s.SelfDestructedJournal,
-		st.NewSelfDestructEntry(
-			originatorAccount,
-			beneficiaryAccount,
-		),
-	)
+
+	if s.Revision < tosca.R13_Cancun || s.IsNewContract {
+		s.HasSelfDestructed = true
+		s.SelfDestructedJournal = append(
+			s.SelfDestructedJournal,
+			st.NewSelfDestructEntry(
+				originatorAccount,
+				beneficiaryAccount,
+			),
+		)
+	}
 
 	// After the self-destruct, this contract ends.
 	s.Status = st.Stopped

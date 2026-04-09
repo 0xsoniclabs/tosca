@@ -75,6 +75,7 @@ type stateSerializable struct {
 	LastCallReturnData    Bytes
 	ReturnData            Bytes
 	CallJournal           *CallJournal
+	IsNewContract         bool
 	HasSelfDestructed     bool
 	SelfDestructedJournal []serializableSelfDestructEntry
 	RecentBlockHashes     ImmutableHashArray
@@ -161,6 +162,7 @@ func newStateSerializableFromState(state *State) *stateSerializable {
 		LastCallReturnData:    state.LastCallReturnData,
 		ReturnData:            state.ReturnData,
 		CallJournal:           state.CallJournal,
+		IsNewContract:         state.IsNewContract,
 		HasSelfDestructed:     state.HasSelfDestructed,
 		SelfDestructedJournal: newSerializableJournal(state.SelfDestructedJournal),
 		RecentBlockHashes:     state.RecentBlockHashes,
@@ -252,6 +254,7 @@ func (s *stateSerializable) deserialize() *State {
 	if s.CallJournal != nil {
 		state.CallJournal = s.CallJournal.Clone()
 	}
+	state.IsNewContract = s.IsNewContract
 	state.HasSelfDestructed = s.HasSelfDestructed
 	if s.SelfDestructedJournal != nil {
 		for _, entry := range s.SelfDestructedJournal {

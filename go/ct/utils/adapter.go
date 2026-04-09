@@ -80,8 +80,10 @@ func (c *ctRunContext) AccountExists(addr tosca.Address) bool {
 	return c.state.Accounts.Exists(addr)
 }
 
-func (c *ctRunContext) IsNewContract(addr tosca.Address) bool {
-	return true // TODO: add support for newly created contracts
+// IsNewContract returns whether the current contract is new,
+// it is only called in SelfDestruct therefore it is only relevant for the current contract.
+func (c *ctRunContext) IsNewContract(tosca.Address) bool {
+	return c.state.IsNewContract
 }
 
 func (c *ctRunContext) GetStorage(addr tosca.Address, key tosca.Key) tosca.Word {
@@ -162,8 +164,9 @@ func (c *ctRunContext) SelfDestruct(address tosca.Address, beneficiary tosca.Add
 			return false
 		}
 		c.state.HasSelfDestructed = true
+		return true
 	}
-	return true
+	return false
 }
 
 func (c *ctRunContext) AccessAccount(addr tosca.Address) tosca.AccessStatus {
