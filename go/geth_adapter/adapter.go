@@ -490,18 +490,30 @@ func (a *runContextAdapter) GetLogs() []tosca.Log {
 
 func (a *runContextAdapter) SelfDestruct(addr tosca.Address, beneficiary tosca.Address) bool {
 	stateDb := a.evm.StateDB
+
 	// HasSelfDestructed only returns true if it is the first call to SelfDestruct
 	selfdestructed := !stateDb.HasSelfDestructed(common.Address(addr))
 
+	isCancun := a.evm.ChainConfig().IsCancun(a.evm.Context.BlockNumber, a.evm.Context.Time)
+	isNewContract := stateDb.IsNewContract(common.Address(addr))
+	isSelfTransfer := beneficiary == addr
+
 	// Transfer balance to beneficiary
 	balance := stateDb.GetBalance(common.Address(addr))
-	stateDb.SubBalance(common.Address(addr), balance, tracing.BalanceDecreaseSelfdestruct)
-	stateDb.AddBalance(common.Address(beneficiary), balance, tracing.BalanceIncreaseSelfdestruct)
 
 	// Contracts are only destructed before Cancun or if they are marked as new
-	if !a.evm.ChainConfig().IsCancun(a.evm.Context.BlockNumber, a.evm.Context.Time) ||
-		stateDb.IsNewContract(common.Address(addr)) {
+	if !isCancun || isNewContract {
+		if !isSelfTransfer {
+			stateDb.AddBalance(common.Address(beneficiary), balance, tracing.BalanceIncreaseSelfdestruct)
+		}
+		stateDb.SubBalance(common.Address(addr), balance, tracing.BalanceDecreaseSelfdestruct)
 		stateDb.SelfDestruct(common.Address(addr))
+	}
+
+	// If the contract already exists only transfer if the beneficiary is not self
+	if isCancun && !isNewContract && !isSelfTransfer {
+		stateDb.SubBalance(common.Address(addr), balance, tracing.BalanceDecreaseSelfdestruct)
+		stateDb.AddBalance(common.Address(beneficiary), balance, tracing.BalanceIncreaseSelfdestruct)
 	}
 
 	return selfdestructed
