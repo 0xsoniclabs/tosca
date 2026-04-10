@@ -43,14 +43,14 @@ threshold:
 # override rules should be listed in order from specific to more general rules.
 override:
   # files
+  - threshold: 100
+    path: go/geth_adapter/adapter.go
   - threshold: 0
     path: go/ct/spc/specification.go
   - threshold: 0
     path: go/ct/st/transient_storage.go
   - threshold: 0
     path: go/ct/utils/adapter.go
-  - threshold: 0
-    path: go/geth_adapter/adapter.go
   - threshold: 0
     path: go/integration_test/processor/scenario.go
   - threshold: 0
@@ -69,6 +69,10 @@ override:
     path: go/tosca/utils.go
 
   # packages
+  - threshold:  100
+    path: go/interpreter/lfvm
+  - threshold:  100
+    path: go/interpreter/sfvm
   - threshold: 0
     path: go/ct/spc
   - threshold: 0
@@ -87,8 +91,6 @@ override:
     path: go/integration_test/processor
   - threshold: 0
     path: go/interpreter/evmc
-  - threshold:  100
-    path: go/interpreter/lfvm
   - threshold: 0
     path: go/processor/floria
   - threshold: 0
