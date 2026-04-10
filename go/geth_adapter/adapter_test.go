@@ -644,6 +644,24 @@ func TestRunContextAdapter_BooleanChecksReturnCorrectValues(t *testing.T) {
 				return adapter.HasSelfDestructed(tosca.Address{0x42})
 			},
 		},
+		"isNewContract-true": {
+			primingMock: func(stateDb *MockStateDb) {
+				stateDb.EXPECT().IsNewContract(common.Address{0x42}).Return(true)
+			},
+			want: true,
+			functionCall: func(adapter *runContextAdapter) bool {
+				return adapter.IsNewContract(tosca.Address{0x42})
+			},
+		},
+		"isNewContract-false": {
+			primingMock: func(stateDb *MockStateDb) {
+				stateDb.EXPECT().IsNewContract(common.Address{0x42}).Return(false)
+			},
+			want: false,
+			functionCall: func(adapter *runContextAdapter) bool {
+				return adapter.IsNewContract(tosca.Address{0x42})
+			},
+		},
 	}
 
 	for name, test := range tests {
