@@ -459,6 +459,8 @@ func TestRunContextAdapter_SelfdestructBalanceUpdateAllCombinations(t *testing.T
 						LondonBlock: big.NewInt(42),
 						ChainID:     big.NewInt(42),
 					}
+					require.Equal(t, isCancun, chainConfig.IsCancun(blockContext.BlockNumber, blockContext.Time))
+
 					evm := geth.NewEVM(blockContext,
 						stateDb,
 						chainConfig,

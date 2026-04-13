@@ -488,6 +488,8 @@ func (a *runContextAdapter) GetLogs() []tosca.Log {
 	return nil
 }
 
+// SelfDestruct implements the selfdestruct operation and performs the necessary balance updates according to geth:
+// https://github.com/ethereum/go-ethereum/blob/58557cb4635d4e6f3e49fcdc82a6469554e929a6/core/vm/instructions.go#L882-L954
 func (a *runContextAdapter) SelfDestruct(addr tosca.Address, beneficiary tosca.Address) bool {
 	stateDb := a.evm.StateDB
 
