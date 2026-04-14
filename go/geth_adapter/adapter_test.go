@@ -388,6 +388,94 @@ func TestRunContextAdapter_SelfdestructDependsOnIsNewContract(t *testing.T) {
 	}
 }
 
+func TestRunContextAdapter_SelfdestructBalanceUpdateAllCombinations(t *testing.T) {
+	boolToInt := func(b bool) int {
+		if b {
+			return 1
+		}
+		return 0
+	}
+
+	for _, isCancun := range []bool{false, true} {
+		for _, isNewContract := range []bool{false, true} {
+			for _, isSelfTransfer := range []bool{false, true} {
+				name := fmt.Sprintf("isCancun=%t_isNewContract=%t_isSelfTransfer=%t", isCancun, isNewContract, isSelfTransfer)
+				t.Run(name, func(t *testing.T) {
+					ctrl := gomock.NewController(t)
+					stateDb := NewMockStateDb(ctrl)
+
+					// Balance updates according to geth:
+					// https://github.com/ethereum/go-ethereum/blob/58557cb4635d4e6f3e49fcdc82a6469554e929a6/core/vm/instructions.go#L882-L954
+					//
+					// B+ ... balance is added to beneficiary
+					// B- ... balance is subtracted from address
+					// SD ... SelfDestruct is called on address
+					//
+					// | isCancun | isNewContract | isSelfTransfer | B+ | B- | SD |
+					// |----------|---------------|----------------|----|----|----|
+					// | false    | false         | false          | 1  | 1  | 1  |
+					// | false    | false         | true           | 0  | 1  | 1  |
+					// | false    | true          | false          | 1  | 1  | 1  |
+					// | false    | true          | true           | 0  | 1  | 1  |
+					// | true     | false         | false          | 1  | 1  | 0  |
+					// | true     | false         | true           | 0  | 0  | 0  |
+					// | true     | true          | false          | 1  | 1  | 1  |
+					// | true     | true          | true           | 0  | 1  | 1  |
+
+					expectAddBalance := !isSelfTransfer
+					expectSubBalance := !isCancun || isNewContract || !isSelfTransfer
+					expectSelfDestruct := !isCancun || isNewContract
+
+					address := common.Address{0x42}
+					beneficiary := common.Address{0x43}
+					if isSelfTransfer {
+						beneficiary = address
+					}
+
+					// Account has not already been selfdestructed
+					stateDb.EXPECT().HasSelfDestructed(address).Return(false)
+
+					stateDb.EXPECT().GetBalance(address).Return(uint256.NewInt(24))
+					stateDb.EXPECT().IsNewContract(address).Return(isNewContract).AnyTimes()
+					stateDb.EXPECT().AddBalance(common.Address(beneficiary), uint256.NewInt(24),
+						tracing.BalanceIncreaseSelfdestruct).Times(boolToInt(expectAddBalance))
+					stateDb.EXPECT().SubBalance(common.Address(address), uint256.NewInt(24),
+						tracing.BalanceDecreaseSelfdestruct).Times(boolToInt(expectSubBalance))
+					stateDb.EXPECT().SelfDestruct(address).Times(boolToInt(expectSelfDestruct))
+
+					blockContext := geth.BlockContext{
+						BlockNumber: big.NewInt(43),
+						Time:        42,
+					}
+					chainConfig := &params.ChainConfig{
+						CancunTime: func() *uint64 {
+							if isCancun {
+								t := uint64(42)
+								return &t
+							} else {
+								return nil
+							}
+						}(),
+						LondonBlock: big.NewInt(42),
+						ChainID:     big.NewInt(42),
+					}
+					require.Equal(t, isCancun, chainConfig.IsCancun(blockContext.BlockNumber, blockContext.Time))
+
+					evm := geth.NewEVM(blockContext,
+						stateDb,
+						chainConfig,
+						geth.Config{},
+					)
+					adapter := &runContextAdapter{evm: evm, caller: address}
+					destructed := adapter.SelfDestruct(tosca.Address(address), tosca.Address(beneficiary))
+					require.True(t, destructed,
+						"Selfdestruct should return true as the account has not been selfdestructed before")
+				})
+			}
+		}
+	}
+}
+
 func TestRunContextAdapter_SnapshotHandling(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	stateDb := NewMockStateDb(ctrl)
