@@ -73,6 +73,10 @@ func (s *StateDB) GetLogs() []types.Log {
 
 // vm.StateDB interface implementation
 
+func (s *StateDB) EmitLogsForBurnAccounts() {
+	// TODO: implement EIP-7708 for Amsterdam hard fork.
+}
+
 func (s *StateDB) CreateAccount(common.Address) {
 	// not implemented
 }

@@ -208,7 +208,7 @@ func createGethInterpreterContext(parameters tosca.Parameters) (*geth.EVM, *geth
 
 // transferFunc subtracts amount from sender and adds amount to recipient using the given Db
 // Now is doing nothing as this is not changing gas computation
-func transferFunc(stateDB geth.StateDB, callerAddress common.Address, to common.Address, value *uint256.Int) {
+func transferFunc(stateDB geth.StateDB, callerAddress common.Address, to common.Address, value *uint256.Int, _ *params.Rules) {
 	// Can be something like this:
 	stateDB.SubBalance(callerAddress, value, tracing.BalanceChangeTransfer)
 	stateDB.AddBalance(to, value, tracing.BalanceChangeTransfer)
