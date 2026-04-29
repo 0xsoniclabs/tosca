@@ -823,7 +823,7 @@ func TestRunContextAdapter_Call(t *testing.T) {
 	stateDb.EXPECT().GetCode(address).Return([]byte{})
 
 	canTransfer := func(geth.StateDB, common.Address, *uint256.Int) bool { return true }
-	transfer := func(geth.StateDB, common.Address, common.Address, *uint256.Int) {}
+	transfer := func(geth.StateDB, common.Address, common.Address, *uint256.Int, *params.Rules) {}
 
 	chainConfig := &params.ChainConfig{
 		ChainID:       big.NewInt(42),

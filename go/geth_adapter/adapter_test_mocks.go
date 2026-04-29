@@ -305,6 +305,18 @@ func (mr *MockStateDbMockRecorder) CreateContract(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateContract", reflect.TypeOf((*MockStateDb)(nil).CreateContract), arg0)
 }
 
+// EmitLogsForBurnAccounts mocks base method.
+func (m *MockStateDb) EmitLogsForBurnAccounts() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "EmitLogsForBurnAccounts")
+}
+
+// EmitLogsForBurnAccounts indicates an expected call of EmitLogsForBurnAccounts.
+func (mr *MockStateDbMockRecorder) EmitLogsForBurnAccounts() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EmitLogsForBurnAccounts", reflect.TypeOf((*MockStateDb)(nil).EmitLogsForBurnAccounts))
+}
+
 // Empty mocks base method.
 func (m *MockStateDb) Empty(arg0 common.Address) bool {
 	m.ctrl.T.Helper()

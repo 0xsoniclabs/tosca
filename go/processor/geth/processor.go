@@ -78,7 +78,7 @@ func (p *Processor) Run(
 	evm.TxContext = txContext
 
 	msg := transactionToMessage(transaction, gasPrice, blobHashes)
-	gasPool := new(core.GasPool).AddGas(uint64(transaction.GasLimit))
+	gasPool := core.NewGasPool(uint64(transaction.GasLimit))
 
 	snapshot := context.CreateSnapshot()
 	result, err := core.ApplyMessage(evm, msg, gasPool)
@@ -133,7 +133,7 @@ func newBlockContext(blockParameters tosca.BlockParameters, context tosca.Transa
 		return stateDB.GetBalance(address).Cmp(value) >= 0
 	}
 
-	transfer := func(stateDB vm.StateDB, sender common.Address, recipient common.Address, value *uint256.Int) {
+	transfer := func(stateDB vm.StateDB, sender common.Address, recipient common.Address, value *uint256.Int, _ *params.Rules) {
 		stateDB.SubBalance(sender, value, tracing.BalanceChangeTransfer)
 		stateDB.AddBalance(recipient, value, tracing.BalanceChangeTransfer)
 	}

@@ -91,7 +91,7 @@ func (p *processor) Run(
 	}
 
 	// Intercept the transfer function to conduct the transfer on the actual state.
-	transferFunc := func(_ geth.StateDB, from common.Address, to common.Address, amount *uint256.Int) {
+	transferFunc := func(_ geth.StateDB, from common.Address, to common.Address, amount *uint256.Int, _ *params.Rules) {
 		if amount.Sign() != 1 || from == to {
 			return
 		}
