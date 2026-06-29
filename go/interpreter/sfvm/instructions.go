@@ -26,7 +26,9 @@ func opEndWithResult(c *context) error {
 	offset := c.stack.pop()
 	size := c.stack.pop()
 	var err error
-	c.returnData, err = c.memory.getSlice(offset, size, c)
+	returnData, err := c.memory.getSlice(offset, size, c)
+	// make a copy of the data to disconnect from memory
+	c.returnData = bytes.Clone(returnData)
 	return err
 }
 
