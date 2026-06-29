@@ -767,6 +767,7 @@ func genericCreate(c *context, kind tosca.CallKind) error {
 	if err != nil {
 		return err
 	}
+	input = bytes.Clone(input) // make a copy of the input to disconnect from memory
 
 	if c.isAtLeast(tosca.R12_Shanghai) {
 		initCodeCost, err := computeCodeSizeCost(size.Uint64())
