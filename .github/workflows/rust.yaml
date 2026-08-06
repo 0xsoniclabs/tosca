@@ -28,7 +28,7 @@ jobs:
 
     steps:
     - name: checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
     - name: install rust
       uses: dtolnay/rust-toolchain@1.97
       with:
@@ -47,7 +47,7 @@ jobs:
 
     steps:
     - name: checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
     - name: install rust
       uses: dtolnay/rust-toolchain@1.97
       with:
@@ -68,7 +68,7 @@ jobs:
 
     steps:
     - name: checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
     - name: install rust
       uses: dtolnay/rust-toolchain@1.97
     - name: load cache
@@ -89,7 +89,7 @@ jobs:
 
     steps:
     - name: checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
     - name: install rust
       uses: dtolnay/rust-toolchain@1.97
     - name: load cache
@@ -108,7 +108,7 @@ jobs:
 
     steps:
     - name: checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
     - name: install rust
       uses: dtolnay/rust-toolchain@1.97
     - name: load cache
@@ -130,7 +130,7 @@ jobs:
 
     steps:
     - name: checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
     - name: install rust
       uses: dtolnay/rust-toolchain@master
       with:
@@ -167,7 +167,7 @@ jobs:
 
     steps:
     - name: checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
     - name: install rust
       uses: dtolnay/rust-toolchain@master
       with:
@@ -202,7 +202,7 @@ jobs:
 
     steps:
     - name: checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
     - name: install rust
       uses: dtolnay/rust-toolchain@master
       with:
@@ -231,7 +231,7 @@ jobs:
 
     steps:
     - name: checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
     - name: install rust
       uses: dtolnay/rust-toolchain@1.97
     - name: load cache
@@ -250,7 +250,7 @@ jobs:
 
     steps:
     - name: checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
     - name: load cache
       uses: Swatinem/rust-cache@v2
       with:
