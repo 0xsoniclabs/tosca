@@ -383,11 +383,13 @@ impl u256 {
     pub fn signextend(self, rhs: Self) -> Self {
         let (lhs, lhs_overflow) = self.into_u64_with_overflow();
         let lhs = lhs as usize;
-        if lhs_overflow || lhs > 31 {
+        // For 31 and higher the sign byte is already the last byte, so the result is the same as
+        // rhs.
+        if lhs_overflow || lhs >= 31 {
             return rhs;
         }
 
-        let byte = 31 - lhs; // lhs <= 31 so this does not underflow
+        let byte = 31 - lhs; // lhs < 31 so this is in 1..=31 and the shifts below stay below 256
         let negative = (rhs.to_le_bytes()[lhs] & 0x80) > 0;
 
         let res = if negative {
@@ -542,5 +544,37 @@ mod tests {
             }),
             u256::ONE
         );
+    }
+
+    #[test]
+    fn signextend() {
+        let cases = [
+            // sizes below 31 keep the bytes up to `size` and replicate the sign bit above them
+            (u256::ZERO, u256::from(0x7fu64), u256::from(0x7fu64)),
+            (u256::ZERO, u256::from(0x127fu64), u256::from(0x7fu64)),
+            (u256::ZERO, u256::from(0xffu64), u256::MAX),
+            (u256::ZERO, u256::from(0x12ffu64), u256::MAX),
+            (u256::ONE, u256::from(0xffu64), u256::from(0xffu64)),
+            (u256::ONE, u256::from(0x7fffu64), u256::from(0x7fffu64)),
+            (u256::ONE, u256::from(0xffffu64), u256::MAX),
+            (
+                u256::from(30u64),
+                u256::ONE << u256::from(247u64),
+                u256::MAX << u256::from(247u64),
+            ),
+            // byte 31 is already the sign byte, so size 31 is the identity
+            (
+                u256::from(31u64),
+                u256::ONE << u256::from(255u64),
+                u256::ONE << u256::from(255u64),
+            ),
+            (u256::from(31u64), u256::MAX, u256::MAX),
+            // sizes above 31 are the identity as well
+            (u256::from(32u64), u256::from(0xffu64), u256::from(0xffu64)),
+            (u256::MAX, u256::from(0xffu64), u256::from(0xffu64)),
+        ];
+        for (size, value, expected) in cases {
+            assert_eq!(expected, u256::signextend(size, value));
+        }
     }
 }

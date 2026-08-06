@@ -75,9 +75,7 @@ impl Stack {
     }
 
     pub fn push(&mut self, value: impl Into<u256>) -> Result<(), FailStatus> {
-        if self.0.len() >= Self::CAPACITY {
-            return Err(FailStatus::StackOverflow);
-        }
+        self.check_overflow(1)?;
         #[cfg(feature = "unsafe-stack")]
         // SAFETY:
         // self.0 is initialized with capacity Self::CAPACITY and never shrunk.
@@ -167,6 +165,15 @@ impl Stack {
             _ => self.0[self.0.len() - N],
         };
         self.push(element)
+    }
+
+    #[inline(always)]
+    pub fn check_overflow(&self, num_elements: usize) -> Result<(), FailStatus> {
+        // len <= CAPACITY (invariant), so this does not underflow
+        if Self::CAPACITY - self.0.len() < num_elements {
+            return Err(FailStatus::StackOverflow);
+        }
+        Ok(())
     }
 
     #[inline(always)]
@@ -266,6 +273,16 @@ mod tests {
 
         let mut stack = Stack::new(&[u256::MAX, u256::ONE]);
         assert_eq!(stack.swap_with_top::<2>(), Err(FailStatus::StackUnderflow));
+    }
+
+    #[test]
+    fn check_overflow() {
+        let stack = Stack::new(&[u256::ZERO; Stack::CAPACITY - 1]);
+        assert_eq!(stack.check_overflow(1), Ok(()));
+        assert_eq!(stack.check_overflow(2), Err(FailStatus::StackOverflow));
+        let stack = Stack::new(&[u256::ZERO; Stack::CAPACITY]);
+        assert_eq!(stack.check_overflow(0), Ok(()));
+        assert_eq!(stack.check_overflow(1), Err(FailStatus::StackOverflow));
     }
 
     #[test]
