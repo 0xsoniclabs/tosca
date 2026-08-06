@@ -943,7 +943,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let (push_location, [block_number]) = self.stack.pop_with_location()?;
         push_location.push(
             u64::try_from(block_number)
-                .map(|idx| self.context.get_block_hash(idx as i64).into())
+                .map(|idx| self.context.get_block_hash(idx.cast_signed()).into())
                 .unwrap_or(u256::ZERO),
         );
         self.code_reader.next();
@@ -960,8 +960,12 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
     fn timestamp(&mut self) -> OpResult {
         self.gas_left.consume(2)?;
-        self.stack
-            .push(self.context.get_tx_context().block_timestamp as u64)?;
+        self.stack.push(
+            self.context
+                .get_tx_context()
+                .block_timestamp
+                .cast_unsigned(),
+        )?;
         self.code_reader.next();
         self.return_from_op()
     }
@@ -969,7 +973,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     fn number(&mut self) -> OpResult {
         self.gas_left.consume(2)?;
         self.stack
-            .push(self.context.get_tx_context().block_number as u64)?;
+            .push(self.context.get_tx_context().block_number.cast_unsigned())?;
         self.code_reader.next();
         self.return_from_op()
     }
@@ -984,8 +988,12 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
     fn gas_limit(&mut self) -> OpResult {
         self.gas_left.consume(2)?;
-        self.stack
-            .push(self.context.get_tx_context().block_gas_limit as u64)?;
+        self.stack.push(
+            self.context
+                .get_tx_context()
+                .block_gas_limit
+                .cast_unsigned(),
+        )?;
         self.code_reader.next();
         self.return_from_op()
     }
@@ -1394,7 +1402,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             },
             flags: self.message.flags,
             depth: self.message.depth + 1,
-            gas: gas_limit as i64,
+            gas: gas_limit.cast_signed(),
             recipient: u256::ZERO.into(), // ignored
             sender: self.message.recipient,
             input: init_code,
@@ -1470,7 +1478,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         endowment = min(endowment, limit); // cap gas at all but one 64th of gas left
 
         let stipend: u64 = if value == u256::ZERO { 0 } else { 2_300 };
-        self.gas_left.add(stipend as i64)?;
+        self.gas_left.add(stipend.cast_signed())?;
 
         if value > u256::from(self.context.get_balance(&self.message.recipient)) {
             self.last_call_return_data = Box::default();
@@ -1484,7 +1492,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
                 kind: MessageKind::EVMC_CALLCODE,
                 flags: self.message.flags,
                 depth: self.message.depth + 1,
-                gas: (endowment + stipend) as i64,
+                gas: (endowment + stipend).cast_signed(),
                 recipient: self.message.recipient,
                 sender: self.message.recipient,
                 input,
@@ -1499,7 +1507,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
                 kind: MessageKind::EVMC_CALL,
                 flags: self.message.flags,
                 depth: self.message.depth + 1,
-                gas: (endowment + stipend) as i64,
+                gas: (endowment + stipend).cast_signed(),
                 recipient: addr,
                 sender: self.message.recipient,
                 input,
@@ -1572,7 +1580,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
                 kind: MessageKind::EVMC_DELEGATECALL,
                 flags: self.message.flags,
                 depth: self.message.depth + 1,
-                gas: endowment as i64,
+                gas: endowment.cast_signed(),
                 recipient: self.message.recipient,
                 sender: self.message.sender,
                 input,
@@ -1587,7 +1595,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
                 kind: MessageKind::EVMC_CALL,
                 flags: MessageFlags::EVMC_STATIC as u32,
                 depth: self.message.depth + 1,
-                gas: endowment as i64,
+                gas: endowment.cast_signed(),
                 recipient: addr,
                 sender: self.message.recipient,
                 input,
@@ -1633,7 +1641,7 @@ impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for StepResult {
             status_code: StatusCode::EVMC_SUCCESS,
             revision: value.revision,
             pc: value.code_reader.pc() as u64,
-            gas_left: value.gas_left.as_u64() as i64,
+            gas_left: value.gas_left.as_u64().cast_signed(),
             gas_refund: value.gas_refund.as_i64(),
             output: value.output,
             stack,
@@ -1647,7 +1655,7 @@ impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for ExecutionResult
     fn from(value: Interpreter<STEPPABLE>) -> Self {
         Self {
             status_code: value.exec_status.into(),
-            gas_left: value.gas_left.as_u64() as i64,
+            gas_left: value.gas_left.as_u64().cast_signed(),
             gas_refund: value.gas_refund.as_i64(),
             output: value.output,
             create_address: None,
@@ -1690,7 +1698,7 @@ mod tests {
         assert_eq!(result.pc, 0);
         assert_eq!(
             result.gas_left,
-            MockExecutionMessage::DEFAULT_INIT_GAS as i64
+            MockExecutionMessage::DEFAULT_INIT_GAS.cast_signed()
         );
     }
 
@@ -1719,7 +1727,7 @@ mod tests {
         assert_eq!(result.pc, 1);
         assert_eq!(
             result.gas_left,
-            MockExecutionMessage::DEFAULT_INIT_GAS as i64
+            MockExecutionMessage::DEFAULT_INIT_GAS.cast_signed()
         );
     }
 
@@ -1774,7 +1782,7 @@ mod tests {
         assert_eq!(result.pc, 0);
         assert_eq!(
             result.gas_left,
-            MockExecutionMessage::DEFAULT_INIT_GAS as i64
+            MockExecutionMessage::DEFAULT_INIT_GAS.cast_signed()
         );
     }
 
@@ -1803,7 +1811,7 @@ mod tests {
         assert_eq!(result.stack.as_slice(), [u256::from(3u8).into()]);
         assert_eq!(
             result.gas_left,
-            MockExecutionMessage::DEFAULT_INIT_GAS as i64 - 3
+            MockExecutionMessage::DEFAULT_INIT_GAS.cast_signed() - 3
         );
     }
 
@@ -1827,7 +1835,7 @@ mod tests {
         assert_eq!(result.stack.as_slice(), [u256::from(3u8).into()]);
         assert_eq!(
             result.gas_left,
-            MockExecutionMessage::DEFAULT_INIT_GAS as i64 - 3
+            MockExecutionMessage::DEFAULT_INIT_GAS.cast_signed() - 3
         );
     }
 
@@ -1851,7 +1859,7 @@ mod tests {
         assert_eq!(result.stack.as_slice(), [u256::from(6u8).into()]);
         assert_eq!(
             result.gas_left,
-            MockExecutionMessage::DEFAULT_INIT_GAS as i64 - 2 * 3
+            MockExecutionMessage::DEFAULT_INIT_GAS.cast_signed() - 2 * 3
         );
     }
 
@@ -1940,7 +1948,7 @@ mod tests {
                 call_message.kind == MessageKind::EVMC_CALL
                     && call_message.flags == 0
                     && call_message.depth == message.depth + 1
-                    && call_message.gas == gas as i64
+                    && call_message.gas == gas.cast_signed()
                     && call_message.sender == message.recipient
                     && call_message.recipient == Address::from(addr)
                     && call_message.input == input
@@ -1988,7 +1996,7 @@ mod tests {
         assert_eq!(result.pc, 1);
         assert_eq!(
             result.gas_left,
-            MockExecutionMessage::DEFAULT_INIT_GAS as i64 - 700 - gas as i64
+            MockExecutionMessage::DEFAULT_INIT_GAS.cast_signed() - 700 - gas.cast_signed()
         );
         assert_eq!(result.last_call_return_data.as_ref(), ret_data.as_slice());
         assert_eq!(

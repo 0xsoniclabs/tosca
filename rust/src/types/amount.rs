@@ -266,7 +266,7 @@ impl Shl for u256 {
         if rest != [0; 31] {
             return u256::ZERO;
         }
-        Self(self.0.wrapping_shl(shift.into()))
+        Self(self.0.wrapping_shl(u32::from(shift)))
     }
 }
 
@@ -287,7 +287,7 @@ impl Shr for u256 {
         if rest != [0; 31] {
             return u256::ZERO;
         }
-        Self(self.0.wrapping_shr(shift.into()))
+        Self(self.0.wrapping_shr(u32::from(shift)))
     }
 }
 

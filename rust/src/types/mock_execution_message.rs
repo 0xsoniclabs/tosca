@@ -22,7 +22,7 @@ pub struct MockExecutionMessage {
 }
 
 impl MockExecutionMessage {
-    pub const DEFAULT_INIT_GAS: u64 = i64::MAX as u64;
+    pub const DEFAULT_INIT_GAS: u64 = i64::MAX.cast_unsigned();
 
     pub fn to_evmc_message(&self) -> evmc_message {
         evmc_message {
@@ -58,7 +58,7 @@ impl Default for MockExecutionMessage {
             kind: MessageKind::EVMC_CALL,
             flags: 0,
             depth: 0,
-            gas: Self::DEFAULT_INIT_GAS as i64,
+            gas: Self::DEFAULT_INIT_GAS.cast_signed(),
             recipient: u256::ZERO.into(),
             sender: u256::ZERO.into(),
             input: &[],

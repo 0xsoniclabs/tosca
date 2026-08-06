@@ -27,8 +27,8 @@ impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
 
     pub fn skip_no_ops_iter(count: usize) -> impl Iterator<Item = Self> {
         let skip_no_ops = Self::func(Opcode::SkipNoOps as u8, (count as u64).into());
-        let gen_no_ops = move || Self::func(Opcode::NoOp as u8, u256::ZERO);
-        std::iter::once(skip_no_ops).chain(std::iter::repeat_with(gen_no_ops).take(count - 1))
+        let no_op = Self::func(Opcode::NoOp as u8, u256::ZERO);
+        std::iter::once(skip_no_ops).chain(std::iter::repeat_n(no_op, count - 1))
     }
 
     pub fn func(op: u8, data: u256) -> Self {

@@ -121,8 +121,7 @@ impl Stack {
         self.check_underflow(N)?;
 
         let new_len = self.0.len() - N;
-        let mut array = [u256::ZERO; N];
-        array.copy_from_slice(&self.0[new_len..]);
+        let array = *self.0[new_len..].as_array().unwrap();
         self.0.truncate(new_len);
         Ok(array)
     }
@@ -143,7 +142,7 @@ impl Stack {
         // `self.len` just got decremented by N - 1, which means now that the first `self.len  +
         // (N - 1)` elements are initialized. Therefore, it is safe to read N elements
         // starting at index `self.len - 1` as an array of length N and type u256.
-        let pop_data = unsafe { *(pop_start as *const [u256; N]) };
+        let pop_data = unsafe { *pop_start.cast::<[u256; N]>() };
         let len = self.len();
         let push_location = PushLocation(&mut self.0[len - 1]);
         Ok((push_location, pop_data))
@@ -161,8 +160,8 @@ impl Stack {
         let element = std::cfg_select! {
             feature = "unsafe-stack" => {
                 // SAFETY:
-                // self.0.len() >= nth + 1 was checked in check_underflow.
-                // Therefore self.0.len() - 1 - nth is in bounds.
+                // self.0.len() >= N was checked in check_underflow.
+                // Therefore self.0.len() - N is in bounds.
                 *unsafe { self.0.get_unchecked(self.0.len() - N) }
             }
             _ => self.0[self.0.len() - N],

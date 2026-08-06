@@ -34,7 +34,6 @@ impl<W: Write> LoggingObserver<W> {
 
 impl<W: Write, const STEPPABLE: bool> Observer<STEPPABLE> for LoggingObserver<W> {
     fn pre_op(&mut self, interpreter: &Interpreter<STEPPABLE>) {
-        // pre_op is called after the op is fetched so this will always be Ok(..)
         let op = std::cfg_select! {
             feature = "fn-ptr-conversion-dispatch" => {{
                 let op = interpreter.code_reader[interpreter.code_reader.pc()];
@@ -44,6 +43,7 @@ impl<W: Write, const STEPPABLE: bool> Observer<STEPPABLE> for LoggingObserver<W>
                 // byte is a valid Opcode.
                 unsafe { std::mem::transmute::<u8, Opcode>(op) }
             }}
+            // pre_op is called after the op is fetched so this will always be Ok(..)
             _ => interpreter.code_reader.get().unwrap(),
         };
         let gas = interpreter.gas_left.as_u64();

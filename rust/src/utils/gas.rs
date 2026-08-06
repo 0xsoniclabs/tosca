@@ -118,9 +118,8 @@ impl Gas {
         if context.get_code_size(addr) == 23 {
             let mut code = [0; 23];
             context.copy_code(addr, 0, &mut code);
-            if code.len() == 23 && code[..3] == [0xef, 0x01, 0x00] {
-                let mut delegation_addr = Address::default();
-                delegation_addr.bytes.copy_from_slice(&code[3..]);
+            if let [0xef, 0x01, 0x00, delegation @ ..] = code {
+                let delegation_addr = Address { bytes: delegation };
                 self.consume_address_access_cost(&delegation_addr, revision, context)?;
             }
         }
