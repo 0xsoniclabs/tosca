@@ -218,6 +218,9 @@ It is recommended to pass `--target` and `-Zbuild-std` to cargo.
 `--target` makes sure that the rustflags (for sanitizer instrumentation) are not applied to build scripts and procedural macros.
 `-Zbuild-std` rebuilds the standard library with instrumentation.
 
+The thread sanitizer additionally needs `CFLAGS` so that mimalloc is instrumented as well.
+`-DMI_TSAN=1` makes mimalloc store its page flags in separate bytes instead of bits of a shared byte, which otherwise causes the thread sanitizer to report benign races.
+
 Examples:
 ```sh
 # required for -Zbuild-std
@@ -232,7 +235,7 @@ RUSTFLAGS="-Zsanitizer=memory -Zsanitizer-memory-track-origins" \
     cargo +nightly test -Zbuild-std --target x86_64-unknown-linux-gnu
 
 # run tests with thread sanitizer
-CFLAGS=-fsanitize=thread RUSTFLAGS=-Zsanitizer=thread \
+CFLAGS="-fsanitize=thread -DMI_TSAN=1" RUSTFLAGS=-Zsanitizer=thread \
     cargo +nightly test -Zbuild-std --target x86_64-unknown-linux-gnu
 
 # run benchmarks with address sanitizer
@@ -244,7 +247,7 @@ RUSTFLAGS="-Zsanitizer=memory -Zsanitizer-memory-track-origins" \
     cargo +nightly run -Zbuild-std --target x86_64-unknown-linux-gnu --package benchmarks -- 1 all-short
 
 # run benchmarks with thread sanitizer
-CFLAGS=-fsanitize=thread RUSTFLAGS=-Zsanitizer=thread \
+CFLAGS="-fsanitize=thread -DMI_TSAN=1" RUSTFLAGS=-Zsanitizer=thread \
     cargo +nightly run -Zbuild-std --target x86_64-unknown-linux-gnu --package benchmarks -- 1 all-short
 ```
 

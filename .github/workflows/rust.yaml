@@ -156,7 +156,9 @@ jobs:
     - name: cargo test with thread sanitizer
       working-directory: rust
       env:
-        CFLAGS: -fsanitize=thread
+        # MI_TSAN makes mimalloc store its page flags in separate bytes instead of bits of a shared
+        # byte, which otherwise causes the thread sanitizer to report benign races.
+        CFLAGS: "-fsanitize=thread -DMI_TSAN=1"
         RUSTFLAGS: -Zsanitizer=thread
         RUSTDOCFLAGS: "-Zsanitizer=thread -Cunsafe-allow-abi-mismatch=sanitizer"
       run: cargo +nightly-2026-08-05 hack --workspace --each-feature --exclude-features needs-cache test -Zbuild-std --target x86_64-unknown-linux-gnu
@@ -192,7 +194,9 @@ jobs:
     - name: cargo run benchmarks with thread sanitizer
       working-directory: rust
       env:
-        CFLAGS: -fsanitize=thread
+        # MI_TSAN makes mimalloc store its page flags in separate bytes instead of bits of a shared
+        # byte, which otherwise causes the thread sanitizer to report benign races.
+        CFLAGS: "-fsanitize=thread -DMI_TSAN=1"
         RUSTFLAGS: -Zsanitizer=thread
       run: cargo +nightly-2026-08-05 hack --each-feature run -Zbuild-std --target x86_64-unknown-linux-gnu --package benchmarks --release -- 1 all-short
 
