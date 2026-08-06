@@ -1,6 +1,6 @@
+use std::cmp::max;
 #[cfg(feature = "alloc-reuse")]
 use std::sync::Mutex;
-use std::{cmp::max, iter};
 
 use crate::{
     types::{FailStatus, u256},
@@ -16,18 +16,19 @@ pub struct Memory(Vec<u8>);
 #[cfg(feature = "alloc-reuse")]
 impl Drop for Memory {
     fn drop(&mut self) {
-        let mut memory = Vec::new();
-        std::mem::swap(&mut memory, &mut self.0);
-        REUSABLE_MEMORY.lock().unwrap().push(memory);
+        REUSABLE_MEMORY
+            .lock()
+            .unwrap()
+            .push(std::mem::take(&mut self.0));
     }
 }
 
 impl Memory {
     pub fn new(memory: &[u8]) -> Self {
-        #[cfg(not(feature = "alloc-reuse"))]
-        let mut m = Vec::new();
-        #[cfg(feature = "alloc-reuse")]
-        let mut m = REUSABLE_MEMORY.lock().unwrap().pop().unwrap_or_default();
+        let mut m = std::cfg_select! {
+            feature = "alloc-reuse" => REUSABLE_MEMORY.lock().unwrap().pop().unwrap_or_default(),
+            _ => Vec::new(),
+        };
         m.clear();
 
         m.extend_from_slice(memory);
@@ -45,9 +46,8 @@ impl Memory {
     fn expand(&mut self, new_len_bytes: u64, gas_left: &mut Gas) -> Result<(), FailStatus> {
         #[cold]
         fn expand_raw(m: &mut Memory, new_len: u64, gas_left: &mut Gas) -> Result<(), FailStatus> {
-            let current_len = m.0.len() as u64;
             m.consume_expansion_cost(new_len, gas_left)?;
-            m.0.extend(iter::repeat_n(0, (new_len - current_len) as usize));
+            m.0.resize(new_len as usize, 0);
             Ok(())
         }
 
@@ -109,17 +109,23 @@ impl Memory {
         Ok(&mut self.0[offset..end])
     }
 
-    pub fn get_word(&mut self, offset: u256, gas_left: &mut Gas) -> Result<u256, FailStatus> {
-        let slice = self.get_mut_slice(offset, 32, gas_left)?;
-        let mut arr = [0; 32];
+    pub fn get_mut_array<const N: usize>(
+        &mut self,
+        offset: u256,
+        gas_left: &mut Gas,
+    ) -> Result<&mut [u8; N], FailStatus> {
+        let slice = self.get_mut_slice(offset, N as u64, gas_left)?;
         #[cfg(feature = "unsafe-hints")]
         // SAFETY:
-        // The slice is 32 bytes long.
+        // get_mut_slice returns a slice of the requested length.
         unsafe {
-            std::hint::assert_unchecked(slice.len() == 32);
+            std::hint::assert_unchecked(slice.len() == N);
         }
-        arr.copy_from_slice(slice);
-        Ok(u256::from_be_bytes(arr))
+        Ok(slice.as_mut_array().unwrap())
+    }
+
+    pub fn get_word(&mut self, offset: u256, gas_left: &mut Gas) -> Result<u256, FailStatus> {
+        Ok(u256::from_be_bytes(*self.get_mut_array(offset, gas_left)?))
     }
 
     pub fn get_mut_byte(
@@ -127,8 +133,8 @@ impl Memory {
         offset: u256,
         gas_left: &mut Gas,
     ) -> Result<&mut u8, FailStatus> {
-        let slice = self.get_mut_slice(offset, 1, gas_left)?;
-        Ok(&mut slice[0])
+        let [byte] = self.get_mut_array(offset, gas_left)?;
+        Ok(byte)
     }
 
     pub fn copy_within(

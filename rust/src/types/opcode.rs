@@ -333,10 +333,10 @@ pub fn code_byte_type(code_byte: u8) -> (CodeByteType, usize) {
         | LOG3 | LOG4 | CREATE | CALL | CALLCODE | RETURN | DELEGATECALL | CREATE2 | STATICCALL
         | REVERT | INVALID | SELFDESTRUCT => (CodeByteType::Opcode, 0),
         PUSH1..=PUSH32 => (
-            #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
-            CodeByteType::Opcode,
-            #[cfg(feature = "fn-ptr-conversion-dispatch")]
-            CodeByteType::Push,
+            std::cfg_select! {
+                feature = "fn-ptr-conversion-dispatch" => CodeByteType::Push,
+                _ => CodeByteType::Opcode,
+            },
             (code_byte - Opcode::Push1 as u8 + 1) as usize,
         ),
         JUMPDEST => (CodeByteType::JumpDest, 0),

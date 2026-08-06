@@ -4,12 +4,6 @@ use std::sync::Mutex;
 
 use crate::types::{FailStatus, u256};
 
-struct NonZero<const N: usize>;
-
-impl<const N: usize> NonZero<N> {
-    const VALID: () = assert!(N > 0);
-}
-
 /// This type is created by calling [`Stack::pop_with_location`] and is intended to replace pushing
 /// to the stack directly. It and avoids the stack overflow check when pushing because it is no
 /// longer needed. [`PushLocation`] has to be consumed by pushing to it.
@@ -37,9 +31,10 @@ pub struct Stack(Vec<u256>);
 #[cfg(feature = "alloc-reuse")]
 impl Drop for Stack {
     fn drop(&mut self) {
-        let mut stack = Vec::new();
-        std::mem::swap(&mut stack, &mut self.0);
-        REUSABLE_STACK.lock().unwrap().push(stack);
+        REUSABLE_STACK
+            .lock()
+            .unwrap()
+            .push(std::mem::take(&mut self.0));
     }
 }
 
@@ -50,14 +45,14 @@ impl Stack {
     pub fn new(inner: &[u256]) -> Self {
         let len = min(inner.len(), Self::CAPACITY);
         let inner = &inner[..len];
-        #[cfg(not(feature = "alloc-reuse"))]
-        let mut v = Vec::with_capacity(Self::CAPACITY);
-        #[cfg(feature = "alloc-reuse")]
-        let mut v = REUSABLE_STACK
-            .lock()
-            .unwrap()
-            .pop()
-            .unwrap_or_else(|| Vec::with_capacity(Self::CAPACITY));
+        let mut v = std::cfg_select! {
+            feature = "alloc-reuse" => REUSABLE_STACK
+                .lock()
+                .unwrap()
+                .pop()
+                .unwrap_or_else(|| Vec::with_capacity(Self::CAPACITY)),
+            _ => Vec::with_capacity(Self::CAPACITY),
+        };
         v.clear();
         #[cfg(feature = "unsafe-stack")]
         // SAFETY:
@@ -94,28 +89,28 @@ impl Stack {
     }
 
     pub fn swap_with_top<const N: usize>(&mut self) -> Result<(), FailStatus> {
-        let () = const { NonZero::<N>::VALID };
+        const { assert!(N > 0) };
 
         self.check_underflow(N + 1)?;
 
-        #[cfg(not(feature = "unsafe-stack"))]
-        {
-            let len = self.0.len();
-            self.0.swap(len - 1, len - 1 - N);
-        }
-        #[cfg(feature = "unsafe-stack")]
-        {
-            let start = self.0.as_mut_ptr();
-            // SAFETY:
-            // This does not wrap and the whole range is valid.
-            let top = unsafe { start.add(self.len() - 1) };
-            // SAFETY:
-            // This does not wrap and the whole range is valid.
-            let nth = unsafe { top.sub(N) };
-            // SAFETY:
-            // top and nth are valid pointers into the initialized part of the vector.
-            unsafe {
-                std::ptr::swap_nonoverlapping(top, nth, 1);
+        std::cfg_select! {
+            feature = "unsafe-stack" => {
+                let start = self.0.as_mut_ptr();
+                // SAFETY:
+                // This does not wrap and the whole range is valid.
+                let top = unsafe { start.add(self.len() - 1) };
+                // SAFETY:
+                // This does not wrap and the whole range is valid.
+                let nth = unsafe { top.sub(N) };
+                // SAFETY:
+                // top and nth are valid pointers into the initialized part of the vector.
+                unsafe {
+                    std::ptr::swap_nonoverlapping(top, nth, 1);
+                }
+            }
+            _ => {
+                let len = self.0.len();
+                self.0.swap(len - 1, len - 1 - N);
             }
         }
 
@@ -135,7 +130,7 @@ impl Stack {
     pub fn pop_with_location<const N: usize>(
         &'_ mut self,
     ) -> Result<(PushLocation<'_>, [u256; N]), FailStatus> {
-        let () = const { NonZero::<N>::VALID };
+        const { assert!(N > 0) };
 
         self.check_underflow(N)?;
 
@@ -160,16 +155,18 @@ impl Stack {
 
     pub fn dup<const N: usize>(&mut self) -> Result<(), FailStatus> {
         // Note: N is 1 based (N = x -> duplicate element at index x-1)
-        let () = const { NonZero::<N>::VALID };
+        const { assert!(N > 0) };
 
         self.check_underflow(N)?;
-        #[cfg(not(feature = "unsafe-stack"))]
-        let element = self.0[self.0.len() - N];
-        #[cfg(feature = "unsafe-stack")]
-        // SAFETY:
-        // self.0.len() >= nth + 1 was checked in check_underflow.
-        // Therefore self.0.len() - 1 - nth is in bounds.
-        let element = *unsafe { self.0.get_unchecked(self.0.len() - N) };
+        let element = std::cfg_select! {
+            feature = "unsafe-stack" => {
+                // SAFETY:
+                // self.0.len() >= nth + 1 was checked in check_underflow.
+                // Therefore self.0.len() - 1 - nth is in bounds.
+                *unsafe { self.0.get_unchecked(self.0.len() - N) }
+            }
+            _ => self.0[self.0.len() - N],
+        };
         self.push(element)
     }
 

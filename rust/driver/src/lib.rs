@@ -211,7 +211,7 @@ impl SteppableInstance {
     ///
     /// All pointers must be valid, except for `context` which can be null if the
     /// `evmc_host_interface` accepts null pointers as context.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     pub unsafe fn run_raw(
         &mut self,
         host: *const evmc_host_interface,
@@ -260,7 +260,7 @@ impl SteppableInstance {
     /// Run the interpreter (the `step_n` function) with the supplied values. This is a safe
     /// wrapper around `SteppableInstance::run_raw` which takes references and therefore
     /// does not allow null pointers to be passed.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     pub fn run<T>(
         &mut self,
         host: &evmc_host_interface,
@@ -320,7 +320,7 @@ impl SteppableInstance {
     /// wrapper around `SteppableInstance::run_raw` which takes references and therefore
     /// does not allow null pointers to be passed. Unlike `SteppableInstance::run` this function
     /// uses a null pointer as context.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     pub fn run_with_null_context(
         &mut self,
         host: &evmc_host_interface,

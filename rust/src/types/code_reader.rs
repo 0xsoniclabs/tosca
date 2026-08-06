@@ -8,14 +8,6 @@ use crate::types::{
     AnalysisContainer, CodeAnalysis, CodeAnalysisCache, CodeByteType, FailStatus, u256,
 };
 
-#[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
-struct PushDataLen<const N: usize>;
-
-#[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
-impl<const N: usize> PushDataLen<N> {
-    const VALID: () = assert!(N > 0 && N <= 32);
-}
-
 #[derive(Debug)]
 pub struct CodeReader<'a, const STEPPABLE: bool> {
     code: &'a [u8],
@@ -83,11 +75,11 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
     pub fn try_jump(&mut self, dest: u256) -> Result<(), FailStatus> {
         let dest = u64::try_from(dest).map_err(|_| FailStatus::BadJumpDestination)? as usize;
         if !self.code_analysis.analysis.get(dest).is_some_and(|c| {
-            #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
-            return *c == CodeByteType::JumpDest;
-
-            #[cfg(feature = "fn-ptr-conversion-dispatch")]
-            return c.code_byte_type() == CodeByteType::JumpDest;
+            let code_byte_type = std::cfg_select! {
+                feature = "fn-ptr-conversion-dispatch" => c.code_byte_type(),
+                _ => *c,
+            };
+            code_byte_type == CodeByteType::JumpDest
         }) {
             return Err(FailStatus::BadJumpDestination);
         }
@@ -98,7 +90,7 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
 
     #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
     pub fn get_push_data<const N: usize>(&mut self) -> u256 {
-        let () = const { PushDataLen::<N>::VALID };
+        const { assert!(N > 0 && N <= 32) };
 
         let data_len = min(N, self.code.len().saturating_sub(self.pc));
         let mut data = [0; 32];
@@ -129,20 +121,17 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
 
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     pub fn jump_to(&mut self) {
-        #[cfg(feature = "fn-ptr-conversion-dispatch")]
         let offset = self.code_analysis.analysis[self.pc]
             .get_data()
             .into_u64_saturating();
-        #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
-        let offset = u32::from_ne_bytes(self.code_analysis.analysis[self.pc].get_data());
         self.pc += offset as usize;
     }
 
     pub fn pc(&self) -> usize {
-        #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
-        return self.pc;
-        #[cfg(feature = "fn-ptr-conversion-dispatch")]
-        return self.code_analysis.pc_map.to_ct(self.pc);
+        std::cfg_select! {
+            feature = "fn-ptr-conversion-dispatch" => self.code_analysis.pc_map.to_ct(self.pc),
+            _ => self.pc,
+        }
     }
 }
 

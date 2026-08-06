@@ -14,7 +14,7 @@ use evmc_vm::{Address, Uint256};
 use zerocopy::transmute;
 
 /// This represents a 256-bit integer in native endian.
-#[allow(non_camel_case_types)]
+#[expect(non_camel_case_types)]
 #[derive(Debug, Clone, Copy)]
 #[repr(align(16))] // 16 byte alignment is faster than 1, 8 or 32 byte alignment on x86-64.
 pub struct u256(U256);
@@ -261,13 +261,12 @@ impl Shl for u256 {
     type Output = Self;
 
     fn shl(self, rhs: Self) -> Self::Output {
+        let [shift, rest @ ..] = rhs.to_le_bytes();
         // rhs > 255
-        let rhs = rhs.to_le_bytes();
-        if rhs[1..] != [0; 31] {
+        if rest != [0; 31] {
             return u256::ZERO;
         }
-        let shift = rhs[0] as u32;
-        Self(self.0.wrapping_shl(shift))
+        Self(self.0.wrapping_shl(shift.into()))
     }
 }
 
@@ -283,13 +282,12 @@ impl Shr for u256 {
     type Output = Self;
 
     fn shr(self, rhs: Self) -> Self::Output {
+        let [shift, rest @ ..] = rhs.to_le_bytes();
         // rhs > 255
-        let rhs = rhs.to_le_bytes();
-        if rhs[1..] != [0; 31] {
+        if rest != [0; 31] {
             return u256::ZERO;
         }
-        let shift = rhs[0] as u32;
-        Self(self.0.wrapping_shr(shift))
+        Self(self.0.wrapping_shr(shift.into()))
     }
 }
 
@@ -423,16 +421,16 @@ impl u256 {
 
     pub fn sar(self, rhs: Self) -> Self {
         let lhs = self.0.as_i256();
-        let rhs = rhs.to_le_bytes();
+        let [shift, rest @ ..] = rhs.to_le_bytes();
         // rhs > 255
-        if rhs[1..] != [0; 31] {
+        if rest != [0; 31] {
             if lhs.is_negative() {
                 return u256::MAX;
             } else {
                 return u256::ZERO;
             }
         }
-        let shift = rhs[0] as u32;
+        let shift = u32::from(shift);
         let mut shr = self.0.wrapping_shr(shift);
         if lhs.is_negative() {
             shr |= U256::MAX.wrapping_shl(255 - shift);

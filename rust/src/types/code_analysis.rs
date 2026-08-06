@@ -15,7 +15,7 @@ use crate::types::{OpFnData, PcMap};
 /// This type represents a hash value in form of a u256.
 /// Because it is already a hash value there is no need to hash it again when implementing Hash.
 #[cfg(feature = "code-analysis-cache")]
-#[allow(non_camel_case_types)]
+#[expect(non_camel_case_types)]
 #[derive(Debug, PartialEq, Eq)]
 struct u256Hash(u256);
 
@@ -58,19 +58,19 @@ impl<const STEPPABLE: bool> CodeAnalysisCache<STEPPABLE> {
 
     #[allow(unused_variables)]
     pub fn new(size: usize) -> Self {
-        #[cfg(feature = "code-analysis-cache")]
-        return Self(Cache::new(size));
-        #[cfg(not(feature = "code-analysis-cache"))]
-        return Self();
+        std::cfg_select! {
+            feature = "code-analysis-cache" => Self(Cache::new(size)),
+            _ => Self(),
+        }
     }
 
     #[cfg(test)]
     #[allow(clippy::unused_self)]
     pub fn capacity(&self) -> usize {
-        #[cfg(feature = "code-analysis-cache")]
-        return self.0.capacity();
-        #[cfg(not(feature = "code-analysis-cache"))]
-        return 0;
+        std::cfg_select! {
+            feature = "code-analysis-cache" => self.0.capacity(),
+            _ => 0,
+        }
     }
 }
 
@@ -88,17 +88,17 @@ impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
         code_hash: Option<u256>,
         cache: &CodeAnalysisCache<STEPPABLE>,
     ) -> AnalysisContainer<Self> {
-        #[cfg(feature = "code-analysis-cache")]
-        match code_hash {
-            Some(code_hash) if code_hash != u256::ZERO => {
-                cache.0.get_or_insert(u256Hash(code_hash), || {
-                    AnalysisContainer::new(CodeAnalysis::analyze_code(code))
-                })
-            }
-            _ => AnalysisContainer::new(Self::analyze_code(code)),
+        std::cfg_select! {
+            feature = "code-analysis-cache" => match code_hash {
+                Some(code_hash) if code_hash != u256::ZERO => {
+                    cache.0.get_or_insert(u256Hash(code_hash), || {
+                        AnalysisContainer::new(CodeAnalysis::analyze_code(code))
+                    })
+                }
+                _ => AnalysisContainer::new(Self::analyze_code(code)),
+            },
+            _ => Self::analyze_code(code),
         }
-        #[cfg(not(feature = "code-analysis-cache"))]
-        Self::analyze_code(code)
     }
 
     #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]

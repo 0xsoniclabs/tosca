@@ -216,12 +216,12 @@ impl RunArgs {
     pub fn memory(size: u32) -> (Self, u32) {
         fn memory_ref(input: u32) -> u32 {
             let mut values = vec![0; input as usize];
-            #[allow(clippy::needless_range_loop, clippy::manual_slice_fill)]
+            #[expect(clippy::needless_range_loop)]
             for i in 0..values.len() {
                 values[i] = i as u32;
             }
             let mut values_copy = vec![0; input as usize];
-            #[allow(clippy::manual_memcpy)]
+            #[expect(clippy::manual_memcpy)]
             for i in 0..values.len() {
                 values_copy[i] = values[i];
             }

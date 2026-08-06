@@ -12,7 +12,6 @@ pub struct EvmcContainer<T>
 where
     T: EvmcVm + Sized,
 {
-    #[allow(dead_code)]
     instance: ::evmc_sys::evmc_vm,
     vm: T,
 }
@@ -74,7 +73,6 @@ pub struct SteppableEvmcContainer<T>
 where
     T: EvmcVm + Sized,
 {
-    #[allow(dead_code)]
     instance: ::evmc_sys::evmc_vm_steppable,
     vm: T,
 }
