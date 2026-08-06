@@ -1,6 +1,6 @@
 FROM golang:1.25
 
-ENV RUST_VERSION=1.89.0
+ENV RUST_VERSION=1.97.0
 
 # Install dependencies and keep image small as described in best practices
 # https://docs.docker.com/build/building/best-practices/

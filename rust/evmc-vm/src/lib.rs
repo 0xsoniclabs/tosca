@@ -348,7 +348,7 @@ unsafe fn boxed_slice_from_raw_parts<T>(ptr: *const T, len: usize) -> Box<[T]> {
     if ptr.is_null() {
         Box::default()
     } else {
-        unsafe { Box::from_raw(slice::from_raw_parts_mut(ptr as *mut T, len)) }
+        unsafe { Box::from_raw(std::ptr::slice_from_raw_parts_mut(ptr as *mut T, len)) }
     }
 }
 
@@ -522,7 +522,7 @@ mod tests {
         unsafe {
             if !result.is_null() {
                 let owned = *result;
-                let _ = Box::from_raw(slice::from_raw_parts_mut(
+                let _ = Box::from_raw(std::ptr::slice_from_raw_parts_mut(
                     owned.output_data as *mut u8,
                     owned.output_size,
                 ));
@@ -576,8 +576,8 @@ mod tests {
                 &[0xc0, 0xff, 0xee, 0x71, 0x75]
             );
             assert_eq!(f.create_address.bytes, [0u8; 20]);
-            if f.release.is_some() {
-                f.release.unwrap()(&f);
+            if let Some(release) = f.release {
+                release(&f);
             }
         }
     }
@@ -600,8 +600,8 @@ mod tests {
             assert!(f.output_data.is_null());
             assert_eq!(f.output_size, 0);
             assert_eq!(f.create_address.bytes, [0u8; 20]);
-            if f.release.is_some() {
-                f.release.unwrap()(&f);
+            if let Some(release) = f.release {
+                release(&f);
             }
         }
     }

@@ -30,7 +30,7 @@ jobs:
     - name: checkout
       uses: actions/checkout@v4
     - name: install rust
-      uses: dtolnay/rust-toolchain@1.86
+      uses: dtolnay/rust-toolchain@1.97
       with:
         components: rustfmt
     - name: load cache
@@ -49,7 +49,7 @@ jobs:
     - name: checkout
       uses: actions/checkout@v4
     - name: install rust
-      uses: dtolnay/rust-toolchain@1.86
+      uses: dtolnay/rust-toolchain@1.97
       with:
         components: clippy
     - name: load cache
@@ -61,7 +61,7 @@ jobs:
     - name: cargo clippy
       working-directory: rust
       run: cargo hack --workspace --each-feature --exclude-features needs-cache clippy --all-targets -- --deny warnings
-    
+
   doc:
     name: doc
     runs-on: ubuntu-latest
@@ -70,7 +70,7 @@ jobs:
     - name: checkout
       uses: actions/checkout@v4
     - name: install rust
-      uses: dtolnay/rust-toolchain@1.86
+      uses: dtolnay/rust-toolchain@1.97
     - name: load cache
       uses: Swatinem/rust-cache@v2
       with:
@@ -79,7 +79,7 @@ jobs:
       run: cargo install cargo-hack
     - name: cargo doc
       env:
-        RUSTDOCFLAGS: "-D warnings" 
+        RUSTDOCFLAGS: "-D warnings"
       working-directory: rust
       run: cargo hack --workspace --each-feature --exclude-features needs-cache doc --no-deps
 
@@ -91,7 +91,7 @@ jobs:
     - name: checkout
       uses: actions/checkout@v4
     - name: install rust
-      uses: dtolnay/rust-toolchain@1.86
+      uses: dtolnay/rust-toolchain@1.97
     - name: load cache
       uses: Swatinem/rust-cache@v2
       with:
@@ -110,7 +110,7 @@ jobs:
     - name: checkout
       uses: actions/checkout@v4
     - name: install rust
-      uses: dtolnay/rust-toolchain@1.86
+      uses: dtolnay/rust-toolchain@1.97
     - name: load cache
       uses: Swatinem/rust-cache@v2
       with:
@@ -134,7 +134,7 @@ jobs:
     - name: install rust
       uses: dtolnay/rust-toolchain@master
       with:
-        toolchain: nightly-2025-09-10
+        toolchain: nightly-2026-08-05
         components: rust-src
     - name: load cache
       uses: Swatinem/rust-cache@v2
@@ -146,20 +146,20 @@ jobs:
       working-directory: rust
       env:
         RUSTFLAGS: -Zsanitizer=address
-      run: cargo +nightly-2025-09-10 hack --workspace --each-feature --exclude-features needs-cache test -Zbuild-std --target x86_64-unknown-linux-gnu
+      run: cargo +nightly-2026-08-05 hack --workspace --each-feature --exclude-features needs-cache test -Zbuild-std --target x86_64-unknown-linux-gnu
     - name: cargo test with memory sanitizer
       working-directory: rust
       env:
         RUSTFLAGS: "-Zsanitizer=memory -Zsanitizer-memory-track-origins"
         RUSTDOCFLAGS: "-Zsanitizer=memory -Zsanitizer-memory-track-origins -Cunsafe-allow-abi-mismatch=sanitizer"
-      run: cargo +nightly-2025-09-10 hack --workspace --each-feature --exclude-features needs-cache test -Zbuild-std --target x86_64-unknown-linux-gnu
+      run: cargo +nightly-2026-08-05 hack --workspace --each-feature --exclude-features needs-cache test -Zbuild-std --target x86_64-unknown-linux-gnu
     - name: cargo test with thread sanitizer
       working-directory: rust
       env:
         CFLAGS: -fsanitize=thread
         RUSTFLAGS: -Zsanitizer=thread
         RUSTDOCFLAGS: "-Zsanitizer=thread -Cunsafe-allow-abi-mismatch=sanitizer"
-      run: cargo +nightly-2025-09-10 hack --workspace --each-feature --exclude-features needs-cache test -Zbuild-std --target x86_64-unknown-linux-gnu
+      run: cargo +nightly-2026-08-05 hack --workspace --each-feature --exclude-features needs-cache test -Zbuild-std --target x86_64-unknown-linux-gnu
 
   benchmarks-with-sanitizers:
     name: benchmarks-with-sanitizers
@@ -171,7 +171,7 @@ jobs:
     - name: install rust
       uses: dtolnay/rust-toolchain@master
       with:
-        toolchain: nightly-2025-09-10
+        toolchain: nightly-2026-08-05
         components: rust-src
     - name: load cache
       uses: Swatinem/rust-cache@v2
@@ -183,18 +183,18 @@ jobs:
       working-directory: rust
       env:
         RUSTFLAGS: -Zsanitizer=address
-      run: cargo +nightly-2025-09-10 hack --each-feature run -Zbuild-std --target x86_64-unknown-linux-gnu --package benchmarks --release -- 1 all-short
+      run: cargo +nightly-2026-08-05 hack --each-feature run -Zbuild-std --target x86_64-unknown-linux-gnu --package benchmarks --release -- 1 all-short
     - name: cargo run benchmarks with memory sanitizer
       working-directory: rust
       env:
         RUSTFLAGS: "-Zsanitizer=memory -Zsanitizer-memory-track-origins"
-      run: cargo +nightly-2025-09-10 hack --each-feature run -Zbuild-std --target x86_64-unknown-linux-gnu --package benchmarks --release -- 1 all-short
+      run: cargo +nightly-2026-08-05 hack --each-feature run -Zbuild-std --target x86_64-unknown-linux-gnu --package benchmarks --release -- 1 all-short
     - name: cargo run benchmarks with thread sanitizer
       working-directory: rust
       env:
         CFLAGS: -fsanitize=thread
         RUSTFLAGS: -Zsanitizer=thread
-      run: cargo +nightly-2025-09-10 hack --each-feature run -Zbuild-std --target x86_64-unknown-linux-gnu --package benchmarks --release -- 1 all-short
+      run: cargo +nightly-2026-08-05 hack --each-feature run -Zbuild-std --target x86_64-unknown-linux-gnu --package benchmarks --release -- 1 all-short
 
   miri:
     name: miri
@@ -206,7 +206,7 @@ jobs:
     - name: install rust
       uses: dtolnay/rust-toolchain@master
       with:
-        toolchain: nightly-2025-09-10
+        toolchain: nightly-2026-08-05
         components: miri
     - name: load cache
       uses: Swatinem/rust-cache@v2
@@ -216,14 +216,14 @@ jobs:
       run: cargo install cargo-hack
     - name: cargo miri test
       working-directory: rust
-      env: 
+      env:
         MIRIFLAGS: "-Zmiri-disable-stacked-borrows -Zmiri-permissive-provenance -Zmiri-backtrace=full"
-      run: cargo +nightly-2025-09-10 hack miri test --workspace --each-feature --exclude-features needs-cache,mimalloc,performance
+      run: cargo +nightly-2026-08-05 hack miri test --workspace --each-feature --exclude-features needs-cache,mimalloc,performance
     - name: cargo miri benchmarks
       working-directory: rust
-      env: 
+      env:
         MIRIFLAGS: "-Zmiri-disable-stacked-borrows -Zmiri-permissive-provenance -Zmiri-backtrace=full"
-      run: cargo +nightly-2025-09-10 hack miri run --package benchmarks --each-feature --exclude-features mimalloc,performance -- 1 all-short
+      run: cargo +nightly-2026-08-05 hack miri run --package benchmarks --each-feature --exclude-features mimalloc,performance -- 1 all-short
 
   fuzz:
     name: fuzz
@@ -233,7 +233,7 @@ jobs:
     - name: checkout
       uses: actions/checkout@v4
     - name: install rust
-      uses: dtolnay/rust-toolchain@1.86
+      uses: dtolnay/rust-toolchain@1.97
     - name: load cache
       uses: Swatinem/rust-cache@v2
       with:
