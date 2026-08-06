@@ -437,7 +437,7 @@ impl Drop for RunArgs {
     fn drop(&mut self) {
         if !self.message.input_data.is_null() {
             unsafe {
-                let _ = Box::from_raw(std::slice::from_raw_parts_mut(
+                let _ = Box::from_raw(std::ptr::slice_from_raw_parts_mut(
                     self.message.input_data as *mut u8,
                     self.message.input_size,
                 ));
