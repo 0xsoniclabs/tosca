@@ -108,7 +108,7 @@ impl SteppableEvmcVm for EvmRs {
                 },
                 revision,
                 pc,
-                gas_left: gas_refund,
+                gas_left: message.gas,
                 gas_refund,
                 output: Box::default(),
                 stack: stack.to_owned(),

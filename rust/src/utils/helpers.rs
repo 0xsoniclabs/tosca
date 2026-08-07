@@ -61,7 +61,7 @@ pub fn check_min_revision(min_revision: Revision, revision: Revision) -> Result<
 
 #[inline(always)]
 pub fn check_not_read_only(message: &ExecutionMessage) -> Result<(), FailStatus> {
-    if message.flags == MessageFlags::EVMC_STATIC as u32 {
+    if message.flags & MessageFlags::EVMC_STATIC as u32 != 0 {
         return Err(FailStatus::StaticModeViolation);
     }
     Ok(())
@@ -142,17 +142,24 @@ mod tests {
 
     #[test]
     fn check_not_read_only() {
-        let message = MockExecutionMessage::default().into();
-        assert_eq!(utils::check_not_read_only(&message), Ok(()));
-
-        let message = MockExecutionMessage {
-            flags: MessageFlags::EVMC_STATIC as u32,
-            ..Default::default()
-        };
-        let message = message.into();
-        assert_eq!(
-            utils::check_not_read_only(&message),
-            Err(FailStatus::StaticModeViolation)
-        );
+        let cases = [
+            (0, Ok(())),
+            (MessageFlags::EVMC_DELEGATED as u32, Ok(())),
+            (
+                MessageFlags::EVMC_STATIC as u32,
+                Err(FailStatus::StaticModeViolation),
+            ),
+            (
+                MessageFlags::EVMC_STATIC as u32 | MessageFlags::EVMC_DELEGATED as u32,
+                Err(FailStatus::StaticModeViolation),
+            ),
+        ];
+        for (flags, expected) in cases {
+            let message = MockExecutionMessage {
+                flags,
+                ..Default::default()
+            };
+            assert_eq!(utils::check_not_read_only(&message.into()), expected);
+        }
     }
 }

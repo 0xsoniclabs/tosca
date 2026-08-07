@@ -1008,12 +1008,9 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     fn self_balance(&mut self) -> OpResult {
         check_min_revision(Revision::EVMC_ISTANBUL, self.revision)?;
         self.gas_left.consume(5)?;
+        self.stack.check_overflow(1)?; // Check for stack overflow before querying the host
         let addr = self.message.recipient;
-        if u256::from(addr) == u256::ZERO {
-            self.stack.push(u256::ZERO)?;
-        } else {
-            self.stack.push(self.context.get_balance(&addr))?;
-        }
+        self.stack.push(self.context.get_balance(&addr))?;
         self.code_reader.next();
         self.return_from_op()
     }
