@@ -46,35 +46,31 @@ impl HashCache {
 
     #[allow(clippy::unused_self)]
     pub fn hash(&self, data: &[u8]) -> u256 {
-        #[cfg(feature = "hash-cache")]
-        if data.len() == 32 {
-            // SAFETY:
-            // data has length 32 so it is safe to cast it to &[u8; 32].
-            let data = unsafe { &*(data.as_ptr() as *const [u8; 32]) };
-            self.hash_cache_32
-                .get_or_insert_ref(data, || Self::sha3(data))
-        } else if data.len() == 64 {
-            // SAFETY:
-            // data has length 64 so it is safe to cast it to &[u8; 64].
-            let data = unsafe { &*(data.as_ptr() as *const [u8; 64]) };
-            self.hash_cache_64
-                .get_or_insert_ref(data, || Self::sha3(data))
-        } else {
-            Self::sha3(data)
+        std::cfg_select! {
+            feature = "hash-cache" => {
+                if let Some(data) = data.as_array::<32>() {
+                    self.hash_cache_32
+                        .get_or_insert_ref(data, || Self::sha3(data))
+                } else if let Some(data) = data.as_array::<64>() {
+                    self.hash_cache_64
+                        .get_or_insert_ref(data, || Self::sha3(data))
+                } else {
+                    Self::sha3(data)
+                }
+            }
+            _ => Self::sha3(data),
         }
-        #[cfg(not(feature = "hash-cache"))]
-        Self::sha3(data)
     }
 
     #[cfg(test)]
     #[allow(clippy::unused_self)]
     pub fn capacity(&self) -> usize {
-        #[cfg(feature = "hash-cache")]
-        {
-            assert_eq!(self.hash_cache_32.capacity(), self.hash_cache_64.capacity());
-            self.hash_cache_32.capacity()
+        std::cfg_select! {
+            feature = "hash-cache" => {
+                assert_eq!(self.hash_cache_32.capacity(), self.hash_cache_64.capacity());
+                self.hash_cache_32.capacity()
+            }
+            _ => 0,
         }
-        #[cfg(not(feature = "hash-cache"))]
-        0
     }
 }

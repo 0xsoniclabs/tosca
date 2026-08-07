@@ -67,19 +67,13 @@ impl EvmcVm for EvmRs {
             ("logging", "true") => self.observer_type = ObserverType::Logging,
             ("logging", "false") => self.observer_type = ObserverType::NoOp,
             ("code-analysis-cache-size", size) => {
-                if let Ok(size) = size.parse::<usize>() {
-                    self.code_analysis_cache_steppable = CodeAnalysisCache::new(size);
-                    self.code_analysis_cache_non_steppable = CodeAnalysisCache::new(size);
-                } else {
-                    return Err(SetOptionError::InvalidValue);
-                }
+                let size = size.parse().map_err(|_| SetOptionError::InvalidValue)?;
+                self.code_analysis_cache_steppable = CodeAnalysisCache::new(size);
+                self.code_analysis_cache_non_steppable = CodeAnalysisCache::new(size);
             }
             ("hash-cache-size", size) => {
-                if let Ok(size) = size.parse::<usize>() {
-                    self.hash_cache = HashCache::new(size);
-                } else {
-                    return Err(SetOptionError::InvalidValue);
-                }
+                let size = size.parse().map_err(|_| SetOptionError::InvalidValue)?;
+                self.hash_cache = HashCache::new(size);
             }
             _ => (),
         }

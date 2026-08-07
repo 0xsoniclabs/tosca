@@ -41,7 +41,7 @@ impl PartialOrd<u64> for Gas {
 
 impl Gas {
     pub fn new(gas: i64) -> Self {
-        if gas < 0 { Self(0) } else { Self(gas as u64) }
+        Self(gas.max(0).cast_unsigned())
     }
 
     pub fn as_u64(&self) -> u64 {
@@ -50,11 +50,11 @@ impl Gas {
 
     #[inline(always)]
     pub fn add(&mut self, gas: i64) -> Result<(), FailStatus> {
-        let (gas, overflow) = (self.0 as i64).overflowing_add(gas);
+        let (gas, overflow) = self.0.cast_signed().overflowing_add(gas);
         if gas < 0 || overflow {
             return Err(FailStatus::OutOfGas);
         }
-        self.0 = gas as u64;
+        self.0 = gas.cast_unsigned();
         Ok(())
     }
 
@@ -118,9 +118,8 @@ impl Gas {
         if context.get_code_size(addr) == 23 {
             let mut code = [0; 23];
             context.copy_code(addr, 0, &mut code);
-            if code.len() == 23 && code[..3] == [0xef, 0x01, 0x00] {
-                let mut delegation_addr = Address::default();
-                delegation_addr.bytes.copy_from_slice(&code[3..]);
+            if let [0xef, 0x01, 0x00, delegation @ ..] = code {
+                let delegation_addr = Address { bytes: delegation };
                 self.consume_address_access_cost(&delegation_addr, revision, context)?;
             }
         }

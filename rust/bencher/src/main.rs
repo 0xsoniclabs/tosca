@@ -125,9 +125,7 @@ fn build_feature_list(baseline_features: &[String], features: &str) -> String {
     let features = features.split(',').collect::<Vec<_>>();
     let neg_features: Vec<_> = features
         .iter()
-        .copied()
-        .filter(|f| f.starts_with('~'))
-        .map(|f| &f[1..])
+        .filter_map(|f| f.strip_prefix('~'))
         .collect();
     let pos_features = features.iter().copied().filter(|f| !f.starts_with('~'));
     baseline_features

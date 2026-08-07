@@ -11,7 +11,7 @@ struct LifetimeToken;
 
 /// # Safety
 /// ptr must be non-null and valid for reads for the lifetime of the borrow of token.
-#[allow(clippy::needless_lifetimes)] // use explicit lifetimes for easier understanding
+#[expect(clippy::needless_lifetimes)] // use explicit lifetimes for easier understanding
 unsafe fn ref_from_ptr_scoped<'s, T>(ptr: *const T, _token: &'s LifetimeToken) -> &'s T {
     // SAFETY:
     // ptr is non-null and valid for reads for the lifetime of the borrow of token
@@ -20,8 +20,8 @@ unsafe fn ref_from_ptr_scoped<'s, T>(ptr: *const T, _token: &'s LifetimeToken) -
 
 /// # Safety
 /// ptr must be non-null and valid for reads and writes for the lifetime of the borrow of token.
-#[allow(clippy::needless_lifetimes)] // use explicit lifetimes for easier understanding
-#[allow(clippy::mut_from_ref)] // false positive
+#[expect(clippy::needless_lifetimes)] // use explicit lifetimes for easier understanding
+#[expect(clippy::mut_from_ref)] // false positive
 unsafe fn ref_mut_from_ptr_scoped<'s, T>(ptr: *mut T, _token: &'s LifetimeToken) -> &'s mut T {
     // SAFETY:
     // ptr is non-null and valid for reads and writes for the lifetime of the borrow of token
@@ -31,7 +31,7 @@ unsafe fn ref_mut_from_ptr_scoped<'s, T>(ptr: *mut T, _token: &'s LifetimeToken)
 /// # Safety
 /// ptr must be non-null and valid for reads for `len * mem::size_of::<T>()` many bytes for the
 /// lifetime of the borrow of token.
-#[allow(clippy::needless_lifetimes)] // use explicit lifetimes for easier understanding
+#[expect(clippy::needless_lifetimes)] // use explicit lifetimes for easier understanding
 unsafe fn slice_from_raw_parts_scoped<'s, T>(
     ptr: *const T,
     len: usize,

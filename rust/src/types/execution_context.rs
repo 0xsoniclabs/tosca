@@ -33,7 +33,6 @@ pub trait ExecutionContextTrait {
     fn selfdestruct(&mut self, address: &Address, beneficiary: &Address) -> bool;
 
     /// Call to another account.
-    #[allow(clippy::needless_lifetimes)] // this is a bug in clippy
     fn call<'a>(&mut self, message: &ExecutionMessage<'a>) -> ExecutionResult;
 
     /// Get block hash of an account.
