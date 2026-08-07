@@ -1,0 +1,91 @@
+// Copyright (c) 2025 Sonic Operations Ltd
+//
+// Use of this software is governed by the Business Source License included
+// in the LICENSE file and at soniclabs.com/bsl11.
+//
+// Change Date: 2028-4-16
+//
+// On the date above, in accordance with the Business Source License, use of
+// this software will be governed by the GNU Lesser General Public License v3.
+
+// Runs the Conformance Tests against one interpreter per build, once a week for each of evmrs, lfvm,
+// sfvm and geth. The schedule and the toolchain are this repository's, because a Jenkins dockerfile
+// agent is resolved against the pipeline's own repository and only a pipeline in Tosca can build on
+// Tosca's CI/Dockerfile.jenkins.
+@Library('shared-library') _
+
+pipeline {
+    agent {
+        dockerfile {
+            filename 'CI/Dockerfile.jenkins'
+            label  params.AgentLabel
+        }
+    }
+
+    options {
+        timestamps()
+        // A full-mode run over the whole specification takes many hours.
+        timeout(time: 36, unit: 'HOURS')
+    }
+
+    triggers {
+        parameterizedCron('''
+            @weekly %TargetInterpreter=sfvm;FullMode=true
+            @weekly %TargetInterpreter=lfvm;FullMode=true
+            @weekly %TargetInterpreter=geth;FullMode=true
+            @weekly %TargetInterpreter=evmrs;FullMode=true
+        ''')
+    }
+
+    environment {
+        CC = 'gcc'
+        CXX = 'g++'
+        GOMEMLIMIT = goMemLimit()
+    }
+
+    parameters {
+        string(
+            name: 'AgentLabel',
+            defaultValue: 'x86-8-32-m',
+            description: 'Jenkins agent label to run this job on.'
+        )
+        choice(
+            name: 'TargetInterpreter',
+            choices: ['sfvm', 'geth', 'evmrs', 'lfvm'],
+            description: 'Interpreter to run the Conformance Tests against.'
+        )
+        booleanParam(
+            name: 'FullMode',
+            defaultValue: true,
+            description: 'Run the Conformance Tests in full mode, so a generated test case is also ' +
+                'checked against the rules other than the one that generated it.'
+        )
+    }
+
+    stages {
+        stage('prepare') {
+            steps {
+                describeBuild()
+                sh 'git submodule update --init --recursive --depth 1'
+            }
+        }
+
+        stage('build') {
+            steps {
+                sh 'make tosca-go'
+            }
+        }
+
+        stage('conformance-tests') {
+            steps {
+                sh "go run ./go/ct/driver run ${params.FullMode ? '--full-mode' : ''} ${params.TargetInterpreter}"
+            }
+        }
+    }
+
+    post {
+        always {
+            notifySlack(channel: 'tosca-jenkins')
+        }
+    }
+}
