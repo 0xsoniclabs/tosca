@@ -478,9 +478,12 @@ func TestDomain_SamplesKnownValues(t *testing.T) {
 			got: u256Domain{}.Samples(common.NewU256(1, 2, 3, 4)),
 			want: []common.U256{
 				common.NewU256(1, 2, 3, 3), common.NewU256(1, 2, 3, 4),
-				common.NewU256(1, 2, 3, 5), common.NewU256(), common.NewU256(1), common.NewU256(0x100),
+				common.NewU256(1, 2, 3, 5), common.NewU256(), common.NewU256(1),
+				common.NewU256(30), common.NewU256(31), common.NewU256(32), common.NewU256(255),
+				common.NewU256(0x100),
 				common.NewU256(0x10000), common.NewU256(0x100000000), common.NewU256(0x1000000000000),
 				common.NewU256(1, 0), common.NewU256(1, 0, 0), common.NewU256(1, 0, 0, 0),
+				common.MaxU256().Shr(common.NewU256(1)),
 				common.NewU256(1).Shl(common.NewU256(255)), common.NewU256(0).Not(), common.NewU256(1, 1),
 			},
 		},
