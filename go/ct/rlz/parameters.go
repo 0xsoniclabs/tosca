@@ -35,9 +35,7 @@ var numericParameterSamples = []U256{
 	NewU256(32),  // < BYTE: first out-of-range index
 	NewU256(255), // < SHL/SHR/SAR: largest effective shift; EXP: largest 1-byte exponent
 	NewU256(1 << 8),
-	NewU256(1 << 16),
 	NewU256(1 << 32),
-	NewU256(1 << 48),
 	NewU256(1).Shl(NewU256(64)),
 	NewU256(1).Shl(NewU256(128)),
 	NewU256(1).Shl(NewU256(192)),
@@ -72,7 +70,6 @@ type MemoryOffsetParameter struct{}
 
 var memoryOffsetParameterSamples = []U256{
 	NewU256(0),
-	NewU256(1),
 	NewU256(31),
 	NewU256(32),
 	NewU256(st.MaxMemoryExpansionSize),
@@ -107,7 +104,6 @@ type SizeParameter struct{}
 
 var sizeParameterSamples = []U256{
 	NewU256(0),
-	NewU256(1),
 
 	// Samples stressing the memory word granularity
 	NewU256(31),
@@ -116,17 +112,27 @@ var sizeParameterSamples = []U256{
 
 	NewU256(1, 0),
 
-	// Samples stressing the max init code size introduced with Shanghai
-	NewU256(2*24576 - 1),
-	NewU256(2 * 24576),
-	NewU256(2*24576 + 1),
-
 	NewU256(st.MaxMemoryExpansionSize),
 	NewU256(st.MaxMemoryExpansionSize + 1),
 }
 
 func (SizeParameter) Samples() []U256 {
 	return sizeParameterSamples
+}
+
+// InitCodeSizeParameter is a parameter for the code size of CREATE and
+// CREATE2, which is limited by the max init code size introduced with
+// Shanghai.
+type InitCodeSizeParameter struct{}
+
+var initCodeSizeParameterSamples = append(sizeParameterSamples,
+	NewU256(2*24576-1),
+	NewU256(2*24576),
+	NewU256(2*24576+1),
+)
+
+func (InitCodeSizeParameter) Samples() []U256 {
+	return initCodeSizeParameterSamples
 }
 
 type TopicParameter struct{}

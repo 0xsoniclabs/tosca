@@ -1742,7 +1742,7 @@ func getAllRules() []Rule {
 		parameters: []Parameter{
 			ValueParameter{},
 			MemoryOffsetParameter{},
-			SizeParameter{},
+			InitCodeSizeParameter{},
 		},
 		effect: FailEffect().Apply,
 	})...)
@@ -1758,7 +1758,7 @@ func getAllRules() []Rule {
 		parameters: []Parameter{
 			ValueParameter{},
 			MemoryOffsetParameter{},
-			SizeParameter{},
+			InitCodeSizeParameter{},
 		},
 		effect: func(s *st.State) {
 			createEffect(s, tosca.Create)
@@ -1779,7 +1779,7 @@ func getAllRules() []Rule {
 		parameters: []Parameter{
 			ValueParameter{},
 			MemoryOffsetParameter{},
-			SizeParameter{},
+			InitCodeSizeParameter{},
 			NumericParameter{},
 		},
 		effect: FailEffect().Apply,
@@ -1796,7 +1796,7 @@ func getAllRules() []Rule {
 		parameters: []Parameter{
 			ValueParameter{},
 			MemoryOffsetParameter{},
-			SizeParameter{},
+			InitCodeSizeParameter{},
 			NumericParameter{},
 		},
 		effect: func(s *st.State) {
