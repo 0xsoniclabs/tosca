@@ -331,16 +331,16 @@ impl u256 {
         if m == u256::ZERO {
             return u256::ZERO;
         }
-        let s1 = bnum::types::U256::from_digits(transmute!(s1.0.0));
+        let s1 = bnum::types::U256::from_le_bytes(s1.0.to_le_bytes());
         let s1 = U512::cast_from(s1);
-        let s2 = bnum::types::U256::from_digits(transmute!(s2.0.0));
+        let s2 = bnum::types::U256::from_le_bytes(s2.0.to_le_bytes());
         let s2 = U512::cast_from(s2);
-        let m = bnum::types::U256::from_digits(transmute!(m.0.0));
+        let m = bnum::types::U256::from_le_bytes(m.0.to_le_bytes());
         let m = U512::cast_from(m);
 
-        Self(U256(transmute!(
-            *bnum::types::U256::cast_from((s1 + s2).rem(m)).digits()
-        )))
+        Self(U256::from_le_bytes(
+            bnum::types::U256::cast_from((s1 + s2).rem(m)).to_le_bytes(),
+        ))
     }
 
     // ethnum has no support for addmod and mulmod yet (see https://github.com/nlordell/ethnum-rs/issues/10)
@@ -348,16 +348,16 @@ impl u256 {
         if m == u256::ZERO {
             return u256::ZERO;
         }
-        let s1 = bnum::types::U256::from_digits(transmute!(s1.0.0));
+        let s1 = bnum::types::U256::from_le_bytes(s1.0.to_le_bytes());
         let s1 = U512::cast_from(s1);
-        let s2 = bnum::types::U256::from_digits(transmute!(s2.0.0));
+        let s2 = bnum::types::U256::from_le_bytes(s2.0.to_le_bytes());
         let s2 = U512::cast_from(s2);
-        let m = bnum::types::U256::from_digits(transmute!(m.0.0));
+        let m = bnum::types::U256::from_le_bytes(m.0.to_le_bytes());
         let m = U512::cast_from(m);
 
-        Self(U256(transmute!(
-            *bnum::types::U256::cast_from((s1 * s2).rem(m)).digits()
-        )))
+        Self(U256::from_le_bytes(
+            bnum::types::U256::cast_from((s1 * s2).rem(m)).to_le_bytes(),
+        ))
     }
 
     pub fn pow(self, exp: Self) -> Self {
