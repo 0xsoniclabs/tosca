@@ -30,13 +30,16 @@ type NumericParameter struct{}
 var numericParameterSamples = []U256{
 	NewU256(0),
 	NewU256(1),
+	NewU256(30),  // < SIGNEXTEND: last byte position that extends
+	NewU256(31),  // < SIGNEXTEND: first no-op position; BYTE: last valid index
+	NewU256(32),  // < BYTE: first out-of-range index
+	NewU256(255), // < SHL/SHR/SAR: largest effective shift; EXP: largest 1-byte exponent
 	NewU256(1 << 8),
-	NewU256(1 << 16),
 	NewU256(1 << 32),
-	NewU256(1 << 48),
 	NewU256(1).Shl(NewU256(64)),
 	NewU256(1).Shl(NewU256(128)),
 	NewU256(1).Shl(NewU256(192)),
+	MaxU256().Shr(NewU256(1)), // < largest positive signed value
 	NewU256(1).Shl(NewU256(255)),
 	NewU256(0).Not(),
 	NewU256(1, 1),
@@ -67,7 +70,7 @@ type MemoryOffsetParameter struct{}
 
 var memoryOffsetParameterSamples = []U256{
 	NewU256(0),
-	NewU256(1),
+	NewU256(31),
 	NewU256(32),
 	NewU256(st.MaxMemoryExpansionSize),
 	NewU256(st.MaxMemoryExpansionSize + 1),
@@ -101,14 +104,13 @@ type SizeParameter struct{}
 
 var sizeParameterSamples = []U256{
 	NewU256(0),
-	NewU256(1),
-	NewU256(32),
-	NewU256(1, 0),
 
-	// Samples stressing the max init code size introduced with Shanghai
-	NewU256(2*24576 - 1),
-	NewU256(2 * 24576),
-	NewU256(2*24576 + 1),
+	// Samples stressing the memory word granularity
+	NewU256(31),
+	NewU256(32),
+	NewU256(33),
+
+	NewU256(1, 0),
 
 	NewU256(st.MaxMemoryExpansionSize),
 	NewU256(st.MaxMemoryExpansionSize + 1),
@@ -116,6 +118,21 @@ var sizeParameterSamples = []U256{
 
 func (SizeParameter) Samples() []U256 {
 	return sizeParameterSamples
+}
+
+// InitCodeSizeParameter is a parameter for the code size of CREATE and
+// CREATE2, which is limited by the max init code size introduced with
+// Shanghai.
+type InitCodeSizeParameter struct{}
+
+var initCodeSizeParameterSamples = append(sizeParameterSamples,
+	NewU256(2*24576-1),
+	NewU256(2*24576),
+	NewU256(2*24576+1),
+)
+
+func (InitCodeSizeParameter) Samples() []U256 {
+	return initCodeSizeParameterSamples
 }
 
 type TopicParameter struct{}
@@ -135,11 +152,9 @@ type AddressParameter struct{}
 
 var addressParameterSamples = []U256{
 	// Adding more samples here will create significantly more test cases for EXTCODECOPY.
-	// TODO: evaluate code coverage
 	NewU256(0),
-	//NewU256(1),
-	//NewU256(1).Shl(NewU256(20*8 - 1)), // < first bit of 20-byte address set
-	//NewU256(3).Shl(NewU256(20*8 - 1)), // < first bit beyond 20-byte address set as well (should be the same address as above)
+	NewU256(1).Shl(NewU256(20*8 - 1)), // < first bit of 20-byte address set
+	NewU256(3).Shl(NewU256(20*8 - 1)), // < first bit beyond 20-byte address set as well (should be the same address as above)
 	NewU256(0).Not(),
 }
 

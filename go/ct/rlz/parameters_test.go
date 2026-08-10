@@ -39,6 +39,10 @@ func TestNumericParameter_Samples(t *testing.T) {
 			got:  SizeParameter{}.Samples(),
 			want: sizeParameterSamples,
 		},
+		"InitCodeSizeParameter": {
+			got:  InitCodeSizeParameter{}.Samples(),
+			want: initCodeSizeParameterSamples,
+		},
 		"TopicParameter": {
 			got:  TopicParameter{}.Samples(),
 			want: topicParameterSamples,
