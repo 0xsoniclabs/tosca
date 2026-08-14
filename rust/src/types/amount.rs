@@ -11,7 +11,6 @@ use arbitrary::Arbitrary;
 use bnum::{cast::CastFrom, types::U512};
 use ethnum::U256;
 use evmc_vm::{Address, Uint256};
-use zerocopy::transmute;
 
 /// This represents a 256-bit integer in native endian.
 #[expect(non_camel_case_types)]
@@ -28,14 +27,17 @@ impl<'a> Arbitrary<'a> for u256 {
 
 impl LowerHex for u256 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let digits: [u64; 4] = transmute!(self.0.0);
+        let (hi, lo) = self.0.into_words();
         if f.alternate() {
             write!(f, "0x")?;
         }
         write!(
             f,
             "{:016x}_{:016x}_{:016x}_{:016x}",
-            digits[3], digits[2], digits[1], digits[0]
+            (hi >> 64) as u64,
+            hi as u64,
+            (lo >> 64) as u64,
+            lo as u64
         )
     }
 }
@@ -48,14 +50,14 @@ impl Display for u256 {
 
 impl From<Uint256> for u256 {
     fn from(value: Uint256) -> Self {
-        Self(U256(transmute!(value.bytes)).to_be())
+        Self::from_be_bytes(value.bytes)
     }
 }
 
 impl From<u256> for Uint256 {
     fn from(value: u256) -> Self {
         Uint256 {
-            bytes: transmute!(value.0.to_be().0),
+            bytes: value.to_be_bytes(),
         }
     }
 }
@@ -108,7 +110,7 @@ impl From<&Address> for u256 {
 
 impl From<u256> for Address {
     fn from(value: u256) -> Self {
-        let bytes: [u8; 32] = transmute!(value.0.to_be().0);
+        let bytes = value.to_be_bytes();
         let mut addr = Address { bytes: [0; 20] };
         addr.bytes.copy_from_slice(&bytes[32 - 20..]);
         addr
@@ -261,12 +263,11 @@ impl Shl for u256 {
     type Output = Self;
 
     fn shl(self, rhs: Self) -> Self::Output {
-        let [shift, rest @ ..] = rhs.to_le_bytes();
-        // rhs > 255
-        if rest != [0; 31] {
+        let (hi, lo) = rhs.0.into_words();
+        if hi != 0 || lo > 255 {
             return u256::ZERO;
         }
-        Self(self.0.wrapping_shl(u32::from(shift)))
+        Self(self.0.wrapping_shl(lo as u32))
     }
 }
 
@@ -282,12 +283,11 @@ impl Shr for u256 {
     type Output = Self;
 
     fn shr(self, rhs: Self) -> Self::Output {
-        let [shift, rest @ ..] = rhs.to_le_bytes();
-        // rhs > 255
-        if rest != [0; 31] {
+        let (hi, lo) = rhs.0.into_words();
+        if hi != 0 || lo > 255 {
             return u256::ZERO;
         }
-        Self(self.0.wrapping_shr(u32::from(shift)))
+        Self(self.0.wrapping_shr(lo as u32))
     }
 }
 
@@ -297,17 +297,16 @@ impl u256 {
     pub const MAX: Self = Self(U256::MAX);
 
     pub fn into_u64_with_overflow(self) -> (u64, bool) {
-        let digits: [u64; 4] = transmute!(self.0.0);
-        let overflow = digits[1..] != [0; 3];
-        (digits[0], overflow)
+        let (hi, lo) = self.0.into_words();
+        (lo as u64, hi != 0 || lo > u64::MAX as u128)
     }
 
     pub fn into_u64_saturating(self) -> u64 {
-        let digits: [u64; 4] = transmute!(self.0.0);
-        if digits[1..] != [0; 3] {
+        let (hi, lo) = self.0.into_words();
+        if hi != 0 || lo > u64::MAX as u128 {
             u64::MAX
         } else {
-            digits[0]
+            lo as u64
         }
     }
 
@@ -369,7 +368,7 @@ impl u256 {
             if (exp & U256::ONE) == U256::ONE {
                 acc = acc.wrapping_mul(base);
             }
-            exp /= U256::from(2u64);
+            exp >>= 1;
             base = base.wrapping_mul(base);
         }
 
@@ -381,24 +380,25 @@ impl u256 {
     }
 
     pub fn signextend(self, rhs: Self) -> Self {
-        let (lhs, lhs_overflow) = self.into_u64_with_overflow();
-        let lhs = lhs as usize;
+        let (size_hi, size) = self.0.into_words();
         // For 31 and higher the sign byte is already the last byte, so the result is the same as
         // rhs.
-        if lhs_overflow || lhs >= 31 {
+        if size_hi != 0 || size >= 31 {
             return rhs;
         }
+        let size = size as u32;
 
-        let byte = 31 - lhs; // lhs < 31 so this is in 1..=31 and the shifts below stay below 256
-        let negative = (rhs.to_le_bytes()[lhs] & 0x80) > 0;
-
-        let res = if negative {
-            rhs.0 | (U256::MAX << ((32 - byte) * 8))
+        // Move the sign byte to the top of its word, then replicate its sign bit back down.
+        let (hi, lo) = rhs.0.into_words();
+        let (hi, lo) = if size < 16 {
+            let shift = (15 - size) * 8;
+            let lo = (((lo << shift) as i128) >> shift) as u128;
+            (((lo as i128) >> 127) as u128, lo)
         } else {
-            rhs.0 & (U256::MAX >> (byte * 8))
+            let shift = (31 - size) * 8;
+            ((((hi << shift) as i128) >> shift) as u128, lo)
         };
-
-        Self(res)
+        Self(U256::from_words(hi, lo))
     }
 
     pub fn slt(&self, rhs: &Self) -> bool {
@@ -414,30 +414,28 @@ impl u256 {
     }
 
     pub fn byte(&self, index: Self) -> Self {
-        if index >= 32u8.into() {
+        let (index_hi, index_lo) = index.0.into_words();
+        if index_hi != 0 || index_lo >= 32 {
             return u256::ZERO;
         }
-        let idx = index.to_le_bytes()[0];
-        self.to_le_bytes()[31 - idx as usize].into()
+        let (hi, lo) = self.0.into_words();
+        // Position of the requested byte, counted from the least significant one.
+        let pos = 31 - index_lo as u32;
+        let half = if pos < 16 { lo } else { hi };
+        ((half >> ((pos % 16) * 8)) as u8).into()
     }
 
     pub fn sar(self, rhs: Self) -> Self {
         let lhs = self.0.as_i256();
-        let [shift, rest @ ..] = rhs.to_le_bytes();
-        // rhs > 255
-        if rest != [0; 31] {
+        let (hi, lo) = rhs.0.into_words();
+        if hi != 0 || lo > 255 {
             if lhs.is_negative() {
                 return u256::MAX;
             } else {
                 return u256::ZERO;
             }
         }
-        let shift = u32::from(shift);
-        let mut shr = self.0.wrapping_shr(shift);
-        if lhs.is_negative() {
-            shr |= U256::MAX.wrapping_shl(255 - shift);
-        }
-        Self(shr)
+        Self(lhs.wrapping_shr(lo as u32).as_u256())
     }
 
     pub fn leading_zeros(&self) -> u32 {
@@ -457,11 +455,11 @@ impl u256 {
     }
 
     pub fn least_significant_byte(&self) -> u8 {
-        self.0.0[0] as u8
+        self.0.as_u8()
     }
 
-    pub fn to_le_bytes(self) -> [u8; 32] {
-        self.0.to_le_bytes()
+    pub fn to_be_bytes(self) -> [u8; 32] {
+        self.0.to_be_bytes()
     }
 }
 
