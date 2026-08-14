@@ -8,10 +8,12 @@ use evmc_vm::{
     StatusCode, StepResult, StorageStatus, Uint256,
 };
 
+#[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
+use crate::types::GetOpcodeError;
 use crate::{
     types::{
-        CodeAnalysisCache, CodeReader, ExecStatus, ExecutionContextTrait, FailStatus,
-        GetOpcodeError, Memory, Observer, Stack, hash_cache::HashCache, u256,
+        CodeAnalysisCache, CodeReader, ExecStatus, ExecutionContextTrait, FailStatus, Memory,
+        Observer, Stack, hash_cache::HashCache, u256,
     },
     utils::{Gas, GasRefund, SliceExt, check_min_revision, check_not_read_only, word_size},
 };
@@ -448,7 +450,9 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
                     Some(steps) => *steps -= 1,
                 }
             }
-            let op = match self.code_reader.get() {
+            let op = self.code_reader.get();
+            #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
+            let op = match op {
                 Ok(op) => op,
                 Err(GetOpcodeError::OutOfRange) => {
                     self.exec_status = ExecStatus::Stopped;
@@ -495,19 +499,17 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
                 Some(steps) => *steps -= 1,
             }
         }
-        let op = match self.code_reader.get() {
-            Ok(op) => op,
-            Err(GetOpcodeError::OutOfRange) => {
-                self.exec_status = ExecStatus::Stopped;
-                return Ok(());
-            }
-            Err(GetOpcodeError::Invalid) => {
-                return Err(FailStatus::InvalidInstruction);
-            }
-        };
+        let op = self.code_reader.get();
         std::cfg_select! {
             feature = "fn-ptr-conversion-dispatch" => tail_call!(op(self)),
-            _ => tail_call!(get_jumptable()[op as usize](self)),
+            _ => match op {
+                Ok(op) => tail_call!(get_jumptable()[op as usize](self)),
+                Err(GetOpcodeError::OutOfRange) => {
+                    self.exec_status = ExecStatus::Stopped;
+                    Ok(())
+                }
+                Err(GetOpcodeError::Invalid) => Err(FailStatus::InvalidInstruction),
+            },
         }
     }
 
