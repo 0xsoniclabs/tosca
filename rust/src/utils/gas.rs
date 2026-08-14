@@ -52,6 +52,7 @@ impl Gas {
     pub fn add(&mut self, gas: i64) -> Result<(), FailStatus> {
         let (gas, overflow) = self.0.cast_signed().overflowing_add(gas);
         if gas < 0 || overflow {
+            std::hint::cold_path();
             return Err(FailStatus::OutOfGas);
         }
         self.0 = gas.cast_unsigned();
@@ -61,6 +62,7 @@ impl Gas {
     #[inline(always)]
     pub fn consume(&mut self, gas: u64) -> Result<(), FailStatus> {
         if self.0 < gas {
+            std::hint::cold_path();
             return Err(FailStatus::OutOfGas);
         }
         self.0 -= gas;

@@ -125,7 +125,10 @@ impl TryFrom<u256> for u64 {
 
     fn try_from(value: u256) -> Result<Self, Self::Error> {
         match value.into_u64_with_overflow() {
-            (_, true) => Err(U64Overflow),
+            (_, true) => {
+                std::hint::cold_path();
+                Err(U64Overflow)
+            }
             (value, false) => Ok(value),
         }
     }

@@ -46,6 +46,7 @@ impl SliceExt for [u8] {
 pub fn word_size(byte_len: u64) -> Result<u64, FailStatus> {
     let (end, overflow) = byte_len.overflowing_add(31);
     if overflow {
+        std::hint::cold_path();
         return Err(FailStatus::OutOfGas);
     }
     Ok(end / 32)
@@ -54,6 +55,7 @@ pub fn word_size(byte_len: u64) -> Result<u64, FailStatus> {
 #[inline(always)]
 pub fn check_min_revision(min_revision: Revision, revision: Revision) -> Result<(), FailStatus> {
     if revision < min_revision {
+        std::hint::cold_path();
         return Err(FailStatus::UndefinedInstruction);
     }
     Ok(())
@@ -62,6 +64,7 @@ pub fn check_min_revision(min_revision: Revision, revision: Revision) -> Result<
 #[inline(always)]
 pub fn check_not_read_only(message: &ExecutionMessage) -> Result<(), FailStatus> {
     if message.flags & MessageFlags::EVMC_STATIC as u32 != 0 {
+        std::hint::cold_path();
         return Err(FailStatus::StaticModeViolation);
     }
     Ok(())

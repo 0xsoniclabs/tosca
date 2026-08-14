@@ -110,6 +110,7 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
             };
             code_byte_type == CodeByteType::JumpDest
         }) {
+            std::hint::cold_path();
             return Err(FailStatus::BadJumpDestination);
         }
         std::cfg_select! {
