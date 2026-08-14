@@ -176,6 +176,7 @@ impl Stack {
     pub fn check_overflow(&self, num_elements: usize) -> Result<(), FailStatus> {
         // len <= CAPACITY (invariant), so this does not underflow
         if Self::CAPACITY - self.0.len() < num_elements {
+            std::hint::cold_path();
             return Err(FailStatus::StackOverflow);
         }
         Ok(())
@@ -184,6 +185,7 @@ impl Stack {
     #[inline(always)]
     fn check_underflow(&self, min_len: usize) -> Result<(), FailStatus> {
         if self.0.len() < min_len {
+            std::hint::cold_path();
             return Err(FailStatus::StackUnderflow);
         }
         Ok(())

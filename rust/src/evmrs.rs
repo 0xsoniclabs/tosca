@@ -1,4 +1,4 @@
-use std::process;
+use std::{hint, process};
 
 use evmc_vm::{
     EvmcVm, ExecutionContext, ExecutionMessage, ExecutionResult, Revision, SetOptionError,
@@ -39,10 +39,11 @@ impl EvmcVm for EvmRs {
         message: &'a ExecutionMessage,
         context: Option<&'a mut ExecutionContext<'a>>,
     ) -> ExecutionResult {
-        assert_ne!(
-            EVMC_CAPABILITY,
-            evmc_capabilities::EVMC_CAPABILITY_PRECOMPILES
-        );
+        const {
+            assert!(
+                EVMC_CAPABILITY as u32 != evmc_capabilities::EVMC_CAPABILITY_PRECOMPILES as u32
+            );
+        }
         let Some(context) = context else {
             // Since EVMC_CAPABILITY_PRECOMPILES is not supported context must be set.
             // If this is not the case it violates the EVMC spec and is an irrecoverable error.
@@ -58,7 +59,10 @@ impl EvmcVm for EvmRs {
         );
         match self.observer_type {
             ObserverType::NoOp => interpreter.run(&mut NoOpObserver()),
-            ObserverType::Logging => interpreter.run(&mut LoggingObserver::new(std::io::stdout())),
+            ObserverType::Logging => {
+                hint::cold_path();
+                interpreter.run(&mut LoggingObserver::new(std::io::stdout()))
+            }
         }
     }
 

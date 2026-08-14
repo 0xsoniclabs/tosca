@@ -26,7 +26,9 @@ impl Drop for Memory {
 impl Memory {
     pub fn new(memory: &[u8]) -> Self {
         let mut m = std::cfg_select! {
-            feature = "alloc-reuse" => REUSABLE_MEMORY.lock().unwrap().pop().unwrap_or_default(),
+            feature = "alloc-reuse" => {
+                REUSABLE_MEMORY.lock().unwrap().pop().unwrap_or_default()
+            }
             _ => Vec::new(),
         };
         m.clear();
@@ -66,6 +68,7 @@ impl Memory {
             let (word_size_3, word_size_3_overflow) = word_size.overflowing_mul(3);
             let (cost, cost_overflow) = (pow2 / 512).overflowing_add(word_size_3);
             if pow2_overflow || word_size_3_overflow || cost_overflow {
+                std::hint::cold_path();
                 return Err(FailStatus::OutOfGas);
             };
             Ok(cost)
@@ -92,6 +95,7 @@ impl Memory {
         let (offset, offset_overflow) = offset.into_u64_with_overflow();
         let (end, end_overflow) = offset.overflowing_add(len);
         if offset_overflow || end_overflow {
+            std::hint::cold_path();
             return Err(FailStatus::OutOfGas);
         }
         self.expand(end, gas_left)?;
@@ -149,6 +153,7 @@ impl Memory {
         let (len, len_overflow) = len.into_u64_with_overflow();
         let (end, end_overflow) = max(src_offset, dest_offset).overflowing_add(len);
         if src_overflow || dest_overflow || len_overflow || end_overflow {
+            std::hint::cold_path();
             return Err(FailStatus::OutOfGas);
         }
         gas_left.consume_copy_cost(len)?;
