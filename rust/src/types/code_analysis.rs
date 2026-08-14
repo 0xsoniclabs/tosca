@@ -76,6 +76,9 @@ impl<const STEPPABLE: bool> CodeAnalysisCache<STEPPABLE> {
 
 #[derive(Debug)]
 pub struct CodeAnalysis<const STEPPABLE: bool> {
+    /// Must not be mutated after construction: with `fn-ptr-conversion-dispatch`,
+    /// [`crate::types::CodeReader`] holds a raw pointer into this buffer that any reallocation
+    /// would invalidate.
     pub analysis: Vec<AnalysisItem<STEPPABLE>>,
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     pub pc_map: PcMap,
