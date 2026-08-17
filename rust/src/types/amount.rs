@@ -1,3 +1,7 @@
+#[cfg(all(feature = "simd", target_endian = "little"))]
+use std::simd::u8x32;
+#[cfg(feature = "simd")]
+use std::simd::{ToBytes, u64x4};
 use std::{
     fmt::{Debug, Display, LowerHex},
     ops::{
@@ -64,31 +68,46 @@ impl From<u256> for Uint256 {
 
 impl From<bool> for u256 {
     fn from(value: bool) -> Self {
-        Self(U256::from(value))
+        Self::from(u64::from(value))
     }
 }
 
 impl From<u8> for u256 {
     fn from(value: u8) -> Self {
-        Self(U256::from(value))
+        Self::from(u64::from(value))
     }
 }
 
 impl From<u32> for u256 {
     fn from(value: u32) -> Self {
-        Self(U256::from(value))
+        Self::from(u64::from(value))
     }
 }
 
 impl From<u64> for u256 {
     fn from(value: u64) -> Self {
-        Self(U256::from(value))
+        std::cfg_select! {
+            // With `simd` the value is zero-extended in a vector register rather than with scalar
+            // stores that would straddle the slot, so that storing it takes a single store the
+            // consuming instruction can forward from. Where it feeds arithmetic instead, the
+            // vector never materializes.
+            feature = "simd" => {
+                let lanes = std::cfg_select! {
+                    target_endian = "little" => [value, 0, 0, 0],
+                    _ => [0, 0, 0, value],
+                };
+                Self(U256::from_ne_bytes(
+                    u64x4::from_array(lanes).to_ne_bytes().to_array(),
+                ))
+            }
+            _ => Self(U256::from(value)),
+        }
     }
 }
 
 impl From<usize> for u256 {
     fn from(value: usize) -> Self {
-        Self(U256::from(value as u64))
+        Self::from(value as u64)
     }
 }
 
@@ -234,7 +253,13 @@ impl BitAnd for u256 {
     type Output = Self;
 
     fn bitand(self, rhs: Self) -> Self::Output {
-        Self(self.0.bitand(rhs.0))
+        std::cfg_select! {
+            // Operating on lanes writes the result slot with a single store, see [`u256::lanes`].
+            feature = "simd" => Self(U256::from_ne_bytes(
+                (self.lanes() & rhs.lanes()).to_ne_bytes().to_array(),
+            )),
+            _ => Self(self.0.bitand(rhs.0)),
+        }
     }
 }
 
@@ -242,7 +267,13 @@ impl BitOr for u256 {
     type Output = Self;
 
     fn bitor(self, rhs: Self) -> Self::Output {
-        Self(self.0.bitor(rhs.0))
+        std::cfg_select! {
+            // Operating on lanes writes the result slot with a single store, see [`u256::lanes`].
+            feature = "simd" => Self(U256::from_ne_bytes(
+                (self.lanes() | rhs.lanes()).to_ne_bytes().to_array(),
+            )),
+            _ => Self(self.0.bitor(rhs.0)),
+        }
     }
 }
 
@@ -250,7 +281,13 @@ impl BitXor for u256 {
     type Output = Self;
 
     fn bitxor(self, rhs: Self) -> Self::Output {
-        Self(self.0.bitxor(rhs.0))
+        std::cfg_select! {
+            // Operating on lanes writes the result slot with a single store, see [`u256::lanes`].
+            feature = "simd" => Self(U256::from_ne_bytes(
+                (self.lanes() ^ rhs.lanes()).to_ne_bytes().to_array(),
+            )),
+            _ => Self(self.0.bitxor(rhs.0)),
+        }
     }
 }
 
@@ -258,7 +295,13 @@ impl Not for u256 {
     type Output = Self;
 
     fn not(self) -> Self::Output {
-        Self(self.0.not())
+        std::cfg_select! {
+            // Operating on lanes writes the result slot with a single store, see [`u256::lanes`].
+            feature = "simd" => Self(U256::from_ne_bytes(
+                (!self.lanes()).to_ne_bytes().to_array(),
+            )),
+            _ => Self(self.0.not()),
+        }
     }
 }
 
@@ -453,7 +496,32 @@ impl u256 {
         Self(U256::from_le_bytes(bytes))
     }
 
+    /// A lane view of the value, for the bitwise operators. On the two `u128` halves the compiler
+    /// has no single aligned 32 byte access available, because `u256` is only `align(16)`, so it
+    /// splits the result slot into two stores and the next handler's single wide load of that
+    /// slot forwards from neither. One lane access writes the slot once instead. Lane width and
+    /// byte order do not matter to a bitwise operation, so this is a plain reinterpretation.
+    #[cfg(feature = "simd")]
+    fn lanes(self) -> u64x4 {
+        u64x4::from_ne_bytes(self.0.to_ne_bytes().into())
+    }
+
     pub fn from_be_bytes(bytes: [u8; 32]) -> Self {
+        std::cfg_select! {
+            // With `simd` the bytes are reversed in a vector register rather than word by word,
+            // so that storing the result takes a single store, see [`From<u64>`]. On a big-endian
+            // target the reversal is the identity, so there is nothing to vectorize.
+            all(feature = "simd", target_endian = "little") => Self(U256::from_ne_bytes(
+                u8x32::from_array(bytes).reverse().to_array(),
+            )),
+            _ => Self(U256::from_be_bytes(bytes)),
+        }
+    }
+
+    /// Semantically equivalent to [`u256::from_be_bytes`] but always reads `bytes` word by word,
+    /// for callers that have just written them at an offset the compiler does not know: no wide
+    /// read of such a buffer can be served by store-to-load forwarding.
+    pub fn from_be_bytes_words(bytes: [u8; 32]) -> Self {
         Self(U256::from_be_bytes(bytes))
     }
 
@@ -462,7 +530,15 @@ impl u256 {
     }
 
     pub fn to_be_bytes(self) -> [u8; 32] {
-        self.0.to_be_bytes()
+        std::cfg_select! {
+            // With `simd` the bytes are reversed in a vector register rather than word by word,
+            // so that storing the result takes a single store, see [`u256::from_be_bytes`]. On a
+            // big-endian target the reversal is the identity, so there is nothing to vectorize.
+            all(feature = "simd", target_endian = "little") => {
+                u8x32::from_array(self.0.to_ne_bytes()).reverse().to_array()
+            }
+            _ => self.0.to_be_bytes(),
+        }
     }
 }
 

@@ -60,7 +60,7 @@ jobs:
       run: cargo install cargo-hack
     - name: cargo clippy
       working-directory: rust
-      run: cargo hack --workspace --each-feature --exclude-features needs-cache,tail-call clippy --all-targets -- --deny warnings
+      run: cargo hack --workspace --each-feature --exclude-features needs-cache,tail-call,simd,performance-nightly clippy --all-targets -- --deny warnings
 
   doc:
     name: doc
@@ -81,7 +81,7 @@ jobs:
       env:
         RUSTDOCFLAGS: "-D warnings"
       working-directory: rust
-      run: cargo hack --workspace --each-feature --exclude-features needs-cache,tail-call doc --no-deps
+      run: cargo hack --workspace --each-feature --exclude-features needs-cache,tail-call,simd,performance-nightly doc --no-deps
 
   build:
     name: build
@@ -100,7 +100,7 @@ jobs:
       run: cargo install cargo-hack
     - name: cargo build
       working-directory: rust
-      run: cargo hack --workspace --each-feature --exclude-features needs-cache,tail-call build
+      run: cargo hack --workspace --each-feature --exclude-features needs-cache,tail-call,simd,performance-nightly build
 
   test:
     name: test
@@ -119,10 +119,10 @@ jobs:
       run: cargo install cargo-hack
     - name: cargo test
       working-directory: rust
-      run: cargo hack --workspace --each-feature --exclude-features needs-cache,tail-call test
+      run: cargo hack --workspace --each-feature --exclude-features needs-cache,tail-call,simd,performance-nightly test
 
-  tail-call:
-    name: tail-call
+  nightly-features:
+    name: nightly-features
     runs-on: ubuntu-latest
 
     steps:
@@ -141,6 +141,8 @@ jobs:
       run: |
         cargo +nightly-2026-08-05 test --profile release --features tail-call
         cargo +nightly-2026-08-05 test --profile release --features tail-call,fn-ptr-conversion-dispatch
+        cargo +nightly-2026-08-05 test --profile release --features simd
+        cargo +nightly-2026-08-05 test --profile release --features performance-nightly
 
   test-with-sanitizers:
     name: test-with-sanitizers
@@ -240,12 +242,12 @@ jobs:
       working-directory: rust
       env:
         MIRIFLAGS: "-Zmiri-disable-stacked-borrows -Zmiri-permissive-provenance -Zmiri-backtrace=full"
-      run: cargo +nightly-2026-08-05 hack miri test --workspace --each-feature --exclude-features needs-cache,mimalloc,performance
+      run: cargo +nightly-2026-08-05 hack miri test --workspace --each-feature --exclude-features needs-cache,mimalloc,performance,performance-nightly
     - name: cargo miri benchmarks
       working-directory: rust
       env:
         MIRIFLAGS: "-Zmiri-disable-stacked-borrows -Zmiri-permissive-provenance -Zmiri-backtrace=full"
-      run: cargo +nightly-2026-08-05 hack miri run --package benchmarks --each-feature --exclude-features mimalloc,performance -- 1 all-short
+      run: cargo +nightly-2026-08-05 hack miri run --package benchmarks --each-feature --exclude-features mimalloc,performance,performance-nightly -- 1 all-short
 
   fuzz:
     name: fuzz

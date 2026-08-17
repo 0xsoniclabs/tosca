@@ -147,7 +147,7 @@ impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
                         let avail = code.len() - pc;
                         buf[32 - data_len..32 - data_len + avail].copy_from_slice(&code[pc..]);
                     }
-                    let data = u256::from_be_bytes(*buf[..32].as_array().unwrap());
+                    let data = u256::from_be_bytes_words(*buf[..32].as_array().unwrap());
                     analysis.push(OpFnData::func(op, data, pc - 1));
 
                     no_ops += data_len;

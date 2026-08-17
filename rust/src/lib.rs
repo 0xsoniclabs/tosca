@@ -1,3 +1,4 @@
+#![cfg_attr(feature = "simd", feature(portable_simd))]
 #![cfg_attr(feature = "tail-call", feature(explicit_tail_calls))]
 #![cfg_attr(feature = "tail-call", allow(incomplete_features))]
 #![allow(unused_crate_dependencies)]

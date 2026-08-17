@@ -67,12 +67,13 @@ To generate code coverage for CT see [coverage.sh](./scripts/coverage.sh).
 By default, `evmrs` is build with the simplest implementation.
 All optimizations are behind feature flags.
 A list of all features can be found in the `[features]` section in [Cargo.toml](./Cargo.toml).
-For convenience there is also a feature named `performance` which enables all other features that improve overall performance.
-Feature `tail-call` is not among them because it uses the unstable `explicit_tail_calls` feature and therefore requires nightly Rust.
+For convenience there is also a feature named `performance` which enables all optimizations that build on stable Rust.
+Features `tail-call` and `simd` are not among them because they use the unstable compiler features `explicit_tail_calls` and `portable_simd` and therefore require nightly Rust.
+Feature `performance-nightly` enables `performance` plus those two, so it covers every optimization.
 
 Most `cargo` commands accept the `--features` flag followed by a list of features to enable, e.g.
 ```sh
-cargo build --features mimalloc,custom-evmc
+cargo build --features mimalloc,hash-cache
 ```
 
 ## Benchmarking

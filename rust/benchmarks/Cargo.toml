@@ -5,12 +5,14 @@ edition = "2024"
 
 [features]
 performance = ["evmrs/performance"]
+performance-nightly = ["evmrs/performance-nightly"]
 mimalloc = ["evmrs/mimalloc"]
 unsafe-stack = ["evmrs/unsafe-stack"]
 hash-cache = ["evmrs/hash-cache"]
 code-analysis-cache = ["evmrs/code-analysis-cache"]
 alloc-reuse = ["evmrs/alloc-reuse"]
 tail-call = ["evmrs/tail-call"]
+simd = ["evmrs/simd"]
 fn-ptr-conversion-dispatch = ["evmrs/fn-ptr-conversion-dispatch"]
 
 [dependencies]
