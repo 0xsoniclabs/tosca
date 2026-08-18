@@ -51,7 +51,7 @@ func TestCodeGenerator_VariablesAreSupported(t *testing.T) {
 
 	generator := NewCodeGenerator()
 	for _, cur := range constraints {
-		generator.AddOperation(cur.variable, cur.operation)
+		generator.AddOperation(cur.variable, 0, cur.operation)
 	}
 
 	assignment := Assignment{}
@@ -87,7 +87,7 @@ func TestCodeGenerator_PreDefinedVariablesAreAccepted(t *testing.T) {
 
 	generator := NewCodeGenerator()
 	for _, cur := range constraints {
-		generator.AddOperation(cur.variable, cur.operation)
+		generator.AddOperation(cur.variable, 0, cur.operation)
 	}
 
 	assignment := Assignment{}
@@ -142,7 +142,7 @@ func TestCodeGenerator_ConflictInPredefinedVariablesIsDetected(t *testing.T) {
 
 			generator := NewCodeGenerator()
 			for v := range test {
-				generator.AddOperation(v, opCode)
+				generator.AddOperation(v, 0, opCode)
 			}
 
 			rnd := rand.New(0)
@@ -156,8 +156,8 @@ func TestCodeGenerator_ConflictInPredefinedVariablesIsDetected(t *testing.T) {
 
 func TestCodeGenerator_ConflictingVariablesAreDetected(t *testing.T) {
 	generator := NewCodeGenerator()
-	generator.AddOperation(Variable("X"), vm.ADD)
-	generator.AddOperation(Variable("X"), vm.JUMP)
+	generator.AddOperation(Variable("X"), 0, vm.ADD)
+	generator.AddOperation(Variable("X"), 0, vm.JUMP)
 	rnd := rand.New(0)
 	if _, err := generator.Generate(nil, rnd); !errors.Is(err, ErrUnsatisfiable) {
 		t.Errorf("unsatisfiable constraint not detected, got %v", err)
@@ -235,7 +235,7 @@ func TestCodeGenerator_OperationConstraintsAreEnforced(t *testing.T) {
 				if len(cur.v) == 0 {
 					generator.SetOperation(cur.p, cur.op)
 				} else {
-					generator.AddOperation(Variable(cur.v), cur.op)
+					generator.AddOperation(Variable(cur.v), 0, cur.op)
 				}
 			}
 
@@ -363,7 +363,7 @@ func TestCodeGenerator_TooSmallCodeSizeLeadsToUnsatisfiableResult(t *testing.T) 
 	tests := map[string]func(*CodeGenerator){
 		"empty code with variable constraint": func(g *CodeGenerator) {
 			fixSize(g, 0)
-			g.AddOperation(Variable("X"), vm.STOP)
+			g.AddOperation(Variable("X"), 0, vm.STOP)
 		},
 		"must contain code with size 0": func(g *CodeGenerator) {
 			fixSize(g, 0)
@@ -371,8 +371,8 @@ func TestCodeGenerator_TooSmallCodeSizeLeadsToUnsatisfiableResult(t *testing.T) 
 		},
 		"two variable ops with size of 1": func(g *CodeGenerator) {
 			fixSize(g, 1)
-			g.AddOperation(Variable("X"), vm.STOP)
-			g.AddOperation(Variable("Y"), vm.ADD)
+			g.AddOperation(Variable("X"), 0, vm.STOP)
+			g.AddOperation(Variable("Y"), 0, vm.ADD)
 		},
 		"two constant ops with size 1 ": func(g *CodeGenerator) {
 			fixSize(g, 1)
@@ -382,7 +382,7 @@ func TestCodeGenerator_TooSmallCodeSizeLeadsToUnsatisfiableResult(t *testing.T) 
 		"two mix ops with size 1 ": func(g *CodeGenerator) {
 			fixSize(g, 1)
 			g.SetOperation(1, vm.STOP)
-			g.AddOperation(Variable("Y"), vm.ADD)
+			g.AddOperation(Variable("Y"), 0, vm.ADD)
 		},
 	}
 
@@ -530,7 +530,7 @@ func TestCodeGenerator_CodeIsLargeEnoughForAllConditionOps(t *testing.T) {
 				generator.SetOperation(op.location, op.op)
 			}
 			for _, op := range test.variableOps {
-				generator.AddOperation(Variable(op.variable), op.op)
+				generator.AddOperation(Variable(op.variable), 0, op.op)
 			}
 
 			code, err := generator.Generate(Assignment{}, rand.New(0))
@@ -650,5 +650,88 @@ func TestSolver_largestFit(t *testing.T) {
 	}
 	if s.largestFit(0) > 33 {
 		t.Error("largestFit should not return more than 33.")
+	}
+}
+
+func TestCodeGenerator_OperationsAtAnOffsetAreGroupedWithTheirVariable(t *testing.T) {
+	rnd := rand.New(0)
+	for i := 0; i < 100; i++ {
+		generator := NewCodeGenerator()
+		generator.AddOperation(Variable("X"), 0, vm.DUPN)
+		generator.AddOperation(Variable("X"), 1, vm.JUMPDEST)
+
+		assignment := Assignment{}
+		code, err := generator.Generate(assignment, rnd)
+		if err != nil {
+			t.Fatalf("generation failed: %v", err)
+		}
+
+		pos := int(assignment[Variable("X")].Uint64())
+		if op, err := code.GetOperation(pos); err != nil || op != vm.DUPN {
+			t.Fatalf("unsatisfied constraint at %d, got %v, err %v", pos, op, err)
+		}
+		if op, err := code.GetOperation(pos + 1); err != nil || op != vm.JUMPDEST {
+			t.Fatalf("unsatisfied constraint at %d, got %v, err %v", pos+1, op, err)
+		}
+	}
+}
+
+func TestCodeGenerator_OperationsAtAnOffsetFollowPreDefinedVariables(t *testing.T) {
+	generator := NewCodeGenerator()
+	generator.AddOperation(Variable("X"), 0, vm.SWAPN)
+	generator.AddOperation(Variable("X"), 1, vm.PUSH1)
+
+	assignment := Assignment{Variable("X"): NewU256(7)}
+	code, err := generator.Generate(assignment, rand.New(0))
+	if err != nil {
+		t.Fatalf("generation failed: %v", err)
+	}
+
+	if op, err := code.GetOperation(7); err != nil || op != vm.SWAPN {
+		t.Errorf("unsatisfied constraint at 7, got %v, err %v", op, err)
+	}
+	if op, err := code.GetOperation(8); err != nil || op != vm.PUSH1 {
+		t.Errorf("unsatisfied constraint at 8, got %v, err %v", op, err)
+	}
+	// The operand is a PUSH, so the byte behind it becomes data.
+	if !code.IsData(9) {
+		t.Error("data of a PUSH used as an operand is not marked as data")
+	}
+}
+
+func TestCodeGenerator_ConflictingOperationsAtTheSameOffsetAreDetected(t *testing.T) {
+	generator := NewCodeGenerator()
+	generator.AddOperation(Variable("X"), 1, vm.ADD)
+	generator.AddOperation(Variable("X"), 1, vm.JUMP)
+
+	if _, err := generator.Generate(Assignment{}, rand.New(0)); !errors.Is(err, ErrUnsatisfiable) {
+		t.Errorf("expected unsatisfiable constraints, got %v", err)
+	}
+}
+
+func TestCodeGenerator_DuplicatedOperationsAtTheSameOffsetAreAccepted(t *testing.T) {
+	generator := NewCodeGenerator()
+	generator.AddOperation(Variable("X"), 1, vm.ADD)
+	generator.AddOperation(Variable("X"), 1, vm.ADD)
+
+	assignment := Assignment{}
+	code, err := generator.Generate(assignment, rand.New(0))
+	if err != nil {
+		t.Fatalf("generation failed: %v", err)
+	}
+	pos := int(assignment[Variable("X")].Uint64())
+	if op, err := code.GetOperation(pos + 1); err != nil || op != vm.ADD {
+		t.Errorf("unsatisfied constraint at %d, got %v, err %v", pos+1, op, err)
+	}
+}
+
+func TestCodeGenerator_OperationsAtAnOffsetArePrinted(t *testing.T) {
+	generator := NewCodeGenerator()
+	generator.AddOperation(Variable("X"), 0, vm.DUPN)
+	generator.AddOperation(Variable("X"), 1, vm.STOP)
+
+	want := "{op[$X]=DUPN,op[$X+1]=STOP}"
+	if got := generator.String(); got != want {
+		t.Errorf("unexpected print, wanted %s, got %s", want, got)
 	}
 }

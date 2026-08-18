@@ -323,7 +323,7 @@ func (e op) Restrict(kind RestrictionKind, op vm.OpCode, generator *gen.StateGen
 	}
 	variable := e.position.GetVariable()
 	e.position.BindTo(generator)
-	generator.AddCodeOperation(variable, op)
+	generator.AddCodeOperation(variable, 0, op)
 }
 
 func (e op) String() string {
@@ -335,6 +335,46 @@ func (e op) ToSmt() SmtTerm {
 	res := smtApply("code", position)
 	res.Guards = append(res.Guards, smtApply("isCode", position).Term)
 	return res
+}
+
+////////////////////////////////////////////////////////////
+// Immediate Operand
+
+type immediate struct{}
+
+// Immediate is the byte behind the instruction at the program counter, which
+// the EIP-8024 instructions read as their operand. It is read as is, whether it
+// is considered code or data, and reads as zero beyond the end of the code.
+func Immediate() Expression[byte] {
+	return immediate{}
+}
+
+func (immediate) Property() Property { return Property("code[PC+1]") }
+
+func (immediate) Domain() Domain[byte] { return immediateDomain{} }
+
+func (immediate) Eval(s *st.State) (byte, error) {
+	return s.Code.GetByte(int(s.Pc) + 1), nil
+}
+
+func (immediate) Restrict(kind RestrictionKind, value byte, generator *gen.StateGenerator) {
+	if kind != RestrictEqual {
+		panic("Immediate operands only support equality constraints")
+	}
+	position := Pc()
+	position.BindTo(generator)
+	generator.AddCodeOperation(position.GetVariable(), 1, vm.OpCode(value))
+}
+
+func (immediate) String() string {
+	return "code[PC+1]"
+}
+
+// ToSmt reads the byte unguarded, since an immediate operand is read whether or
+// not it is code. The abstract model has no code length, so a read beyond the
+// end of the code is over-approximated by an arbitrary byte instead of zero.
+func (immediate) ToSmt() SmtTerm {
+	return smtApply("code", SmtTerm{Term: "(+ pc 1)"})
 }
 
 ////////////////////////////////////////////////////////////

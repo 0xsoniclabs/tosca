@@ -222,6 +222,39 @@ func TestExpression_OpRestrict(t *testing.T) {
 	}
 }
 
+func TestExpression_ImmediateEval(t *testing.T) {
+	code := st.NewCode([]byte{byte(vm.DUPN), 0x80, byte(vm.PUSH1), 0x91})
+	tests := map[uint16]byte{
+		0: 0x80, // < the operand of DUPN
+		2: 0x91, // < the data of a PUSH reads alike
+		3: 0,    // < beyond the end of the code
+	}
+	for pc, want := range tests {
+		state := st.NewState(code)
+		state.Pc = pc
+		if got, err := Immediate().Eval(state); err != nil || got != want {
+			t.Errorf("unexpected operand at pc %d, wanted %d, got %d, err %v", pc, want, got, err)
+		}
+	}
+}
+
+func TestExpression_ImmediateRestrict(t *testing.T) {
+	generator := gen.NewStateGenerator()
+	Op(Pc()).Restrict(RestrictEqual, vm.DUPN, generator)
+	Immediate().Restrict(RestrictEqual, 0x80, generator)
+
+	state, err := generator.Generate(rand.New(0))
+	if err != nil {
+		t.Fatalf("state generation failed: %v", err)
+	}
+	if op, err := state.Code.GetOperation(int(state.Pc)); err != nil || op != vm.DUPN {
+		t.Errorf("generator was not restricted by the operation expression")
+	}
+	if got := state.Code.GetByte(int(state.Pc) + 1); got != 0x80 {
+		t.Errorf("generator was not restricted by the immediate expression, got %d", got)
+	}
+}
+
 func TestExpression_StackSizeEval(t *testing.T) {
 	state := st.NewState(st.NewCode([]byte{}))
 	state.Stack.Push(NewU256(1))
@@ -304,6 +337,7 @@ func TestExpression_RestrictPanicsWhenCalledWithCertainKind(t *testing.T) {
 		"Pc-notUint64": {Pc(), RestrictEqual, NewU256(42, 42)},
 		"readOnly":     {ReadOnly(), RestrictGreater, true},
 		"op":           {Op(Pc()), RestrictGreater, vm.ADD},
+		"immediate":    {Immediate(), RestrictGreater, byte(1)},
 		"param":        {Param(0), RestrictGreater, NewU256(42)},
 		"constant":     {Constant(NewU256(42)), RestrictGreater, NewU256(42)},
 	}
@@ -324,6 +358,8 @@ func TestExpression_RestrictPanicsWhenCalledWithCertainKind(t *testing.T) {
 				v.Restrict(test.kind, test.value.(bool), gen.NewStateGenerator())
 			case op:
 				v.Restrict(test.kind, test.value.(vm.OpCode), gen.NewStateGenerator())
+			case immediate:
+				v.Restrict(test.kind, test.value.(byte), gen.NewStateGenerator())
 			case param:
 				v.Restrict(test.kind, test.value.(U256), gen.NewStateGenerator())
 			case constant:
@@ -345,6 +381,7 @@ func TestExpression_Property(t *testing.T) {
 		{Param(0).Property(), "param[0]"},
 		{Constant(NewU256(42)).Property(), "constant(42)"},
 		{Constant(NewU256(1, 42)).Property(), "constant(18446744073709551658)"},
+		{Immediate().Property(), "code[PC+1]"},
 	}
 
 	for _, test := range tests {

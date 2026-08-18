@@ -443,8 +443,10 @@ func TestDomain_SomethingNotEqual(t *testing.T) {
 func TestDomain_SamplesKnownValues(t *testing.T) {
 
 	opcodesAllSamples := make([]vm.OpCode, 0, 256)
+	immediateAllSamples := make([]byte, 0, 256)
 	for i := range 256 {
 		opcodesAllSamples = append(opcodesAllSamples, vm.OpCode(i))
+		immediateAllSamples = append(immediateAllSamples, byte(i))
 	}
 
 	tests := map[string]struct {
@@ -515,6 +517,18 @@ func TestDomain_SamplesKnownValues(t *testing.T) {
 		"opcpode-samplesforall": {
 			got:  opCodeDomain{}.SamplesForAll([]vm.OpCode{}),
 			want: opcodesAllSamples,
+		},
+		"immediate-samples": {
+			got:  immediateDomain{}.Samples(byte(127)),
+			want: []byte{127, 128},
+		},
+		"immediate-samples-wrap-around": {
+			got:  immediateDomain{}.Samples(byte(255)),
+			want: []byte{255, 0},
+		},
+		"immediate-samplesforall": {
+			got:  immediateDomain{}.SamplesForAll([]byte{}),
+			want: immediateAllSamples,
 		},
 		"blocknumberoffset-samples": {
 			got: BlockNumberOffsetDomain{}.Samples(int64(23)),
