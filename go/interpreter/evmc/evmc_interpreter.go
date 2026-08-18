@@ -92,6 +92,8 @@ func (e *EvmcInterpreter) Run(params tosca.Parameters) (tosca.Result, error) {
 		revision,
 		evmc.Call,
 		params.Static,
+		// EIP-7702 delegated call mode, which tosca.Parameters does not model.
+		false,
 		params.Depth,
 		int64(params.Gas),
 		evmc.Address(params.Recipient),
