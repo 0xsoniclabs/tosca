@@ -22,6 +22,8 @@ import (
 	"github.com/0xsoniclabs/tosca/go/ct/st"
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"github.com/0xsoniclabs/tosca/go/tosca/vm"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"golang.org/x/exp/constraints"
 )
 
@@ -320,30 +322,32 @@ func getAllRules() []Rule {
 	// --- BALANCE ---
 
 	// cold
-	rules = append(rules, rulesFor(instruction{
-		op:        vm.BALANCE,
-		staticGas: 0 + 2600, // 2600 dynamic cost for cold address
-		pops:      1,
-		pushes:    1,
-		conditions: []Condition{
-			RevisionBounds(tosca.R09_Berlin, NewestSupportedRevision),
-			IsAddressCold(Param(0)),
-		},
-		parameters: []Parameter{
-			AddressParameter{},
-		},
-		effect: Change(func(s *st.State) {
-			address := NewAddress(s.Stack.Pop())
-			s.Stack.Push(s.Accounts.GetBalance(address))
-			s.Accounts.MarkWarm(address)
-		}),
-		name: "_cold",
-	})...)
+	for _, revisions := range repricedRevisionRanges(tosca.R09_Berlin) {
+		rules = append(rules, rulesFor(instruction{
+			op:        vm.BALANCE,
+			staticGas: 0 + coldAccountAccessCost(revisions.first), // dynamic cost for cold address
+			pops:      1,
+			pushes:    1,
+			conditions: []Condition{
+				RevisionBounds(revisions.first, revisions.last),
+				IsAddressCold(Param(0)),
+			},
+			parameters: []Parameter{
+				AddressParameter{},
+			},
+			effect: Change(func(s *st.State) {
+				address := NewAddress(s.Stack.Pop())
+				s.Stack.Push(s.Accounts.GetBalance(address))
+				s.Accounts.MarkWarm(address)
+			}),
+			name: "_cold_" + revisions.name(),
+		})...)
+	}
 
 	// warm
 	rules = append(rules, rulesFor(instruction{
 		op:        vm.BALANCE,
-		staticGas: 0 + 100, // 100 dynamic cost for warm address
+		staticGas: 0 + warmAccess, // dynamic cost for warm address
 		pops:      1,
 		pushes:    1,
 		conditions: []Condition{
@@ -461,30 +465,32 @@ func getAllRules() []Rule {
 	// --- SLOAD ---
 
 	// cold
-	rules = append(rules, rulesFor(instruction{
-		op:        vm.SLOAD,
-		staticGas: 100 + 2000, // 2000 are from the dynamic cost of cold mem
-		pops:      1,
-		pushes:    1,
-		conditions: []Condition{
-			RevisionBounds(tosca.R09_Berlin, NewestSupportedRevision),
-			IsStorageCold(Param(0)),
-		},
-		parameters: []Parameter{
-			NumericParameter{},
-		},
-		effect: Change(func(s *st.State) {
-			key := s.Stack.Pop()
-			s.Stack.Push(s.Storage.GetCurrent(key))
-			s.Storage.MarkWarm(key)
-		}),
-		name: "_cold",
-	})...)
+	for _, revisions := range repricedRevisionRanges(tosca.R09_Berlin) {
+		rules = append(rules, rulesFor(instruction{
+			op:        vm.SLOAD,
+			staticGas: coldStorageAccessCost(revisions.first),
+			pops:      1,
+			pushes:    1,
+			conditions: []Condition{
+				RevisionBounds(revisions.first, revisions.last),
+				IsStorageCold(Param(0)),
+			},
+			parameters: []Parameter{
+				NumericParameter{},
+			},
+			effect: Change(func(s *st.State) {
+				key := s.Stack.Pop()
+				s.Stack.Push(s.Storage.GetCurrent(key))
+				s.Storage.MarkWarm(key)
+			}),
+			name: "_cold_" + revisions.name(),
+		})...)
+	}
 
 	// warm
 	rules = append(rules, rulesFor(instruction{
 		op:        vm.SLOAD,
-		staticGas: 100,
+		staticGas: warmAccess,
 		pops:      1,
 		pushes:    1,
 		conditions: []Condition{
@@ -557,7 +563,7 @@ func getAllRules() []Rule {
 		{revision: tosca.R09_Berlin, warm: true, config: tosca.StorageModifiedRestored, gasCost: 100, gasRefund: 2800},
 	}
 
-	for rev := tosca.R10_London; rev <= NewestSupportedRevision; rev++ {
+	for rev := tosca.R10_London; rev <= tosca.R15_Osaka; rev++ {
 		// Certain storage configurations imply warm access. Not all
 		// combinations are possible; invalid ones are marked below.
 		sstoreRules = append(sstoreRules, []sstoreOpParams{
@@ -580,6 +586,41 @@ func getAllRules() []Rule {
 			{revision: rev, warm: true, config: tosca.StorageModified, gasCost: 2900},
 			{revision: rev, warm: true, config: tosca.StorageModifiedDeleted, gasCost: 100, gasRefund: 4800},
 			{revision: rev, warm: true, config: tosca.StorageModifiedRestored, gasCost: 100, gasRefund: 2800},
+		}...)
+	}
+
+	// EIP-8038 reprices every storage access and replaces the distinct prices
+	// for creating and overwriting a slot by a single storage-write charge on
+	// top of the access. Creating a slot additionally grows the state, which
+	// EIP-8037 charges in the state dimension and refunds again once the slot
+	// is cleared within the same transaction. See gas_costs.go on why those
+	// charges are part of the costs below.
+	for rev := tosca.R16_Amsterdam; rev <= NewestSupportedRevision; rev++ {
+		const (
+			cold        = tosca.Gas(coldStorageAccessAmsterdam)
+			warm        = tosca.Gas(warmAccess)
+			write       = tosca.Gas(storageWriteAmsterdam)
+			createSlot  = tosca.Gas(storageCreationAmsterdam)
+			clearRefund = tosca.Gas(storageClearRefundAmsterdam)
+		)
+		sstoreRules = append(sstoreRules, []sstoreOpParams{
+			// A slot whose current value deviates from its committed one has
+			// been written to before and is therefore necessarily warm; those
+			// configurations have no cold instance.
+			{revision: rev, warm: false, config: tosca.StorageAssigned, gasCost: cold}, // valid for 0 -> 0 -> 0 or X -> X -> X
+			{revision: rev, warm: false, config: tosca.StorageAdded, gasCost: cold + write + createSlot},
+			{revision: rev, warm: false, config: tosca.StorageDeleted, gasCost: cold + write, gasRefund: clearRefund},
+			{revision: rev, warm: false, config: tosca.StorageModified, gasCost: cold + write},
+
+			{revision: rev, warm: true, config: tosca.StorageAssigned, gasCost: warm},
+			{revision: rev, warm: true, config: tosca.StorageAdded, gasCost: warm + write + createSlot},
+			{revision: rev, warm: true, config: tosca.StorageAddedDeleted, gasCost: warm, gasRefund: write},
+			{revision: rev, warm: true, config: tosca.StorageDeletedRestored, gasCost: warm, gasRefund: write - clearRefund},
+			{revision: rev, warm: true, config: tosca.StorageDeletedAdded, gasCost: warm, gasRefund: -clearRefund},
+			{revision: rev, warm: true, config: tosca.StorageDeleted, gasCost: warm + write, gasRefund: clearRefund},
+			{revision: rev, warm: true, config: tosca.StorageModified, gasCost: warm + write},
+			{revision: rev, warm: true, config: tosca.StorageModifiedDeleted, gasCost: warm, gasRefund: clearRefund},
+			{revision: rev, warm: true, config: tosca.StorageModifiedRestored, gasCost: warm, gasRefund: write},
 		}...)
 	}
 
@@ -1169,48 +1210,54 @@ func getAllRules() []Rule {
 
 	// --- EXTCODESIZE ---
 
-	// cold
-	rules = append(rules, rulesFor(instruction{
-		op:        vm.EXTCODESIZE,
-		staticGas: 0 + 2600, // 2600 dynamic cost for cold address
-		pops:      1,
-		pushes:    1,
-		conditions: []Condition{
-			RevisionBounds(tosca.R09_Berlin, NewestSupportedRevision),
-			IsAddressCold(Param(0)),
-		},
-		parameters: []Parameter{
-			AddressParameter{},
-		},
-		effect: Change(func(s *st.State) {
-			address := NewAddress(s.Stack.Pop())
-			size := s.Accounts.GetCode(address).Length()
-			s.Stack.Push(NewU256(uint64(size)))
-			s.Accounts.MarkWarm(address)
-		}),
-		name: "_cold",
-	})...)
+	// Reading the size of the code is charged for on top of the access to the
+	// account holding it, see codeReadCost.
+	for _, revisions := range repricedRevisionRanges(tosca.R09_Berlin) {
+		codeRead := codeReadCost(revisions.first)
 
-	// warm
-	rules = append(rules, rulesFor(instruction{
-		op:        vm.EXTCODESIZE,
-		staticGas: 0 + 100, // 100 dynamic cost for warm address
-		pops:      1,
-		pushes:    1,
-		conditions: []Condition{
-			RevisionBounds(tosca.R09_Berlin, NewestSupportedRevision),
-			IsAddressWarm(Param(0)),
-		},
-		parameters: []Parameter{
-			AddressParameter{},
-		},
-		effect: Change(func(s *st.State) {
-			address := NewAddress(s.Stack.Pop())
-			size := s.Accounts.GetCode(address).Length()
-			s.Stack.Push(NewU256(uint64(size)))
-		}),
-		name: "_warm",
-	})...)
+		// cold
+		rules = append(rules, rulesFor(instruction{
+			op:        vm.EXTCODESIZE,
+			staticGas: codeRead + coldAccountAccessCost(revisions.first), // dynamic cost for cold address
+			pops:      1,
+			pushes:    1,
+			conditions: []Condition{
+				RevisionBounds(revisions.first, revisions.last),
+				IsAddressCold(Param(0)),
+			},
+			parameters: []Parameter{
+				AddressParameter{},
+			},
+			effect: Change(func(s *st.State) {
+				address := NewAddress(s.Stack.Pop())
+				size := s.Accounts.GetCode(address).Length()
+				s.Stack.Push(NewU256(uint64(size)))
+				s.Accounts.MarkWarm(address)
+			}),
+			name: "_cold_" + revisions.name(),
+		})...)
+
+		// warm
+		rules = append(rules, rulesFor(instruction{
+			op:        vm.EXTCODESIZE,
+			staticGas: codeRead + warmAccess, // dynamic cost for warm address
+			pops:      1,
+			pushes:    1,
+			conditions: []Condition{
+				RevisionBounds(revisions.first, revisions.last),
+				IsAddressWarm(Param(0)),
+			},
+			parameters: []Parameter{
+				AddressParameter{},
+			},
+			effect: Change(func(s *st.State) {
+				address := NewAddress(s.Stack.Pop())
+				size := s.Accounts.GetCode(address).Length()
+				s.Stack.Push(NewU256(uint64(size)))
+			}),
+			name: "_warm_" + revisions.name(),
+		})...)
+	}
 
 	// pre Berlin
 	rules = append(rules, rulesFor(instruction{
@@ -1234,47 +1281,53 @@ func getAllRules() []Rule {
 
 	// --- EXTCODECOPY ---
 
-	// cold
-	rules = append(rules, rulesFor(instruction{
-		op:        vm.EXTCODECOPY,
-		staticGas: 2600,
-		pops:      4,
-		pushes:    0,
-		conditions: []Condition{
-			RevisionBounds(tosca.R09_Berlin, NewestSupportedRevision),
-			IsAddressCold(Param(0)),
-		},
-		parameters: []Parameter{
-			AddressParameter{},
-			MemoryOffsetParameter{},
-			DataOffsetParameter{},
-			SizeParameter{}},
-		effect: Change(func(s *st.State) {
-			extCodeCopyEffect(s, true)
-		}),
-		name: "_cold",
-	})...)
+	// Reading the code is charged for on top of the access to the account
+	// holding it, see codeReadCost.
+	for _, revisions := range repricedRevisionRanges(tosca.R09_Berlin) {
+		codeRead := codeReadCost(revisions.first)
 
-	// warm
-	rules = append(rules, rulesFor(instruction{
-		op:        vm.EXTCODECOPY,
-		staticGas: 100,
-		pops:      4,
-		pushes:    0,
-		conditions: []Condition{
-			RevisionBounds(tosca.R09_Berlin, NewestSupportedRevision),
-			IsAddressWarm(Param(0)),
-		},
-		parameters: []Parameter{
-			AddressParameter{},
-			MemoryOffsetParameter{},
-			DataOffsetParameter{},
-			SizeParameter{}},
-		effect: Change(func(s *st.State) {
-			extCodeCopyEffect(s, false)
-		}),
-		name: "_warm",
-	})...)
+		// cold
+		rules = append(rules, rulesFor(instruction{
+			op:        vm.EXTCODECOPY,
+			staticGas: codeRead + coldAccountAccessCost(revisions.first),
+			pops:      4,
+			pushes:    0,
+			conditions: []Condition{
+				RevisionBounds(revisions.first, revisions.last),
+				IsAddressCold(Param(0)),
+			},
+			parameters: []Parameter{
+				AddressParameter{},
+				MemoryOffsetParameter{},
+				DataOffsetParameter{},
+				SizeParameter{}},
+			effect: Change(func(s *st.State) {
+				extCodeCopyEffect(s, true)
+			}),
+			name: "_cold_" + revisions.name(),
+		})...)
+
+		// warm
+		rules = append(rules, rulesFor(instruction{
+			op:        vm.EXTCODECOPY,
+			staticGas: codeRead + warmAccess,
+			pops:      4,
+			pushes:    0,
+			conditions: []Condition{
+				RevisionBounds(revisions.first, revisions.last),
+				IsAddressWarm(Param(0)),
+			},
+			parameters: []Parameter{
+				AddressParameter{},
+				MemoryOffsetParameter{},
+				DataOffsetParameter{},
+				SizeParameter{}},
+			effect: Change(func(s *st.State) {
+				extCodeCopyEffect(s, false)
+			}),
+			name: "_warm_" + revisions.name(),
+		})...)
+	}
 
 	// pre Berlin
 	rules = append(rules, rulesFor(instruction{
@@ -1439,7 +1492,7 @@ func getAllRules() []Rule {
 		for _, warm := range []bool{true, false} {
 			for _, isEmpty := range []bool{true, false} {
 				name := "_" + revision.String()
-				staticGas := tosca.Gas(100) // warm access
+				staticGas := tosca.Gas(warmAccess)
 				conditions := []Condition{IsRevision(revision)}
 
 				if warm {
@@ -1447,7 +1500,7 @@ func getAllRules() []Rule {
 					conditions = append(conditions, IsAddressWarm(Param(0)))
 				} else {
 					name += "_cold"
-					staticGas = 2600
+					staticGas = coldAccountAccessCost(revision)
 					conditions = append(conditions, IsAddressCold(Param(0)))
 				}
 
@@ -1776,81 +1829,91 @@ func getAllRules() []Rule {
 		effect: FailEffect(),
 	})...)
 
-	// --- CREATE ---
+	// --- CREATE and CREATE2 ---
 
-	rules = append(rules, rulesFor(instruction{
-		op:        vm.CREATE,
-		name:      "_static",
-		staticGas: 32000,
-		pops:      3,
-		pushes:    1,
-		conditions: []Condition{
-			Eq(ReadOnly(), true),
-		},
-		parameters: []Parameter{
-			ValueParameter{},
-			MemoryOffsetParameter{},
-			InitCodeSizeParameter{},
-		},
-		effect: FailEffect(),
-	})...)
+	// EIP-8038 reprices the constant cost of both operations, so they need one
+	// rule per price.
+	for _, revisions := range repricedRevisionRanges(MinRevision) {
+		revisionBounds := RevisionBounds(revisions.first, revisions.last)
 
-	rules = append(rules, rulesFor(instruction{
-		op:        vm.CREATE,
-		staticGas: 32000,
-		pops:      3,
-		pushes:    1,
-		conditions: []Condition{
-			Eq(ReadOnly(), false),
-		},
-		parameters: []Parameter{
-			ValueParameter{},
-			MemoryOffsetParameter{},
-			InitCodeSizeParameter{},
-		},
-		effect: Change(func(s *st.State) {
-			createEffect(s, tosca.Create)
-		}),
-	})...)
+		rules = append(rules, rulesFor(instruction{
+			op:        vm.CREATE,
+			name:      "_static_" + revisions.name(),
+			staticGas: createAccessCost(revisions.first),
+			pops:      3,
+			pushes:    1,
+			conditions: []Condition{
+				revisionBounds,
+				Eq(ReadOnly(), true),
+			},
+			parameters: []Parameter{
+				ValueParameter{},
+				MemoryOffsetParameter{},
+				InitCodeSizeParameter{},
+			},
+			effect: FailEffect(),
+		})...)
 
-	// --- CREATE2 ---
+		rules = append(rules, rulesFor(instruction{
+			op:        vm.CREATE,
+			name:      "_" + revisions.name(),
+			staticGas: createAccessCost(revisions.first),
+			pops:      3,
+			pushes:    1,
+			conditions: []Condition{
+				revisionBounds,
+				Eq(ReadOnly(), false),
+			},
+			parameters: []Parameter{
+				ValueParameter{},
+				MemoryOffsetParameter{},
+				InitCodeSizeParameter{},
+			},
+			effect: Change(func(s *st.State) {
+				createEffect(s, tosca.Create)
+			}),
+		})...)
 
-	rules = append(rules, rulesFor(instruction{
-		op:        vm.CREATE2,
-		name:      "_static",
-		staticGas: 32000,
-		pops:      3,
-		pushes:    1,
-		conditions: []Condition{
-			Eq(ReadOnly(), true),
-		},
-		parameters: []Parameter{
-			ValueParameter{},
-			MemoryOffsetParameter{},
-			InitCodeSizeParameter{},
-			NumericParameter{},
-		},
-		effect: FailEffect(),
-	})...)
+		rules = append(rules, rulesFor(instruction{
+			op:        vm.CREATE2,
+			name:      "_static_" + revisions.name(),
+			staticGas: createAccessCost(revisions.first),
+			pops:      3,
+			pushes:    1,
+			conditions: []Condition{
+				revisionBounds,
+				Eq(ReadOnly(), true),
+			},
+			parameters: []Parameter{
+				ValueParameter{},
+				MemoryOffsetParameter{},
+				InitCodeSizeParameter{},
+				NumericParameter{},
+			},
+			effect: FailEffect(),
+		})...)
 
-	rules = append(rules, rulesFor(instruction{
-		op:        vm.CREATE2,
-		staticGas: 32000,
-		pops:      4,
-		pushes:    1,
-		conditions: []Condition{
-			Eq(ReadOnly(), false),
-		},
-		parameters: []Parameter{
-			ValueParameter{},
-			MemoryOffsetParameter{},
-			InitCodeSizeParameter{},
-			NumericParameter{},
-		},
-		effect: Change(func(s *st.State) {
-			createEffect(s, tosca.Create2)
-		}),
-	})...)
+		rules = append(rules, rulesFor(instruction{
+			op:        vm.CREATE2,
+			name:      "_" + revisions.name(),
+			staticGas: createAccessCost(revisions.first),
+			pops:      4,
+			pushes:    1,
+			conditions: []Condition{
+				revisionBounds,
+				Eq(ReadOnly(), false),
+			},
+			parameters: []Parameter{
+				ValueParameter{},
+				MemoryOffsetParameter{},
+				InitCodeSizeParameter{},
+				NumericParameter{},
+			},
+			effect: Change(func(s *st.State) {
+				createEffect(s, tosca.Create2)
+			}),
+		})...)
+	}
 
 	// --- End ---
 
@@ -1868,13 +1931,9 @@ func createEffect(s *st.State, callKind tosca.CallKind) {
 	overflow := false
 
 	if s.Revision >= tosca.R12_Shanghai {
-		const (
-			MaxCodeSize     = 24576           // Maximum bytecode to permit for a contract
-			MaxInitCodeSize = 2 * MaxCodeSize // Maximum initcode to permit in a creation transaction and create instructions
+		const InitCodeWordGas = 2 // Once per word of the init code when creating a contract.
 
-			InitCodeWordGas = 2 // Once per word of the init code when creating a contract.
-		)
-		if !sizeU256.IsUint64() || size > MaxInitCodeSize {
+		if !sizeU256.IsUint64() || size > MaxInitCodeSize(s.Revision) {
 			s.Status = st.Failed
 			return
 		}
@@ -1911,6 +1970,22 @@ func createEffect(s *st.State, callKind tosca.CallKind) {
 		}
 	}
 
+	// Since Amsterdam, the account of the new contract is created at the expense
+	// of the creator, charged before the gas handed to the new contract's
+	// initialization is determined. Only an empty destination is charged, and
+	// the charge is undone if the initialization does not succeed. The checks
+	// aborting a creation before it starts, the call depth and the creator's
+	// nonce, are not modeled by the CT.
+	accountCreationGas := tosca.Gas(0)
+	if s.Accounts.IsEmpty(newContractAddress(callKind, s.CallContext.AccountAddress, saltU256, input)) {
+		accountCreationGas = accountCreationStateCost(s.Revision)
+	}
+	if s.Gas < accountCreationGas {
+		s.Status = st.Failed
+		return
+	}
+	s.Gas -= accountCreationGas
+
 	limit := s.Gas - s.Gas/64
 
 	res := s.CallJournal.Call(callKind, tosca.CallParameters{
@@ -1925,12 +2000,22 @@ func createEffect(s *st.State, callKind tosca.CallKind) {
 	s.GasRefund += res.GasRefund
 
 	if !res.Success {
+		s.Gas += accountCreationGas
 		s.Stack.Push(AddressToU256(tosca.Address{}))
 		s.LastCallReturnData = NewBytes(res.Output)
 		return
 	}
 	s.LastCallReturnData = Bytes{}
 	s.Stack.Push(AddressToU256(res.CreatedAddress))
+}
+
+// newContractAddress derives the address of the contract deployed by a CREATE
+// or CREATE2 of the given sender. Nonces are not modeled by the CT and are 0.
+func newContractAddress(kind tosca.CallKind, sender tosca.Address, salt U256, initCode []byte) tosca.Address {
+	if kind == tosca.Create2 {
+		return tosca.Address(crypto.CreateAddress2(common.Address(sender), salt.Bytes32be(), crypto.Keccak256(initCode)))
+	}
+	return tosca.Address(crypto.CreateAddress(common.Address(sender), 0))
 }
 
 func binaryOpWithDynamicCost(
@@ -2450,7 +2535,7 @@ func selfDestructEffect(s *st.State) {
 
 	// Add warm-up costs if the beneficiary account is cold.
 	if s.Revision > tosca.R07_Istanbul && !s.Accounts.IsWarm(beneficiaryAccount) {
-		dynamicCost += 2600
+		dynamicCost += coldAccountAccessCost(s.Revision)
 		s.Accounts.MarkWarm(beneficiaryAccount)
 	}
 
@@ -2458,7 +2543,7 @@ func selfDestructEffect(s *st.State) {
 	if !originatorBalance.IsZero() {
 		// If the target account is empty, the account creation fee is added.
 		if s.Accounts.IsEmpty(beneficiaryAccount) {
-			dynamicCost += 25000
+			dynamicCost += selfDestructAccountCreationCost(s.Revision)
 		}
 	}
 
@@ -2653,9 +2738,9 @@ func getRulesForCall(
 	} else if revision >= tosca.R09_Berlin {
 		staticGas = 0
 		if warm {
-			addressAccessCost = 100
+			addressAccessCost = warmAccess
 		} else {
-			addressAccessCost = 2600
+			addressAccessCost = coldAccountAccessCost(revision)
 		}
 	}
 
@@ -2780,13 +2865,17 @@ func callEffect(s *st.State, addrAccessCost tosca.Gas, op vm.OpCode) {
 	// Compute the value transfer costs.
 	positiveValueCost := tosca.Gas(0)
 	if !isValueZero {
-		positiveValueCost = 9000
+		positiveValueCost = callValueTransferCost(s.Revision)
 	}
 
-	// If an account is implicitly created, this costs extra.
+	// If an account is implicitly created, this costs extra. The share of it
+	// charged in the state dimension is given back if the call does not go
+	// through, since then no account is created after all.
 	valueToEmptyAccountCost := tosca.Gas(0)
+	accountCreationRefund := tosca.Gas(0)
 	if !isValueZero && s.Accounts.IsEmpty(target.Bytes20be()) && op != vm.CALLCODE {
-		valueToEmptyAccountCost = 25000
+		valueToEmptyAccountCost = callAccountCreationCost(s.Revision)
+		accountCreationRefund = accountCreationStateCost(s.Revision)
 	}
 
 	// Apply costs releated to delegate designator.
@@ -2798,10 +2887,10 @@ func callEffect(s *st.State, addrAccessCost tosca.Gas, op vm.OpCode) {
 		delegateAddress, isDelegate := ParseDelegationDesignator(targetCode)
 		if isDelegate {
 			if s.Accounts.IsWarm(delegateAddress) {
-				delegationDesignatorAccessCost = 100
+				delegationDesignatorAccessCost = warmAccess
 			} else {
 				s.Accounts.MarkWarm(delegateAddress)
-				delegationDesignatorAccessCost = 2600
+				delegationDesignatorAccessCost = coldAccountAccessCost(s.Revision)
 			}
 		}
 	}
@@ -2838,7 +2927,7 @@ func callEffect(s *st.State, addrAccessCost tosca.Gas, op vm.OpCode) {
 	// If value is transferred, a stipend is granted.
 	stipend := tosca.Gas(0)
 	if !isValueZero {
-		stipend = 2300
+		stipend = callStipend
 	}
 	s.Gas += stipend
 
@@ -2851,6 +2940,7 @@ func callEffect(s *st.State, addrAccessCost tosca.Gas, op vm.OpCode) {
 	if !isValueZero {
 		balance := s.Accounts.GetBalance(s.CallContext.AccountAddress)
 		if balance.Lt(value) {
+			s.Gas += accountCreationRefund
 			s.Stack.Push(NewU256(0))
 			s.LastCallReturnData = Bytes{}
 			return
@@ -2903,6 +2993,7 @@ func callEffect(s *st.State, addrAccessCost tosca.Gas, op vm.OpCode) {
 	if res.Success {
 		s.Stack.Push(NewU256(1))
 	} else {
+		s.Gas += accountCreationRefund
 		s.Stack.Push(NewU256(0))
 	}
 }
