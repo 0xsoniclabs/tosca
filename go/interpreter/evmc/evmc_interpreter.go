@@ -20,6 +20,7 @@ import "C"
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"github.com/ethereum/evmc/v11/bindings/go/evmc"
@@ -47,13 +48,17 @@ func (e *EvmcInterpreter) SetOption(property string, value string) error {
 	return e.vm.SetOption(property, value)
 }
 
-func (e *EvmcInterpreter) Run(params tosca.Parameters) (tosca.Result, error) {
-	host_ctx := hostContext{
-		params:  params,
-		context: params.Context,
-	}
+var hostContextPool = sync.Pool{New: func() any { return new(hostContext) }}
 
-	host_ctx.evmcBlobHashes = make([]evmc.Hash, 0, len(params.BlobHashes))
+func (e *EvmcInterpreter) Run(params tosca.Parameters) (tosca.Result, error) {
+	host_ctx := hostContextPool.Get().(*hostContext)
+	defer func() {
+		*host_ctx = hostContext{evmcBlobHashes: host_ctx.evmcBlobHashes[:0]}
+		hostContextPool.Put(host_ctx)
+	}()
+	host_ctx.params = params
+	host_ctx.context = params.Context
+
 	for _, hash := range params.BlobHashes {
 		host_ctx.evmcBlobHashes = append(host_ctx.evmcBlobHashes, evmc.Hash(hash))
 	}
@@ -71,7 +76,7 @@ func (e *EvmcInterpreter) Run(params tosca.Parameters) (tosca.Result, error) {
 
 	// Forward the execution call to the underlying EVM implementation.
 	result, err := e.vm.Execute(
-		&host_ctx,
+		host_ctx,
 		revision,
 		evmc.Call,
 		params.Static,
