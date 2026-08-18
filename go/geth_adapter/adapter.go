@@ -120,6 +120,7 @@ func (a *gethInterpreterAdapter) Interpret(contract *geth.Contract, input []byte
 		PrevRandao:  prevRandao,
 		BaseFee:     baseFee,
 		BlobBaseFee: blobBaseFee,
+		SlotNumber:  a.evm.Context.SlotNum,
 		Revision:    revision,
 	}
 

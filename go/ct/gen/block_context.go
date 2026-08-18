@@ -205,6 +205,7 @@ func (b *BlockContextGenerator) Generate(assignment Assignment, rnd *rand.Rand) 
 	gasPrice := RandU256(rnd)
 
 	prevRandao := RandU256(rnd)
+	slotNumber := rnd.Uint64()
 
 	revision := GetRevisionForBlock(blockNumber)
 	time := GetForkTime(revision)
@@ -220,6 +221,7 @@ func (b *BlockContextGenerator) Generate(assignment Assignment, rnd *rand.Rand) 
 		GasLimit:    gasLimit,
 		GasPrice:    gasPrice,
 		PrevRandao:  prevRandao,
+		SlotNumber:  slotNumber,
 		TimeStamp:   timestamp,
 	}, nil
 }
