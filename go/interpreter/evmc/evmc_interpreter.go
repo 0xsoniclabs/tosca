@@ -263,6 +263,16 @@ func (ctx *hostContext) Selfdestruct(addr evmc.Address, beneficiary evmc.Address
 	return ctx.context.SelfDestruct(tosca.Address(addr), tosca.Address(beneficiary))
 }
 
+// TxBlobHashes implements evmc.TxBlobHashProvider so that the bindings can check for blob hashes
+// without building a full tx context on every execution. The bindings reach it through a type
+// assertion, so this assignment is what keeps the two in sync: without it a rename would only make
+// the assertion fail silently and fall back to the slower GetTxContext path.
+var _ evmc.TxBlobHashProvider = (*hostContext)(nil)
+
+func (ctx *hostContext) TxBlobHashes() []evmc.Hash {
+	return ctx.evmcBlobHashes
+}
+
 func (ctx *hostContext) GetTxContext() evmc.TxContext {
 	params := ctx.params
 	return evmc.TxContext{
