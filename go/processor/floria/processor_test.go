@@ -205,7 +205,6 @@ func TestProcessor_SuccessfulCreateSetsContractAddress(t *testing.T) {
 	context.EXPECT().SetBalance(sender, gomock.Any()).MinTimes(1)
 	context.EXPECT().SetNonce(sender, gomock.Any())
 	context.EXPECT().GetNonce(createdAddress)
-	context.EXPECT().HasEmptyStorage(createdAddress).Return(true)
 	context.EXPECT().GetCodeHash(createdAddress)
 	context.EXPECT().CreateSnapshot()
 	context.EXPECT().CreateContract(createdAddress)

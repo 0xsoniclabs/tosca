@@ -228,9 +228,9 @@ func createAddress(
 	return createdAddress, nil
 }
 
-// isEmpty checks whether an account has no nonce update, no code and empty storage.
+// isEmpty checks whether an account has no nonce update and no code.
 func isEmpty(context tosca.TransactionContext, address tosca.Address) bool {
-	return context.GetNonce(address) == 0 && context.HasEmptyStorage(address) &&
+	return context.GetNonce(address) == 0 &&
 		(context.GetCodeHash(address) == (tosca.Hash{}) ||
 			context.GetCodeHash(address) == emptyCodeHash)
 }

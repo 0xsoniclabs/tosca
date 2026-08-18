@@ -147,7 +147,6 @@ func TestCall_TransferValueInCreate(t *testing.T) {
 	context.EXPECT().SetNonce(params.Sender, uint64(1))
 	context.EXPECT().GetNonce((params.Sender)).Return(uint64(1))
 	context.EXPECT().GetNonce(createdAddress).Return(uint64(0))
-	context.EXPECT().HasEmptyStorage(createdAddress).Return(true)
 	context.EXPECT().GetCodeHash(createdAddress).Return(tosca.Hash{})
 	context.EXPECT().CreateSnapshot()
 	context.EXPECT().CreateContract(createdAddress)
@@ -403,7 +402,6 @@ func TestCreate_CreateAddress_ProducesTheCorrectAddress(t *testing.T) {
 					context.EXPECT().AccessAccount(want)
 				}
 				context.EXPECT().GetNonce(want)
-				context.EXPECT().HasEmptyStorage(want).Return(true)
 				context.EXPECT().GetCodeHash(want)
 
 				parameters := tosca.CallParameters{
@@ -435,37 +433,26 @@ func TestCreate_CreateAddress_UnsupportedKindTriggersError(t *testing.T) {
 func TestCreate_CreateAddressReturnErrorIfAddressIsNotEmpty(t *testing.T) {
 	tests := map[string]struct {
 		nonce         uint64
-		emptyStorage  bool
 		codeHash      tosca.Hash
 		expectedError error
 	}{
 		"nonce": {
 			nonce:         1,
-			emptyStorage:  true,
-			codeHash:      tosca.Hash{},
-			expectedError: fmt.Errorf("created address is not empty"),
-		},
-		"emptyStorage": {
-			nonce:         0,
-			emptyStorage:  false,
 			codeHash:      tosca.Hash{},
 			expectedError: fmt.Errorf("created address is not empty"),
 		},
 		"codeHash": {
 			nonce:         0,
-			emptyStorage:  true,
 			codeHash:      tosca.Hash{1},
 			expectedError: fmt.Errorf("created address is not empty"),
 		},
 		"emptyCodeHash": {
 			nonce:         0,
-			emptyStorage:  true,
 			codeHash:      tosca.Hash{},
 			expectedError: nil,
 		},
 		"zeroCodeHash": {
 			nonce:         0,
-			emptyStorage:  true,
 			codeHash:      tosca.Hash{},
 			expectedError: nil,
 		},
@@ -476,7 +463,6 @@ func TestCreate_CreateAddressReturnErrorIfAddressIsNotEmpty(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			context := tosca.NewMockTransactionContext(ctrl)
 			context.EXPECT().GetNonce(gomock.Any()).Return(test.nonce).MinTimes(1)
-			context.EXPECT().HasEmptyStorage(gomock.Any()).Return(test.emptyStorage).AnyTimes()
 			context.EXPECT().GetCodeHash(gomock.Any()).Return(test.codeHash).AnyTimes()
 
 			_, err := createAddress(tosca.Create, tosca.CallParameters{}, tosca.R07_Istanbul, context)
@@ -641,43 +627,32 @@ func TestIncrementNonce(t *testing.T) {
 
 func TestRunContext_AccountIsOnlyCreatedIfItIsEmptyAndDoesNotExist(t *testing.T) {
 	tests := map[string]struct {
-		nonce        uint64
-		emptyStorage bool
-		codeHash     tosca.Hash
-		exists       bool
-		successful   bool
+		nonce      uint64
+		codeHash   tosca.Hash
+		exists     bool
+		successful bool
 	}{
 		"non empty with nonce": {
-			nonce:        1,
-			emptyStorage: true,
-			codeHash:     tosca.Hash{},
-			successful:   false,
-		},
-		"non empty with storage": {
-			nonce:        0,
-			emptyStorage: false,
-			codeHash:     tosca.Hash{},
-			successful:   false,
+			nonce:      1,
+			codeHash:   tosca.Hash{},
+			successful: false,
 		},
 		"non empty with code": {
-			nonce:        0,
-			emptyStorage: true,
-			codeHash:     tosca.Hash{1, 2, 3},
-			successful:   false,
+			nonce:      0,
+			codeHash:   tosca.Hash{1, 2, 3},
+			successful: false,
 		},
 		"empty but exists": {
-			nonce:        0,
-			emptyStorage: true,
-			codeHash:     tosca.Hash{},
-			exists:       true,
-			successful:   true,
+			nonce:      0,
+			codeHash:   tosca.Hash{},
+			exists:     true,
+			successful: true,
 		},
 		"empty and does not exist": {
-			nonce:        0,
-			emptyStorage: true,
-			codeHash:     tosca.Hash{},
-			exists:       false,
-			successful:   true,
+			nonce:      0,
+			codeHash:   tosca.Hash{},
+			exists:     false,
+			successful: true,
 		},
 	}
 
@@ -705,7 +680,6 @@ func TestRunContext_AccountIsOnlyCreatedIfItIsEmptyAndDoesNotExist(t *testing.T)
 			context.EXPECT().GetNonce((params.Sender)).Return(senderNonce + 1)
 
 			context.EXPECT().GetNonce(createdAddress).Return(test.nonce)
-			context.EXPECT().HasEmptyStorage(createdAddress).Return(test.emptyStorage).AnyTimes()
 			context.EXPECT().GetCodeHash(createdAddress).Return(test.codeHash).AnyTimes()
 			context.EXPECT().CreateSnapshot().AnyTimes()
 			context.EXPECT().AccountExists(createdAddress).Return(test.exists).AnyTimes()
@@ -1083,7 +1057,6 @@ func TestRunContext_InterpreterErrorIsForwardedAndSnapshotIsRestored(t *testing.
 				context.EXPECT().GetNonce(parameters.Sender)
 				context.EXPECT().SetNonce(parameters.Sender, uint64(1))
 				context.EXPECT().GetNonce(gomock.Any()).AnyTimes()
-				context.EXPECT().HasEmptyStorage(gomock.Any()).Return(true)
 				context.EXPECT().GetCodeHash(gomock.Any())
 				context.EXPECT().CreateContract(gomock.Any())
 				context.EXPECT().SetNonce(gomock.Any(), uint64(1))
@@ -1131,7 +1104,6 @@ func TestRunContext_UnsuccessfulInterpreterExecutionRestoresSnapshot(t *testing.
 				context.EXPECT().GetNonce(parameters.Sender)
 				context.EXPECT().SetNonce(parameters.Sender, uint64(1))
 				context.EXPECT().GetNonce(gomock.Any()).AnyTimes()
-				context.EXPECT().HasEmptyStorage(gomock.Any()).Return(true)
 				context.EXPECT().GetCodeHash(gomock.Any())
 				context.EXPECT().CreateContract(gomock.Any())
 				context.EXPECT().SetNonce(gomock.Any(), uint64(1))
