@@ -103,6 +103,32 @@ func TestCode_GetData(t *testing.T) {
 	}
 }
 
+func TestCode_GetByte(t *testing.T) {
+	code := NewCode([]byte{byte(vm.DUPN), 0x80, byte(vm.PUSH1), 5})
+	// Instructions, operands and data are all read alike, positions beyond the
+	// end of the code read as zero.
+	for pos, want := range map[int]byte{0: byte(vm.DUPN), 1: 0x80, 2: byte(vm.PUSH1), 3: 5, 4: 0, 100: 0, -1: 0} {
+		if got := code.GetByte(pos); got != want {
+			t.Errorf("unexpected byte at position %d, wanted %v, got %v", pos, want, got)
+		}
+	}
+}
+
+// TestCode_OperandsRemainCode covers the property EIP-8024 relies on: the
+// operand of DUPN, SWAPN and EXCHANGE stays part of the code stream, so
+// jumpdest analysis is unaffected by these instructions.
+func TestCode_OperandsRemainCode(t *testing.T) {
+	code := NewCode([]byte{byte(vm.DUPN), byte(vm.JUMPDEST), byte(vm.SWAPN), 0x80})
+	for pos := 0; pos < code.Length(); pos++ {
+		if !code.IsCode(pos) {
+			t.Errorf("position %d should be code", pos)
+		}
+	}
+	if op, err := code.GetOperation(1); err != nil || op != vm.JUMPDEST {
+		t.Errorf("operand of DUPN is not a jump destination, got %v, err %v", op, err)
+	}
+}
+
 func TestCode_Copy(t *testing.T) {
 	src := []byte{byte(vm.ADD), byte(vm.PUSH1), 5, byte(vm.PUSH2)}
 	code := NewCode(src)
@@ -189,6 +215,18 @@ func TestCode_OpCodesToString(t *testing.T) {
 			start:  0,
 			length: 34,
 			want:   "len(6) ADD SDIV PUSH0 PUSH1 0 BALANCE",
+		},
+		"immediate operand": {
+			code:   []vm.OpCode{vm.DUPN, 0x80, vm.EXCHANGE, 0x00, vm.ADD},
+			start:  0,
+			length: 5,
+			want:   "len(5) DUPN(128) EXCHANGE(0) ADD",
+		},
+		"invalid immediate operand is an instruction of its own": {
+			code:   []vm.OpCode{vm.SWAPN, vm.JUMPDEST, vm.ADD},
+			start:  0,
+			length: 3,
+			want:   "len(3) SWAPN JUMPDEST ADD",
 		},
 	}
 

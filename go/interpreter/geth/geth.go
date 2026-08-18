@@ -36,10 +36,9 @@ type gethVm struct{}
 
 // Defines the newest supported revision for this interpreter implementation.
 // Geth itself implements Amsterdam, and the state-gas dimension of EIP-8037 is
-// carried across the Tosca interface, but Amsterdam cannot be enabled yet:
-// EIP-8024 and EIP-7843 (SLOTNUM) are missing, and the conformance test
-// specification still prices state access with the Berlin schedule rather than
-// the one of EIP-8038.
+// carried across the Tosca interface, but Amsterdam cannot be enabled yet: the
+// conformance test specification still prices state access with the Berlin
+// schedule rather than the one of EIP-8038, and EIP-7843 (SLOTNUM) is missing.
 const newestSupportedRevision = tosca.R15_Osaka
 
 func (m *gethVm) Run(parameters tosca.Parameters) (tosca.Result, error) {
