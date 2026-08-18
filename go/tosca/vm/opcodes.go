@@ -72,6 +72,7 @@ const (
 	BASEFEE        OpCode = 0x48
 	BLOBHASH       OpCode = 0x49
 	BLOBBASEFEE    OpCode = 0x4A
+	SLOTNUM        OpCode = 0x4B
 	POP            OpCode = 0x50
 	MLOAD          OpCode = 0x51
 	MSTORE         OpCode = 0x52
@@ -307,6 +308,8 @@ func (op OpCode) String() string {
 		return "BLOBHASH"
 	case BLOBBASEFEE:
 		return "BLOBBASEFEE"
+	case SLOTNUM:
+		return "SLOTNUM"
 	case POP:
 		return "POP"
 	case MLOAD:
@@ -573,6 +576,7 @@ func initValidOpCodes() [256]bool {
 	res[BASEFEE] = true
 	res[BLOBHASH] = true
 	res[BLOBBASEFEE] = true
+	res[SLOTNUM] = true
 	res[POP] = true
 	res[MLOAD] = true
 	res[MSTORE] = true

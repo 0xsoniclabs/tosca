@@ -60,6 +60,7 @@ type BlockParameters struct {
 	PrevRandao  Hash
 	BaseFee     Value
 	BlobBaseFee Value
+	SlotNumber  uint64 // < the consensus-layer slot of the block, see EIP-7843
 	Revision    Revision
 }
 
