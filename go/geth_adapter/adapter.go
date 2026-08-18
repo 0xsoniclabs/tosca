@@ -142,6 +142,7 @@ func (a *gethInterpreterAdapter) Interpret(contract *geth.Contract, input []byte
 		Static:                readOnly,
 		Depth:                 a.evm.GetDepth() - 1,
 		Gas:                   tosca.Gas(contract.Gas.RegularGas),
+		StateGas:              tosca.Gas(contract.Gas.StateGas),
 		Recipient:             tosca.Address(contract.Address()),
 		Sender:                tosca.Address(contract.Caller()),
 		Input:                 input,
@@ -155,14 +156,21 @@ func (a *gethInterpreterAdapter) Interpret(contract *geth.Contract, input []byte
 		return nil, fmt.Errorf("internal interpreter error: %v", err)
 	}
 
-	// Update gas levels. Tosca interpreters are unaware of the state-gas
-	// dimension introduced by EIP-8037, so the gas left is reported as regular
-	// gas, leaving the state reservoir of this frame untouched.
+	// Update gas levels.
 	if result.GasLeft > 0 {
 		contract.Gas.RegularGas = uint64(result.GasLeft)
 	} else {
 		contract.Gas.RegularGas = 0
 	}
+
+	// Split the reported state-dimension charge over the reservoir this frame
+	// was entered with. An interpreter that does not implement EIP-8037 reports
+	// no charge, which leaves the reservoir untouched.
+	reservoir := tosca.Gas(contract.Gas.StateGas)
+	fromReservoir, fromGas := tosca.SplitStateGasCharge(reservoir, result.StateGasCharged)
+	contract.Gas.StateGas = uint64(reservoir - fromReservoir)
+	contract.Gas.UsedStateGas = int64(result.StateGasCharged)
+	contract.Gas.Spilled = uint64(fromGas)
 
 	// Update refunds.
 	if result.Success {
@@ -259,10 +267,9 @@ func (a *runContextAdapter) Call(kind tosca.CallKind, parameter tosca.CallParame
 	if err != nil {
 		return tosca.CallResult{}, fmt.Errorf("unsupported revision: %w", err)
 	}
-	// Nested calls are funded from the regular gas dimension only, since Tosca
-	// interpreters are unaware of the state-gas dimension of EIP-8037.
 	gas := geth.NewGasBudget(
-		encodeReadOnlyInGas(uint64(parameter.Gas), parameter.CodeAddress, revision, a.readOnly), 0)
+		encodeReadOnlyInGas(uint64(parameter.Gas), parameter.CodeAddress, revision, a.readOnly),
+		uint64(max(0, parameter.StateGas)))
 
 	// Documentation of the parameters can be found here: t.ly/yhxC
 	toAddr := common.Address(parameter.Recipient)
@@ -308,11 +315,12 @@ func (a *runContextAdapter) Call(kind tosca.CallKind, parameter tosca.CallParame
 	gasLeft := max(0, min(tosca.Gas(returnGas.RegularGas), parameter.Gas))
 
 	return tosca.CallResult{
-		Output:         output,
-		GasLeft:        gasLeft,
-		GasRefund:      0, // refunds of nested calls are managed by the geth EVM and this adapter
-		CreatedAddress: createdAddress,
-		Success:        err == nil,
+		Output:          output,
+		GasLeft:         gasLeft,
+		GasRefund:       0, // refunds of nested calls are managed by the geth EVM and this adapter
+		CreatedAddress:  createdAddress,
+		Success:         err == nil,
+		StateGasCharged: tosca.Gas(returnGas.UsedStateGas),
 	}, nil
 }
 

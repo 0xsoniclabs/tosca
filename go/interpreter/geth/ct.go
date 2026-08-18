@@ -174,9 +174,10 @@ func (i *callInterceptor) Call(env *geth_vm.EVM, me geth_common.Address, addr ge
 		Value:       tosca.ValueFromUint256(value),
 		Input:       data,
 		Gas:         tosca.Gas(gas.RegularGas),
+		StateGas:    tosca.Gas(gas.StateGas),
 		CodeAddress: tosca.Address(addr),
 	})
-	return res.Output, toGasBudget(res.GasLeft, gas), err
+	return res.Output, toGasBudget(res, gas), err
 }
 
 func (i *callInterceptor) CallCode(env *geth_vm.EVM, me geth_common.Address, addr geth_common.Address, data []byte, gas geth_vm.GasBudget, value *uint256.Int) ([]byte, geth_vm.GasBudget, error) {
@@ -194,9 +195,10 @@ func (i *callInterceptor) CallCode(env *geth_vm.EVM, me geth_common.Address, add
 		Input:       data,
 		CodeAddress: tosca.Address(addr),
 		Gas:         tosca.Gas(gas.RegularGas),
+		StateGas:    tosca.Gas(gas.StateGas),
 	})
 
-	return res.Output, toGasBudget(res.GasLeft, gas), err
+	return res.Output, toGasBudget(res, gas), err
 }
 
 func (i *callInterceptor) DelegateCall(env *geth_vm.EVM, me geth_common.Address, addr geth_common.Address, data []byte, gas geth_vm.GasBudget) ([]byte, geth_vm.GasBudget, error) {
@@ -206,9 +208,10 @@ func (i *callInterceptor) DelegateCall(env *geth_vm.EVM, me geth_common.Address,
 		Value:       i.parameters.Value,
 		Input:       data,
 		Gas:         tosca.Gas(gas.RegularGas),
+		StateGas:    tosca.Gas(gas.StateGas),
 		CodeAddress: tosca.Address(addr),
 	})
-	return res.Output, toGasBudget(res.GasLeft, gas), err
+	return res.Output, toGasBudget(res, gas), err
 }
 
 func (i *callInterceptor) StaticCall(env *geth_vm.EVM, me geth_common.Address, addr geth_common.Address, input []byte, gas geth_vm.GasBudget) ([]byte, geth_vm.GasBudget, error) {
@@ -217,9 +220,10 @@ func (i *callInterceptor) StaticCall(env *geth_vm.EVM, me geth_common.Address, a
 		Recipient:   tosca.Address(addr),
 		Input:       input,
 		Gas:         tosca.Gas(gas.RegularGas),
+		StateGas:    tosca.Gas(gas.StateGas),
 		CodeAddress: tosca.Address(addr),
 	})
-	return res.Output, toGasBudget(res.GasLeft, gas), err
+	return res.Output, toGasBudget(res, gas), err
 }
 
 func (i *callInterceptor) Create(env *geth_vm.EVM, me geth_common.Address, code []byte, gas geth_vm.GasBudget, value *uint256.Int) ([]byte, geth_common.Address, geth_vm.GasBudget, error) {
@@ -229,13 +233,14 @@ func (i *callInterceptor) Create(env *geth_vm.EVM, me geth_common.Address, code 
 	}
 
 	res, err := i.makeCall(tosca.Create, tosca.CallParameters{
-		Sender: tosca.Address(me),
-		Value:  tosca.ValueFromUint256(value),
-		Gas:    tosca.Gas(gas.RegularGas),
-		Input:  code,
+		Sender:   tosca.Address(me),
+		Value:    tosca.ValueFromUint256(value),
+		Gas:      tosca.Gas(gas.RegularGas),
+		StateGas: tosca.Gas(gas.StateGas),
+		Input:    code,
 	})
 
-	return res.Output, geth_common.Address(res.CreatedAddress), toGasBudget(res.GasLeft, gas), err
+	return res.Output, geth_common.Address(res.CreatedAddress), toGasBudget(res, gas), err
 
 }
 
@@ -246,22 +251,31 @@ func (i *callInterceptor) Create2(env *geth_vm.EVM, me geth_common.Address, code
 	}
 
 	res, err := i.makeCall(tosca.Create2, tosca.CallParameters{
-		Sender: tosca.Address(me),
-		Value:  tosca.ValueFromUint256(value),
-		Gas:    tosca.Gas(gas.RegularGas),
-		Input:  code,
-		Salt:   salt.Bytes32(),
+		Sender:   tosca.Address(me),
+		Value:    tosca.ValueFromUint256(value),
+		Gas:      tosca.Gas(gas.RegularGas),
+		StateGas: tosca.Gas(gas.StateGas),
+		Input:    code,
+		Salt:     salt.Bytes32(),
 	})
 
-	return res.Output, geth_common.Address(res.CreatedAddress), toGasBudget(res.GasLeft, gas), err
+	return res.Output, geth_common.Address(res.CreatedAddress), toGasBudget(res, gas), err
 }
 
-// toGasBudget packages the gas left reported by Tosca as the budget the
-// intercepted geth frame is expected to return. Since Tosca is unaware of the
-// state-gas dimension introduced by EIP-8037, the state reservoir the frame was
-// entered with is passed back unchanged.
-func toGasBudget(gasLeft tosca.Gas, entryGas geth_vm.GasBudget) geth_vm.GasBudget {
-	return geth_vm.NewGasBudget(uint64(gasLeft), entryGas.StateGas)
+// toGasBudget packages the gas reported by Tosca as the leftover budget the
+// intercepted geth frame is expected to return, which is what the calling frame
+// absorbs. How much of the state-dimension charge came out of the reservoir and
+// how much had to be taken from regular gas follows from the reservoir the frame
+// was entered with.
+func toGasBudget(res tosca.CallResult, entryGas geth_vm.GasBudget) geth_vm.GasBudget {
+	reservoir := tosca.Gas(entryGas.StateGas)
+	fromReservoir, fromGas := tosca.SplitStateGasCharge(reservoir, res.StateGasCharged)
+	return geth_vm.GasBudget{
+		RegularGas:   uint64(max(0, res.GasLeft)),
+		StateGas:     uint64(reservoir - fromReservoir),
+		UsedStateGas: int64(res.StateGasCharged),
+		Spilled:      uint64(fromGas),
+	}
 }
 
 func (i *callInterceptor) handleGasRefund(refund tosca.Gas) {

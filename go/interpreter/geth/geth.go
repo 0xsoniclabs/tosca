@@ -34,23 +34,41 @@ func init() {
 
 type gethVm struct{}
 
-// Defines the newest supported revision for this interpreter implementation
+// Defines the newest supported revision for this interpreter implementation.
+// Geth itself implements Amsterdam, and the state-gas dimension of EIP-8037 is
+// carried across the Tosca interface, but Amsterdam cannot be enabled yet:
+// EIP-8024 and EIP-7843 (SLOTNUM) are missing, and the conformance test
+// specification still prices state access with the Berlin schedule rather than
+// the one of EIP-8038.
 const newestSupportedRevision = tosca.R15_Osaka
 
 func (m *gethVm) Run(parameters tosca.Parameters) (tosca.Result, error) {
 	if parameters.Revision > newestSupportedRevision {
 		return tosca.Result{}, &tosca.ErrUnsupportedRevision{Revision: parameters.Revision}
 	}
+	return run(parameters)
+}
+
+// run executes the given parameters without checking the revision, allowing
+// tests to exercise revisions this interpreter does not support as a whole yet.
+func run(parameters tosca.Parameters) (tosca.Result, error) {
 	evm, contract, stateDb := createGethInterpreterContext(parameters)
 	defer evm.Release()
 
 	output, err := evm.Run(contract, parameters.Input, false)
 
+	// The exit form of the budget is what a caller absorbs. It matters for the
+	// state dimension: a reverting frame refunds the state gas it charged, so
+	// the regular gas it had to borrow on top of the reservoir is returned as
+	// well. Without a state dimension in play this is the running budget.
+	exit := contract.Gas.Exit(err)
+
 	result := tosca.Result{
-		Output:    output,
-		GasLeft:   tosca.Gas(contract.Gas.RegularGas),
-		GasRefund: tosca.Gas(stateDb.GetRefund()),
-		Success:   true,
+		Output:          output,
+		GasLeft:         tosca.Gas(exit.RegularGas),
+		GasRefund:       tosca.Gas(stateDb.GetRefund()),
+		StateGasCharged: tosca.Gas(exit.UsedStateGas),
+		Success:         true,
 	}
 
 	// If no error is reported, the execution ended with a STOP, RETURN, or SUICIDE.
@@ -168,6 +186,9 @@ func createGethInterpreterContext(parameters tosca.Parameters) (*geth.EVM, *geth
 		BlobBaseFee: new(big.Int).SetBytes(parameters.BlobBaseFee[:]),
 		Transfer:    transferFunc,
 		CanTransfer: canTransferFunc,
+		// Prices the state dimension introduced by EIP-8037. Only the Amsterdam
+		// jump table consults it, so it can be set unconditionally.
+		CostPerStateByte: params.CostPerStateByte,
 	}
 
 	if parameters.Revision >= tosca.R11_Paris {
@@ -200,9 +221,7 @@ func createGethInterpreterContext(parameters tosca.Parameters) (*geth.EVM, *geth
 
 	value := parameters.Value.ToUint256()
 	addr := common.Address(parameters.Recipient)
-	// Tosca does not model the state-gas dimension introduced by EIP-8037, so the
-	// full budget is provided as regular gas and the state reservoir is left empty.
-	gas := geth.NewGasBudget(uint64(parameters.Gas), 0)
+	gas := geth.NewGasBudget(uint64(parameters.Gas), uint64(parameters.StateGas))
 	contract := geth.NewContract(common.Address(parameters.Sender), addr, value, gas, nil)
 	contract.Code = parameters.Code
 	contract.CodeHash = crypto.Keccak256Hash(parameters.Code)
