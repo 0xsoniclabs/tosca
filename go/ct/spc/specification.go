@@ -43,6 +43,7 @@ var Spec = func() Specification {
 // these are not enough gas, stack overflow, stack underflow, and a regular behavior case
 type instruction struct {
 	op         vm.OpCode
+	operand    byte // < the immediate operand, for the instructions having one
 	staticGas  tosca.Gas
 	pops       int
 	pushes     int
@@ -992,6 +993,30 @@ func getAllRules() []Rule {
 	for i := 1; i <= 16; i++ {
 		rules = append(rules, swapOp(i)...)
 	}
+
+	// --- Stack DUPN ---
+
+	for operand := range 256 {
+		rules = append(rules, dupNOp(byte(operand))...)
+	}
+
+	rules = append(rules, unavailableOp(vm.DUPN, tosca.R07_Istanbul, tosca.R15_Osaka)...)
+
+	// --- Stack SWAPN ---
+
+	for operand := range 256 {
+		rules = append(rules, swapNOp(byte(operand))...)
+	}
+
+	rules = append(rules, unavailableOp(vm.SWAPN, tosca.R07_Istanbul, tosca.R15_Osaka)...)
+
+	// --- Stack EXCHANGE ---
+
+	for operand := range 256 {
+		rules = append(rules, exchangeOp(byte(operand))...)
+	}
+
+	rules = append(rules, unavailableOp(vm.EXCHANGE, tosca.R07_Istanbul, tosca.R15_Osaka)...)
 
 	// --- LOG ---
 
@@ -2021,6 +2046,106 @@ func swapOp(n int) []Rule {
 	})
 }
 
+// DUPN duplicates the n-th stack element like DUPn does, with n decoded from
+// the byte behind the instruction. This operand is skipped like the data of a
+// PUSH, but it remains part of the code: to keep the jumpdest analysis intact,
+// EIP-8024 declares operands that read as a JUMPDEST or a PUSH inadmissible,
+// and the instruction fails on them. As the addressed stack positions depend
+// on the operand, there is one set of rules per operand, as there is one per n
+// for DUPn and SWAPn.
+func dupNOp(operand byte) []Rule {
+	if !vm.IsValidImmediateOperand(vm.DUPN, operand) {
+		return invalidImmediateOp(vm.DUPN, operand)
+	}
+	n := vm.DecodeSingleImmediate(operand)
+	return rulesFor(instruction{
+		op:        vm.DUPN,
+		operand:   operand,
+		name:      fmt.Sprintf("_%d", operand),
+		staticGas: 3,
+		pops:      n,
+		pushes:    n + 1,
+		conditions: []Condition{
+			RevisionBounds(tosca.R16_Amsterdam, NewestSupportedRevision),
+		},
+		effect: Change(func(s *st.State) {
+			s.Stack.Push(s.Stack.Get(n - 1))
+			s.Pc++
+		}),
+	})
+}
+
+// SWAPN swaps the top of the stack with the element at depth n like SWAPn does,
+// with n decoded from the byte behind the instruction, see dupNOp.
+func swapNOp(operand byte) []Rule {
+	if !vm.IsValidImmediateOperand(vm.SWAPN, operand) {
+		return invalidImmediateOp(vm.SWAPN, operand)
+	}
+	n := vm.DecodeSingleImmediate(operand)
+	return rulesFor(instruction{
+		op:        vm.SWAPN,
+		operand:   operand,
+		name:      fmt.Sprintf("_%d", operand),
+		staticGas: 3,
+		pops:      n + 1,
+		pushes:    n + 1,
+		conditions: []Condition{
+			RevisionBounds(tosca.R16_Amsterdam, NewestSupportedRevision),
+		},
+		effect: Change(func(s *st.State) {
+			a := s.Stack.Get(0)
+			b := s.Stack.Get(n)
+			s.Stack.Set(0, b)
+			s.Stack.Set(n, a)
+			s.Pc++
+		}),
+	})
+}
+
+// EXCHANGE swaps the stack elements at depths n and m, 1 <= n < m, leaving the
+// top of the stack untouched. Both are decoded from the byte behind the
+// instruction, see dupNOp.
+func exchangeOp(operand byte) []Rule {
+	if !vm.IsValidImmediateOperand(vm.EXCHANGE, operand) {
+		return invalidImmediateOp(vm.EXCHANGE, operand)
+	}
+	n, m := vm.DecodePairImmediate(operand)
+	return rulesFor(instruction{
+		op:        vm.EXCHANGE,
+		operand:   operand,
+		name:      fmt.Sprintf("_%d", operand),
+		staticGas: 3,
+		pops:      m + 1,
+		pushes:    m + 1,
+		conditions: []Condition{
+			RevisionBounds(tosca.R16_Amsterdam, NewestSupportedRevision),
+		},
+		effect: Change(func(s *st.State) {
+			a := s.Stack.Get(n)
+			b := s.Stack.Get(m)
+			s.Stack.Set(n, b)
+			s.Stack.Set(m, a)
+			s.Pc++
+		}),
+	})
+}
+
+// invalidImmediateOp produces the rule for an EIP-8024 instruction with an
+// inadmissible operand, which fails regardless of the stack.
+func invalidImmediateOp(op vm.OpCode, operand byte) []Rule {
+	return []Rule{{
+		Name: fmt.Sprintf("%v_with_invalid_immediate_%d", strings.ToLower(op.String()), operand),
+		Condition: And(
+			RevisionBounds(tosca.R16_Amsterdam, NewestSupportedRevision),
+			Eq(Status(), st.Running),
+			Eq(Op(Pc()), op),
+			IsCode(Pc()),
+			Eq(Immediate(), operand),
+		),
+		Effect: FailEffect(),
+	}}
+}
+
 func extCodeCopyEffect(s *st.State, markWarm bool) {
 	address := NewAddress(s.Stack.Pop())
 	destOffsetU256 := s.Stack.Pop()
@@ -2344,11 +2469,36 @@ func selfDestructEffect(s *st.State) {
 	s.Status = st.Stopped
 }
 
+// unavailableOp produces the rule for an instruction that is not part of the
+// instruction set of the given revisions, and thus fails independently of the
+// rest of the state.
+func unavailableOp(op vm.OpCode, first, last tosca.Revision) []Rule {
+	return []Rule{{
+		Name: fmt.Sprintf("%v_invalid_revision", strings.ToLower(op.String())),
+		Condition: And(
+			RevisionBounds(first, last),
+			Eq(Status(), st.Running),
+			Eq(Op(Pc()), op),
+			IsCode(Pc()),
+		),
+		Effect: FailEffect(),
+	}}
+}
+
+// atOp holds if the instruction at the program counter is i, including its
+// immediate operand if it has one.
+func atOp(i instruction) Condition {
+	if vm.HasImmediateOperand(i.op) {
+		return And(Eq(Op(Pc()), i.op), Eq(Immediate(), i.operand))
+	}
+	return Eq(Op(Pc()), i.op)
+}
+
 func tooLittleGas(i instruction) []Rule {
 	localConditions := append(i.conditions,
 		AnyKnownRevision(),
 		Eq(Status(), st.Running),
-		Eq(Op(Pc()), i.op),
+		atOp(i),
 		IsCode(Pc()),
 		Lt(Gas(), i.staticGas))
 	return []Rule{{
@@ -2362,7 +2512,7 @@ func notEnoughSpace(i instruction) []Rule {
 	localConditions := append(i.conditions,
 		AnyKnownRevision(),
 		Eq(Status(), st.Running),
-		Eq(Op(Pc()), i.op),
+		atOp(i),
 		IsCode(Pc()),
 		Ge(StackSize(), st.MaxStackSize))
 	return []Rule{{
@@ -2376,7 +2526,7 @@ func tooFewElements(i instruction) []Rule {
 	localConditions := append([]Condition{},
 		AnyKnownRevision(),
 		Eq(Status(), st.Running),
-		Eq(Op(Pc()), i.op),
+		atOp(i),
 		IsCode(Pc()),
 		Lt(StackSize(), i.pops))
 	return []Rule{{
@@ -2404,7 +2554,7 @@ func rulesFor(i instruction) []Rule {
 	}
 	localConditions := append(i.conditions,
 		Eq(Status(), st.Running),
-		Eq(Op(Pc()), i.op),
+		atOp(i),
 		Ge(Gas(), i.staticGas),
 		Ge(StackSize(), i.pops),
 		Le(StackSize(), st.MaxStackSize-(max(i.pushes-i.pops, 0))),

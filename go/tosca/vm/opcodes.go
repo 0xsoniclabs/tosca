@@ -157,6 +157,9 @@ const (
 	LOG2           OpCode = 0xA2
 	LOG3           OpCode = 0xA3
 	LOG4           OpCode = 0xA4
+	DUPN           OpCode = 0xE6
+	SWAPN          OpCode = 0xE7
+	EXCHANGE       OpCode = 0xE8
 	CREATE         OpCode = 0xF0
 	CALL           OpCode = 0xF1
 	CALLCODE       OpCode = 0xF2
@@ -474,6 +477,12 @@ func (op OpCode) String() string {
 		return "LOG3"
 	case LOG4:
 		return "LOG4"
+	case DUPN:
+		return "DUPN"
+	case SWAPN:
+		return "SWAPN"
+	case EXCHANGE:
+		return "EXCHANGE"
 	case CREATE:
 		return "CREATE"
 	case CALL:
@@ -536,7 +545,6 @@ func initValidOpCodes() [256]bool {
 	res[SHR] = true
 	res[CLZ] = true
 	res[SAR] = true
-	res[CLZ] = true
 	res[SHA3] = true
 	res[ADDRESS] = true
 	res[BALANCE] = true
@@ -650,6 +658,9 @@ func initValidOpCodes() [256]bool {
 	res[LOG2] = true
 	res[LOG3] = true
 	res[LOG4] = true
+	res[DUPN] = true
+	res[SWAPN] = true
+	res[EXCHANGE] = true
 	res[CREATE] = true
 	res[CALL] = true
 	res[CALLCODE] = true

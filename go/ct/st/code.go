@@ -104,6 +104,17 @@ func (c *Code) GetOperation(pos int) (vm.OpCode, error) {
 	return vm.OpCode(c.code[pos]), nil
 }
 
+// GetByte returns the raw byte at the given position, or 0 if the position is
+// beyond the end of the code. Unlike GetOperation and GetData it does not
+// distinguish between instructions and data, which is how instructions with an
+// immediate operand read their operand (see EIP-8024).
+func (c *Code) GetByte(pos int) byte {
+	if pos < 0 || pos >= len(c.code) {
+		return 0
+	}
+	return c.code[pos]
+}
+
 func (c *Code) GetData(pos int) (byte, error) {
 	if !c.IsData(pos) {
 		return 0, ErrInvalidPosition
@@ -158,12 +169,19 @@ func (c *Code) ToHumanReadableString(start int, length int) string {
 	}
 
 	end := min(length, len(c.code)-start) + start
-	for i, op := range c.code[start:end] {
+	for i := start; i < end; i++ {
 		var entry string
-		if c.IsCode(start + i) {
-			entry = vm.OpCode(op).String()
+		if !c.IsCode(i) {
+			entry = fmt.Sprintf("%d", c.code[i])
+		} else if op := vm.OpCode(c.code[i]); vm.HasImmediateOperand(op) && vm.IsValidImmediateOperand(op, c.GetByte(i+1)) {
+			// The operand is an ordinary code position, but printing it as an
+			// instruction of its own would not reflect how it is executed. With
+			// an invalid operand the instruction halts and the following byte
+			// is executed on its own, so it is printed as an instruction.
+			entry = fmt.Sprintf("%v(%d)", op, c.GetByte(i+1))
+			i++
 		} else {
-			entry = fmt.Sprintf("%d", op)
+			entry = op.String()
 		}
 		builder.WriteString(" ")
 		builder.WriteString(entry)
