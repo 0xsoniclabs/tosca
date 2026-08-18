@@ -706,9 +706,9 @@ func isExecutable(op OpCode) bool {
 	if slices.Contains([]OpCode{INVALID, NOOP, DATA}, op) {
 		return false
 	}
-	// The instructions introduced by EIP-8024 are named but not implemented by
-	// this interpreter yet, see newestSupportedRevision.
-	if slices.Contains([]OpCode{OpCode(vm.DUPN), OpCode(vm.SWAPN), OpCode(vm.EXCHANGE)}, op) {
+	// The instructions introduced by EIP-7843 and EIP-8024 are named but not
+	// implemented by this interpreter yet, see newestSupportedRevision.
+	if slices.Contains([]OpCode{OpCode(vm.SLOTNUM), OpCode(vm.DUPN), OpCode(vm.SWAPN), OpCode(vm.EXCHANGE)}, op) {
 		return false
 	}
 	return !_isUndefinedOpCodeRegex.MatchString(op.String())

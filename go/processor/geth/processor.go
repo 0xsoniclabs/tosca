@@ -166,6 +166,7 @@ func newBlockContext(blockParameters tosca.BlockParameters, context tosca.Transa
 		Difficulty:  big.NewInt(0).SetBytes(difficulty[:]),
 		BaseFee:     blockParameters.BaseFee.ToBig(),
 		BlobBaseFee: blockParameters.BlobBaseFee.ToBig(),
+		SlotNum:     blockParameters.SlotNumber,
 		Random:      randao,
 	}
 }

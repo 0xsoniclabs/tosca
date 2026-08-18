@@ -38,7 +38,7 @@ type gethVm struct{}
 // Geth itself implements Amsterdam, and the state-gas dimension of EIP-8037 is
 // carried across the Tosca interface, but Amsterdam cannot be enabled yet: the
 // conformance test specification still prices state access with the Berlin
-// schedule rather than the one of EIP-8038, and EIP-7843 (SLOTNUM) is missing.
+// schedule rather than the one of EIP-8038.
 const newestSupportedRevision = tosca.R15_Osaka
 
 func (m *gethVm) Run(parameters tosca.Parameters) (tosca.Result, error) {
@@ -183,6 +183,7 @@ func createGethInterpreterContext(parameters tosca.Parameters) (*geth.EVM, *geth
 		GetHash:     getHash,
 		BaseFee:     new(big.Int).SetBytes(parameters.BaseFee[:]),
 		BlobBaseFee: new(big.Int).SetBytes(parameters.BlobBaseFee[:]),
+		SlotNum:     parameters.SlotNumber,
 		Transfer:    transferFunc,
 		CanTransfer: canTransferFunc,
 		// Prices the state dimension introduced by EIP-8037. Only the Amsterdam

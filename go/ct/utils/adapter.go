@@ -47,6 +47,7 @@ func ToVmParameters(state *st.State) tosca.Parameters {
 			PrevRandao:  state.BlockContext.PrevRandao.Bytes32be(),
 			BaseFee:     state.BlockContext.BaseFee.Bytes32be(),
 			BlobBaseFee: state.BlockContext.BlobBaseFee.Bytes32be(),
+			SlotNumber:  state.BlockContext.SlotNumber,
 			Revision:    state.Revision,
 		},
 		TransactionParameters: tosca.TransactionParameters{

@@ -1403,6 +1403,32 @@ func getAllRules() []Rule {
 		},
 	}...)
 
+	// --- SLOTNUM ---
+
+	rules = append(rules, rulesFor(instruction{
+		op:         vm.SLOTNUM,
+		staticGas:  2,
+		pops:       0,
+		pushes:     1,
+		conditions: []Condition{RevisionBounds(tosca.R16_Amsterdam, NewestSupportedRevision)},
+		effect: func(s *st.State) {
+			s.Stack.Push(NewU256(s.BlockContext.SlotNumber))
+		},
+	})...)
+
+	rules = append(rules, []Rule{
+		{
+			Name: "slotnum_invalid_revision",
+			Condition: And(
+				RevisionBounds(tosca.R07_Istanbul, tosca.R15_Osaka),
+				Eq(Status(), st.Running),
+				Eq(Op(Pc()), vm.SLOTNUM),
+				IsCode(Pc()),
+			),
+			Effect: FailEffect(),
+		},
+	}...)
+
 	// --- EXTCODEHASH ---
 
 	for _, revision := range tosca.GetAllKnownRevisions() {
