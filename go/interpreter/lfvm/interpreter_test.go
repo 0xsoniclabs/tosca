@@ -770,7 +770,6 @@ func benchmarkFib(b *testing.B, arg int, with_super_instructions bool) {
 		}
 
 		res := ctxt.returnData
-		copy(res, data)
 
 		got := (int(res[28]) << 24) | (int(res[29]) << 16) | (int(res[30]) << 8) | (int(res[31]) << 0)
 		if wanted != got {
