@@ -968,7 +968,8 @@ func TestRunContextAdapter_Interpret(t *testing.T) {
 			blockNumber := int64(24)
 			address := tosca.Address{0x42}
 
-			blockParameters := geth.BlockContext{BlockNumber: big.NewInt(blockNumber)}
+			slotNumber := uint64(7)
+			blockParameters := geth.BlockContext{BlockNumber: big.NewInt(blockNumber), SlotNum: slotNumber}
 			chainConfig := &params.ChainConfig{ChainID: big.NewInt(chainId), IstanbulBlock: big.NewInt(23)}
 			evm := geth.NewEVM(blockParameters, stateDb, chainConfig, geth.Config{})
 			blobHashes := []tosca.Hash{{0x01}, {0x02}}
@@ -985,6 +986,7 @@ func TestRunContextAdapter_Interpret(t *testing.T) {
 			blockParams := tosca.BlockParameters{
 				ChainID:     tosca.Word(tosca.NewValue(uint64(chainId))),
 				BlockNumber: blockNumber,
+				SlotNumber:  slotNumber,
 			}
 			codeHash := tosca.Hash{0x99}
 			transactionParameters := tosca.TransactionParameters{
@@ -1011,6 +1013,7 @@ func TestRunContextAdapter_Interpret(t *testing.T) {
 					expectedParams.PrevRandao != params.PrevRandao ||
 					expectedParams.BaseFee != params.BaseFee ||
 					expectedParams.BlobBaseFee != params.BlobBaseFee ||
+					expectedParams.SlotNumber != params.SlotNumber ||
 					expectedParams.Revision != params.Revision ||
 					expectedParams.Origin != params.Origin ||
 					expectedParams.GasPrice != params.GasPrice ||

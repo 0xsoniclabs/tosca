@@ -132,6 +132,12 @@ func TestAdapter_ParameterConversion(t *testing.T) {
 				return tosca.Value(cc.NewU256(123).Bytes32be()), p.BlobBaseFee
 			},
 		},
+		"slot-number": {
+			func(s *st.State) { s.BlockContext.SlotNumber = 123 },
+			func(p tosca.Parameters) (any, any) {
+				return uint64(123), p.SlotNumber
+			},
+		},
 		"storage-current-unspecified": {
 			func(s *st.State) {
 				s.Storage = st.NewStorageBuilder().

@@ -52,6 +52,9 @@ func TestBlockContextGen_Generate(t *testing.T) {
 	if blockCtx.PrevRandao == (common.NewU256()) {
 		t.Errorf("Generated prevRandao has default value.")
 	}
+	if blockCtx.SlotNumber == (uint64(0)) {
+		t.Errorf("Generated slot number has default value.")
+	}
 	if blockCtx.TimeStamp == (uint64(0)) {
 		t.Errorf("Generated timestamp has default value.")
 	}

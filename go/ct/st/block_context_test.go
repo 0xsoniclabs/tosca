@@ -30,6 +30,7 @@ func TestBlockContext_Diff(t *testing.T) {
 		"gasLimit":    {func(b *BlockContext) { b.GasLimit++ }},
 		"gasPrice":    {func(b *BlockContext) { b.GasPrice = NewU256(1) }},
 		"prevRandao":  {func(b *BlockContext) { b.PrevRandao = NewU256(1) }},
+		"slotNumber":  {func(b *BlockContext) { b.SlotNumber++ }},
 		"timestamp":   {func(b *BlockContext) { b.TimeStamp++ }},
 	}
 
@@ -57,6 +58,7 @@ func TestBlockContext_String(t *testing.T) {
 		"Gas Limit":     {func(b *BlockContext) any { b.GasLimit++; return b.GasLimit }},
 		"Gas Price":     {func(b *BlockContext) any { b.GasPrice = NewU256(1); return b.GasPrice }},
 		"PrevRandao":    {func(b *BlockContext) any { b.PrevRandao = NewU256(1); return b.PrevRandao }},
+		"Slot Number":   {func(b *BlockContext) any { b.SlotNumber++; return b.SlotNumber }},
 		"Timestamp":     {func(b *BlockContext) any { b.TimeStamp++; return b.TimeStamp }},
 	}
 
