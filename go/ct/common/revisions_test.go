@@ -47,6 +47,27 @@ func TestRevisions_RangeLength(t *testing.T) {
 	}
 }
 
+func TestRevisions_MaxInitCodeSize(t *testing.T) {
+	tests := map[string]struct {
+		revision tosca.Revision
+		size     uint64
+	}{
+		"Istanbul":    {tosca.R07_Istanbul, 49152},
+		"Shanghai":    {tosca.R12_Shanghai, 49152},
+		"Osaka":       {tosca.R15_Osaka, 49152},
+		"Amsterdam":   {tosca.R16_Amsterdam, 131072},
+		"UnknownNext": {R99_UnknownNextRevision, 131072},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			if want, got := test.size, MaxInitCodeSize(test.revision); want != got {
+				t.Errorf("unexpected max init code size, wanted %d, got %d", want, got)
+			}
+		})
+	}
+}
+
 func TestRevisions_GetForkBlock(t *testing.T) {
 	tests := map[string]struct {
 		revision  tosca.Revision
