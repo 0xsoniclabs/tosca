@@ -628,9 +628,9 @@ func TestStateGenerator_VariousContraints(t *testing.T) {
 		check func(*StateGenerator, *testing.T) bool
 	}{
 		"add-code-op": {
-			setup: func(gen *StateGenerator) { gen.AddCodeOperation(Variable("a"), vm.ADD) },
+			setup: func(gen *StateGenerator) { gen.AddCodeOperation(Variable("a"), 0, vm.ADD) },
 			check: func(gen *StateGenerator, t *testing.T) bool {
-				got, want := gen.codeGen.varOps, []varOpConstraint{{Variable("a"), vm.ADD}}
+				got, want := gen.codeGen.varOps, []varOpConstraint{{Variable("a"), 0, vm.ADD}}
 				return slices.Equal(want, got)
 			}},
 		"add-is-code": {

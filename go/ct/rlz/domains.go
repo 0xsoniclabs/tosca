@@ -308,6 +308,26 @@ func (opCodeDomain) SamplesForAll([]vm.OpCode) []vm.OpCode {
 }
 
 ////////////////////////////////////////////////////////////
+// Immediate Operand
+
+type immediateDomain struct{}
+
+func (immediateDomain) Equal(a byte, b byte) bool     { return a == b }
+func (immediateDomain) Less(a byte, b byte) bool      { return a < b }
+func (immediateDomain) Predecessor(a byte) byte       { return a - 1 }
+func (immediateDomain) Successor(a byte) byte         { return a + 1 }
+func (immediateDomain) SomethingNotEqual(a byte) byte { return a + 1 }
+func (immediateDomain) Samples(a byte) []byte         { return []byte{a, a + 1} }
+
+func (immediateDomain) SamplesForAll([]byte) []byte {
+	res := make([]byte, 0, 256)
+	for i := range 256 {
+		res = append(res, byte(i))
+	}
+	return res
+}
+
+////////////////////////////////////////////////////////////
 // Stack Size
 
 type stackSizeDomain struct{}

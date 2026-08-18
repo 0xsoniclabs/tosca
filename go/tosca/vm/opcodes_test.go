@@ -81,7 +81,8 @@ func TestOpCode_NumberOfOpCodes(t *testing.T) {
 		PUSH0,                                       // Shanghai
 		BLOBHASH, BLOBBASEFEE, TLOAD, TSTORE, MCOPY, // Cancun, Prague
 		// TODO: CLZ // Osaka
-		// TODO: SLOTNUM, DUPN, SWAPN, EXCHANGE // Amsterdam
+		DUPN, SWAPN, EXCHANGE, // Amsterdam
+		// TODO: SLOTNUM // Amsterdam
 	}
 
 	for i := range 256 {
