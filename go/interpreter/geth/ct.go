@@ -31,10 +31,17 @@ func NewConformanceTestingTarget() ct.Evm {
 type ctAdapter struct{}
 
 func (a ctAdapter) StepN(state *st.State, numSteps int) (*st.State, error) {
-	parameters := utils.ToVmParameters(state)
-	if parameters.Revision > newestSupportedRevision {
-		return state, &tosca.ErrUnsupportedRevision{Revision: parameters.Revision}
+	if state.Revision > newestSupportedRevision {
+		return state, &tosca.ErrUnsupportedRevision{Revision: state.Revision}
 	}
+	return stepN(state, numSteps)
+}
+
+// stepN runs the interpreter without checking the revision, allowing tests to
+// exercise instructions of revisions this adapter does not support as a whole
+// yet.
+func stepN(state *st.State, numSteps int) (*st.State, error) {
+	parameters := utils.ToVmParameters(state)
 
 	// No need to run anything that is not in a running state.
 	if state.Status != st.Running {

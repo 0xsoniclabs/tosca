@@ -632,6 +632,11 @@ func isExecutable(op vm.OpCode) bool {
 	if slices.Contains([]vm.OpCode{vm.INVALID}, op) {
 		return false
 	}
+	// The instructions introduced by EIP-8024 are named but not implemented by
+	// this interpreter yet, see newestSupportedRevision.
+	if slices.Contains([]vm.OpCode{vm.DUPN, vm.SWAPN, vm.EXCHANGE}, op) {
+		return false
+	}
 	return !_isUndefinedOpCodeRegex.MatchString(op.String())
 }
 

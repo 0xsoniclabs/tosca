@@ -307,7 +307,7 @@ func (e op) Restrict(kind RestrictionKind, op vm.OpCode, generator *gen.StateGen
 	}
 	variable := e.position.GetVariable()
 	e.position.BindTo(generator)
-	generator.AddCodeOperation(variable, op)
+	generator.AddCodeOperation(variable, 0, op)
 }
 
 func (e op) String() string {

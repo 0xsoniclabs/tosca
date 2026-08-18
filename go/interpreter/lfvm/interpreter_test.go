@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/tosca/vm"
 	"github.com/holiman/uint256"
 	"go.uber.org/mock/gomock"
 )
@@ -703,6 +704,11 @@ var _isUndefinedOpCodeRegex = regexp.MustCompile(`^op\(0x[0-9A-Fa-f]+\)$`)
 
 func isExecutable(op OpCode) bool {
 	if slices.Contains([]OpCode{INVALID, NOOP, DATA}, op) {
+		return false
+	}
+	// The instructions introduced by EIP-8024 are named but not implemented by
+	// this interpreter yet, see newestSupportedRevision.
+	if slices.Contains([]OpCode{OpCode(vm.DUPN), OpCode(vm.SWAPN), OpCode(vm.EXCHANGE)}, op) {
 		return false
 	}
 	return !_isUndefinedOpCodeRegex.MatchString(op.String())

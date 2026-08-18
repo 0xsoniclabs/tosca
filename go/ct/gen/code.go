@@ -40,8 +40,12 @@ type constOpConstraint struct {
 	op  vm.OpCode
 }
 
+// varOpConstraint fixes an operation at a constant offset behind the position
+// a variable is bound to. Constraints sharing a variable are placed as one
+// group, which is how instructions with immediate operands are modelled.
 type varOpConstraint struct {
 	variable Variable
+	offset   int
 	op       vm.OpCode
 }
 
@@ -62,9 +66,10 @@ func (g *CodeGenerator) SetOperation(pos int, op vm.OpCode) {
 	g.constOps = append(g.constOps, constOpConstraint{pos: pos, op: op})
 }
 
-// AddOperation adds a constraint placing an operation at a variable position.
-func (g *CodeGenerator) AddOperation(v Variable, op vm.OpCode) {
-	g.varOps = append(g.varOps, varOpConstraint{variable: v, op: op})
+// AddOperation adds a constraint placing an operation at the given offset
+// behind a variable position.
+func (g *CodeGenerator) AddOperation(v Variable, offset int, op vm.OpCode) {
+	g.varOps = append(g.varOps, varOpConstraint{variable: v, offset: offset, op: op})
 }
 
 // AddIsCode adds a constraint such that the generator will produce a code
@@ -93,7 +98,7 @@ func (g *CodeGenerator) Generate(assignment Assignment, rnd *rand.Rand) (*st.Cod
 			if !value.IsUint64() || value.Uint64() > st.MaxCodeSize {
 				return nil, fmt.Errorf("%w: unable to constrain code at position %v", ErrUnsatisfiable, value)
 			}
-			ops = append(ops, constOpConstraint{pos: int(value.Uint64()), op: cur.op})
+			ops = append(ops, constOpConstraint{pos: int(value.Uint64()) + cur.offset, op: cur.op})
 		} else {
 			varOps = append(varOps, cur)
 		}
@@ -110,11 +115,7 @@ func (g *CodeGenerator) Generate(assignment Assignment, rnd *rand.Rand) (*st.Cod
 	// Make extra space for worst-case size requirements of variable operation
 	// constraints.
 	for _, constraint := range varOps {
-		size := 1
-		if vm.PUSH1 <= constraint.op && constraint.op <= vm.PUSH32 {
-			size += int(constraint.op - vm.PUSH1 + 1)
-		}
-		minSize += size
+		minSize += constraint.offset + constraint.op.Width()
 	}
 
 	// Make enough space to host all the different opCodes used in condition.
@@ -265,9 +266,18 @@ func (g *CodeGenerator) String() string {
 		parts = append(parts, fmt.Sprintf("op[%v]=%v", op.pos, op.op))
 	}
 
-	sort.Slice(g.varOps, func(i, j int) bool { return g.varOps[i].variable < g.varOps[j].variable })
+	sort.Slice(g.varOps, func(i, j int) bool {
+		if g.varOps[i].variable != g.varOps[j].variable {
+			return g.varOps[i].variable < g.varOps[j].variable
+		}
+		return g.varOps[i].offset < g.varOps[j].offset
+	})
 	for _, op := range g.varOps {
-		parts = append(parts, fmt.Sprintf("op[%v]=%v", op.variable, op.op))
+		position := fmt.Sprintf("%v", op.variable)
+		if op.offset != 0 {
+			position = fmt.Sprintf("%v%+d", op.variable, op.offset)
+		}
+		parts = append(parts, fmt.Sprintf("op[%v]=%v", position, op.op))
 	}
 
 	sort.Slice(g.varIsCodeConstraints, func(i, j int) bool { return g.varIsCodeConstraints[i].variable < g.varIsCodeConstraints[j].variable })
@@ -391,19 +401,19 @@ func (s *varCodeConstraintSolver) assign(v Variable, pos int) {
 }
 
 func (s *varCodeConstraintSolver) solveVarOps(varOps []varOpConstraint) error {
-	boundVariables := make(map[Variable]vm.OpCode)
-	for _, cur := range varOps {
-		if op, found := boundVariables[cur.variable]; found {
-			if op != cur.op {
-				return fmt.Errorf("%w, unable to satisfy conflicting constraint for op[%v]=%v and op[%v]=%v", ErrUnsatisfiable, cur.variable, op, cur.variable, cur.op)
-			}
-			continue
-		}
+	groups, order, err := groupVarOpsByVariable(varOps)
+	if err != nil {
+		return err
+	}
 
-		// Select a suitable code position for the current variable constraint.
+	for _, variable := range order {
+		group := groups[variable]
+
+		// Select a code position for the variable such that all operations
+		// constrained relative to it fit.
 		pos := int(s.rnd.Int31n(int32(s.codeSize)))
 		startPos := pos
-		for !s.fits(pos, cur.op) {
+		for !s.groupFits(pos, group) {
 			pos++
 			if pos >= s.codeSize {
 				pos = 0
@@ -413,14 +423,58 @@ func (s *varCodeConstraintSolver) solveVarOps(varOps []varOpConstraint) error {
 			}
 		}
 
-		boundVariables[cur.variable] = cur.op
+		for _, cur := range group {
+			s.markUsed(pos+cur.offset, cur.op)
+			s.ops = append(s.ops, constOpConstraint{pos + cur.offset, cur.op})
+		}
 
-		s.markUsed(pos, cur.op)
-		s.ops = append(s.ops, constOpConstraint{pos, cur.op})
-
-		s.assign(cur.variable, pos)
+		s.assign(variable, pos)
 	}
 	return nil
+}
+
+// groupVarOpsByVariable collects the constraints of each variable, removing
+// duplicates and reporting conflicting constraints on the same position. The
+// returned order lists the variables as first encountered, to keep the
+// generation deterministic.
+func groupVarOpsByVariable(varOps []varOpConstraint) (map[Variable][]varOpConstraint, []Variable, error) {
+	groups := map[Variable][]varOpConstraint{}
+	order := []Variable{}
+	for _, cur := range varOps {
+		group, seen := groups[cur.variable]
+		if !seen {
+			order = append(order, cur.variable)
+		}
+		duplicate := false
+		for _, other := range group {
+			if other.offset != cur.offset {
+				continue
+			}
+			if other.op != cur.op {
+				return nil, nil, fmt.Errorf("%w, unable to satisfy conflicting constraint for op[%v]=%v and op[%v]=%v", ErrUnsatisfiable, cur.variable, other.op, cur.variable, cur.op)
+			}
+			duplicate = true
+		}
+		if !duplicate {
+			group = append(group, cur)
+		}
+		groups[cur.variable] = group
+	}
+	for _, group := range groups {
+		sort.Slice(group, func(i, j int) bool { return group[i].offset < group[j].offset })
+	}
+	return groups, order, nil
+}
+
+// groupFits returns true iff all operations of the group can be placed
+// relative to pos.
+func (s *varCodeConstraintSolver) groupFits(pos int, group []varOpConstraint) bool {
+	for _, cur := range group {
+		if !s.fits(pos+cur.offset, cur.op) {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *varCodeConstraintSolver) solveIsCode(varIsCodeConstraints []varIsCodeConstraint) error {

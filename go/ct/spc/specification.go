@@ -993,6 +993,27 @@ func getAllRules() []Rule {
 		rules = append(rules, swapOp(i)...)
 	}
 
+	// --- Stack DUPN, SWAPN and EXCHANGE ---
+
+	rules = append(rules, immediateOp(vm.DUPN, 1, func(s *st.State, operand byte) {
+		n := vm.DecodeSingleImmediate(operand)
+		s.Stack.Push(s.Stack.Get(n - 1))
+	})...)
+
+	rules = append(rules, immediateOp(vm.SWAPN, 0, func(s *st.State, operand byte) {
+		n := vm.DecodeSingleImmediate(operand)
+		a, b := s.Stack.Get(0), s.Stack.Get(n)
+		s.Stack.Set(0, b)
+		s.Stack.Set(n, a)
+	})...)
+
+	rules = append(rules, immediateOp(vm.EXCHANGE, 0, func(s *st.State, operand byte) {
+		n, m := vm.DecodePairImmediate(operand)
+		a, b := s.Stack.Get(n), s.Stack.Get(m)
+		s.Stack.Set(n, b)
+		s.Stack.Set(m, a)
+	})...)
+
 	// --- LOG ---
 
 	for i := 0; i <= 4; i++ {
@@ -2019,6 +2040,60 @@ func swapOp(n int) []Rule {
 			s.Stack.Set(n, a)
 		},
 	})
+}
+
+// immediateOp produces the rules for the EIP-8024 instructions, which read the
+// byte behind them as an operand. Since the number of stack elements such an
+// instruction requires is only known once that operand is decoded, the rules
+// are not formulated per operand value but in terms of the three mutually
+// exclusive outcomes of decoding it. That keeps them applicable to every
+// operand, while ImmediateFitsStack and its siblings offer a selection of
+// interesting operands as test values.
+//
+// Note that the operand is not excluded from jumpdest analysis, so it stays an
+// ordinary code position that may be jumped to and executed on its own.
+//
+// The pushes parameter states how many elements the instruction adds to the
+// stack, which is what decides whether it can overflow it.
+func immediateOp(op vm.OpCode, pushes int, effect func(s *st.State, operand byte)) []Rule {
+	supported := RevisionBounds(tosca.R16_Amsterdam, NewestSupportedRevision)
+
+	res := rulesFor(instruction{
+		op:        op,
+		staticGas: 3,
+		pops:      0,
+		pushes:    pushes,
+		conditions: []Condition{
+			supported,
+			ImmediateFitsStack(op),
+		},
+		effect: func(s *st.State) {
+			// The program counter has been moved past the instruction already,
+			// so it points to the operand to be consumed here.
+			operand := s.Code.GetByte(int(s.Pc))
+			s.Pc++
+			effect(s, operand)
+		},
+	})
+
+	name := strings.ToLower(op.String())
+	failing := func(suffix string, conditions ...Condition) Rule {
+		return Rule{
+			Name: fmt.Sprintf("%v_%v", name, suffix),
+			Condition: And(append(conditions,
+				Eq(Status(), st.Running),
+				Eq(Op(Pc()), op),
+				IsCode(Pc()),
+			)...),
+			Effect: FailEffect(),
+		}
+	}
+
+	return append(res,
+		failing("with_too_few_elements", supported, ImmediateExceedsStack(op)),
+		failing("with_invalid_immediate", supported, ImmediateIsInvalid(op)),
+		failing("invalid_revision", RevisionBounds(tosca.R07_Istanbul, tosca.R15_Osaka)),
+	)
 }
 
 func extCodeCopyEffect(s *st.State, markWarm bool) {

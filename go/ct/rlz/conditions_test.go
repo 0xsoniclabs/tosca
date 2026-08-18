@@ -686,6 +686,9 @@ func TestCondition_RestricAndCheck(t *testing.T) {
 		IsStorageWarm(Param(0)),
 		IsStorageCold(Param(0)),
 		StorageConfiguration(tosca.StorageAssigned, Param(0), Param(1)),
+		ImmediateIsInvalid(vm.DUPN),
+		ImmediateExceedsStack(vm.SWAPN),
+		ImmediateFitsStack(vm.EXCHANGE),
 	}
 
 	for _, condition := range tests {
@@ -778,6 +781,140 @@ func BenchmarkCondition_IsAddressWarmCheckCold(b *testing.B) {
 		_, err := condition.Check(state)
 		if err != nil {
 			b.Fatalf("invalid benchmark, check returned error %v", err)
+		}
+	}
+}
+
+// TestCondition_ImmediateConditionsPartitionAllOperands covers what makes the
+// EIP-8024 rules complete without a rule per operand: for every operand and
+// stack size exactly one of the three conditions holds.
+func TestCondition_ImmediateConditionsPartitionAllOperands(t *testing.T) {
+	for _, op := range []vm.OpCode{vm.DUPN, vm.SWAPN, vm.EXCHANGE} {
+		conditions := []Condition{
+			ImmediateIsInvalid(op),
+			ImmediateExceedsStack(op),
+			ImmediateFitsStack(op),
+		}
+		for operand := 0; operand < 256; operand++ {
+			for _, stackSize := range []int{0, 1, 17, 30, 235, 236} {
+				state := st.NewState(st.NewCode([]byte{byte(op), byte(operand)}))
+				state.Stack = st.NewStackWithSize(stackSize)
+
+				matches := 0
+				for _, condition := range conditions {
+					holds, err := condition.Check(state)
+					if err != nil {
+						t.Fatalf("failed to check %v: %v", condition, err)
+					}
+					if holds {
+						matches++
+					}
+				}
+				if matches != 1 {
+					t.Errorf("%v with operand 0x%02x and %d stack elements is covered by %d conditions",
+						op, operand, stackSize, matches)
+				}
+				state.Release()
+			}
+		}
+	}
+}
+
+func TestCondition_ImmediateConditionsClassifyOperands(t *testing.T) {
+	tests := map[string]struct {
+		condition Condition
+		operand   byte
+		stackSize int
+		want      bool
+	}{
+		"jumpdest is not a valid operand":  {ImmediateIsInvalid(vm.DUPN), byte(vm.JUMPDEST), 0, true},
+		"push is not a valid operand":      {ImmediateIsInvalid(vm.SWAPN), byte(vm.PUSH32), 0, true},
+		"valid for dupn, not for exchange": {ImmediateIsInvalid(vm.EXCHANGE), 82, 0, true},
+		"82 is valid for dupn":             {ImmediateIsInvalid(vm.DUPN), 82, 0, false},
+		"smallest depth fits":              {ImmediateFitsStack(vm.DUPN), 128, 17, true},
+		"smallest depth misses by one":     {ImmediateExceedsStack(vm.DUPN), 128, 16, true},
+		"largest depth fits":               {ImmediateFitsStack(vm.DUPN), 90, 235, true},
+		"largest depth misses by one":      {ImmediateExceedsStack(vm.DUPN), 90, 234, true},
+		"swapn needs one more than dupn":   {ImmediateExceedsStack(vm.SWAPN), 128, 17, true},
+		"exchange needs m+1 elements":      {ImmediateFitsStack(vm.EXCHANGE), 143, 30, true},
+		"exchange misses by one":           {ImmediateExceedsStack(vm.EXCHANGE), 143, 29, true},
+		// A truncated code reads the operand as zero.
+		"missing operand": {ImmediateFitsStack(vm.DUPN), 0, 145, true},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			state := st.NewState(st.NewCode([]byte{byte(vm.DUPN), test.operand}))
+			defer state.Release()
+			state.Stack = st.NewStackWithSize(test.stackSize)
+
+			got, err := test.condition.Check(state)
+			if err != nil {
+				t.Fatalf("failed to check condition: %v", err)
+			}
+			if got != test.want {
+				t.Errorf("%v: got %t, want %t", test.condition, got, test.want)
+			}
+		})
+	}
+}
+
+func TestCondition_ImmediateTestValuesProduceSatisfyingAndViolatingStates(t *testing.T) {
+	for _, op := range []vm.OpCode{vm.DUPN, vm.SWAPN, vm.EXCHANGE} {
+		for _, condition := range []Condition{
+			ImmediateIsInvalid(op),
+			ImmediateExceedsStack(op),
+			ImmediateFitsStack(op),
+		} {
+			t.Run(condition.String(), func(t *testing.T) {
+				// The operand alone does not decide the outcome, so the code at
+				// the program counter has to be fixed for the classification to
+				// be the one under test.
+				base := gen.NewStateGenerator()
+				Eq(Op(Pc()), op).Restrict(base)
+
+				hits, misses := 0, 0
+				for _, value := range condition.GetTestValues() {
+					generator := base.Clone()
+					value.Restrict(generator)
+					state, err := generator.Generate(rand.New(0))
+					if errors.Is(err, gen.ErrUnsatisfiable) {
+						continue
+					}
+					if err != nil {
+						t.Fatalf("failed to build state: %v", err)
+					}
+					holds, err := condition.Check(state)
+					if err != nil {
+						t.Fatalf("failed to check condition: %v", err)
+					}
+					if holds {
+						hits++
+					} else {
+						misses++
+					}
+					state.Release()
+				}
+				if hits == 0 {
+					t.Error("no test value satisfies the condition")
+				}
+				if misses == 0 {
+					t.Error("no test value violates the condition")
+				}
+			})
+		}
+	}
+}
+
+func TestCondition_ImmediateConditionsArePrinted(t *testing.T) {
+	tests := map[Condition]string{
+		ImmediateIsInvalid(vm.DUPN):     "code[PC+1] is not a valid DUPN operand",
+		ImmediateExceedsStack(vm.SWAPN): "stackSize < minStackSize(SWAPN, code[PC+1])",
+		ImmediateFitsStack(vm.EXCHANGE): "stackSize \u2265 minStackSize(EXCHANGE, code[PC+1])",
+	}
+	for condition, want := range tests {
+		if got := condition.String(); got != want {
+			t.Errorf("unexpected print, wanted %s, got %s", want, got)
 		}
 	}
 }

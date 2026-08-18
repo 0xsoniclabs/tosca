@@ -19,6 +19,7 @@ import (
 	"github.com/0xsoniclabs/tosca/go/ct/gen"
 	"github.com/0xsoniclabs/tosca/go/ct/st"
 	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/tosca/vm"
 )
 
 // Condition represents a state property.
@@ -1195,4 +1196,180 @@ func (c *containsDelegationDesignation) String() string {
 	default:
 		return "unknown DelegationDesignatorState"
 	}
+}
+
+////////////////////////////////////////////////////////////
+// Immediate Operand
+
+// immediateCase enumerates the mutually exclusive outcomes of decoding the
+// immediate operand of an instruction at the program counter. Together the
+// three cases cover every possible operand, which is what makes the rules
+// built on top of them complete without a rule per operand value.
+type immediateCase int
+
+const (
+	invalidImmediate immediateCase = iota
+	immediateExceedsStack
+	immediateFitsStack
+)
+
+type immediateCondition struct {
+	op   vm.OpCode
+	kind immediateCase
+}
+
+// ImmediateIsInvalid holds if the operand of the instruction at the program
+// counter is not admissible for op, in which case op halts with an exceptional
+// failure.
+func ImmediateIsInvalid(op vm.OpCode) Condition {
+	return &immediateCondition{op, invalidImmediate}
+}
+
+// ImmediateExceedsStack holds if the operand of the instruction at the program
+// counter is admissible for op, but addresses a stack position that does not
+// exist.
+func ImmediateExceedsStack(op vm.OpCode) Condition {
+	return &immediateCondition{op, immediateExceedsStack}
+}
+
+// ImmediateFitsStack holds if the operand of the instruction at the program
+// counter is admissible for op and all stack positions it addresses exist.
+func ImmediateFitsStack(op vm.OpCode) Condition {
+	return &immediateCondition{op, immediateFitsStack}
+}
+
+func (c *immediateCondition) Check(s *st.State) (bool, error) {
+	operand := s.Code.GetByte(int(s.Pc) + 1)
+	if !vm.IsValidImmediateOperand(c.op, operand) {
+		return c.kind == invalidImmediate, nil
+	}
+	if c.kind == invalidImmediate {
+		return false, nil
+	}
+	fits := s.Stack.Size() >= vm.MinStackSizeForImmediate(c.op, operand)
+	return fits == (c.kind == immediateFitsStack), nil
+}
+
+func (c *immediateCondition) Restrict(generator *gen.StateGenerator) {
+	operand := c.representativeOperand()
+	restrictImmediateOperand(generator, operand)
+	switch c.kind {
+	case immediateExceedsStack:
+		generator.AddStackSizeUpperBound(vm.MinStackSizeForImmediate(c.op, operand) - 1)
+	case immediateFitsStack:
+		generator.AddStackSizeLowerBound(vm.MinStackSizeForImmediate(c.op, operand))
+	}
+}
+
+// GetTestValues offers a selection of operands together with the stack sizes
+// at which those operands start and stop fitting. Operands are not enumerated
+// exhaustively; the cross product of both dimensions covers each operand at
+// its own boundary as well as plenty of combinations violating this condition.
+func (c *immediateCondition) GetTestValues() []TestValue {
+	res := []TestValue{}
+	for _, operand := range immediateOperandTestValues(c.op) {
+		res = append(res, NewTestValue(
+			immediateProperty, immediateDomain{}, operand, restrictImmediateOperand,
+		))
+		if !vm.IsValidImmediateOperand(c.op, operand) {
+			continue
+		}
+		required := vm.MinStackSizeForImmediate(c.op, operand)
+		for _, size := range []int{required - 1, required, required + 1} {
+			res = append(res, NewTestValue(
+				StackSize().Property(), StackSize().Domain(), size,
+				func(generator *gen.StateGenerator, size int) {
+					StackSize().Restrict(RestrictEqual, size, generator)
+				},
+			))
+		}
+	}
+	return res
+}
+
+func (c *immediateCondition) String() string {
+	switch c.kind {
+	case invalidImmediate:
+		return fmt.Sprintf("code[PC+1] is not a valid %v operand", c.op)
+	case immediateExceedsStack:
+		return fmt.Sprintf("stackSize < minStackSize(%v, code[PC+1])", c.op)
+	default:
+		return fmt.Sprintf("stackSize ≥ minStackSize(%v, code[PC+1])", c.op)
+	}
+}
+
+// representativeOperand returns the operand used to satisfy this condition
+// when a single state is requested. For the stack related cases it is the one
+// leaving the stack size as unconstrained as possible.
+func (c *immediateCondition) representativeOperand() byte {
+	if c.kind == invalidImmediate {
+		// JUMPDEST, the operand EIP-8024 excludes to keep the byte a valid jump
+		// target.
+		return byte(vm.JUMPDEST)
+	}
+	best, found := byte(0), false
+	for i := 0; i < 256; i++ {
+		operand := byte(i)
+		if !vm.IsValidImmediateOperand(c.op, operand) {
+			continue
+		}
+		if !found {
+			best, found = operand, true
+			continue
+		}
+		required := vm.MinStackSizeForImmediate(c.op, operand)
+		bestRequired := vm.MinStackSizeForImmediate(c.op, best)
+		if c.kind == immediateFitsStack && required < bestRequired {
+			best = operand // < the smallest requirement is the loosest lower bound
+		}
+		if c.kind == immediateExceedsStack && required > bestRequired {
+			best = operand // < the largest requirement is the loosest upper bound
+		}
+	}
+	return best
+}
+
+// immediateProperty is the state property addressed by operand test values.
+const immediateProperty = Property("code[PC+1]")
+
+// restrictImmediateOperand constrains the generator to place the given operand
+// behind the instruction at the program counter.
+func restrictImmediateOperand(generator *gen.StateGenerator, operand byte) {
+	position := Pc()
+	position.BindTo(generator)
+	generator.AddCodeOperation(position.GetVariable(), 1, vm.OpCode(operand))
+}
+
+// immediateOperandTestValues lists the operands worth testing for op: the
+// boundaries of the range EIP-8024 excludes, the operands decoding to the
+// smallest and largest stack positions, and the operand a truncated code
+// reads as.
+func immediateOperandTestValues(op vm.OpCode) []byte {
+	switch op {
+	case vm.DUPN, vm.SWAPN:
+		return []byte{
+			0,   // < what is read past the end of the code, decodes to 145
+			90,  // < largest operand below the excluded range, decodes to 235
+			91,  // < JUMPDEST, excluded
+			95,  // < PUSH0, excluded
+			96,  // < PUSH1, excluded
+			127, // < PUSH32, the largest excluded operand
+			128, // < smallest operand above the excluded range, decodes to 17
+			255, // < largest operand, decodes to 144
+		}
+	case vm.EXCHANGE:
+		return []byte{
+			0,   // < what is read past the end of the code, decodes to (9,16)
+			81,  // < largest operand below the excluded range, decodes to (14,15)
+			82,  // < excluded for EXCHANGE only, admissible for DUPN and SWAPN
+			91,  // < JUMPDEST, excluded
+			96,  // < PUSH1, excluded
+			127, // < PUSH32, the largest excluded operand
+			128, // < smallest operand above the excluded range, decodes to (1,16)
+			142, // < decodes to (1,2), the smallest stack requirement
+			143, // < decodes to (1,29), the largest stack requirement
+			255, // < decodes to (1,22)
+		}
+	}
+	return nil
 }

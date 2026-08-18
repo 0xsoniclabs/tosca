@@ -308,6 +308,33 @@ func (opCodeDomain) SamplesForAll([]vm.OpCode) []vm.OpCode {
 }
 
 ////////////////////////////////////////////////////////////
+// Immediate Operand
+
+// immediateDomain is the domain of the one-byte immediate operands introduced
+// by EIP-8024.
+type immediateDomain struct{}
+
+func (immediateDomain) Equal(a byte, b byte) bool     { return a == b }
+func (immediateDomain) Less(a byte, b byte) bool      { return a < b }
+func (immediateDomain) Predecessor(a byte) byte       { return a - 1 }
+func (immediateDomain) Successor(a byte) byte         { return a + 1 }
+func (immediateDomain) SomethingNotEqual(a byte) byte { return a + 1 }
+
+func (d immediateDomain) Samples(a byte) []byte {
+	return d.SamplesForAll([]byte{a})
+}
+
+func (immediateDomain) SamplesForAll(as []byte) []byte {
+	// The boundaries of the ranges excluded by EIP-8024 for DUPN/SWAPN and for
+	// EXCHANGE, plus the values decoding to the smallest and largest operands.
+	res := []byte{0, 81, 82, 90, 91, 127, 128, 255}
+	for _, a := range as {
+		res = append(res, a-1, a, a+1)
+	}
+	return removeDuplicatesGeneric[byte](res)
+}
+
+////////////////////////////////////////////////////////////
 // Stack Size
 
 type stackSizeDomain struct{}
