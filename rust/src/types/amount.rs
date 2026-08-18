@@ -261,12 +261,12 @@ impl Shl for u256 {
     type Output = Self;
 
     fn shl(self, rhs: Self) -> Self::Output {
-        let [shift, rest @ ..] = rhs.to_le_bytes();
+        let (hi, lo) = rhs.0.into_words();
         // rhs > 255
-        if rest != [0; 31] {
+        if hi != 0 || lo > 0xff {
             return u256::ZERO;
         }
-        Self(self.0.wrapping_shl(u32::from(shift)))
+        Self(self.0.wrapping_shl(lo as u32))
     }
 }
 
@@ -282,12 +282,12 @@ impl Shr for u256 {
     type Output = Self;
 
     fn shr(self, rhs: Self) -> Self::Output {
-        let [shift, rest @ ..] = rhs.to_le_bytes();
+        let (hi, lo) = rhs.0.into_words();
         // rhs > 255
-        if rest != [0; 31] {
+        if hi != 0 || lo > 0xff {
             return u256::ZERO;
         }
-        Self(self.0.wrapping_shr(u32::from(shift)))
+        Self(self.0.wrapping_shr(lo as u32))
     }
 }
 
@@ -389,16 +389,10 @@ impl u256 {
             return rhs;
         }
 
-        let byte = 31 - lhs; // lhs < 31 so this is in 1..=31 and the shifts below stay below 256
-        let negative = (rhs.to_le_bytes()[lhs] & 0x80) > 0;
-
-        let res = if negative {
-            rhs.0 | (U256::MAX << ((32 - byte) * 8))
-        } else {
-            rhs.0 & (U256::MAX >> (byte * 8))
-        };
-
-        Self(res)
+        // Move the sign byte up to the top, then replicate its sign bit back down.
+        // lhs < 31 so the shift stays below 256.
+        let shift = (31 - lhs) as u32 * 8;
+        Self(rhs.0.wrapping_shl(shift).as_i256().wrapping_shr(shift).as_u256())
     }
 
     pub fn slt(&self, rhs: &Self) -> bool {
@@ -417,27 +411,25 @@ impl u256 {
         if index >= 32u8.into() {
             return u256::ZERO;
         }
-        let idx = index.to_le_bytes()[0];
-        self.to_le_bytes()[31 - idx as usize].into()
+        let (hi, lo) = self.0.into_words();
+        // Position of the requested byte, counted from the least significant one.
+        let pos = 31 - index.least_significant_byte();
+        let half = if pos < 16 { lo } else { hi };
+        ((half >> ((pos % 16) * 8)) as u8).into()
     }
 
     pub fn sar(self, rhs: Self) -> Self {
         let lhs = self.0.as_i256();
-        let [shift, rest @ ..] = rhs.to_le_bytes();
+        let (hi, lo) = rhs.0.into_words();
         // rhs > 255
-        if rest != [0; 31] {
+        if hi != 0 || lo > 0xff {
             if lhs.is_negative() {
                 return u256::MAX;
             } else {
                 return u256::ZERO;
             }
         }
-        let shift = u32::from(shift);
-        let mut shr = self.0.wrapping_shr(shift);
-        if lhs.is_negative() {
-            shr |= U256::MAX.wrapping_shl(255 - shift);
-        }
-        Self(shr)
+        Self(lhs.wrapping_shr(lo as u32).as_u256())
     }
 
     pub fn leading_zeros(&self) -> u32 {
