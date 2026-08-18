@@ -75,6 +75,7 @@ func (p *Processor) Run(
 	config := newEVMConfig(p.Interpreter, p.EthereumCompatible)
 	config.NoBaseFee = internal // Disable base fee check for internal transactions
 	evm := vm.NewEVM(blockContext, stateDB, chainConfig, config)
+	defer evm.Release()
 	evm.TxContext = txContext
 
 	msg := transactionToMessage(transaction, gasPrice, blobHashes)
@@ -227,16 +228,19 @@ func newEVMConfig(interpreter tosca.Interpreter, ethereumCompatible bool) vm.Con
 }
 
 func transactionToMessage(transaction tosca.Transaction, gasPrice tosca.Value, blobHashes []common.Hash) *core.Message {
-	accessList := types.AccessList{}
-	for _, tuple := range transaction.AccessList {
-		storageKeys := make([]common.Hash, len(tuple.Keys))
-		for i, key := range tuple.Keys {
-			storageKeys[i] = common.Hash(key)
+	var accessList types.AccessList
+	if transaction.AccessList != nil {
+		accessList = make(types.AccessList, len(transaction.AccessList))
+		for idx, tuple := range transaction.AccessList {
+			storageKeys := make([]common.Hash, len(tuple.Keys))
+			for i, key := range tuple.Keys {
+				storageKeys[i] = common.Hash(key)
+			}
+			accessList[idx] = types.AccessTuple{
+				Address:     common.Address(tuple.Address),
+				StorageKeys: storageKeys,
+			}
 		}
-		accessList = append(accessList, types.AccessTuple{
-			Address:     common.Address(tuple.Address),
-			StorageKeys: storageKeys,
-		})
 	}
 
 	var authorizations []types.SetCodeAuthorization
@@ -255,18 +259,23 @@ func transactionToMessage(transaction tosca.Transaction, gasPrice tosca.Value, b
 		}
 	}
 
+	var blobGasFeeCap *uint256.Int
+	if blobHashes != nil {
+		blobGasFeeCap = transaction.BlobGasFeeCap.ToUint256()
+	}
+
 	return &core.Message{
 		From:                  common.Address(transaction.Sender),
 		To:                    (*common.Address)(transaction.Recipient),
 		Nonce:                 transaction.Nonce,
-		Value:                 transaction.Value.ToBig(),
+		Value:                 transaction.Value.ToUint256(),
 		GasLimit:              uint64(transaction.GasLimit),
-		GasPrice:              gasPrice.ToBig(),
-		GasFeeCap:             transaction.GasFeeCap.ToBig(),
-		GasTipCap:             transaction.GasTipCap.ToBig(),
+		GasPrice:              gasPrice.ToUint256(),
+		GasFeeCap:             transaction.GasFeeCap.ToUint256(),
+		GasTipCap:             transaction.GasTipCap.ToUint256(),
 		Data:                  transaction.Input,
 		AccessList:            accessList,
-		BlobGasFeeCap:         transaction.BlobGasFeeCap.ToBig(),
+		BlobGasFeeCap:         blobGasFeeCap,
 		BlobHashes:            blobHashes,
 		SetCodeAuthorizations: authorizations,
 	}

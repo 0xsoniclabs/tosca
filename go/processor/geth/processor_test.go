@@ -130,29 +130,37 @@ func TestTransactionToMessage_BasicFields(t *testing.T) {
 	if msg.Nonce != tx.Nonce {
 		t.Errorf("Nonce mismatch: got %d, want %d", msg.Nonce, tx.Nonce)
 	}
-	if msg.Value.Cmp(tx.Value.ToBig()) != 0 {
-		t.Errorf("Value mismatch: got %v, want %v", msg.Value, tx.Value.ToBig())
+	if msg.Value.Cmp(tx.Value.ToUint256()) != 0 {
+		t.Errorf("Value mismatch: got %v, want %v", msg.Value, tx.Value.ToUint256())
 	}
 	if msg.GasLimit != uint64(tx.GasLimit) {
 		t.Errorf("GasLimit mismatch: got %d, want %d", msg.GasLimit, tx.GasLimit)
 	}
-	if msg.GasPrice.Cmp(gasPrice.ToBig()) != 0 {
-		t.Errorf("GasPrice mismatch: got %v, want %v", msg.GasPrice, gasPrice.ToBig())
+	if msg.GasPrice.Cmp(gasPrice.ToUint256()) != 0 {
+		t.Errorf("GasPrice mismatch: got %v, want %v", msg.GasPrice, gasPrice.ToUint256())
 	}
-	if msg.GasFeeCap.Cmp(tx.GasFeeCap.ToBig()) != 0 {
-		t.Errorf("GasFeeCap mismatch: got %v, want %v", msg.GasFeeCap, tx.GasFeeCap.ToBig())
+	if msg.GasFeeCap.Cmp(tx.GasFeeCap.ToUint256()) != 0 {
+		t.Errorf("GasFeeCap mismatch: got %v, want %v", msg.GasFeeCap, tx.GasFeeCap.ToUint256())
 	}
-	if msg.GasTipCap.Cmp(tx.GasTipCap.ToBig()) != 0 {
-		t.Errorf("GasTipCap mismatch: got %v, want %v", msg.GasTipCap, tx.GasTipCap.ToBig())
+	if msg.GasTipCap.Cmp(tx.GasTipCap.ToUint256()) != 0 {
+		t.Errorf("GasTipCap mismatch: got %v, want %v", msg.GasTipCap, tx.GasTipCap.ToUint256())
 	}
 	if !bytes.Equal(msg.Data, tx.Input) {
 		t.Errorf("Input mismatch: got %x, want %x", msg.Data, tx.Input)
 	}
-	if msg.BlobGasFeeCap.Cmp(tx.BlobGasFeeCap.ToBig()) != 0 {
-		t.Errorf("BlobGasFeeCap mismatch: got %v, want %v", msg.BlobGasFeeCap, tx.BlobGasFeeCap.ToBig())
+	if msg.BlobGasFeeCap.Cmp(tx.BlobGasFeeCap.ToUint256()) != 0 {
+		t.Errorf("BlobGasFeeCap mismatch: got %v, want %v", msg.BlobGasFeeCap, tx.BlobGasFeeCap.ToUint256())
 	}
 	if len(msg.BlobHashes) != 1 || msg.BlobHashes[0] != blobHashes[0] {
 		t.Errorf("BlobHashes mismatch: got %v, want %v", msg.BlobHashes, blobHashes)
+	}
+}
+
+func TestTransactionToMessage_NonBlobTransactionHasNoBlobGasFeeCap(t *testing.T) {
+	tx := tosca.Transaction{BlobGasFeeCap: tosca.NewValue(1)}
+	msg := transactionToMessage(tx, tosca.NewValue(0), nil)
+	if msg.BlobGasFeeCap != nil {
+		t.Errorf("BlobGasFeeCap should be nil for non-blob transactions, got %v", msg.BlobGasFeeCap)
 	}
 }
 
@@ -182,6 +190,26 @@ func TestTransactionToMessage_AccessList(t *testing.T) {
 	}
 	if msg.AccessList[0].StorageKeys[1] != common.Hash(tx.AccessList[0].Keys[1]) {
 		t.Errorf("StorageKey[1] mismatch")
+	}
+}
+
+func TestTransactionToMessage_AccessListPresenceIsPreserved(t *testing.T) {
+	tests := map[string]struct {
+		accessList []tosca.AccessTuple
+		wantNil    bool
+	}{
+		"absent": {accessList: nil, wantNil: true},
+		"empty":  {accessList: []tosca.AccessTuple{}, wantNil: false},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			tx := tosca.Transaction{AccessList: test.accessList}
+			msg := transactionToMessage(tx, tosca.NewValue(1), nil)
+			if got := msg.AccessList == nil; got != test.wantNil {
+				t.Errorf("unexpected nil-ness of access list, wanted %t, got %t", test.wantNil, got)
+			}
+		})
 	}
 }
 
