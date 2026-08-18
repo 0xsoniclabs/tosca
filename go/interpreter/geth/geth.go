@@ -42,12 +42,13 @@ func (m *gethVm) Run(parameters tosca.Parameters) (tosca.Result, error) {
 		return tosca.Result{}, &tosca.ErrUnsupportedRevision{Revision: parameters.Revision}
 	}
 	evm, contract, stateDb := createGethInterpreterContext(parameters)
+	defer evm.Release()
 
 	output, err := evm.Run(contract, parameters.Input, false)
 
 	result := tosca.Result{
 		Output:    output,
-		GasLeft:   tosca.Gas(contract.Gas),
+		GasLeft:   tosca.Gas(contract.Gas.RegularGas),
 		GasRefund: tosca.Gas(stateDb.GetRefund()),
 		Success:   true,
 	}
@@ -196,7 +197,10 @@ func createGethInterpreterContext(parameters tosca.Parameters) (*geth.EVM, *geth
 
 	value := parameters.Value.ToUint256()
 	addr := common.Address(parameters.Recipient)
-	contract := geth.NewContract(common.Address(parameters.Sender), addr, value, uint64(parameters.Gas), nil)
+	// Tosca does not model the state-gas dimension introduced by EIP-8037, so the
+	// full budget is provided as regular gas and the state reservoir is left empty.
+	gas := geth.NewGasBudget(uint64(parameters.Gas), 0)
+	contract := geth.NewContract(common.Address(parameters.Sender), addr, value, gas, nil)
 	contract.Code = parameters.Code
 	contract.CodeHash = crypto.Keccak256Hash(parameters.Code)
 	contract.Input = parameters.Input

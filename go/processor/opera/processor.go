@@ -159,6 +159,7 @@ func (p *processor) Run(
 
 	stateDb := geth_adapter.NewStateDB(context)
 	evm := geth.NewEVM(blockCtx, stateDb, &chainConfig, config)
+	defer evm.Release()
 	evm.TxContext = txCtx
 
 	// -- start of execution --
@@ -227,21 +228,25 @@ func (p *processor) Run(
 	}
 
 	var (
-		gasLeft         uint64
+		remainingGas    geth.GasBudget
 		output          []byte
 		vmError         error
 		createdContract *tosca.Address
 	)
+	// Tosca does not model the state-gas dimension introduced by EIP-8037, so the
+	// full budget is provided as regular gas and the state reservoir is left empty.
+	initialGas := geth.NewGasBudget(uint64(gas), 0)
 	if contractCreation {
 		var created common.Address
-		output, created, gasLeft, vmError = evm.Create(sender, transaction.Input, uint64(gas), transaction.Value.ToUint256())
+		output, created, remainingGas, vmError = evm.Create(sender, transaction.Input, initialGas, transaction.Value.ToUint256())
 		createdContract = &tosca.Address{}
 		*createdContract = tosca.Address(created)
 	} else {
 		// Increment the nonce to avoid double execution
 		stateDb.SetNonce(common.Address(transaction.Sender), stateDb.GetNonce(common.Address(transaction.Sender))+1, tracing.NonceChangeUnspecified)
-		output, gasLeft, vmError = evm.Call(sender, common.Address(*transaction.Recipient), transaction.Input, uint64(gas), transaction.Value.ToUint256())
+		output, remainingGas, vmError = evm.Call(sender, common.Address(*transaction.Recipient), transaction.Input, initialGas, transaction.Value.ToUint256())
 	}
+	gasLeft := remainingGas.RegularGas
 
 	// For whatever reason, 10% of remaining gas is charged for non-internal transactions.
 	if !isInternal(transaction) {
@@ -476,6 +481,22 @@ type preCompiledStateContract struct{}
 func (preCompiledStateContract) Run(
 	stateDB geth.StateDB,
 	_ geth.BlockContext,
+	txCtx geth.TxContext,
+	caller common.Address,
+	input []byte,
+	suppliedGas geth.GasBudget,
+) ([]byte, geth.GasBudget, error) {
+	// The contract charges regular gas only, thus the state-gas reservoir
+	// introduced by EIP-8037 is handed back to the caller unchanged.
+	output, gasLeft, err := runStateContract(stateDB, txCtx, caller, input, suppliedGas.RegularGas)
+	if err != nil {
+		return output, geth.NewGasBudget(0, suppliedGas.StateGas), err
+	}
+	return output, geth.NewGasBudget(gasLeft, suppliedGas.StateGas), nil
+}
+
+func runStateContract(
+	stateDB geth.StateDB,
 	txCtx geth.TxContext,
 	caller common.Address,
 	input []byte,

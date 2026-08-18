@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/stateless"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/types/bal"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 )
@@ -72,10 +73,6 @@ func (s *StateDB) GetLogs() []types.Log {
 }
 
 // vm.StateDB interface implementation
-
-func (s *StateDB) EmitLogsForBurnAccounts() {
-	// TODO: implement EIP-7708 for Amsterdam hard fork.
-}
 
 func (s *StateDB) CreateAccount(common.Address) {
 	// not implemented
@@ -190,6 +187,12 @@ func (s *StateDB) Exist(address common.Address) bool {
 	return s.context.AccountExists(tosca.Address(address))
 }
 
+// Touch records an access to the given account for the block-level access list,
+// which is not modeled by Tosca.
+func (s *StateDB) Touch(common.Address) {
+	// nothing to do
+}
+
 func (s *StateDB) Empty(address common.Address) bool {
 	return s.context.GetBalance(tosca.Address(address)) == tosca.NewValue(0) &&
 		s.context.GetNonce(tosca.Address(address)) == 0 &&
@@ -278,6 +281,10 @@ func (s *StateDB) AccessEvents() *state.AccessEvents {
 	panic("not implemented")
 }
 
-func (s *StateDB) Finalise(bool) {
+func (s *StateDB) SetTxContext(common.Hash, int, uint32) {
+	panic("not implemented")
+}
+
+func (s *StateDB) Finalise(bool) *bal.ConstructionBlockAccessList {
 	panic("not implemented")
 }

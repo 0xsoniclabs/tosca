@@ -70,7 +70,17 @@ func init() {
 
 type PreCompiledContract struct{}
 
-func (PreCompiledContract) Run(stateDB vm.StateDB, _ vm.BlockContext, txCtx vm.TxContext, caller common.Address, input []byte, suppliedGas uint64) ([]byte, uint64, error) {
+func (PreCompiledContract) Run(stateDB vm.StateDB, _ vm.BlockContext, txCtx vm.TxContext, caller common.Address, input []byte, suppliedGas vm.GasBudget) ([]byte, vm.GasBudget, error) {
+	// The contract charges regular gas only, thus the state-gas reservoir
+	// introduced by EIP-8037 is handed back to the caller unchanged.
+	output, gasLeft, err := runStateContract(stateDB, txCtx, caller, input, suppliedGas.RegularGas)
+	if err != nil {
+		return output, vm.NewGasBudget(0, suppliedGas.StateGas), err
+	}
+	return output, vm.NewGasBudget(gasLeft, suppliedGas.StateGas), nil
+}
+
+func runStateContract(stateDB vm.StateDB, txCtx vm.TxContext, caller common.Address, input []byte, suppliedGas uint64) ([]byte, uint64, error) {
 	if caller != driverAddress {
 		return nil, 0, vm.ErrExecutionReverted
 	}

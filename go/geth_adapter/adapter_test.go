@@ -42,6 +42,11 @@ type StateDb interface {
 	geth.StateDB
 }
 
+type StateDbWithStorageRoot interface {
+	geth.StateDB
+	GetStorageRoot(common.Address) common.Hash
+}
+
 func TestGethAdapter_RunContextAdapterImplementsRunContextInterface(t *testing.T) {
 	var _ tosca.RunContext = &runContextAdapter{}
 }
@@ -687,33 +692,6 @@ func TestRunContextAdapter_BooleanChecksReturnCorrectValues(t *testing.T) {
 		want         bool
 		functionCall func(adapter *runContextAdapter) bool
 	}{
-		"hasEmptyStorage-empty": {
-			primingMock: func(stateDb *MockStateDb) {
-				stateDb.EXPECT().GetStorageRoot(common.Address{0x42}).Return(common.Hash{})
-			},
-			want: true,
-			functionCall: func(adapter *runContextAdapter) bool {
-				return adapter.HasEmptyStorage(tosca.Address{0x42})
-			},
-		},
-		"hasEmptyStorage-emptyHash": {
-			primingMock: func(stateDb *MockStateDb) {
-				stateDb.EXPECT().GetStorageRoot(common.Address{0x42}).Return(types.EmptyRootHash)
-			},
-			want: true,
-			functionCall: func(adapter *runContextAdapter) bool {
-				return adapter.HasEmptyStorage(tosca.Address{0x42})
-			},
-		},
-		"hasEmptyStorage-nonEmpty": {
-			primingMock: func(stateDb *MockStateDb) {
-				stateDb.EXPECT().GetStorageRoot(common.Address{0x42}).Return(common.Hash{0x01})
-			},
-			want: false,
-			functionCall: func(adapter *runContextAdapter) bool {
-				return adapter.HasEmptyStorage(tosca.Address{0x42})
-			},
-		},
 		"hasSelfdestructed-true": {
 			primingMock: func(stateDb *MockStateDb) {
 				stateDb.EXPECT().HasSelfDestructed(common.Address{0x42}).Return(true)
@@ -766,6 +744,36 @@ func TestRunContextAdapter_BooleanChecksReturnCorrectValues(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRunContextAdapter_HasEmptyStorageIsDerivedFromStorageRoot(t *testing.T) {
+	tests := map[string]struct {
+		root common.Hash
+		want bool
+	}{
+		"zero hash":       {common.Hash{}, true},
+		"empty root hash": {types.EmptyRootHash, true},
+		"non-empty":       {common.Hash{0x01}, false},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			stateDb := NewMockStateDbWithStorageRoot(ctrl)
+			stateDb.EXPECT().GetStorageRoot(common.Address{0x42}).Return(test.root)
+
+			adapter := &runContextAdapter{evm: &geth.EVM{StateDB: stateDb}}
+			require.Equal(t, test.want, adapter.HasEmptyStorage(tosca.Address{0x42}))
+		})
+	}
+}
+
+func TestRunContextAdapter_HasEmptyStorageReportsEmptyStorageIfRootIsNotAvailable(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	stateDb := NewMockStateDb(ctrl)
+
+	adapter := &runContextAdapter{evm: &geth.EVM{StateDB: stateDb}}
+	require.True(t, adapter.HasEmptyStorage(tosca.Address{0x42}))
 }
 
 func TestRunContextAdapter_GetBlockHashReturnsBasedOnBlockNumber(t *testing.T) {
@@ -866,8 +874,8 @@ func TestRunContextAdapter_Call_LeftGasIsConstraintByZeroAndInputGas(t *testing.
 	for gasIn := tosca.Gas(-100); gasIn < tosca.Gas(100); gasIn++ {
 		for gasOut := tosca.Gas(-100); gasOut < tosca.Gas(100); gasOut++ {
 			any := gomock.Any()
-			calls.EXPECT().Call(any, any, any, any, uint64(gasIn), any).Return(
-				nil, uint64(gasOut), nil,
+			calls.EXPECT().Call(any, any, any, any, geth.NewGasBudget(uint64(gasIn), 0), any).Return(
+				nil, geth.NewGasBudget(uint64(gasOut), 0), nil,
 			)
 
 			evm := newEVMWithPassingChainConfig()
@@ -902,7 +910,7 @@ func TestRunContextAdapter_Call_LeftGasOverflowLeadsToZeroGas(t *testing.T) {
 	for _, gasOut := range overflows {
 		any := gomock.Any()
 		calls.EXPECT().Call(any, any, any, any, any, any).Return(
-			nil, gasOut, nil,
+			nil, geth.NewGasBudget(gasOut, 0), nil,
 		)
 
 		evm := newEVMWithPassingChainConfig()
@@ -1069,7 +1077,7 @@ func TestRunContextAdapter_Interpret(t *testing.T) {
 				stateDb.EXPECT().SubRefund(uint64(0))
 			}
 
-			contract := geth.NewContract(common.Address(address), common.Address(address), nil, 0, nil)
+			contract := geth.NewContract(common.Address(address), common.Address(address), nil, geth.GasBudget{}, nil)
 			contract.CodeHash = common.Hash(codeHash)
 
 			_, err := adapter.Interpret(contract, []byte{}, false)
@@ -1116,7 +1124,7 @@ func TestRunContextAdapter_MaximumCallDepthIsEnforced(t *testing.T) {
 				evm:         evm,
 				interpreter: interpreter,
 			}
-			contract := geth.NewContract(common.Address{}, common.Address{}, nil, 0, nil)
+			contract := geth.NewContract(common.Address{}, common.Address{}, nil, geth.GasBudget{}, nil)
 			_, err := adapter.Interpret(contract, []byte{}, false)
 			if depth <= int(params.CallCreateDepth) {
 				require.NoError(t, err, "expected no error for depth %d", depth)
@@ -1184,7 +1192,7 @@ func TestGethAdapter_CorruptValuesReturnErrors(t *testing.T) {
 			stateDb.EXPECT().SubRefund(gomock.Any())
 
 			address := tosca.Address{0x42}
-			contract := geth.NewContract(common.Address(address), common.Address(address), nil, 0, nil)
+			contract := geth.NewContract(common.Address(address), common.Address(address), nil, geth.GasBudget{}, nil)
 
 			ret, err := adapter.Interpret(contract, nil, false)
 			require.Error(t, err, "could not convert"+name)
@@ -1199,6 +1207,7 @@ func TestGethAdapter_CallForwardsToTheRightKind(t *testing.T) {
 	codeAddress := common.Address{0x44}
 	input := []byte{0x01, 0x02, 0x03}
 	gas := uint64(1000)
+	gasBudget := geth.NewGasBudget(gas, 0)
 	value := uint256.NewInt(100)
 	salt := uint256.NewInt(200)
 
@@ -1210,38 +1219,38 @@ func TestGethAdapter_CallForwardsToTheRightKind(t *testing.T) {
 		"call": {
 			kind: tosca.Call,
 			setup: func(mock *MockCallContextInterceptor) {
-				mock.EXPECT().Call(any, sender, recipient, input, gas, value)
+				mock.EXPECT().Call(any, sender, recipient, input, gasBudget, value)
 			},
 		},
 		"delegateCall": {
 			kind: tosca.DelegateCall,
 			setup: func(mock *MockCallContextInterceptor) {
-				mock.EXPECT().DelegateCall(any, sender, codeAddress, input, gas)
+				mock.EXPECT().DelegateCall(any, sender, codeAddress, input, gasBudget)
 			},
 		},
 		"staticCall": {
 			kind: tosca.StaticCall,
 			setup: func(mock *MockCallContextInterceptor) {
-				mock.EXPECT().StaticCall(any, sender, recipient, input, gas)
+				mock.EXPECT().StaticCall(any, sender, recipient, input, gasBudget)
 			},
 		},
 		"callCode": {
 			kind: tosca.CallCode,
 			setup: func(mock *MockCallContextInterceptor) {
-				mock.EXPECT().CallCode(any, sender, codeAddress, input, gas, value)
+				mock.EXPECT().CallCode(any, sender, codeAddress, input, gasBudget, value)
 			},
 		},
 
 		"create": {
 			kind: tosca.Create,
 			setup: func(mock *MockCallContextInterceptor) {
-				mock.EXPECT().Create(any, sender, input, gas, value)
+				mock.EXPECT().Create(any, sender, input, gasBudget, value)
 			},
 		},
 		"create2": {
 			kind: tosca.Create2,
 			setup: func(mock *MockCallContextInterceptor) {
-				mock.EXPECT().Create2(any, sender, input, gas, value, salt)
+				mock.EXPECT().Create2(any, sender, input, gasBudget, value, salt)
 			},
 		},
 	}
@@ -1252,7 +1261,13 @@ func TestGethAdapter_CallForwardsToTheRightKind(t *testing.T) {
 			calls := NewMockCallContextInterceptor(ctrl)
 			test.setup(calls)
 
+			// Geth derives the address of a create target before consulting the
+			// call interceptor, requiring access to the sender's nonce.
+			stateDb := NewMockStateDb(ctrl)
+			stateDb.EXPECT().GetNonce(sender).Return(uint64(0)).AnyTimes()
+
 			evm := newEVMWithPassingChainConfig()
+			evm.StateDB = stateDb
 			evm.CallInterceptor = calls
 			adapter := &runContextAdapter{evm: evm, caller: sender}
 
@@ -1291,7 +1306,7 @@ func TestGethAdapter_UnknownErrorsFromCallAreForwarded(t *testing.T) {
 
 	any := gomock.Any()
 	calls.EXPECT().Call(any, any, any, any, any, any).Return(
-		nil, uint64(0), fmt.Errorf("failed"),
+		nil, geth.GasBudget{}, fmt.Errorf("failed"),
 	)
 
 	evm := newEVMWithPassingChainConfig()
@@ -1465,13 +1480,21 @@ func TestRunContextAdapter_ConvertRevision(t *testing.T) {
 }
 
 func TestRunContextAdapter_ConvertRevisionReturnsUnsupportedRevisionError(t *testing.T) {
-	rules := params.Rules{
-		IsHomestead: true,
+	tests := map[string]params.Rules{
+		"before Istanbul": {IsHomestead: true},
+		"Amsterdam":       {IsAmsterdam: true},
+		"Bogota":          {IsBogota: true},
+		"UBT":             {IsUBT: true},
 	}
-	_, err := convertRevision(rules)
-	targetError := &tosca.ErrUnsupportedRevision{}
-	if !errors.As(err, &targetError) {
-		t.Errorf("Expected unsupported revision error, got %v", err)
+
+	for name, rules := range tests {
+		t.Run(name, func(t *testing.T) {
+			_, err := convertRevision(rules)
+			targetError := &tosca.ErrUnsupportedRevision{}
+			if !errors.As(err, &targetError) {
+				t.Errorf("Expected unsupported revision error, got %v", err)
+			}
+		})
 	}
 }
 
@@ -1799,7 +1822,7 @@ func TestGethAdapter_InterpreterReturnsAreHandledCorrectly(t *testing.T) {
 			}
 
 			address := tosca.Address{0x42}
-			contract := geth.NewContract(common.Address(address), common.Address(address), nil, uint64(contractGas), nil)
+			contract := geth.NewContract(common.Address(address), common.Address(address), nil, geth.NewGasBudget(uint64(contractGas), 0), nil)
 			result, err := adapter.Interpret(contract, []byte{}, false)
 
 			require.Equal(t, test.expectedOutput, result, "Output should match expected output")
@@ -1808,7 +1831,7 @@ func TestGethAdapter_InterpreterReturnsAreHandledCorrectly(t *testing.T) {
 			} else {
 				require.ErrorContains(t, err, test.expectedError.Error(), "Error should match expected error")
 			}
-			require.Equal(t, test.expectedContractGas, tosca.Gas(contract.Gas), "Contract gas should match expected value")
+			require.Equal(t, test.expectedContractGas, tosca.Gas(contract.Gas.RegularGas), "Contract gas should match expected value")
 		})
 	}
 }
@@ -1886,7 +1909,7 @@ func TestGethAdapter_RefundShiftIsAlwaysUndone(t *testing.T) {
 				interpreter: interpreter,
 			}
 
-			contract := geth.NewContract(common.Address(address), common.Address(address), nil, 0, nil)
+			contract := geth.NewContract(common.Address(address), common.Address(address), nil, geth.GasBudget{}, nil)
 			interpreter.EXPECT().Run(gomock.Any()).Return(tosca.Result{Success: test.success, GasRefund: test.gasRefund}, nil)
 			_, err := adapter.Interpret(contract, []byte{}, false)
 			if test.success && err != nil {
