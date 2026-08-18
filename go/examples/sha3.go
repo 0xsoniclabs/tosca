@@ -72,7 +72,7 @@ func GetSha3Example() Example {
 func sha3Ref(x int) int {
 	var hash common.Hash
 	hasher := sha3.NewLegacyKeccak256()
-	for i := 0; i < x; i++ {
+	for range x {
 		hasher.Reset()
 		hasher.Write(hash[:])
 		hasher.Sum(hash[0:0])

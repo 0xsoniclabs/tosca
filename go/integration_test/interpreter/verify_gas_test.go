@@ -285,7 +285,7 @@ func addValuesToStack(stackValues []*big.Int, pushGas tosca.Gas) ([]byte, tosca.
 		wantGas tosca.Gas
 	)
 
-	for i := 0; i < stackValuesCount; i++ {
+	for i := range stackValuesCount {
 		code, wantGas = addBytesToStack(stackValues[i].Bytes(), code, wantGas, pushGas)
 	}
 	return code, wantGas
@@ -345,7 +345,7 @@ func getCallInstructionGas(t *testing.T, revision Revision, callCode []byte) tos
 
 	evm := GetCleanEVM(revision, "geth", mockStateDB)
 
-	for i := 0; i < len(stackValues); i++ {
+	for i := range stackValues {
 		valueBytes := stackValues[i].Bytes()
 		if len(valueBytes) == 0 {
 			valueBytes = []byte{0}
@@ -398,7 +398,7 @@ func putCallReturnValue(t *testing.T, revision Revision, code []byte, mockStateD
 	zeroVal := big.NewInt(0)
 	stackCallValues := []*big.Int{zeroVal, zeroVal, zeroVal, zeroVal, zeroVal, addressToBigInt(account), big.NewInt(int64(gas))}
 
-	for i := 0; i < len(stackCallValues); i++ {
+	for i := range stackCallValues {
 		valueBytes := stackCallValues[i].Bytes()
 		if len(valueBytes) == 0 {
 			valueBytes = []byte{0}

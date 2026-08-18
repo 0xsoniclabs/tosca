@@ -18,7 +18,7 @@ import (
 
 func TestOpCode_ValidOpCodes(t *testing.T) {
 	noPrettyPrint := regexp.MustCompile(`^op\(0x[0-9A-F][0-9A-F]\)$`)
-	for i := 0; i < 256; i++ {
+	for i := range 256 {
 		op := OpCode(i)
 
 		want := !noPrettyPrint.MatchString(op.String())
@@ -36,7 +36,7 @@ func TestOpCode_ValidOpCodesNoPush(t *testing.T) {
 	validOps := ValidOpCodesNoPush()
 
 	noPrettyPrint := regexp.MustCompile(`^op\(0x[0-9A-F][0-9A-F]\)$`)
-	for i := 0; i < 256; i++ {
+	for i := range 256 {
 		op := OpCode(i)
 
 		shouldBePresent := !noPrettyPrint.MatchString(op.String())
@@ -56,7 +56,7 @@ func TestOpCode_ValidOpCodesNoPush(t *testing.T) {
 
 func TestOpCode_CanBePrinted(t *testing.T) {
 	validName := regexp.MustCompile(`^op\(0x[0-9A-F][0-9A-F]\)|([A-Z0-9]+)$`)
-	for i := 0; i < 256; i++ {
+	for i := range 256 {
 		op := OpCode(i)
 		if !validName.MatchString(op.String()) {
 			t.Errorf("Invalid print for op %v (%d)", op, i)
@@ -83,7 +83,7 @@ func TestOpCode_NumberOfOpCodes(t *testing.T) {
 		// TODO: CLZ // Osaka
 	}
 
-	for i := 0; i < 256; i++ {
+	for i := range 256 {
 		op := OpCode(i)
 		if slices.Contains(currentOpCodes, op) && (!IsValid(op) && op != INVALID) {
 			t.Errorf("Missing OpCode %v", op)

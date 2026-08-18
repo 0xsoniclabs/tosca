@@ -269,7 +269,7 @@ func (a *U256) UnmarshalText(text []byte) error {
 		return fmt.Errorf("invalid U256: %s", text)
 	}
 
-	for j := 0; j < 4; j++ {
+	for j := range 4 {
 		var err error
 		a.internal[j], err = strconv.ParseUint(string(match[4-j]), 16, 64)
 		if err != nil {

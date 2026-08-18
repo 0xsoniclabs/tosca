@@ -35,7 +35,7 @@ var (
 func TestProcessor_Examples(t *testing.T) {
 	for _, example := range processorExamples {
 		for processorName, processor := range getProcessors() {
-			for i := 0; i < 10; i++ {
+			for i := range 10 {
 				t.Run(fmt.Sprintf("%s-%s-%d", example.Name, processorName, i), func(t *testing.T) {
 					want := example.RunReference(i)
 					scenario := getScenarioContext(tosca.Address{1}, tosca.Address{2}, example.Code, tosca.Gas(1000000))

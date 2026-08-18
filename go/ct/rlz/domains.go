@@ -93,7 +93,7 @@ func (uint16Domain) SamplesForAll(as []uint16) []uint16 {
 	}
 
 	// Add all powers of 2.
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		res = append(res, uint16(1<<i))
 	}
 
@@ -301,7 +301,7 @@ func (opCodeDomain) Samples(a vm.OpCode) []vm.OpCode         { return []vm.OpCod
 
 func (opCodeDomain) SamplesForAll([]vm.OpCode) []vm.OpCode {
 	res := make([]vm.OpCode, 0, 256)
-	for i := 0; i < 256; i++ {
+	for i := range 256 {
 		res = append(res, vm.OpCode(i))
 	}
 	return res

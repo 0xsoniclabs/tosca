@@ -42,7 +42,7 @@ func (r Revision) String() string {
 
 func GetAllKnownRevisions() []Revision {
 	res := []Revision{}
-	for i := 0; i < numRevisions; i++ {
+	for i := range numRevisions {
 		res = append(res, Revision(i))
 	}
 	return res

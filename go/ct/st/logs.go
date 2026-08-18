@@ -66,10 +66,7 @@ func (l *Logs) Diff(other *Logs) (res []string) {
 		res = append(res, fmt.Sprintf("Different log count: %v vs %v", len(l.Entries), len(other.Entries)))
 	}
 
-	minLength := len(l.Entries)
-	if len(other.Entries) < minLength {
-		minLength = len(other.Entries)
-	}
+	minLength := min(len(other.Entries), len(l.Entries))
 
 	for i := 0; i < minLength; i++ {
 		aEntry, bEntry := l.Entries[i], other.Entries[i]

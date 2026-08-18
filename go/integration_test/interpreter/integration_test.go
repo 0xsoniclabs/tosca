@@ -230,10 +230,7 @@ func TestCodeCopy(t *testing.T) {
 					want := make([]byte, test.size.Int64())
 					if test.offset.Cmp(big.NewInt(int64(len(code)))) < 0 {
 						start := int(test.offset.Uint64())
-						end := start + int(test.size.Uint64())
-						if end > len(code) {
-							end = len(code)
-						}
+						end := min(start+int(test.size.Uint64()), len(code))
 						copy(want, code[start:end])
 					}
 					if got := res.Output; !bytes.Equal(got, want) {
@@ -1058,7 +1055,7 @@ func getBytes(num uint64) []byte {
 // Get array of random big Integers
 func getRandomBigIntArray(count int) []*big.Int {
 	ret := make([]*big.Int, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		ret[i] = big.NewInt(0).SetBytes(getRadomByte32())
 	}
 	return ret
@@ -1067,7 +1064,7 @@ func getRandomBigIntArray(count int) []*big.Int {
 // Get 32 byte array of random bytes
 func getRadomByte32() []byte {
 	array := make([]byte, 32)
-	for i := 0; i < 32; i++ {
+	for i := range 32 {
 		array[i] = byte(rand.Intn(256))
 	}
 	return array

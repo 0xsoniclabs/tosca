@@ -123,7 +123,7 @@ func (s *statistics) print() string {
 	}
 
 	builder := strings.Builder{}
-	write := func(format string, args ...interface{}) {
+	write := func(format string, args ...any) {
 		builder.WriteString(fmt.Sprintf(format, args...))
 	}
 

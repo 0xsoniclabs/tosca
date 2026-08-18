@@ -295,9 +295,9 @@ func TestConstant_EvalReturnsValue(t *testing.T) {
 func TestExpression_RestrictPanicsWhenCalledWithCertainKind(t *testing.T) {
 
 	tests := map[string]struct {
-		expression interface{}
+		expression any
 		kind       RestrictionKind
-		value      interface{}
+		value      any
 	}{
 		"Status":       {Status(), RestrictGreater, st.Reverted},
 		"Pc":           {Pc(), RestrictGreater, NewU256(42)},

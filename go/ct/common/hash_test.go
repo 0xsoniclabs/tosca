@@ -20,7 +20,7 @@ import (
 func TestHash_GetRandomHash(t *testing.T) {
 	rnd := rand.New()
 	hashes := []tosca.Hash{}
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		hashes = append(hashes, GetRandomHash(rnd))
 		for j := 0; j < i; j++ {
 			if hashes[i] == hashes[j] {

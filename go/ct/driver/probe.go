@@ -82,9 +82,7 @@ func doProbe(context *cli.Context) error {
 	counter := atomic.Uint64{}
 	stopProgressPrinter := make(chan struct{})
 	var progressGroup sync.WaitGroup
-	progressGroup.Add(1)
-	go func() {
-		defer progressGroup.Done()
+	progressGroup.Go(func() {
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 		startTime := time.Now()
@@ -111,7 +109,7 @@ func doProbe(context *cli.Context) error {
 				}
 			}
 		}
-	}()
+	})
 
 	issuesCollector := &cliUtils.IssuesCollector{}
 

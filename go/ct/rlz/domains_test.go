@@ -29,38 +29,38 @@ func TestRemoveDuplicatesGeneric(t *testing.T) {
 		expected     any
 	}{
 		"empty": {
-			generic_type: reflect.TypeOf(1),
+			generic_type: reflect.TypeFor[int](),
 			input:        []int{},
 			expected:     []int{},
 		},
 		"int-with-duplicates": {
-			generic_type: reflect.TypeOf(1),
+			generic_type: reflect.TypeFor[int](),
 			input:        []int{1, 2, 3, 2, 4, 3, 5, 1},
 			expected:     []int{1, 2, 3, 4, 5},
 		},
 		"int-no-duplicates": {
-			generic_type: reflect.TypeOf(1),
+			generic_type: reflect.TypeFor[int](),
 
 			input:    []int{1, 2, 3, 4, 5},
 			expected: []int{1, 2, 3, 4, 5},
 		},
 		"string-with-duplicates": {
-			generic_type: reflect.TypeOf(""),
+			generic_type: reflect.TypeFor[string](),
 			input:        []string{"apple", "banana", "orange", "banana", "kiwi", "orange"},
 			expected:     []string{"apple", "banana", "orange", "kiwi"},
 		},
 		"string-no-duplicates": {
-			generic_type: reflect.TypeOf(""),
+			generic_type: reflect.TypeFor[string](),
 			input:        []string{"apple", "banana", "orange", "kiwi"},
 			expected:     []string{"apple", "banana", "orange", "kiwi"},
 		},
 		"float-with-duplicates": {
-			generic_type: reflect.TypeOf(1.1),
+			generic_type: reflect.TypeFor[float64](),
 			input:        []float64{1.1, 2.2, 3.3, 2.2, 4.4, 3.3, 5.5, 1.1},
 			expected:     []float64{1.1, 2.2, 3.3, 4.4, 5.5},
 		},
 		"float-no-duplicates": {
-			generic_type: reflect.TypeOf(1.1),
+			generic_type: reflect.TypeFor[float64](),
 			input:        []float64{1.1, 2.2, 3.3, 4.4, 5.5},
 			expected:     []float64{1.1, 2.2, 3.3, 4.4, 5.5},
 		},
@@ -70,11 +70,11 @@ func TestRemoveDuplicatesGeneric(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			var result any
 			switch tc.generic_type {
-			case reflect.TypeOf(1):
+			case reflect.TypeFor[int]():
 				result = removeDuplicatesGeneric[int](tc.input.([]int))
-			case reflect.TypeOf(""):
+			case reflect.TypeFor[string]():
 				result = removeDuplicatesGeneric[string](tc.input.([]string))
-			case reflect.TypeOf(1.1):
+			case reflect.TypeFor[float64]():
 				result = removeDuplicatesGeneric[float64](tc.input.([]float64))
 			default:
 				t.Errorf("Add type to test cases: %v", tc.generic_type)
@@ -443,7 +443,7 @@ func TestDomain_SomethingNotEqual(t *testing.T) {
 func TestDomain_SamplesKnownValues(t *testing.T) {
 
 	opcodesAllSamples := make([]vm.OpCode, 0, 256)
-	for i := 0; i < 256; i++ {
+	for i := range 256 {
 		opcodesAllSamples = append(opcodesAllSamples, vm.OpCode(i))
 	}
 

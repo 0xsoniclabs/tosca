@@ -27,7 +27,7 @@ type Stack struct {
 }
 
 var stackPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		stack := &Stack{
 			stack: make([]U256, MaxStackSize),
 		}

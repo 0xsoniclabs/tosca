@@ -27,7 +27,7 @@ func TestMemoryGenerator_UnconstrainedGeneratorCanProduceMemory(t *testing.T) {
 func TestMemoryGenerator_SizeIsMultipleOf32(t *testing.T) {
 	rnd := rand.New(0)
 	generator := NewMemoryGenerator()
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		memory, err := generator.Generate(rnd)
 		if err != nil {
 			t.Fatalf("unexpected error during build: %v", err)

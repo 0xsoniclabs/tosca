@@ -52,11 +52,11 @@ func GetMemoryExample() Example {
 
 func memory(n int) int {
 	values := make([]int, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		values[i] = i
 	}
 	valuesCopy := make([]int, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		valuesCopy[i] = values[i]
 	}
 	if n > 0 {

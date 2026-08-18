@@ -137,7 +137,7 @@ func (v *Value) UnmarshalText(data []byte) error {
 }
 
 func bytesToText(data []byte) ([]byte, error) {
-	return []byte(fmt.Sprintf("0x%x", data)), nil
+	return fmt.Appendf(nil, "0x%x", data), nil
 }
 
 func textToBytes(trg []byte, data []byte) error {

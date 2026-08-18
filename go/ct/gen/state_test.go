@@ -612,7 +612,7 @@ func TestStateGenerator_ReturnDataShouldBeEmpty(t *testing.T) {
 func TestStateGenerator_BlockNumberHashes(t *testing.T) {
 	newHashes := []tosca.Hash{}
 	state := genRandomState(t)
-	for i := uint64(0); i < 256; i++ {
+	for i := range uint64(256) {
 		hashi := state.RecentBlockHashes.Get(i)
 		if slices.Contains(newHashes, hashi) {
 			t.Errorf("unexpected hash value, should be unique %v", hashi)

@@ -2569,7 +2569,7 @@ func TestInstructions_opLog(t *testing.T) {
 		},
 	}
 	for name, test := range tests {
-		for n := 0; n < 4; n++ {
+		for n := range 4 {
 			t.Run(fmt.Sprintf("%v/LOG%d", name, n), func(t *testing.T) {
 
 				ctxt := getEmptyContext()

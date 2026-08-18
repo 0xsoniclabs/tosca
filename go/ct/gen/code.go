@@ -149,10 +149,7 @@ func (g *CodeGenerator) Generate(assignment Assignment, rnd *rand.Rand) (*st.Cod
 		// We use an exponential distribution for the code size here since long codes
 		// extend the runtime but are expected to reveal limited extra code coverage.
 		const expectedSize float64 = 200
-		size = int(rnd.ExpFloat64()/(1/expectedSize)) + minSize
-		if size > st.MaxCodeSize {
-			size = st.MaxCodeSize
-		}
+		size = min(int(rnd.ExpFloat64()/(1/expectedSize))+minSize, st.MaxCodeSize)
 	}
 
 	// Solve variable constraints. constOpConstraints are generated, the
@@ -222,10 +219,7 @@ func (g *CodeGenerator) Generate(assignment Assignment, rnd *rand.Rand) (*st.Cod
 		// Fill data if needed and continue with the rest.
 		if vm.PUSH1 <= op && op <= vm.PUSH32 {
 			width := int(op - vm.PUSH1 + 1)
-			end := i + 1 + width
-			if end > len(code) {
-				end = len(code)
-			}
+			end := min(i+1+width, len(code))
 			_, _ = rnd.Read(code[i+1 : end]) // rnd.Read never returns an error
 			i += width
 		}

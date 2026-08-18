@@ -30,10 +30,7 @@ func computeStackUsage(op vm.OpCode) stackUsage {
 	// the opcode's pops and pushes.
 	makeUsage := func(pops, pushes int) stackUsage {
 		delta := pushes - pops
-		to := 0
-		if delta > 0 {
-			to = delta
-		}
+		to := max(delta, 0)
 		return stackUsage{from: -pops, to: to, delta: delta}
 	}
 

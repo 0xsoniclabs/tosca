@@ -47,7 +47,7 @@ func TestExamples_ComputesCorrectResult(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to load %s interpreter: %v", variant, err)
 			}
-			for i := 0; i < 10; i++ {
+			for i := range 10 {
 				t.Run(fmt.Sprintf("%s-%s-%d", example.Name, variant, i), func(t *testing.T) {
 					want := example.RunReference(i)
 					got, err := example.RunOn(vm, i)
@@ -75,7 +75,7 @@ func TestExamples_ComputesCorrectGasPrice(t *testing.T) {
 				if err != nil {
 					t.Fatalf("failed to load %s interpreter: %v", variant, err)
 				}
-				for i := 0; i < 10; i++ {
+				for i := range 10 {
 					t.Run(fmt.Sprintf("%s-%s-%s-%d", example.Name, revision, variant, i), func(t *testing.T) {
 						want, err := example.RunOn(reference, i)
 						if err != nil {

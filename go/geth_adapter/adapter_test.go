@@ -1621,10 +1621,7 @@ func TestGethInterpreterAdapter_RefundShiftIsReverted(t *testing.T) {
 			stateDb := NewMockStateDb(ctrl)
 
 			shift := uint64(42)
-			expectedSub := shift
-			if test.refund < shift {
-				expectedSub = test.refund
-			}
+			expectedSub := min(test.refund, shift)
 
 			if test.err == nil {
 				stateDb.EXPECT().GetRefund().Return(test.refund)

@@ -555,7 +555,7 @@ func TestSteps_FailsWithLessGasThanStaticCost(t *testing.T) {
 func TestInterpreter_InstructionsFailWhenExecutedInRevisionsEarlierThanIntroducedIn(t *testing.T) {
 	for _, op := range allOpCodes() {
 		introducedIn := _introducedIn.get(op)
-		for revision := tosca.R07_Istanbul; revision < introducedIn; revision++ {
+		for revision := range introducedIn {
 			t.Run(fmt.Sprintf("%v/%v", op, revision), func(t *testing.T) {
 				ctxt := getEmptyContext()
 				ctxt.code = []Instruction{{op, 0}}

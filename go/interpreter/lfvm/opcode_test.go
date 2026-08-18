@@ -58,7 +58,7 @@ func TestOpCode_AllOpCodesAreSmallerThanTheOpCodeCapacity(t *testing.T) {
 
 func TestOpcodeProperty_DoesNotOverflow(t *testing.T) {
 	identity := newOpCodePropertyMap(func(op OpCode) OpCode { return op })
-	for i := OpCode(0); i < OpCode(math.MaxInt16); i++ {
+	for i := range OpCode(math.MaxInt16) {
 		if got, want := identity.get(i), i%numOpCodes; got != want {
 			t.Errorf("got %d, want %d", got, want)
 		}
@@ -67,7 +67,7 @@ func TestOpcodeProperty_DoesNotOverflow(t *testing.T) {
 
 func allOpCodesWhere(predicate func(op OpCode) bool) []OpCode {
 	res := []OpCode{}
-	for op := OpCode(0); op < numOpCodes; op++ {
+	for op := range OpCode(numOpCodes) {
 		if predicate(op) {
 			res = append(res, op)
 		}

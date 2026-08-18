@@ -117,7 +117,7 @@ func convertCtStackToSfvmStack(stack *st.Stack) *stack {
 func convertSfvmStackToCtStack(stack *stack, result *st.Stack) *st.Stack {
 	len := stack.len()
 	result.Resize(len)
-	for i := 0; i < len; i++ {
+	for i := range len {
 		result.Set(len-i-1, common.NewU256FromUint256(stack.get(i)))
 	}
 	return result
