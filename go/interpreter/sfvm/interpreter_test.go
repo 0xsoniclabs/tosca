@@ -662,10 +662,11 @@ func benchmarkFib(b *testing.B, arg int) {
 			Input:  data,
 			Static: true,
 		},
-		gas:    1 << 62,
-		code:   example.code,
-		stack:  NewStack(),
-		memory: NewMemory(),
+		gas:      1 << 62,
+		code:     example.code,
+		analysis: findJumpDestinations(example.code),
+		stack:    NewStack(),
+		memory:   NewMemory(),
 	}
 
 	// Compute expected value.
@@ -684,7 +685,6 @@ func benchmarkFib(b *testing.B, arg int) {
 		}
 
 		res := ctxt.returnData
-		copy(res, data)
 
 		got := (int(res[28]) << 24) | (int(res[29]) << 16) | (int(res[30]) << 8) | (int(res[31]) << 0)
 		if wanted != got {
