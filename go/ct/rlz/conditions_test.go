@@ -452,7 +452,7 @@ func TestCondition_BlobHashes_check(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			for i := 0; i < 1000; i++ {
+			for range 1000 {
 				state := st.NewState(st.NewCode([]byte{}))
 				test.setup(state)
 

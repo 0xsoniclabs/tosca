@@ -226,7 +226,7 @@ func TestStorageGenerator_StorageAssignedCanBeSatisfied(t *testing.T) {
 
 	assignment := Assignment{}
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 
 		storage, err := generator.Generate(assignment, rand.New(0))
 		if err != nil {
@@ -357,7 +357,7 @@ func TestStorageGenerator_UnspecifiedVariableIsNotWarm(t *testing.T) {
 	assignment := Assignment{}
 	rnd := rand.New(0)
 
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		storage, err := generator.Generate(assignment, rnd)
 		if err != nil {
 			t.Fatal(err)

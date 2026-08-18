@@ -25,7 +25,7 @@ func TestSerialization_EndToEndTest(t *testing.T) {
 	rnd := rand.New(0)
 	gen := gen.NewStateGenerator()
 
-	for i := 0; i < N; i++ {
+	for range N {
 		state, err := gen.Generate(rnd)
 		if err != nil {
 			t.Fatalf("failed to generate random state: %v", err)

@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"maps"
 	"math"
-	"sort"
+	"slices"
 	"strings"
 
 	"pgregory.net/rand"
@@ -299,9 +299,7 @@ func (b *BlockContextGenerator) String() string {
 		}
 	}
 
-	sort.Slice(clauses, func(i, j int) bool {
-		return clauses[i] < clauses[j]
-	})
+	slices.Sort(clauses)
 
 	return strings.Join(clauses, " Λ ")
 }

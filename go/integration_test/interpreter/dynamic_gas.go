@@ -45,7 +45,7 @@ func gasEXP(revision Revision) []*DynGasTest {
 
 	testCases := []*DynGasTest{}
 
-	for i := 0; i < 32; i++ {
+	for i := range 32 {
 		exp := big.NewInt(1)
 		num := big.NewInt(5)
 		testName := fmt.Sprint(num) + "**1<<" + fmt.Sprint(i*8)
@@ -82,7 +82,7 @@ func gasDynamicCopy(revision Revision) []*DynGasTest {
 func getDynamicMemGas(gasCoeficient uint64, numStackValues int) []*DynGasTest {
 	testCases := []*DynGasTest{}
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		// Steps of 256 bytes memory addition to check non linear gas cost for expansion
 		var dataSize uint64 = 256 * uint64(i)
 		offset := big.NewInt(0)
@@ -117,7 +117,7 @@ func gasDynamicExtCodeCopy(revision Revision) []*DynGasTest {
 	copyCode := make([]byte, 0, 1000)
 	name := []string{"Address in access list", "Address not in access list"}
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		address := tosca.Address{byte(i + 1)}
 		hash := tosca.Hash{byte(i + 1)}
 
@@ -425,7 +425,7 @@ func getOutOfDynamicGasTests(revision Revision) []*FailGasTest {
 	for _, test := range tests {
 		stackValCount := getInstructions(revision)[test.instruction].stack.popped
 		stackValues := make([]*big.Int, 0)
-		for i := 0; i < stackValCount; i++ {
+		for range stackValCount {
 			stackValues = append(stackValues, big.NewInt(1))
 		}
 		testName := fmt.Sprintf("%v using %v gas", test.instruction.String(), test.initialGas)
@@ -513,7 +513,7 @@ func gasDynamicLog4(revision Revision) []*DynGasTest {
 func gasDynamicLog(revision Revision, size int) []*DynGasTest {
 
 	testCases := []*DynGasTest{}
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 
 		// Steps of 256 bytes memory addition to check non linear gas cost for expansion
 		dataSize := 256 * i
@@ -521,7 +521,7 @@ func gasDynamicLog(revision Revision, size int) []*DynGasTest {
 		testName := "size " + fmt.Sprint(dataSize)
 
 		stackValues := []*big.Int{}
-		for j := 0; j < size; j++ {
+		for j := range size {
 			stackValues = append(stackValues, big.NewInt(int64(j)))
 		}
 		stackValues = append(stackValues, big.NewInt(int64(dataSize)), offset)
@@ -643,12 +643,7 @@ func gasDynamicCallCommon(revision Revision, useCallValue bool, addressCreationG
 		requestedGas := InitialTestGas
 		remainingGas := InitialTestGas - expectedGas
 		allButOne64th := remainingGas - (remainingGas / 64)
-		var gasSentWithCall tosca.Gas
-		if requestedGas < allButOne64th {
-			gasSentWithCall = requestedGas
-		} else {
-			gasSentWithCall = allButOne64th
-		}
+		gasSentWithCall := min(requestedGas, allButOne64th)
 
 		zeroVal := big.NewInt(0)
 
@@ -710,7 +705,7 @@ func gasDynamicCreate2(revision Revision) []*DynGasTest {
 
 func gasDynCreate(revision Revision, isCreate2 bool) []*DynGasTest {
 	testCases := []*DynGasTest{}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 
 		offset := big.NewInt(0)
 		value := big.NewInt(0)

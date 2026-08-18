@@ -31,10 +31,7 @@ func NewBytes(data []byte) Bytes {
 func RandomBytes(rnd *rand.Rand, maxSize int) Bytes {
 	const expectedSize = 200
 	rand := rnd.ExpFloat64()
-	size := int(rand * expectedSize)
-	if size > maxSize {
-		size = maxSize
-	}
+	size := min(int(rand*expectedSize), maxSize)
 	return RandomBytesOfSize(rnd, size)
 }
 

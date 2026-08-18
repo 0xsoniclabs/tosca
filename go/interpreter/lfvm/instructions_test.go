@@ -31,7 +31,7 @@ func TestPushN(t *testing.T) {
 	}
 
 	code := make([]Instruction, 16)
-	for i := 0; i < 32; i++ {
+	for i := range 32 {
 		code[i/2].arg = code[i/2].arg<<8 | uint16(data[i])
 	}
 
@@ -2174,7 +2174,7 @@ func TestInstructions_opLog(t *testing.T) {
 		},
 	}
 	for name, test := range tests {
-		for n := 0; n < 4; n++ {
+		for n := range 4 {
 			t.Run(fmt.Sprintf("%v/LOG%d", name, n), func(t *testing.T) {
 
 				ctxt := getEmptyContext()

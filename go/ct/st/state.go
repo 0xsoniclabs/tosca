@@ -508,7 +508,7 @@ func (s *State) Diff(o *State) []string {
 	}
 
 	if !s.RecentBlockHashes.Equal(o.RecentBlockHashes) {
-		for i := 0; i < 256; i++ {
+		for i := range 256 {
 			want := s.RecentBlockHashes.Get(uint64(i))
 			got := o.RecentBlockHashes.Get(uint64(i))
 			if want != got {

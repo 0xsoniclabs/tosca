@@ -88,7 +88,7 @@ func getCode(stackLength int, op vm.OpCode) []byte {
 	code := make([]byte, 0, stackLength*2+1)
 
 	// Add to stack PUSH1 instructions
-	for i := 0; i < stackLength; i++ {
+	for range stackLength {
 		code = append(code, []byte{byte(vm.PUSH1), byte(0)}...)
 	}
 

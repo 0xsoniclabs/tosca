@@ -415,7 +415,7 @@ type opCodePropertyMap[T any] struct {
 // panic. The zero values or a sentinel value shall be used in such cases.
 func newOpCodePropertyMap[T any](property func(op OpCode) T) opCodePropertyMap[T] {
 	lookup := [numOpCodes]T{}
-	for i := 0; i < numOpCodes; i++ {
+	for i := range numOpCodes {
 		lookup[i] = property(OpCode(i))
 	}
 	return opCodePropertyMap[T]{lookup}

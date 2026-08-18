@@ -44,7 +44,7 @@ func BenchmarkParallel_StressTests(b *testing.B) {
 
 					b.ResetTimer()
 					for range b.N {
-						for i := 0; i < numCalls; i++ {
+						for i := range numCalls {
 							errs.Go(func() error {
 
 								localCode := bytes.Clone(code)

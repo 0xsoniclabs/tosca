@@ -153,7 +153,7 @@ func TestConvertToEvmc_Stack(t *testing.T) {
 					t.Fatalf("unexpected stack size, wanted %v, got %v", want, got)
 				}
 
-				for i := 0; i < len(evmcStack); i++ {
+				for i := range evmcStack {
 					want := cur.evmcStack[i]
 					got := evmcStack[i]
 					if want != got {

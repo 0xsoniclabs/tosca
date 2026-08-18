@@ -150,13 +150,13 @@ func TestIntervalSolver_CanFormulateConstraints(t *testing.T) {
 func TestIntervalSolver_Exclude(t *testing.T) {
 	const N = 20
 	// remove interval [c..d] from [a..b]
-	for a := 0; a < N; a++ {
-		for b := 0; b < N; b++ {
-			for c := 0; c < N; c++ {
-				for d := 0; d < N; d++ {
+	for a := range N {
+		for b := range N {
+			for c := range N {
+				for d := range N {
 					solver := NewIntervalSolver(uint32(a), uint32(b))
 					solver.Exclude(uint32(c), uint32(d))
-					for i := 0; i < N; i++ {
+					for i := range N {
 						inAtoB := a <= i && i <= b
 						inCtoD := c <= i && i <= d
 						want := inAtoB && !inCtoD
@@ -193,7 +193,7 @@ func TestIntervalSolver_GenerateProducesValuesFromWithinTheIntervals(t *testing.
 	solver.Exclude(250, 300)
 
 	rnd := rand.New()
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		res, err := solver.Generate(rnd)
 		if err != nil {
 			t.Fatalf("error solving intervals: %v", err)
@@ -308,7 +308,7 @@ func TestIntervalSolver_uint64FullRangeAndEdges(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			solver := NewIntervalSolver[uint64](0, math.MaxUint64)
 			test.setup(solver)
-			for i := 0; i < 10000; i++ {
+			for i := range 10000 {
 				res, err := solver.Generate(rnd)
 				if err != nil {
 					t.Fatalf("error solving intervals: %v at step %v", err, i)
@@ -359,7 +359,7 @@ func TestIntervalSolver_int64FullRangeAndEdges(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			solver := NewIntervalSolver[int64](math.MinInt64, math.MaxInt64)
 			test.setup(solver)
-			for i := 0; i < 10000; i++ {
+			for i := range 10000 {
 				res, err := solver.Generate(rnd)
 				if err != nil {
 					t.Fatalf("error solving intervals: %v at step %v", err, i)

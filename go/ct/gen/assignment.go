@@ -12,7 +12,7 @@ package gen
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	. "github.com/0xsoniclabs/tosca/go/ct/common"
@@ -44,7 +44,7 @@ func (a Assignment) String() string {
 	for key := range a {
 		keys = append(keys, key)
 	}
-	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	slices.Sort(keys)
 
 	entries := make([]string, 0, len(a))
 	for _, key := range keys {

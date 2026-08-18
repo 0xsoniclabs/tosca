@@ -83,7 +83,7 @@ func opPush(c *context, n int) {
 
 	_ = data[num_instructions-1]
 	var value [32]byte
-	for i := 0; i < n; i++ {
+	for i := range n {
 		if i%2 == 0 {
 			value[i] = byte(data[i/2].arg >> 8)
 		} else {
@@ -1138,7 +1138,7 @@ func opLog(c *context, n int) error {
 	)
 
 	topics := make([]tosca.Hash, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		addr := c.stack.pop()
 		topics[i] = addr.Bytes32()
 	}

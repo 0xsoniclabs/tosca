@@ -111,7 +111,7 @@ func TestCode_Copy(t *testing.T) {
 		t.Errorf("unexpected code length, wanted %d, got %d", want, got)
 	}
 
-	for i := 0; i < len(src); i++ {
+	for range src {
 		if got := code.Copy(); !bytes.Equal(src, got) {
 			t.Errorf("failed to copy data, expected %x, got %x", src, got)
 		}

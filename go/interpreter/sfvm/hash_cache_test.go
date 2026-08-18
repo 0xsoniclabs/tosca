@@ -32,7 +32,7 @@ func TestSha3HashCache_hash_ProducesCorrectHashesForInputs(t *testing.T) {
 	}
 
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		input := make([]byte, r.Intn(150))
 		r.Read(input)
 		inputs = append(inputs, input)
@@ -54,7 +54,7 @@ func TestHashCache_UsesProvidedHashingFunction(t *testing.T) {
 	}
 
 	cache := newHashCache(10, hash)
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		want := hash(i)
 		got := cache.getHash(i)
 		if want != got {
@@ -95,10 +95,7 @@ func TestHashCache_CapacityIsIncreasedToAtLeast2(t *testing.T) {
 		cache := newHashCache(c, func(int) tosca.Hash {
 			return tosca.Hash{}
 		})
-		want := c
-		if want < 2 {
-			want = 2
-		}
+		want := max(c, 2)
 		if got := len(cache.entries); got != want {
 			t.Errorf("expected cache to have %d entries, but got %d", want, got)
 		}
@@ -119,10 +116,7 @@ func TestHashCache_RespectsCapacity(t *testing.T) {
 					t.Errorf("expected cache to have %d entries, but got %d", capacity, got)
 				}
 
-				want := i + 1
-				if want > capacity {
-					want = capacity
-				}
+				want := min(i+1, capacity)
 				if got := len(cache.index); got != want {
 					t.Errorf("expected cache to have %d entries in the index, but got %d", want, got)
 				}
@@ -264,10 +258,10 @@ func TestHashCache_AccessesAreThreadSafe(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(threads)
-	for i := 0; i < threads; i++ {
+	for range threads {
 		go func() {
 			defer wg.Done()
-			for j := 0; j < accesses; j++ {
+			for j := range accesses {
 				cache.getHash(j % 10)
 			}
 		}()
@@ -294,7 +288,7 @@ func TestHashCache_ConcurrentThreadsCanNotIntroduceDuplicates(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(2)
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		go func() {
 			defer wg.Done()
 			cache.getHash(key)

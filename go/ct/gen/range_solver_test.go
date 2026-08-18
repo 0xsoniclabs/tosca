@@ -33,7 +33,7 @@ func TestRangeSolver_ProducesValueInRange(t *testing.T) {
 		t.Run(fmt.Sprintf("[%d,%d]", test.min, test.max), func(t *testing.T) {
 			rnd := rand.New()
 			solver := NewRangeSolver(test.min, test.max)
-			for i := 0; i < 10; i++ {
+			for range 10 {
 				sample, err := solver.Generate(rnd)
 				if err != nil {
 					t.Fatalf("failed to sample value from range, got %v", err)

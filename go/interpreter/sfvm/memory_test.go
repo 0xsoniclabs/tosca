@@ -292,7 +292,7 @@ func TestMemory_getSlice_ReturnsSliceOfRequestedSize(t *testing.T) {
 
 func TestMemory_getSlice_ExpandsMemoryIn32ByteChunks(t *testing.T) {
 	for memSize := uint64(0); memSize < 128; memSize += 32 {
-		for offset := uint64(0); offset < 128; offset++ {
+		for offset := range uint64(128) {
 			for size := uint64(1); size < 32; size++ {
 				offset256 := uint256.NewInt(offset)
 				size256 := uint256.NewInt(size)
@@ -304,10 +304,7 @@ func TestMemory_getSlice_ExpandsMemoryIn32ByteChunks(t *testing.T) {
 					t.Errorf("unexpected error: %v", err)
 				}
 
-				want := (offset + size + 31) / 32 * 32
-				if want < memSize {
-					want = memSize
-				}
+				want := max((offset+size+31)/32*32, memSize)
 				if got, want := m.length(), want; got != want {
 					t.Errorf("unexpected memory length: %d, want: %d", got, want)
 				}
@@ -318,7 +315,7 @@ func TestMemory_getSlice_ExpandsMemoryIn32ByteChunks(t *testing.T) {
 
 func TestMemory_getSlice_DoesNotExpandWithSizeZero(t *testing.T) {
 	for memSize := 0; memSize < 128; memSize += 32 {
-		for offset := uint64(0); offset < 128; offset++ {
+		for offset := range uint64(128) {
 			c := &context{gas: 1}
 			m := NewMemory()
 			m.store = make([]byte, memSize)
@@ -426,7 +423,7 @@ func TestMemory_readWord_ErrorCases(t *testing.T) {
 
 func TestMemory_set_UpdatesDataInMemoryAtGivenOffset(t *testing.T) {
 	before := generateRandomBytes(128)
-	for offset := uint64(0); offset < 128; offset++ {
+	for offset := range uint64(128) {
 		for size := 0; size < int(128-offset); size++ {
 			data := generateRandomBytes(size)
 

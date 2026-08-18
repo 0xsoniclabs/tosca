@@ -478,7 +478,7 @@ func TestU256_MarshallingRoundTrip(t *testing.T) {
 func TestU256_RandU256(t *testing.T) {
 	rands := []U256{}
 	rnd := rand.New()
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		rands = append(rands, RandU256(rnd))
 		for j := 0; j < i; j++ {
 			if rands[i] == rands[j] {
@@ -490,9 +490,9 @@ func TestU256_RandU256(t *testing.T) {
 
 func TestU256_RandU256Between(t *testing.T) {
 	rnd := rand.New()
-	for min := uint64(0); min < 10; min++ {
+	for min := range uint64(10) {
 		for max := min; max < 10; max++ {
-			for i := 0; i < 100; i++ {
+			for range 100 {
 				r := RandU256Between(rnd, NewU256(min), NewU256(max))
 				if r.Uint64() < min || r.Uint64() > max {
 					t.Errorf("random U256 is not between %d and %d, got %v", min, max, r)

@@ -248,10 +248,8 @@ func (c *scenarioContext) AccessAccount(address tosca.Address) tosca.AccessStatu
 func (c *scenarioContext) AccessStorage(addr tosca.Address, key tosca.Key) tosca.AccessStatus {
 	for _, tuple := range c.accessList {
 		if tuple.Address == addr {
-			for _, k := range tuple.Keys {
-				if k == key {
-					return tosca.WarmAccess
-				}
+			if slices.Contains(tuple.Keys, key) {
+				return tosca.WarmAccess
 			}
 			tuple.Keys = append(tuple.Keys, key)
 			return tosca.ColdAccess
@@ -291,10 +289,8 @@ func (c *scenarioContext) IsAddressInAccessList(address tosca.Address) bool {
 func (c *scenarioContext) IsSlotInAccessList(addr tosca.Address, key tosca.Key) (addressPresent, slotPresent bool) {
 	for _, tuple := range c.accessList {
 		if tuple.Address == addr {
-			for _, k := range tuple.Keys {
-				if k == key {
-					return true, true
-				}
+			if slices.Contains(tuple.Keys, key) {
+				return true, true
 			}
 			return true, false
 		}

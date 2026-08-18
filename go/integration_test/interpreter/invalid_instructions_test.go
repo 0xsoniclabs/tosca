@@ -22,7 +22,7 @@ func TestInterpreterDetectsInvalidInstruction(t *testing.T) {
 		for _, variant := range getAllInterpreterVariantsForTests() {
 			evm := GetCleanEVM(rev, variant, nil)
 			instructions := getInstructions(rev)
-			for i := 0; i < 256; i++ {
+			for i := range 256 {
 				op := vm.OpCode(i)
 				_, exits := instructions[op]
 				if exits {

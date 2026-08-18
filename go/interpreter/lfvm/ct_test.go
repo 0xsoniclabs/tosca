@@ -66,7 +66,7 @@ func TestCTAdapter_DoesNotAddDuplicatedCodeToPCMap(t *testing.T) {
 	}))
 	c := NewConformanceTestingTarget()
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		s.Status = st.Running
 		_, err := c.StepN(s, 1)
 		if err != nil {
@@ -321,7 +321,7 @@ func TestConvertToLfvm_Code(t *testing.T) {
 					t.Fatalf("unexpected code size, wanted %d, got %d", wantSize, gotSize)
 				}
 
-				for i := 0; i < len(got); i++ {
+				for i := range got {
 					if wantInst, gotInst := want[i], got[i]; wantInst != gotInst {
 						t.Errorf("unexpected instruction, wanted %v, got %v", wantInst, gotInst)
 					}
@@ -435,7 +435,7 @@ func TestConvertToLfvm_CodeWithSuperInstructions(t *testing.T) {
 func TestConvertToLfvm_Stack(t *testing.T) {
 	newLfvmStack := func(values ...cc.U256) *stack {
 		stack := NewStack()
-		for i := 0; i < len(values); i++ {
+		for i := range values {
 			value := values[i].Uint256()
 			stack.push(&value)
 		}
@@ -524,7 +524,7 @@ func TestConvertToCt_Pc(t *testing.T) {
 func TestConvertToCt_Stack(t *testing.T) {
 	newLfvmStack := func(values ...cc.U256) *stack {
 		stack := NewStack()
-		for i := 0; i < len(values); i++ {
+		for i := range values {
 			value := values[i].Uint256()
 			stack.push(&value)
 		}
@@ -568,7 +568,7 @@ func TestConvertToCt_Stack(t *testing.T) {
 
 func BenchmarkLfvmStackToCtStack(b *testing.B) {
 	stack := NewStack()
-	for i := 0; i < MAX_STACK_SIZE/2; i++ {
+	for i := range MAX_STACK_SIZE / 2 {
 		stack.pushUndefined().SetUint64(uint64(i))
 	}
 	ctStack := st.NewStack()

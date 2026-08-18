@@ -125,7 +125,7 @@ func (s *stack) String() string {
 // ------------------ Stack Pool ------------------
 
 var stackPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return &stack{}
 	},
 }

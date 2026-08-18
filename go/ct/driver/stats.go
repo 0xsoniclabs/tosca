@@ -12,7 +12,7 @@ package main
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -129,7 +129,7 @@ func (s *ruleStatistics) String() string {
 	builder := strings.Builder{}
 
 	rules := maps.Keys(s.data)
-	sort.Slice(rules, func(i, j int) bool { return rules[i] < rules[j] })
+	slices.Sort(rules)
 
 	builder.WriteString("rule,num_tests\n")
 	for _, rule := range rules {

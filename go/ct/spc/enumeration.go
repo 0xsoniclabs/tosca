@@ -86,7 +86,7 @@ func ForEachState(
 	// Run goroutines processing the actual tests.
 	stateWaitGroup.Add(numJobs)
 	stateChannel := make(chan *st.State, 10*numJobs)
-	for i := 0; i < numJobs; i++ {
+	for range numJobs {
 		go func() {
 			defer stateWaitGroup.Done()
 			for state := range stateChannel {
@@ -109,7 +109,7 @@ func ForEachState(
 	var errorMutex sync.Mutex
 	var returnError error
 
-	for i := 0; i < numJobs; i++ {
+	for range numJobs {
 		go func() {
 			defer rulesWaitGroup.Done()
 			for rule := range ruleChannel {

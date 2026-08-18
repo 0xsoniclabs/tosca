@@ -91,7 +91,7 @@ func FuzzLfvmConverter(f *testing.F) {
 		}
 
 		// Check that JUMP_TO instructions point to their immediately succeeding JUMPDEST.
-		for i := 0; i < len(lfvmCode); i++ {
+		for i := range lfvmCode {
 			if lfvmCode[i].opcode == JUMP_TO {
 				trg := int(lfvmCode[i].arg)
 				if trg < i {

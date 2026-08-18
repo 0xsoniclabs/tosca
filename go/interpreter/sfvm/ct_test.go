@@ -161,7 +161,7 @@ func TestConvertToSfvm_StatusCodeFailsOnUnknownStatus(t *testing.T) {
 func TestConvertToSfvm_Stack(t *testing.T) {
 	newSfvmStack := func(values ...cc.U256) *stack {
 		stack := NewStack()
-		for i := 0; i < len(values); i++ {
+		for i := range values {
 			value := values[i].Uint256()
 			stack.push(&value)
 		}
@@ -212,7 +212,7 @@ func TestConvertToSfvm_Stack(t *testing.T) {
 func TestConvertToCt_Stack(t *testing.T) {
 	newSfvmStack := func(values ...cc.U256) *stack {
 		stack := NewStack()
-		for i := 0; i < len(values); i++ {
+		for i := range values {
 			value := values[i].Uint256()
 			stack.push(&value)
 		}
@@ -256,7 +256,7 @@ func TestConvertToCt_Stack(t *testing.T) {
 
 func BenchmarkSfvmStackToCtStack(b *testing.B) {
 	stack := NewStack()
-	for i := 0; i < MAX_STACK_SIZE/2; i++ {
+	for i := range MAX_STACK_SIZE / 2 {
 		stack.pushUndefined().SetUint64(uint64(i))
 	}
 	ctStack := st.NewStack()

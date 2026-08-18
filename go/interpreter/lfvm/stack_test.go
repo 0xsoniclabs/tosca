@@ -29,7 +29,7 @@ func TestStack_ZeroStackIsEmpty(t *testing.T) {
 func TestStack_pushAndPop_CanUseFullCapacity(t *testing.T) {
 	var stack stack
 
-	for i := 0; i < maxStackSize; i++ {
+	for i := range maxStackSize {
 		if want, got := i, stack.len(); want != got {
 			t.Errorf("expected stack to have %d elements, but got %d", want, got)
 		}
@@ -97,7 +97,7 @@ func TestStack_peekN_ObtainsNthElementFromTop(t *testing.T) {
 	stack := NewStack()
 	defer ReturnStack(stack)
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		val := uint256.NewInt(uint64(i))
 		stack.push(val)
 	}
@@ -106,7 +106,7 @@ func TestStack_peekN_ObtainsNthElementFromTop(t *testing.T) {
 		t.Errorf("expected peekN(0) to be the same as peek(), but got %d and %d", want, got)
 	}
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		want := uint256.NewInt(uint64(9 - i))
 		got := stack.peekN(i)
 		if want.Cmp(got) != 0 {
@@ -148,12 +148,12 @@ func TestStack_swap_ExchangesTopElementWithSelectedElement(t *testing.T) {
 
 func TestStack_swap_WorksForAnyIntegerValue(t *testing.T) {
 	for _, size := range []int{2, 128, maxStackSize - 1} {
-		for i := 0; i < size; i++ {
+		for i := range size {
 			t.Run(fmt.Sprintf("size=%d_swap%d", size, i), func(t *testing.T) {
 				stack := NewStack()
 				defer ReturnStack(stack)
 
-				for i := 0; i < size; i++ {
+				for i := range size {
 					stack.push(uint256.NewInt(uint64(i)))
 				}
 
@@ -202,12 +202,12 @@ func TestStack_dup_DuplicatesSelectedElementFromStack(t *testing.T) {
 
 func TestStack_dup_WorksForAnyIntegerValue(t *testing.T) {
 	for _, size := range []int{2, 128, maxStackSize - 1} {
-		for i := 0; i < size; i++ {
+		for i := range size {
 			t.Run(fmt.Sprintf("size=%d_dup%d", size, i), func(t *testing.T) {
 				stack := NewStack()
 				defer ReturnStack(stack)
 
-				for i := 0; i < size; i++ {
+				for i := range size {
 					stack.push(uint256.NewInt(uint64(i)))
 				}
 
@@ -227,11 +227,11 @@ func TestStack_get_IndexesElementsBottomUp(t *testing.T) {
 	stack := NewStack()
 	defer ReturnStack(stack)
 
-	for i := 0; i < maxStackSize; i++ {
+	for i := range maxStackSize {
 		stack.push(uint256.NewInt(uint64(i)))
 	}
 
-	for i := 0; i < maxStackSize; i++ {
+	for i := range maxStackSize {
 		want := uint256.NewInt(uint64(i))
 		got := stack.get(i)
 		if want.Cmp(got) != 0 {
@@ -244,7 +244,7 @@ func TestStack_String_PrintsContentUsingFormattedHex(t *testing.T) {
 	stack := NewStack()
 	defer ReturnStack(stack)
 
-	for i := 0; i < 256; i++ {
+	for i := range 256 {
 		top := stack.pushUndefined()
 		top.Lsh(uint256.NewInt(1), uint(i))
 	}
@@ -284,10 +284,10 @@ func TestStack_NewStackAndReturnStack_AreThreadSafe(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(parallelism)
-	for i := 0; i < parallelism; i++ {
+	for range parallelism {
 		go func() {
 			defer wg.Done()
-			for j := 0; j < iterations; j++ {
+			for range iterations {
 				stack := NewStack()
 				defer ReturnStack(stack)
 			}

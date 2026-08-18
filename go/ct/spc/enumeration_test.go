@@ -145,7 +145,7 @@ func TestEnumeration_AbortedEnumeration(t *testing.T) {
 	testRule := rlz.Rule{
 		Condition: condition(true, numStates),
 	}
-	for i := 0; i < numRules; i++ {
+	for range numRules {
 		rules = append(rules, testRule)
 	}
 	err := ForEachState(rules, opFunctionContinue, printFunction, numJobs, uint64(seed), true)

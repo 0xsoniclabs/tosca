@@ -12,7 +12,7 @@ package gen
 
 import (
 	"math"
-	"sort"
+	"slices"
 
 	"golang.org/x/exp/maps"
 	"pgregory.net/rand"
@@ -120,7 +120,7 @@ func (t *TransactionContextGenerator) String() string {
 	if t.blobHashVariables != nil {
 
 		keys := maps.Keys(t.blobHashVariables)
-		sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+		slices.Sort(keys)
 
 		for _, variable := range keys {
 			hasBlobHash := t.blobHashVariables[variable]

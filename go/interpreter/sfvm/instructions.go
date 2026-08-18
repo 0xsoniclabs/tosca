@@ -1111,7 +1111,7 @@ func opLog(c *context, n int) error {
 	)
 
 	topics := make([]tosca.Hash, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		addr := c.stack.pop()
 		topics[i] = addr.Bytes32()
 	}

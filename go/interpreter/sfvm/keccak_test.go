@@ -41,7 +41,7 @@ func TestKeccakC_32ByteSpecializationProducesSameHashAsGenericVersion(t *testing
 	}
 
 	// Test each individual bit.
-	for i := 0; i < 32*8; i++ {
+	for i := range 32 * 8 {
 		data := [32]byte{}
 		data[i/8] = 1 << i % 8
 		tests = append(tests, data)
@@ -49,7 +49,7 @@ func TestKeccakC_32ByteSpecializationProducesSameHashAsGenericVersion(t *testing
 
 	// Add some random inputs as well.
 	r := rand.New(rand.NewSource(99))
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		data := [32]byte{}
 		r.Read(data[:])
 		tests = append(tests, data)

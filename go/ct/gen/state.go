@@ -635,7 +635,7 @@ func (g *StateGenerator) String() string {
 		parts = append(parts, fmt.Sprintf("%v=%v", binding.variable, binding.value))
 	}
 
-	sort.Slice(g.statusConstraints, func(i, j int) bool { return g.statusConstraints[i] < g.statusConstraints[j] })
+	slices.Sort(g.statusConstraints)
 	for _, status := range g.statusConstraints {
 		parts = append(parts, fmt.Sprintf("status=%v", status))
 	}
@@ -644,17 +644,17 @@ func (g *StateGenerator) String() string {
 		parts = append(parts, fmt.Sprintf("readOnly mode=%v", mode))
 	}
 
-	sort.Slice(g.pcConstantConstraints, func(i, j int) bool { return g.pcConstantConstraints[i] < g.pcConstantConstraints[j] })
+	slices.Sort(g.pcConstantConstraints)
 	for _, pc := range g.pcConstantConstraints {
 		parts = append(parts, fmt.Sprintf("pc=%d", pc))
 	}
 
-	sort.Slice(g.pcVariableConstraints, func(i, j int) bool { return g.pcVariableConstraints[i] < g.pcVariableConstraints[j] })
+	slices.Sort(g.pcVariableConstraints)
 	for _, pc := range g.pcVariableConstraints {
 		parts = append(parts, fmt.Sprintf("pc=%v", pc))
 	}
 
-	sort.Slice(g.selfAddressBindings, func(i, j int) bool { return g.selfAddressBindings[i] < g.selfAddressBindings[j] })
+	slices.Sort(g.selfAddressBindings)
 	for _, v := range g.selfAddressBindings {
 		parts = append(parts, fmt.Sprintf("selfAddress=%v", v))
 	}

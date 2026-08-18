@@ -151,7 +151,7 @@ func genPcMap(code []byte) *pcMap {
 
 	// Locations pointing to JUMP_TO instructions in LFVM need to be updated to
 	// the position of the jump target.
-	for i := 0; i < len(res); i++ {
+	for i := range res {
 		if res[i].opcode == JUMP_TO {
 			lfvmToEvm[i] = res[i].arg
 		}
@@ -191,7 +191,7 @@ func convertCtStackToLfvmStack(stack *st.Stack) *stack {
 func convertLfvmStackToCtStack(stack *stack, result *st.Stack) *st.Stack {
 	len := stack.len()
 	result.Resize(len)
-	for i := 0; i < len; i++ {
+	for i := range len {
 		result.Set(len-i-1, common.NewU256FromUint256(stack.get(i)))
 	}
 	return result

@@ -106,7 +106,7 @@ func TestBytes_InvalidJsonFails(t *testing.T) {
 func TestBytes_RandomBytesProducesRandom(t *testing.T) {
 	rnd := rand.New()
 	bytes := []Bytes{}
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		bytes = append(bytes, RandomBytes(rnd, 100))
 		for j := 0; j < i; j++ {
 			if bytes[i] == bytes[j] {

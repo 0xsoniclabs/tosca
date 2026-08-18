@@ -213,7 +213,7 @@ func TestConverter_ConverterIsThreadSafe(t *testing.T) {
 	errs.SetLimit(NumGoroutines)
 	for i := range NumGoroutines {
 		errs.Go(func() error {
-			for j := 0; j < NumSteps; j++ {
+			for j := range NumSteps {
 				// read a value every go routine is requesting
 				_, routineErr := converter.Convert(code, &hash)
 				if routineErr != nil {
@@ -273,7 +273,7 @@ func TestConvertWithObserver_MapsEvmToLfvmPositions(t *testing.T) {
 func TestConvertWithObserver_PreservesJumpDestLocations(t *testing.T) {
 	r := rand.New(rand.NewSource(int64(time.Now().Nanosecond())))
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		code := make([]byte, 100)
 		r.Read(code)
 
@@ -353,7 +353,7 @@ func TestConvert_BaseInstructionsAreConvertedToEquivalents(t *testing.T) {
 
 func TestConvert_PushOperationsUsePaddedImmediateData(t *testing.T) {
 	data := []byte{}
-	for i := 0; i < 32; i++ {
+	for i := range 32 {
 		data = append(data, byte(i+1))
 	}
 	for op := PUSH1; op <= PUSH32; op++ {
@@ -407,7 +407,7 @@ func TestConvert_AllJumpToOperationsPointToSubsequentJumpdest(t *testing.T) {
 	r := rand.New(rand.NewSource(int64(time.Now().Nanosecond())))
 
 	counter := 0
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		code := make([]byte, 100)
 		r.Read(code)
 		res := convert(code, ConversionConfig{})

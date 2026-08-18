@@ -94,7 +94,7 @@ func getAllRules() []Rule {
 
 	// --- Invalid Instructions ---
 
-	for i := 0; i < 256; i++ {
+	for i := range 256 {
 		op := vm.OpCode(i)
 		if !vm.IsValid(op) {
 			rules = append(rules, Rule{
@@ -179,7 +179,7 @@ func getAllRules() []Rule {
 	}, func(a, e U256) tosca.Gas {
 		const gasFactor = tosca.Gas(50)
 		expBytes := e.Bytes32be()
-		for i := 0; i < 32; i++ {
+		for i := range 32 {
 			if expBytes[i] != 0 {
 				return gasFactor * tosca.Gas(32-i)
 			}
@@ -1526,10 +1526,7 @@ func getAllRules() []Rule {
 
 			len := s.CallData.Length()
 			if offsetU256.IsUint64() {
-				start := offsetU256.Uint64()
-				if start > uint64(len) {
-					start = uint64(len)
-				}
+				start := min(offsetU256.Uint64(), uint64(len))
 				end := min(start+32, uint64(len))
 				data := RightPadSlice(s.CallData.Get(start, end), 32)
 				pushData = NewU256FromBytes(data...)
@@ -1976,7 +1973,7 @@ func pushOp(n int) []Rule {
 		pushes:    1,
 		effect: func(s *st.State) {
 			data := make([]byte, n)
-			for i := 0; i < n; i++ {
+			for i := range n {
 				b, err := s.Code.GetData(int(s.Pc) + i)
 				// This panic will never be triggered because the code generator always ensures that
 				// after a PUSHX op there are X data bytes. This should be fixed by #592
@@ -2121,10 +2118,9 @@ func sstoreOpRegular(params sstoreOpParams) []Rule {
 func sstoreOpReadOnlyMode(params sstoreOpParams) []Rule {
 	name := fmt.Sprintf("_read_only_%v_%v", params.revision, params.config)
 
-	gasLimit := tosca.Gas(2301) // EIP2200
-	if params.gasCost > gasLimit {
-		gasLimit = params.gasCost
-	}
+	gasLimit := max(
+		// EIP2200
+		params.gasCost, tosca.Gas(2301))
 
 	rules := rulesFor(instruction{
 		name:      name,
@@ -2158,7 +2154,7 @@ func logOp(n int) []Rule {
 		MemoryOffsetParameter{},
 		SizeParameter{},
 	}
-	for i := 0; i < n; i++ {
+	for range n {
 		parameter = append(parameter, TopicParameter{})
 	}
 
@@ -2174,7 +2170,7 @@ func logOp(n int) []Rule {
 			sizeU256 := s.Stack.Pop()
 
 			topics := []U256{}
-			for i := 0; i < n; i++ {
+			for range n {
 				topics = append(topics, s.Stack.Pop())
 			}
 
@@ -2600,10 +2596,7 @@ func callEffect(s *st.State, addrAccessCost tosca.Gas, op vm.OpCode) {
 	// Compute the memory expansion costs of this call.
 	inputMemoryExpansionCost, argsOffset64, argsSize64 := s.Memory.ExpansionCosts(argsOffset, argsSize)
 	outputMemoryExpansionCost, retOffset64, retSize64 := s.Memory.ExpansionCosts(retOffset, retSize)
-	memoryExpansionCost := inputMemoryExpansionCost
-	if memoryExpansionCost < outputMemoryExpansionCost {
-		memoryExpansionCost = outputMemoryExpansionCost
-	}
+	memoryExpansionCost := max(inputMemoryExpansionCost, outputMemoryExpansionCost)
 
 	isValueZero := value.IsZero()
 

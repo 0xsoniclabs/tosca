@@ -184,7 +184,7 @@ func BenchmarkStorage_CloneNotModified(b *testing.B) {
 
 func BenchmarkStorage_CloneModified(b *testing.B) {
 	builder := NewStorageBuilder()
-	for i := 0; i < 32; i++ {
+	for i := range 32 {
 		builder.SetCurrent(NewU256(uint64(i)), NewU256(uint64(i)))
 		builder.SetOriginal(NewU256(uint64(8+i)), NewU256(uint64(i)))
 		builder.SetWarm(NewU256(uint64(16+i)), i%2 == 0)

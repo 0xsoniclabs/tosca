@@ -422,7 +422,7 @@ func TestState_PrinterCode(t *testing.T) {
 
 func TestState_PrinterAbbreviatedCode(t *testing.T) {
 	var longCode []byte
-	for i := 0; i < dataCutoffLength+1; i++ {
+	for range dataCutoffLength + 1 {
 		longCode = append(longCode, byte(vm.INVALID))
 	}
 
@@ -623,7 +623,7 @@ func TestState_DiffMismatch(t *testing.T) {
 		t.FailNow()
 	}
 
-	for i := 0; i < len(diffs); i++ {
+	for i := range diffs {
 		if !strings.Contains(diffs[i], expectedDiffs[i]) {
 			t.Errorf("invalid diff, expected '%s' found '%s'", expectedDiffs[i], diffs[i])
 		}

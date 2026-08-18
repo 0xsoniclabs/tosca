@@ -34,7 +34,7 @@ func TestSpecification_SpecificationIsSound(t *testing.T) {
 	rnd := rand.New(0)
 	generator := gen.NewStateGenerator()
 
-	for i := 0; i < N; i++ {
+	for range N {
 		state, err := generator.Generate(rnd)
 		if err != nil {
 			t.Fatalf("failed building state: %v", err)
@@ -59,7 +59,7 @@ func TestSpecification_SpecificationIsComplete(t *testing.T) {
 	const N = 100000
 	rnd := rand.New(0)
 	generator := gen.NewStateGenerator()
-	for i := 0; i < N; i++ {
+	for range N {
 		state, err := generator.Generate(rnd)
 		if err != nil {
 			t.Errorf("failed to generate a random state: %v", err)
@@ -73,7 +73,6 @@ func TestSpecification_SpecificationIsComplete(t *testing.T) {
 
 func TestSpecification_EachRuleProducesAMatchingTestCase(t *testing.T) {
 	for _, rule := range Spec.GetRules() {
-		rule := rule
 		t.Run(rule.Name, func(t *testing.T) {
 			t.Parallel()
 			rnd := rand.New(0)
@@ -132,7 +131,7 @@ func TestSpecification_SpecifiedRuleProducesMatchingTestCases(t *testing.T) {
 			rule := rules[0]
 			gen := gen.NewStateGenerator()
 			rule.Condition.Restrict(gen)
-			for i := 0; i < 10000; i++ {
+			for i := range 10000 {
 				state, err := gen.Generate(rnd)
 				if err != nil {
 					t.Fatalf("failed to generate a random state at iteration %v: %v", i, err)
@@ -175,7 +174,7 @@ func TestSpecificationMap_SameRulesPerOperation(t *testing.T) {
 	rnd := rand.New(0)
 	generator := gen.NewStateGenerator()
 
-	for i := 0; i < N; i++ {
+	for range N {
 		state, err := generator.Generate(rnd)
 		if err != nil {
 			t.Fatalf("failed building state: %v", err)
@@ -250,7 +249,6 @@ func TestSpecification_NumberOfTestCasesMatchesRuleInfo(t *testing.T) {
 	rules := getAllRules()
 
 	for _, rule := range rules {
-		rule := rule
 		t.Run(rule.Name, func(t *testing.T) {
 			t.Parallel()
 
@@ -305,7 +303,7 @@ func BenchmarkSpecification_GetState(b *testing.B) {
 	generator := gen.NewStateGenerator()
 
 	states := make([]*st.State, 0, N)
-	for i := 0; i < N; i++ {
+	for range N {
 		state, err := generator.Generate(rnd)
 		if err != nil {
 			b.Fatalf("failed building state: %v", err)
@@ -434,7 +432,7 @@ func TestSpecification_OpsWithDynamicCostHandleOverflowSizes(t *testing.T) {
 							rlz.Eq(rlz.Param(overflowParameterPosition), common.NewU256(value)),
 						)
 
-						for i := 0; i < 7; i++ {
+						for i := range 7 {
 							if i != overflowParameterPosition {
 								condition = rlz.And(condition, rlz.Eq(rlz.Param(i), common.NewU256(1)))
 							}

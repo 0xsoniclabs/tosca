@@ -33,7 +33,7 @@ func NewImmutableHashArray(hashes ...tosca.Hash) ImmutableHashArray {
 func NewRandomImmutableHashArray(rnd *rand.Rand) ImmutableHashArray {
 	hashes := ImmutableHashArray{}
 	hashes.data = new([256]tosca.Hash)
-	for i := 0; i < 256; i++ {
+	for i := range 256 {
 		hashes.data[i] = GetRandomHash(rnd)
 	}
 	return hashes
