@@ -23,6 +23,20 @@ const NewestFullySupportedRevision = tosca.R15_Osaka
 const R99_UnknownNextRevision = tosca.Revision(99)
 const MinRevision = tosca.R07_Istanbul
 
+// MaxInitCodeSize returns the largest init code CREATE and CREATE2 accept in a
+// given revision. The limit was introduced by EIP-3860 (Shanghai) as twice the
+// maximum size of deployed code and raised along with it by EIP-8038.
+func MaxInitCodeSize(revision tosca.Revision) uint64 {
+	const (
+		maxCodeSize          = 24576
+		maxCodeSizeAmsterdam = 65536
+	)
+	if revision >= tosca.R16_Amsterdam {
+		return 2 * maxCodeSizeAmsterdam
+	}
+	return 2 * maxCodeSize
+}
+
 // GetForkBlock returns the first block a given revision is considered to be
 // enabled for when running CT state evaluations. It is intended to provide input
 // for test state generators to produce consistent block numbers and code revisions,
