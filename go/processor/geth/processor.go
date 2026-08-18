@@ -75,6 +75,7 @@ func (p *Processor) Run(
 	config := newEVMConfig(p.Interpreter, p.EthereumCompatible)
 	config.NoBaseFee = internal // Disable base fee check for internal transactions
 	evm := vm.NewEVM(blockContext, stateDB, chainConfig, config)
+	defer evm.Release()
 	evm.TxContext = txContext
 
 	msg := transactionToMessage(transaction, gasPrice, blobHashes)
@@ -227,7 +228,7 @@ func newEVMConfig(interpreter tosca.Interpreter, ethereumCompatible bool) vm.Con
 }
 
 func transactionToMessage(transaction tosca.Transaction, gasPrice tosca.Value, blobHashes []common.Hash) *core.Message {
-	accessList := types.AccessList{}
+	var accessList types.AccessList
 	for _, tuple := range transaction.AccessList {
 		storageKeys := make([]common.Hash, len(tuple.Keys))
 		for i, key := range tuple.Keys {
@@ -259,14 +260,14 @@ func transactionToMessage(transaction tosca.Transaction, gasPrice tosca.Value, b
 		From:                  common.Address(transaction.Sender),
 		To:                    (*common.Address)(transaction.Recipient),
 		Nonce:                 transaction.Nonce,
-		Value:                 transaction.Value.ToBig(),
+		Value:                 transaction.Value.ToUint256(),
 		GasLimit:              uint64(transaction.GasLimit),
-		GasPrice:              gasPrice.ToBig(),
-		GasFeeCap:             transaction.GasFeeCap.ToBig(),
-		GasTipCap:             transaction.GasTipCap.ToBig(),
+		GasPrice:              gasPrice.ToUint256(),
+		GasFeeCap:             transaction.GasFeeCap.ToUint256(),
+		GasTipCap:             transaction.GasTipCap.ToUint256(),
 		Data:                  transaction.Input,
 		AccessList:            accessList,
-		BlobGasFeeCap:         transaction.BlobGasFeeCap.ToBig(),
+		BlobGasFeeCap:         transaction.BlobGasFeeCap.ToUint256(),
 		BlobHashes:            blobHashes,
 		SetCodeAuthorizations: authorizations,
 	}
