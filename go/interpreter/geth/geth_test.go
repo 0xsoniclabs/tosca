@@ -28,6 +28,7 @@ func TestGethInterpreter_MakeChainConfigSetsTheCorrectRevision(t *testing.T) {
 		tosca.R13_Cancun,
 		tosca.R14_Prague,
 		tosca.R15_Osaka,
+		tosca.R16_Amsterdam,
 	}
 
 	for _, targetRevision := range revisions {
@@ -44,10 +45,11 @@ func TestGethInterpreter_MakeChainConfigSetsTheCorrectRevision(t *testing.T) {
 				tosca.R10_London:   chainConfig.IsLondon,
 			}
 			revisionChecksPostParis := map[tosca.Revision]func(blockNumber *big.Int, blockTime uint64) bool{
-				tosca.R12_Shanghai: chainConfig.IsShanghai,
-				tosca.R13_Cancun:   chainConfig.IsCancun,
-				tosca.R14_Prague:   chainConfig.IsPrague,
-				tosca.R15_Osaka:    chainConfig.IsOsaka,
+				tosca.R12_Shanghai:  chainConfig.IsShanghai,
+				tosca.R13_Cancun:    chainConfig.IsCancun,
+				tosca.R14_Prague:    chainConfig.IsPrague,
+				tosca.R15_Osaka:     chainConfig.IsOsaka,
+				tosca.R16_Amsterdam: chainConfig.IsAmsterdam,
 			}
 
 			blockNumber := big.NewInt(0)
