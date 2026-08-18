@@ -12,9 +12,11 @@ package rlz
 
 import (
 	"math"
+	"slices"
 
 	. "github.com/0xsoniclabs/tosca/go/ct/common"
 	"github.com/0xsoniclabs/tosca/go/ct/st"
+	"github.com/0xsoniclabs/tosca/go/tosca"
 )
 
 type Parameter interface {
@@ -122,14 +124,21 @@ func (SizeParameter) Samples() []U256 {
 
 // InitCodeSizeParameter is a parameter for the code size of CREATE and
 // CREATE2, which is limited by the max init code size introduced with
-// Shanghai.
+// Shanghai. The limit is stressed for every revision raising it.
 type InitCodeSizeParameter struct{}
 
-var initCodeSizeParameterSamples = append(sizeParameterSamples,
-	NewU256(2*24576-1),
-	NewU256(2*24576),
-	NewU256(2*24576+1),
+var initCodeSizeParameterSamples = slices.Concat(
+	sizeParameterSamples,
+	initCodeSizeLimitSamples(tosca.R12_Shanghai),
+	initCodeSizeLimitSamples(tosca.R16_Amsterdam),
 )
+
+// initCodeSizeLimitSamples returns the sizes just below, at, and just above the
+// init code size limit of the given revision.
+func initCodeSizeLimitSamples(revision tosca.Revision) []U256 {
+	limit := MaxInitCodeSize(revision)
+	return []U256{NewU256(limit - 1), NewU256(limit), NewU256(limit + 1)}
+}
 
 func (InitCodeSizeParameter) Samples() []U256 {
 	return initCodeSizeParameterSamples
