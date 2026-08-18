@@ -68,6 +68,11 @@ func TestGethProcessor_RevisionConversion(t *testing.T) {
 			timestamp:   400,
 			revision:    tosca.R15_Osaka,
 		},
+		"Amsterdam": {
+			blockNumber: 9000,
+			timestamp:   500,
+			revision:    tosca.R16_Amsterdam,
+		},
 	}
 
 	for name, test := range tests {
@@ -81,7 +86,8 @@ func TestGethProcessor_RevisionConversion(t *testing.T) {
 			chainConfig := blockParametersToChainConfig(toscaBlockParameters)
 			rules := chainConfig.Rules(big.NewInt(test.blockNumber), test.revision >= tosca.R11_Paris, uint64(test.timestamp))
 
-			if (test.revision >= tosca.R15_Osaka) != rules.IsOsaka ||
+			if (test.revision >= tosca.R16_Amsterdam) != rules.IsAmsterdam ||
+				(test.revision >= tosca.R15_Osaka) != rules.IsOsaka ||
 				(test.revision >= tosca.R14_Prague) != rules.IsPrague ||
 				((test.revision >= tosca.R13_Cancun) != rules.IsCancun) ||
 				((test.revision >= tosca.R12_Shanghai) != rules.IsShanghai) ||
