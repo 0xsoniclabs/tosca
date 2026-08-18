@@ -220,10 +220,12 @@ func undoRefundShift(stateDB geth.StateDB, err error, refundShift uint64) {
 }
 
 func convertRevision(rules params.Rules) (tosca.Revision, error) {
-	// Geth's fork flags beyond Osaka are not necessarily activated in order, so
-	// each of them has to be rejected individually.
-	if rules.IsAmsterdam || rules.IsBogota || rules.IsUBT {
-		return tosca.Revision(-1), &tosca.ErrUnsupportedRevision{Revision: tosca.R15_Osaka + 1}
+	// Geth's fork flags beyond Amsterdam are not necessarily activated in order,
+	// so each of them has to be rejected individually.
+	if rules.IsBogota || rules.IsUBT {
+		return tosca.Revision(-1), &tosca.ErrUnsupportedRevision{Revision: tosca.R16_Amsterdam + 1}
+	} else if rules.IsAmsterdam {
+		return tosca.R16_Amsterdam, nil
 	} else if rules.IsOsaka {
 		return tosca.R15_Osaka, nil
 	} else if rules.IsPrague {
@@ -614,7 +616,7 @@ func bigIntToWord(value *big.Int) (tosca.Word, error) {
 func isPrecompiledContract(recipient tosca.Address, revision tosca.Revision) bool {
 	var precompiles map[common.Address]geth.PrecompiledContract
 	switch revision {
-	case tosca.R15_Osaka:
+	case tosca.R16_Amsterdam, tosca.R15_Osaka:
 		precompiles = geth.PrecompiledContractsOsaka
 	case tosca.R14_Prague:
 		precompiles = geth.PrecompiledContractsPrague

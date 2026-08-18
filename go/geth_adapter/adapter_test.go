@@ -1390,6 +1390,7 @@ func TestRunContextAdapter_bigIntToWord(t *testing.T) {
 }
 
 func TestRunContextAdapter_ConvertRevision(t *testing.T) {
+	amsterdamTime := uint64(1300)
 	osakaTime := uint64(1200)
 	pragueTime := uint64(1100)
 	cancunTime := uint64(1000)
@@ -1450,6 +1451,12 @@ func TestRunContextAdapter_ConvertRevision(t *testing.T) {
 			time:   osakaTime,
 			want:   tosca.R15_Osaka,
 		},
+		"Amsterdam": {
+			random: &common.Hash{0x42},
+			block:  parisBlock,
+			time:   amsterdamTime,
+			want:   tosca.R16_Amsterdam,
+		},
 	}
 
 	chainConfig := &params.ChainConfig{
@@ -1462,6 +1469,7 @@ func TestRunContextAdapter_ConvertRevision(t *testing.T) {
 		CancunTime:         &cancunTime,
 		PragueTime:         &pragueTime,
 		OsakaTime:          &osakaTime,
+		AmsterdamTime:      &amsterdamTime,
 	}
 
 	for name, test := range tests {
@@ -1482,7 +1490,6 @@ func TestRunContextAdapter_ConvertRevision(t *testing.T) {
 func TestRunContextAdapter_ConvertRevisionReturnsUnsupportedRevisionError(t *testing.T) {
 	tests := map[string]params.Rules{
 		"before Istanbul": {IsHomestead: true},
-		"Amsterdam":       {IsAmsterdam: true},
 		"Bogota":          {IsBogota: true},
 		"UBT":             {IsUBT: true},
 	}
@@ -1694,6 +1701,10 @@ func TestGethAdapter_IsPrecompiledContractDependsOnRevision(t *testing.T) {
 		},
 		"osaka": {
 			revision:             tosca.R15_Osaka,
+			precompiledAddresses: []uint64{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x100},
+		},
+		"amsterdam": {
+			revision:             tosca.R16_Amsterdam,
 			precompiledAddresses: []uint64{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x100},
 		},
 	}
