@@ -30,6 +30,7 @@ func TestRevisions_RangeLength(t *testing.T) {
 		"Cancun":      {tosca.R13_Cancun, 1000},
 		"Prague":      {tosca.R14_Prague, 1000},
 		"Osaka":       {tosca.R15_Osaka, 1000},
+		"Amsterdam":   {tosca.R16_Amsterdam, 1000},
 		"UnknownNext": {R99_UnknownNextRevision, math.MaxUint64},
 	}
 
@@ -59,7 +60,8 @@ func TestRevisions_GetForkBlock(t *testing.T) {
 		"Cancun":      {tosca.R13_Cancun, 5000},
 		"Prague":      {tosca.R14_Prague, 6000},
 		"Osaka":       {tosca.R15_Osaka, 7000},
-		"UnknownNext": {R99_UnknownNextRevision, 8000},
+		"Amsterdam":   {tosca.R16_Amsterdam, 8000},
+		"UnknownNext": {R99_UnknownNextRevision, 9000},
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -78,7 +80,7 @@ func TestRevision_GetRevisionForBlock(t *testing.T) {
 	for i := tosca.R07_Istanbul; i <= NewestSupportedRevision; i++ {
 		revisions[i] = GetForkBlock(i)
 	}
-	revisions[R99_UnknownNextRevision] = 8000
+	revisions[R99_UnknownNextRevision] = 9000
 
 	for revision, revisionBlockNumber := range revisions {
 		t.Run(revision.String(), func(t *testing.T) {
@@ -101,7 +103,8 @@ func TestRevisions_GetForkTime(t *testing.T) {
 		tosca.R13_Cancun:        5000,
 		tosca.R14_Prague:        6000,
 		tosca.R15_Osaka:         7000,
-		R99_UnknownNextRevision: 8000,
+		tosca.R16_Amsterdam:     8000,
+		R99_UnknownNextRevision: 9000,
 	}
 
 	for revision, forkTime := range tests {

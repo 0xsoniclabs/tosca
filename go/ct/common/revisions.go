@@ -17,7 +17,7 @@ import (
 )
 
 // NewestSupportedRevision is the newest tosca.Revision currently supported by the CT specification.
-const NewestSupportedRevision = tosca.R15_Osaka
+const NewestSupportedRevision = tosca.R16_Amsterdam
 const NewestFullySupportedRevision = tosca.R15_Osaka
 
 const R99_UnknownNextRevision = tosca.Revision(99)
@@ -46,8 +46,10 @@ func GetForkBlock(revision tosca.Revision) uint64 {
 		return 6000
 	case tosca.R15_Osaka:
 		return 7000
-	default: // R99_UnknownNextRevision:
+	case tosca.R16_Amsterdam:
 		return 8000
+	default: // R99_UnknownNextRevision:
+		return 9000
 	}
 }
 
@@ -74,8 +76,10 @@ func GetForkTime(revision tosca.Revision) uint64 {
 		return 6000
 	case tosca.R15_Osaka:
 		return 7000
-	default:
+	case tosca.R16_Amsterdam:
 		return 8000
+	default:
+		return 9000
 	}
 }
 

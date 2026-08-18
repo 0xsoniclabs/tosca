@@ -19,15 +19,16 @@ import (
 
 func TestRevisions_Marshal(t *testing.T) {
 	tests := map[Revision]string{
-		R07_Istanbul: "\"Istanbul\"",
-		R09_Berlin:   "\"Berlin\"",
-		R10_London:   "\"London\"",
-		R11_Paris:    "\"Paris\"",
-		R12_Shanghai: "\"Shanghai\"",
-		R13_Cancun:   "\"Cancun\"",
-		R14_Prague:   "\"Prague\"",
-		R15_Osaka:    "\"Osaka\"",
-		Revision(42): "\"Revision(42)\"",
+		R07_Istanbul:  "\"Istanbul\"",
+		R09_Berlin:    "\"Berlin\"",
+		R10_London:    "\"London\"",
+		R11_Paris:     "\"Paris\"",
+		R12_Shanghai:  "\"Shanghai\"",
+		R13_Cancun:    "\"Cancun\"",
+		R14_Prague:    "\"Prague\"",
+		R15_Osaka:     "\"Osaka\"",
+		R16_Amsterdam: "\"Amsterdam\"",
+		Revision(42):  "\"Revision(42)\"",
 	}
 
 	for input, expected := range tests {
@@ -51,6 +52,7 @@ func TestRevisions_Unmarshal(t *testing.T) {
 		"\"Cancun\"":       R13_Cancun,
 		"\"Prague\"":       R14_Prague,
 		"\"Osaka\"":        R15_Osaka,
+		"\"Amsterdam\"":    R16_Amsterdam,
 		"\"Revision(42)\"": Revision(42),
 	}
 
