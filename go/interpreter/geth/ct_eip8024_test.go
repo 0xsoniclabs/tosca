@@ -27,7 +27,7 @@ import (
 // through their generic conditions rather than through a test value.
 //
 // The adapter's revision check is bypassed because Amsterdam as a whole is
-// blocked on the state-gas dimension of EIP-8037, see newestSupportedRevision.
+// still blocked, see newestSupportedRevision.
 func TestCtAdapter_Eip8024RulesMatchGeth(t *testing.T) {
 	for _, op := range []vm.OpCode{vm.DUPN, vm.SWAPN, vm.EXCHANGE} {
 		for operand := 0; operand < 256; operand++ {

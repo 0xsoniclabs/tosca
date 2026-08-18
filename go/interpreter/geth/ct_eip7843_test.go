@@ -26,8 +26,7 @@ import (
 // for SLOTNUM against geth, the reference implementation of EIP-7843.
 //
 // The adapter's revision check is bypassed because Amsterdam as a whole is
-// blocked on the state-access repricing of EIP-8038, see
-// newestSupportedRevision.
+// still blocked, see newestSupportedRevision.
 func TestCtAdapter_Eip7843RulesMatchGeth(t *testing.T) {
 	for _, slotNumber := range []uint64{0, 1, 42, math.MaxUint64} {
 		for _, gas := range []tosca.Gas{1, 2, 1000} {
