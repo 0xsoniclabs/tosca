@@ -41,6 +41,7 @@ type Parameters struct {
 	Static    bool
 	Depth     int
 	Gas       Gas
+	StateGas  Gas // < the state-gas reservoir available to the execution, see Gas
 	Recipient Address
 	Sender    Address
 	Input     Data
@@ -127,13 +128,53 @@ type Result struct {
 	Output    Data
 	GasLeft   Gas
 	GasRefund Gas
+
+	// StateGasCharged is the net amount of gas the execution charged in the
+	// state dimension, see Gas. It is not part of GasLeft: the reservoir pays
+	// for it first, and only the part exceeding the reservoir is taken from
+	// regular gas and thus reflected in GasLeft.
+	StateGasCharged Gas
 }
 
 // Data represents the input or output of contract invocations.
 type Data []byte
 
 // Gas represents the type used to represent the Gas values.
+//
+// Starting with R16_Amsterdam, EIP-8037 meters gas in two dimensions: regular
+// gas paying for computation, and state gas paying for durable state growth.
+// Both are counted in the same unit, so Gas is used for either of them, and
+// they are told apart by the field carrying them.
+//
+// An execution is funded with regular gas and, on top of it, a state-gas
+// reservoir. Costs in the state dimension are taken from the reservoir first
+// and fall back to regular gas once it is exhausted. An execution therefore
+// only needs to report how much it charged in the state dimension; how that
+// splits into reservoir and regular gas follows from the size of the reservoir
+// it was given.
+//
+// The split has to be recoverable because a frame that reverts or halts
+// exceptionally refunds the state gas it charged in last-in-first-out order:
+// the part taken from regular gas is returned to regular gas, the remainder
+// refills the reservoir.
+//
+// An interpreter that does not implement EIP-8037 reports no state-dimension
+// charges, which leaves the reservoir untouched and pays every cost from
+// regular gas. That is the behavior the zero value describes, so such an
+// interpreter needs no changes.
 type Gas int64
+
+// SplitStateGasCharge splits a charge in the state dimension into the part
+// covered by a reservoir of the given size and the part that had to be taken
+// from regular gas because the reservoir did not cover it. A negative charge,
+// which a net state-gas refund can produce, is reported as covered by the
+// reservoir.
+func SplitStateGasCharge(reservoir, charged Gas) (fromReservoir, fromGas Gas) {
+	if charged <= reservoir {
+		return charged, 0
+	}
+	return reservoir, charged - reservoir
+}
 
 // Snapshot is a type used to represent a snapshot of the world state in a
 // transaction context.
@@ -166,6 +207,7 @@ type CallParameters struct {
 	Value       Value   // < ignored by static calls, considered to be 0
 	Input       Data
 	Gas         Gas
+	StateGas    Gas  // < the state-gas reservoir forwarded to the call, see Gas
 	Salt        Hash // < only relevant for CREATE2 calls
 	CodeAddress Address
 }
@@ -176,6 +218,10 @@ type CallResult struct {
 	GasRefund      Gas
 	CreatedAddress Address // < only meaningful for CREATE and CREATE2
 	Success        bool    // false if the execution ended in a revert, true otherwise
+
+	// StateGasCharged reports the state dimension of the call, mirroring the
+	// equally named field of Result.
+	StateGasCharged Gas
 }
 
 // Revision is an enumeration for EVM specification revisions (aka. Hard-Forks).

@@ -63,6 +63,9 @@ func (j *CallJournal) Call(kind tosca.CallKind, parameter tosca.CallParameters) 
 		GasLeft:        gasLeft,
 		GasRefund:      result.GasRefund,
 		CreatedAddress: result.CreatedAccount,
+		// The journal does not model the state dimension of EIP-8037, so the
+		// reservoir handed to the call is reported back untouched.
+		StateGasCharged: 0,
 	}
 }
 
