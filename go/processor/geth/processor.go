@@ -183,10 +183,14 @@ func blockParametersToChainConfig(blockParams tosca.BlockParameters) *params.Cha
 	chainConfig.CancunTime = &zeroTime
 	chainConfig.PragueTime = &zeroTime
 	chainConfig.OsakaTime = &zeroTime
+	chainConfig.AmsterdamTime = &zeroTime
 
 	greaterBlockTime := uint64(blockParams.Timestamp + 1)
 	greaterBlockNumber := big.NewInt(blockParams.BlockNumber + 1)
 
+	if blockParams.Revision < tosca.R16_Amsterdam {
+		chainConfig.AmsterdamTime = &greaterBlockTime
+	}
 	if blockParams.Revision < tosca.R15_Osaka {
 		chainConfig.OsakaTime = &greaterBlockTime
 	}

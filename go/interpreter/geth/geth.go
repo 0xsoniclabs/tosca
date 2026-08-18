@@ -133,6 +133,9 @@ func MakeChainConfig(baseline params.ChainConfig, chainId *big.Int, targetRevisi
 	if targetRevision >= tosca.R15_Osaka {
 		chainConfig.OsakaTime = &zeroTime
 	}
+	if targetRevision >= tosca.R16_Amsterdam {
+		chainConfig.AmsterdamTime = &zeroTime
+	}
 
 	return chainConfig
 }

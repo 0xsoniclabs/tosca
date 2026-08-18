@@ -191,6 +191,7 @@ const (
 	R13_Cancun
 	R14_Prague
 	R15_Osaka
+	R16_Amsterdam
 	numRevisions int = iota
 )
 
