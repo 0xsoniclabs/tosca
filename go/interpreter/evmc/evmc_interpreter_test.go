@@ -16,7 +16,42 @@ import (
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"github.com/ethereum/evmc/v11/bindings/go/evmc"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
+
+func TestEvmcInterpreter_RunDerivesHostContextFromParameters(t *testing.T) {
+	interpreter := newTestInterpreter()
+	tests := map[string][]tosca.Hash{
+		"none":     nil,
+		"one":      {{1}},
+		"several":  {{2}, {3}, {4}},
+		"repeated": {{5}, {5}},
+	}
+
+	for name, hashes := range tests {
+		t.Run(name, func(t *testing.T) {
+			runContext := tosca.NewMockRunContext(gomock.NewController(t))
+			// The test VM asks whether the recipient exists; a non-zero nonce
+			// ends isEmpty at its first condition, so the balance and the code
+			// size are never asked for and need no expectation of their own.
+			runContext.EXPECT().GetNonce(tosca.Address{}).Return(uint64(1))
+
+			result, err := interpreter.Run(tosca.Parameters{
+				Context:               runContext,
+				TransactionParameters: tosca.TransactionParameters{BlobHashes: hashes},
+			})
+
+			require.NoError(t, err)
+			// The test VM returns the blob hashes of its host context as output.
+			want := []byte{}
+			for _, hash := range hashes {
+				want = append(want, hash[:]...)
+			}
+			require.Equal(t, want, []byte(result.Output))
+		})
+	}
+}
 
 func TestEvmcInterpreter_RevisionConversion(t *testing.T) {
 	tests := []struct {

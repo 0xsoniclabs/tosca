@@ -53,12 +53,24 @@ var hostContextPool = sync.Pool{New: func() any { return new(hostContext) }}
 func (e *EvmcInterpreter) Run(params tosca.Parameters) (tosca.Result, error) {
 	host_ctx := hostContextPool.Get().(*hostContext)
 	defer func() {
-		*host_ctx = hostContext{evmcBlobHashes: host_ctx.evmcBlobHashes[:0]}
+		// Drop all allocations at the end of the execution, instead of leaving them
+		// to be overwritten by the next one, except the reused blob hashes.
+		host_ctx.params.BlobHashes = nil
+		host_ctx.params.Context = nil
+		host_ctx.params.Input = nil
+		host_ctx.params.CodeHash = nil
+		host_ctx.params.Code = nil
+		host_ctx.context = nil
+		host_ctx.evmcBlobHashes = host_ctx.evmcBlobHashes[:0]
 		hostContextPool.Put(host_ctx)
 	}()
+
+	// All fields are overwritten, so that a recycled context carries nothing but
+	// its blob-hash capacity into this execution; assigning the struct as a whole
+	// would build it on the stack first and copy it from there to the heap.
 	host_ctx.params = params
 	host_ctx.context = params.Context
-
+	host_ctx.evmcBlobHashes = host_ctx.evmcBlobHashes[:0] // reuse allocation
 	for _, hash := range params.BlobHashes {
 		host_ctx.evmcBlobHashes = append(host_ctx.evmcBlobHashes, evmc.Hash(hash))
 	}
