@@ -18,7 +18,7 @@ import (
 
 // NewestSupportedRevision is the newest tosca.Revision currently supported by the CT specification.
 const NewestSupportedRevision = tosca.R15_Osaka
-const NewestFullySupportedRevision = tosca.R14_Prague
+const NewestFullySupportedRevision = tosca.R15_Osaka
 
 const R99_UnknownNextRevision = tosca.Revision(99)
 const MinRevision = tosca.R07_Istanbul
