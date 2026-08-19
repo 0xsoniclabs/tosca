@@ -169,6 +169,36 @@ func TestStack_swap_WorksForAnyIntegerValue(t *testing.T) {
 	}
 }
 
+func TestStack_exchange_SwapsTheTwoSelectedElements(t *testing.T) {
+	// (n,m) => expected order after exchange(n, m)
+	tests := map[[2]int][]uint64{
+		{0, 0}: {0, 1, 2, 3, 4},
+		{0, 1}: {1, 0, 2, 3, 4},
+		{1, 3}: {0, 3, 2, 1, 4},
+		{2, 4}: {0, 1, 4, 3, 2},
+	}
+
+	for positions, result := range tests {
+		t.Run(fmt.Sprintf("exchange%d_%d", positions[0], positions[1]), func(t *testing.T) {
+			stack := NewStack()
+			defer ReturnStack(stack)
+
+			for i := 4; i >= 0; i-- {
+				stack.push(uint256.NewInt(uint64(i)))
+			}
+
+			stack.exchange(positions[0], positions[1])
+
+			for i, want := range result {
+				got := stack.peekN(i).Uint64()
+				if want != got {
+					t.Errorf("expected %d-th element to be %d, but got %d", i, want, got)
+				}
+			}
+		})
+	}
+}
+
 func TestStack_dup_DuplicatesSelectedElementFromStack(t *testing.T) {
 	// n => expected content after dup(n)
 	tests := map[int][]uint64{

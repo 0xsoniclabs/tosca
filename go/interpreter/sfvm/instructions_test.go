@@ -975,11 +975,30 @@ func TestGenericDataCopy_ReturnsErrorOn(t *testing.T) {
 }
 
 func TestGetAccessCost_RespondsWithProperGasPrice(t *testing.T) {
-	if want, got := tosca.Gas(100), getAccessCost(tosca.WarmAccess); want != got {
-		t.Errorf("unexpected gas cost, wanted %d, got %d", want, got)
+	tests := map[string]struct {
+		cost       func(tosca.Revision, tosca.AccessStatus) tosca.Gas
+		revision   tosca.Revision
+		status     tosca.AccessStatus
+		wantedCost tosca.Gas
+	}{
+		"warm account": {getAccountAccessCost, tosca.R09_Berlin, tosca.WarmAccess, 100},
+		"cold account": {getAccountAccessCost, tosca.R09_Berlin, tosca.ColdAccess, 2600},
+		"warm storage": {getStorageAccessCost, tosca.R09_Berlin, tosca.WarmAccess, 100},
+		"cold storage": {getStorageAccessCost, tosca.R09_Berlin, tosca.ColdAccess, 2100},
+
+		// EIP-8038 reprices the cold accesses and levels both of them out.
+		"warm account since amsterdam": {getAccountAccessCost, tosca.R16_Amsterdam, tosca.WarmAccess, 100},
+		"cold account since amsterdam": {getAccountAccessCost, tosca.R16_Amsterdam, tosca.ColdAccess, 3000},
+		"warm storage since amsterdam": {getStorageAccessCost, tosca.R16_Amsterdam, tosca.WarmAccess, 100},
+		"cold storage since amsterdam": {getStorageAccessCost, tosca.R16_Amsterdam, tosca.ColdAccess, 3000},
 	}
-	if want, got := tosca.Gas(2600), getAccessCost(tosca.ColdAccess); want != got {
-		t.Errorf("unexpected gas cost, wanted %d, got %d", want, got)
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			if want, got := test.wantedCost, test.cost(test.revision, test.status); want != got {
+				t.Errorf("unexpected gas cost, wanted %d, got %d", want, got)
+			}
+		})
 	}
 }
 
@@ -1082,37 +1101,63 @@ func TestSelfDestruct_Refund(t *testing.T) {
 func TestSelfDestruct_NewAccountCost(t *testing.T) {
 
 	tests := map[string]struct {
+		revision         tosca.Revision
 		beneficiaryEmpty bool
 		balance          tosca.Value
 		cost             tosca.Gas
+		stateCost        tosca.Gas
 	}{
 		"beneficiary empty no balance": {
+			revision:         tosca.R15_Osaka,
 			beneficiaryEmpty: true,
 			balance:          tosca.Value{},
 			cost:             0,
 		},
 		"beneficiary empty with balance": {
+			revision:         tosca.R15_Osaka,
 			beneficiaryEmpty: true,
 			balance:          tosca.Value{1},
 			cost:             25_000,
 		},
 		"beneficiary not empty without balance": {
+			revision:         tosca.R15_Osaka,
 			beneficiaryEmpty: false,
 			balance:          tosca.Value{},
 			cost:             0,
 		},
 		"beneficiary not empty with balance": {
+			revision:         tosca.R15_Osaka,
 			beneficiaryEmpty: false,
 			balance:          tosca.Value{1},
 			cost:             0,
+		},
+
+		// Since Amsterdam the creation of the beneficiary is split into the write
+		// to the account and the durable growth it causes, see EIP-8037.
+		"beneficiary empty with balance since amsterdam": {
+			revision:         tosca.R16_Amsterdam,
+			beneficiaryEmpty: true,
+			balance:          tosca.Value{1},
+			cost:             AccountWriteCostAmsterdam,
+			stateCost:        AccountCreationStateCostAmsterdam,
+		},
+		"beneficiary not empty with balance since amsterdam": {
+			revision:         tosca.R16_Amsterdam,
+			beneficiaryEmpty: false,
+			balance:          tosca.Value{1},
+			cost:             0,
+			stateCost:        0,
 		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			cost := selfDestructNewAccountCost(test.beneficiaryEmpty, test.balance)
+			cost, stateCost := selfDestructNewAccountCost(test.revision, test.beneficiaryEmpty, test.balance)
 			if cost != test.cost {
 				t.Errorf("unexpected gas, wanted %d, got %d", test.cost, cost)
+			}
+			if stateCost != test.stateCost {
+				t.Errorf("unexpected state gas, wanted %d, got %d", test.stateCost, stateCost)
 			}
 		})
 	}
@@ -1215,11 +1260,29 @@ func TestSelfDestruct_ProperlyReportsNotEnoughGas(t *testing.T) {
 }
 
 func TestComputeCodeSizeCost(t *testing.T) {
-	if cost, err := computeCodeSizeCost(24576*2 + 1); err == nil || cost != 0 {
-		t.Errorf("check should have failed with size 49153 but did not. err %v, cost %v", err, cost)
+	tests := map[string]struct {
+		revision tosca.Revision
+		size     uint64
+		cost     tosca.Gas
+		fails    bool
+	}{
+		"at the limit":                    {tosca.R15_Osaka, 24576 * 2, 3072, false},
+		"beyond the limit":                {tosca.R15_Osaka, 24576*2 + 1, 0, true},
+		"at the limit of amsterdam":       {tosca.R16_Amsterdam, 65536 * 2, 8192, false},
+		"beyond the limit of amsterdam":   {tosca.R16_Amsterdam, 65536*2 + 1, 0, true},
+		"beyond the limit before it grew": {tosca.R16_Amsterdam, 24576*2 + 1, 3074, false},
 	}
-	if cost, err := computeCodeSizeCost(24576 * 2); err != nil || cost != 3072 {
-		t.Errorf("should not have failed with size 49152, err %v, cost %v", err, cost)
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			cost, err := computeCodeSizeCost(test.revision, test.size)
+			if want, got := test.fails, err != nil; want != got {
+				t.Fatalf("unexpected error for size %d: %v", test.size, err)
+			}
+			if cost != test.cost {
+				t.Errorf("unexpected cost, wanted %d, got %d", test.cost, cost)
+			}
+		})
 	}
 }
 
@@ -2871,6 +2934,204 @@ func TestInstructions_ParseDelegationDesignation(t *testing.T) {
 
 // fillStack creates a new stack and pushes the given values onto it.
 // function arguments interpret top of the stack as the rightmost argument.
+// --- EIP-8024: DUPN, SWAPN and EXCHANGE ---
+
+func TestImmediateStackOps_AddressTheStackPositionEncodedInTheirOperand(t *testing.T) {
+	// A stack holding 0, 1, 2, ... from the top down, deep enough for every
+	// operand used below.
+	newStack := func() *stack {
+		s := NewStack()
+		for i := 300; i >= 0; i-- {
+			s.push(uint256.NewInt(uint64(i)))
+		}
+		return s
+	}
+
+	tests := map[string]struct {
+		op      vm.OpCode
+		operand byte
+		run     func(*context) error
+		wantTop []uint64 // < the expected stack content from the top down
+	}{
+		"dupn duplicates the addressed position": {
+			op: vm.DUPN, operand: 0, run: opDupN,
+			// The operand 0 addresses a depth of 145, holding the value 144.
+			wantTop: []uint64{144, 0, 1, 2},
+		},
+		"swapn swaps the top with the addressed position": {
+			op: vm.SWAPN, operand: 0, run: opSwapN,
+			// The operand 0 addresses the 146th element, holding the value 145.
+			wantTop: []uint64{145, 1, 2},
+		},
+		"exchange swaps the two addressed positions": {
+			op: vm.EXCHANGE, operand: 0, run: opExchange,
+			// The operand 0 addresses the positions 9 and 16 from the top.
+			wantTop: []uint64{0, 1, 2, 3, 4, 5, 6, 7, 8, 16, 10, 11, 12, 13, 14, 15, 9, 17},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctxt := getEmptyContext()
+			ctxt.params.Revision = tosca.R16_Amsterdam
+			ctxt.code = tosca.Code{byte(test.op), test.operand, byte(vm.STOP)}
+			ctxt.stack = newStack()
+			defer ReturnStack(ctxt.stack)
+
+			if err := test.run(&ctxt); err != nil {
+				t.Fatalf("execution failed: %v", err)
+			}
+
+			// The operand is consumed, so the program counter moved past it.
+			if want, got := int32(1), ctxt.pc; want != got {
+				t.Errorf("unexpected program counter, wanted %d, got %d", want, got)
+			}
+			for i, want := range test.wantTop {
+				if got := ctxt.stack.peekN(i).Uint64(); got != want {
+					t.Errorf("unexpected value at position %d, wanted %d, got %d", i, want, got)
+				}
+			}
+		})
+	}
+}
+
+// TestImmediateStackOps_MissingOperandReadsAsZero covers an EIP-8024 instruction
+// as the very last byte of the code, whose operand is not there to be read.
+func TestImmediateStackOps_MissingOperandReadsAsZero(t *testing.T) {
+	ctxt := getEmptyContext()
+	ctxt.params.Revision = tosca.R16_Amsterdam
+	ctxt.code = tosca.Code{byte(vm.DUPN)}
+	ctxt.stack.stackPointer = vm.MinStackSizeForImmediate(vm.DUPN, 0)
+
+	if err := opDupN(&ctxt); err != nil {
+		t.Fatalf("execution failed: %v", err)
+	}
+	// The program counter ends up one position beyond the code.
+	if want, got := int32(1), ctxt.pc; want != got {
+		t.Errorf("unexpected program counter, wanted %d, got %d", want, got)
+	}
+}
+
+func TestImmediateStackOps_FailForInadmissibleOperandsAndShallowStacks(t *testing.T) {
+	ops := map[vm.OpCode]func(*context) error{
+		vm.DUPN:     opDupN,
+		vm.SWAPN:    opSwapN,
+		vm.EXCHANGE: opExchange,
+	}
+
+	for op, run := range ops {
+		t.Run(op.String(), func(t *testing.T) {
+			tests := map[string]struct {
+				revision  tosca.Revision
+				operand   byte
+				stackSize int
+				wantErr   error
+			}{
+				"before amsterdam": {tosca.R15_Osaka, 0, 1024, errInvalidRevision},
+				// The byte range excluded to keep the encodings backward compatible
+				// always contains 127, see vm.IsValidImmediateOperand.
+				"inadmissible operand": {tosca.R16_Amsterdam, 127, 1024, errInvalidOpCode},
+				"stack too shallow":    {tosca.R16_Amsterdam, 0, 1, errStackUnderflow},
+			}
+
+			for name, test := range tests {
+				t.Run(name, func(t *testing.T) {
+					ctxt := getEmptyContext()
+					ctxt.params.Revision = test.revision
+					ctxt.code = tosca.Code{byte(op), test.operand}
+					ctxt.stack.stackPointer = test.stackSize
+
+					if want, got := test.wantErr, run(&ctxt); want != got {
+						t.Errorf("unexpected error, wanted %v, got %v", want, got)
+					}
+					if want, got := int32(0), ctxt.pc; want != got {
+						t.Errorf("a failing instruction must not consume its operand")
+					}
+				})
+			}
+		})
+	}
+}
+
+// --- EIP-7843: SLOTNUM ---
+
+func TestSlotNum_PushesTheSlotOfTheBlock(t *testing.T) {
+	ctxt := getEmptyContext()
+	ctxt.params.Revision = tosca.R16_Amsterdam
+	ctxt.params.SlotNumber = 42
+
+	if err := opSlotNum(&ctxt); err != nil {
+		t.Fatalf("execution failed: %v", err)
+	}
+	if want, got := uint64(42), ctxt.stack.peek().Uint64(); want != got {
+		t.Errorf("unexpected slot number, wanted %d, got %d", want, got)
+	}
+}
+
+func TestSlotNum_IsNotAvailableBeforeAmsterdam(t *testing.T) {
+	ctxt := getEmptyContext()
+	ctxt.params.Revision = tosca.R15_Osaka
+
+	if want, got := errInvalidRevision, opSlotNum(&ctxt); want != got {
+		t.Errorf("unexpected error, wanted %v, got %v", want, got)
+	}
+}
+
+// --- EIP-7708: transfer logs ---
+
+func TestSelfDestruct_ReportsTheMovedBalanceInATransferLogSinceAmsterdam(t *testing.T) {
+	self := tosca.Address{2}
+	beneficiary := tosca.Address{1}
+	balance := tosca.Value{31: 5}
+
+	tests := map[string]struct {
+		revision    tosca.Revision
+		beneficiary tosca.Address
+		balance     tosca.Value
+		wantLog     bool
+	}{
+		"transfer to another account": {tosca.R16_Amsterdam, beneficiary, balance, true},
+		"transfer of nothing":         {tosca.R16_Amsterdam, beneficiary, tosca.Value{}, false},
+		"transfer to self":            {tosca.R16_Amsterdam, self, balance, false},
+		"before amsterdam":            {tosca.R15_Osaka, beneficiary, balance, false},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			runContext := tosca.NewMockRunContext(ctrl)
+			runContext.EXPECT().AccessAccount(test.beneficiary).Return(tosca.WarmAccess)
+			runContext.EXPECT().GetBalance(self).Return(test.balance).AnyTimes()
+			runContext.EXPECT().GetBalance(test.beneficiary).Return(tosca.Value{1}).AnyTimes()
+			runContext.EXPECT().GetNonce(gomock.Any()).AnyTimes()
+			runContext.EXPECT().GetCodeSize(gomock.Any()).AnyTimes()
+			runContext.EXPECT().SelfDestruct(self, test.beneficiary).Return(true)
+			if test.wantLog {
+				runContext.EXPECT().EmitLog(tosca.Log{
+					Address: transferLogAddress,
+					Topics: []tosca.Hash{
+						transferLogEvent,
+						{12: 2},
+						{12: 1},
+					},
+					Data: test.balance[:],
+				})
+			}
+
+			ctxt := getEmptyContext()
+			ctxt.params.Revision = test.revision
+			ctxt.params.Recipient = self
+			ctxt.context = runContext
+			ctxt.gas = 1 << 20
+			ctxt.stack.push(new(uint256.Int).SetBytes(test.beneficiary[:]))
+
+			if _, err := opSelfdestruct(&ctxt); err != nil {
+				t.Fatalf("execution failed: %v", err)
+			}
+		})
+	}
+}
+
 func fillStack(values ...uint256.Int) *stack {
 	s := NewStack()
 	for i := len(values) - 1; i >= 0; i-- {
