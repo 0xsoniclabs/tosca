@@ -68,6 +68,7 @@ By default, `evmrs` is build with the simplest implementation.
 All optimizations are behind feature flags.
 A list of all features can be found in the `[features]` section in [Cargo.toml](./Cargo.toml).
 For convenience there is also a feature named `performance` which enables all other features that improve overall performance.
+Feature `tail-call` is not among them because it uses the unstable `explicit_tail_calls` feature and therefore requires nightly Rust.
 
 Most `cargo` commands accept the `--features` flag followed by a list of features to enable, e.g.
 ```sh
@@ -102,7 +103,7 @@ cargo build --features mimalloc,custom-evmc
 
 > Note:
 Unless you are profiling function dispatch, it might make sense to disable feature `tail-call`. 
-Otherwise, stack traces get very long and stack overflows can occur.
+Otherwise, operations tail call each other without pushing a stack frame, so profiles contain no call chain through the interpreter loop.
 This is currently the default but might change in the future again. Just make sure `tail-call` is not in the list of features enabled by feature `performance` in [Cargo.toml](Cargo.toml)
 
 > Note: 
