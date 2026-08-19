@@ -20,272 +20,306 @@ type OpResult = Result<(), FailStatus>;
 
 pub type OpFn<const STEPPABLE: bool> = fn(&mut Interpreter<STEPPABLE>) -> OpResult;
 
-// The closures here are necessary because methods capture the lifetime of the type which we
-// want to avoid.
+/// Tail calls `$call`, which requires caller and callee to have matching signatures. Without the
+/// tail-call feature this is a plain `return` so that the crate builds on stable Rust: `become` is
+/// gated even where it is removed by `cfg`, so it must not appear in any expansion.
+#[cfg(feature = "tail-call")]
+macro_rules! tail_call {
+    ($call:expr) => {
+        become $call
+    };
+}
+#[cfg(not(feature = "tail-call"))]
+macro_rules! tail_call {
+    ($call:expr) => {
+        return $call
+    };
+}
+
+/// Wraps an opcode method in a function pointer, which methods themselves cannot be coerced to
+/// because they capture the lifetime of the type. The wrapper tail calls the method to keep the
+/// chain of tail calls intact; a closure cannot be used because `become` is not allowed in it.
+macro_rules! op_fn {
+    ($name:ident) => {{
+        fn $name<const STEPPABLE: bool>(i: &mut Interpreter<STEPPABLE>) -> OpResult {
+            tail_call!(i.$name())
+        }
+        $name::<STEPPABLE>
+    }};
+    ($name:ident::<$generic:literal>) => {{
+        fn $name<const STEPPABLE: bool, const N: usize>(
+            i: &mut Interpreter<STEPPABLE>,
+        ) -> OpResult {
+            tail_call!(i.$name::<N>())
+        }
+        $name::<STEPPABLE, $generic>
+    }};
+}
+
 const fn gen_jumptable<const STEPPABLE: bool>() -> [OpFn<STEPPABLE>; 256] {
     [
-        |i| i.stop(),
-        |i| i.add(),
-        |i| i.mul(),
-        |i| i.sub(),
-        |i| i.div(),
-        |i| i.s_div(),
-        |i| i.mod_(),
-        |i| i.s_mod(),
-        |i| i.add_mod(),
-        |i| i.mul_mod(),
-        |i| i.exp(),
-        |i| i.sign_extend(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.lt(),
-        |i| i.gt(),
-        |i| i.s_lt(),
-        |i| i.s_gt(),
-        |i| i.eq(),
-        |i| i.is_zero(),
-        |i| i.and(),
-        |i| i.or(),
-        |i| i.xor(),
-        |i| i.not(),
-        |i| i.byte(),
-        |i| i.shl(),
-        |i| i.shr(),
-        |i| i.sar(),
-        |i| i.clz(),
-        |i| i.jumptable_placeholder(),
-        |i| i.sha3(),
-        #[cfg(feature = "fn-ptr-conversion-dispatch")]
-        |i| i.no_op(),
-        #[cfg(feature = "fn-ptr-conversion-dispatch")]
-        |i| i.skip_no_ops(),
-        #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
-        |i| i.jumptable_placeholder(),
-        #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.address(),
-        |i| i.balance(),
-        |i| i.origin(),
-        |i| i.caller(),
-        |i| i.call_value(),
-        |i| i.call_data_load(),
-        |i| i.call_data_size(),
-        |i| i.call_data_copy(),
-        |i| i.code_size(),
-        |i| i.code_copy(),
-        |i| i.gas_price(),
-        |i| i.ext_code_size(),
-        |i| i.ext_code_copy(),
-        |i| i.return_data_size(),
-        |i| i.return_data_copy(),
-        |i| i.ext_code_hash(),
-        |i| i.block_hash(),
-        |i| i.coinbase(),
-        |i| i.timestamp(),
-        |i| i.number(),
-        |i| i.prev_randao(),
-        |i| i.gas_limit(),
-        |i| i.chain_id(),
-        |i| i.self_balance(),
-        |i| i.base_fee(),
-        |i| i.blob_hash(),
-        |i| i.blob_base_fee(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.pop(),
-        |i| i.m_load(),
-        |i| i.m_store(),
-        |i| i.m_store8(),
-        |i| i.s_load(),
-        |i| i.sstore(),
-        |i| i.jump(),
-        |i| i.jump_i(),
-        |i| i.pc(),
-        |i| i.m_size(),
-        |i| i.gas(),
-        |i| i.jump_dest(),
-        |i| i.t_load(),
-        |i| i.t_store(),
-        |i| i.m_copy(),
-        |i| i.push0(),
-        |i| i.push::<1>(),
-        |i| i.push::<2>(),
-        |i| i.push::<3>(),
-        |i| i.push::<4>(),
-        |i| i.push::<5>(),
-        |i| i.push::<6>(),
-        |i| i.push::<7>(),
-        |i| i.push::<8>(),
-        |i| i.push::<9>(),
-        |i| i.push::<10>(),
-        |i| i.push::<11>(),
-        |i| i.push::<12>(),
-        |i| i.push::<13>(),
-        |i| i.push::<14>(),
-        |i| i.push::<15>(),
-        |i| i.push::<16>(),
-        |i| i.push::<17>(),
-        |i| i.push::<18>(),
-        |i| i.push::<19>(),
-        |i| i.push::<20>(),
-        |i| i.push::<21>(),
-        |i| i.push::<22>(),
-        |i| i.push::<23>(),
-        |i| i.push::<24>(),
-        |i| i.push::<25>(),
-        |i| i.push::<26>(),
-        |i| i.push::<27>(),
-        |i| i.push::<28>(),
-        |i| i.push::<29>(),
-        |i| i.push::<30>(),
-        |i| i.push::<31>(),
-        |i| i.push::<32>(),
-        |i| i.dup::<1>(),
-        |i| i.dup::<2>(),
-        |i| i.dup::<3>(),
-        |i| i.dup::<4>(),
-        |i| i.dup::<5>(),
-        |i| i.dup::<6>(),
-        |i| i.dup::<7>(),
-        |i| i.dup::<8>(),
-        |i| i.dup::<9>(),
-        |i| i.dup::<10>(),
-        |i| i.dup::<11>(),
-        |i| i.dup::<12>(),
-        |i| i.dup::<13>(),
-        |i| i.dup::<14>(),
-        |i| i.dup::<15>(),
-        |i| i.dup::<16>(),
-        |i| i.swap::<1>(),
-        |i| i.swap::<2>(),
-        |i| i.swap::<3>(),
-        |i| i.swap::<4>(),
-        |i| i.swap::<5>(),
-        |i| i.swap::<6>(),
-        |i| i.swap::<7>(),
-        |i| i.swap::<8>(),
-        |i| i.swap::<9>(),
-        |i| i.swap::<10>(),
-        |i| i.swap::<11>(),
-        |i| i.swap::<12>(),
-        |i| i.swap::<13>(),
-        |i| i.swap::<14>(),
-        |i| i.swap::<15>(),
-        |i| i.swap::<16>(),
-        |i| i.log::<0>(),
-        |i| i.log::<1>(),
-        |i| i.log::<2>(),
-        |i| i.log::<3>(),
-        |i| i.log::<4>(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.create(),
-        |i| i.call(),
-        |i| i.call_code(),
-        |i| i.return_(),
-        |i| i.delegate_call(),
-        |i| i.create2(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.static_call(),
-        |i| i.jumptable_placeholder(),
-        |i| i.jumptable_placeholder(),
-        |i| i.revert(),
-        |i| i.invalid(),
-        |i| i.self_destruct(),
+        op_fn!(stop),
+        op_fn!(add),
+        op_fn!(mul),
+        op_fn!(sub),
+        op_fn!(div),
+        op_fn!(s_div),
+        op_fn!(mod_),
+        op_fn!(s_mod),
+        op_fn!(add_mod),
+        op_fn!(mul_mod),
+        op_fn!(exp),
+        op_fn!(sign_extend),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(lt),
+        op_fn!(gt),
+        op_fn!(s_lt),
+        op_fn!(s_gt),
+        op_fn!(eq),
+        op_fn!(is_zero),
+        op_fn!(and),
+        op_fn!(or),
+        op_fn!(xor),
+        op_fn!(not),
+        op_fn!(byte),
+        op_fn!(shl),
+        op_fn!(shr),
+        op_fn!(sar),
+        op_fn!(clz),
+        op_fn!(jumptable_placeholder),
+        op_fn!(sha3),
+        std::cfg_select! {
+            feature = "fn-ptr-conversion-dispatch" => op_fn!(no_op),
+            _ => op_fn!(jumptable_placeholder),
+        },
+        std::cfg_select! {
+            feature = "fn-ptr-conversion-dispatch" => op_fn!(skip_no_ops),
+            _ => op_fn!(jumptable_placeholder),
+        },
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(address),
+        op_fn!(balance),
+        op_fn!(origin),
+        op_fn!(caller),
+        op_fn!(call_value),
+        op_fn!(call_data_load),
+        op_fn!(call_data_size),
+        op_fn!(call_data_copy),
+        op_fn!(code_size),
+        op_fn!(code_copy),
+        op_fn!(gas_price),
+        op_fn!(ext_code_size),
+        op_fn!(ext_code_copy),
+        op_fn!(return_data_size),
+        op_fn!(return_data_copy),
+        op_fn!(ext_code_hash),
+        op_fn!(block_hash),
+        op_fn!(coinbase),
+        op_fn!(timestamp),
+        op_fn!(number),
+        op_fn!(prev_randao),
+        op_fn!(gas_limit),
+        op_fn!(chain_id),
+        op_fn!(self_balance),
+        op_fn!(base_fee),
+        op_fn!(blob_hash),
+        op_fn!(blob_base_fee),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(pop),
+        op_fn!(m_load),
+        op_fn!(m_store),
+        op_fn!(m_store8),
+        op_fn!(s_load),
+        op_fn!(sstore),
+        op_fn!(jump),
+        op_fn!(jump_i),
+        op_fn!(pc),
+        op_fn!(m_size),
+        op_fn!(gas),
+        op_fn!(jump_dest),
+        op_fn!(t_load),
+        op_fn!(t_store),
+        op_fn!(m_copy),
+        op_fn!(push0),
+        op_fn!(push::<1>),
+        op_fn!(push::<2>),
+        op_fn!(push::<3>),
+        op_fn!(push::<4>),
+        op_fn!(push::<5>),
+        op_fn!(push::<6>),
+        op_fn!(push::<7>),
+        op_fn!(push::<8>),
+        op_fn!(push::<9>),
+        op_fn!(push::<10>),
+        op_fn!(push::<11>),
+        op_fn!(push::<12>),
+        op_fn!(push::<13>),
+        op_fn!(push::<14>),
+        op_fn!(push::<15>),
+        op_fn!(push::<16>),
+        op_fn!(push::<17>),
+        op_fn!(push::<18>),
+        op_fn!(push::<19>),
+        op_fn!(push::<20>),
+        op_fn!(push::<21>),
+        op_fn!(push::<22>),
+        op_fn!(push::<23>),
+        op_fn!(push::<24>),
+        op_fn!(push::<25>),
+        op_fn!(push::<26>),
+        op_fn!(push::<27>),
+        op_fn!(push::<28>),
+        op_fn!(push::<29>),
+        op_fn!(push::<30>),
+        op_fn!(push::<31>),
+        op_fn!(push::<32>),
+        op_fn!(dup::<1>),
+        op_fn!(dup::<2>),
+        op_fn!(dup::<3>),
+        op_fn!(dup::<4>),
+        op_fn!(dup::<5>),
+        op_fn!(dup::<6>),
+        op_fn!(dup::<7>),
+        op_fn!(dup::<8>),
+        op_fn!(dup::<9>),
+        op_fn!(dup::<10>),
+        op_fn!(dup::<11>),
+        op_fn!(dup::<12>),
+        op_fn!(dup::<13>),
+        op_fn!(dup::<14>),
+        op_fn!(dup::<15>),
+        op_fn!(dup::<16>),
+        op_fn!(swap::<1>),
+        op_fn!(swap::<2>),
+        op_fn!(swap::<3>),
+        op_fn!(swap::<4>),
+        op_fn!(swap::<5>),
+        op_fn!(swap::<6>),
+        op_fn!(swap::<7>),
+        op_fn!(swap::<8>),
+        op_fn!(swap::<9>),
+        op_fn!(swap::<10>),
+        op_fn!(swap::<11>),
+        op_fn!(swap::<12>),
+        op_fn!(swap::<13>),
+        op_fn!(swap::<14>),
+        op_fn!(swap::<15>),
+        op_fn!(swap::<16>),
+        op_fn!(log::<0>),
+        op_fn!(log::<1>),
+        op_fn!(log::<2>),
+        op_fn!(log::<3>),
+        op_fn!(log::<4>),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(create),
+        op_fn!(call),
+        op_fn!(call_code),
+        op_fn!(return_),
+        op_fn!(delegate_call),
+        op_fn!(create2),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(static_call),
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
+        op_fn!(revert),
+        op_fn!(invalid),
+        op_fn!(self_destruct),
     ]
 }
 
@@ -425,7 +459,11 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
                 }
             };
             observer.pre_op(&self);
-            if let Err(err) = self.run_op(op) {
+            let res = std::cfg_select! {
+                feature = "fn-ptr-conversion-dispatch" => op(&mut self),
+                _ => get_jumptable()[op as usize](&mut self),
+            };
+            if let Err(err) = res {
                 return err.into();
             }
             observer.post_op(&self);
@@ -467,23 +505,19 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
                 return Err(FailStatus::InvalidInstruction);
             }
         };
-        self.run_op(op)
+        std::cfg_select! {
+            feature = "fn-ptr-conversion-dispatch" => tail_call!(op(self)),
+            _ => tail_call!(get_jumptable()[op as usize](self)),
+        }
     }
 
-    #[cfg(feature = "fn-ptr-conversion-dispatch")]
-    fn run_op(&mut self, op: OpFn<STEPPABLE>) -> OpResult {
-        op(self)
-    }
-    #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
-    fn run_op(&mut self, op: u8) -> OpResult {
-        get_jumptable()[op as usize](self)
-    }
-
+    /// Returns with [`Ok`] or calls the next operation as a tail call if feature `tail-call` is
+    /// enabled.
     #[allow(clippy::unused_self)]
     #[inline(always)]
     fn return_from_op(&mut self) -> OpResult {
         std::cfg_select! {
-            feature = "tail-call" => self.next(),
+            feature = "tail-call" => tail_call!(self.next()),
             _ => Ok(()),
         }
     }
@@ -493,47 +527,48 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         Err(FailStatus::Failure)
     }
 
-    /// Runs an opcode that charges `cost` gas, pops one value and pushes `op` applied to it.
+    /// Performs an operation that charges `cost` gas, pops one value and pushes `op` applied to it.
     #[inline(always)]
     fn unary_op<I: Into<u256>>(&mut self, op: fn(u256) -> I, cost: u64) -> OpResult {
         self.gas_left.consume(cost)?;
         let (push_location, [value]) = self.stack.pop_with_location()?;
         push_location.push(op(value));
         self.code_reader.next();
-        self.return_from_op()
+        Ok(())
     }
 
-    /// Runs an opcode that charges `cost` gas, pops two values and pushes `op` applied to them.
-    /// `op` receives the top of stack as its first argument.
+    /// Performs an operation that charges `cost` gas, pops two values and pushes `op` applied to
+    /// them. `op` receives the top of stack as its first argument.
     #[inline(always)]
     fn binary_op<I: Into<u256>>(&mut self, op: fn(u256, u256) -> I, cost: u64) -> OpResult {
         self.gas_left.consume(cost)?;
         let (push_location, [value2, value1]) = self.stack.pop_with_location()?;
         push_location.push(op(value1, value2));
         self.code_reader.next();
-        self.return_from_op()
+        Ok(())
     }
 
-    /// Runs an opcode that charges `cost` gas and pushes `op` applied to the interpreter state.
+    /// Performs an operation that charges `cost` gas and pushes `op` applied to the interpreter
+    /// state.
     #[inline(always)]
     fn push_value_op<I: Into<u256>>(&mut self, op: fn(&mut Self) -> I, cost: u64) -> OpResult {
         self.gas_left.consume(cost)?;
         let value = op(self);
         self.stack.push(value)?;
         self.code_reader.next();
-        self.return_from_op()
+        Ok(())
     }
 
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     pub fn no_op(&mut self) -> OpResult {
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     pub fn skip_no_ops(&mut self) -> OpResult {
         self.code_reader.jump_to();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn stop(&mut self) -> OpResult {
@@ -542,31 +577,38 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn add(&mut self) -> OpResult {
-        self.binary_op(u256::add, 3)
+        self.binary_op(u256::add, 3)?;
+        tail_call!(self.return_from_op())
     }
 
     fn mul(&mut self) -> OpResult {
-        self.binary_op(u256::mul, 5)
+        self.binary_op(u256::mul, 5)?;
+        tail_call!(self.return_from_op())
     }
 
     fn sub(&mut self) -> OpResult {
-        self.binary_op(u256::sub, 3)
+        self.binary_op(u256::sub, 3)?;
+        tail_call!(self.return_from_op())
     }
 
     fn div(&mut self) -> OpResult {
-        self.binary_op(u256::div, 5)
+        self.binary_op(u256::div, 5)?;
+        tail_call!(self.return_from_op())
     }
 
     fn s_div(&mut self) -> OpResult {
-        self.binary_op(u256::sdiv, 5)
+        self.binary_op(u256::sdiv, 5)?;
+        tail_call!(self.return_from_op())
     }
 
     fn mod_(&mut self) -> OpResult {
-        self.binary_op(u256::rem, 5)
+        self.binary_op(u256::rem, 5)?;
+        tail_call!(self.return_from_op())
     }
 
     fn s_mod(&mut self) -> OpResult {
-        self.binary_op(u256::srem, 5)
+        self.binary_op(u256::srem, 5)?;
+        tail_call!(self.return_from_op())
     }
 
     fn add_mod(&mut self) -> OpResult {
@@ -574,7 +616,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let (push_location, [denominator, value2, value1]) = self.stack.pop_with_location()?;
         push_location.push(u256::addmod(value1, value2, denominator));
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn mul_mod(&mut self) -> OpResult {
@@ -582,7 +624,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let (push_location, [denominator, fac2, fac1]) = self.stack.pop_with_location()?;
         push_location.push(u256::mulmod(fac1, fac2, denominator));
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn exp(&mut self) -> OpResult {
@@ -591,72 +633,88 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.gas_left.consume(exp.bits().div_ceil(8) as u64 * 50)?; // * does not overflow
         push_location.push(value.pow(exp));
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn sign_extend(&mut self) -> OpResult {
-        self.binary_op(u256::signextend, 5)
+        self.binary_op(u256::signextend, 5)?;
+        tail_call!(self.return_from_op())
     }
 
     fn lt(&mut self) -> OpResult {
-        self.binary_op(|lhs, rhs| lhs < rhs, 3)
+        self.binary_op(|lhs, rhs| lhs < rhs, 3)?;
+        tail_call!(self.return_from_op())
     }
 
     fn gt(&mut self) -> OpResult {
-        self.binary_op(|lhs, rhs| lhs > rhs, 3)
+        self.binary_op(|lhs, rhs| lhs > rhs, 3)?;
+        tail_call!(self.return_from_op())
     }
 
     fn s_lt(&mut self) -> OpResult {
-        self.binary_op(|lhs, rhs| lhs.slt(&rhs), 3)
+        self.binary_op(|lhs, rhs| lhs.slt(&rhs), 3)?;
+        tail_call!(self.return_from_op())
     }
 
     fn s_gt(&mut self) -> OpResult {
-        self.binary_op(|lhs, rhs| lhs.sgt(&rhs), 3)
+        self.binary_op(|lhs, rhs| lhs.sgt(&rhs), 3)?;
+        tail_call!(self.return_from_op())
     }
 
     fn eq(&mut self) -> OpResult {
-        self.binary_op(|lhs, rhs| lhs == rhs, 3)
+        self.binary_op(|lhs, rhs| lhs == rhs, 3)?;
+        tail_call!(self.return_from_op())
     }
 
     fn is_zero(&mut self) -> OpResult {
-        self.unary_op(|value| value == u256::ZERO, 3)
+        self.unary_op(|value| value == u256::ZERO, 3)?;
+        tail_call!(self.return_from_op())
     }
 
     fn and(&mut self) -> OpResult {
-        self.binary_op(u256::bitand, 3)
+        self.binary_op(u256::bitand, 3)?;
+        tail_call!(self.return_from_op())
     }
 
     fn or(&mut self) -> OpResult {
-        self.binary_op(u256::bitor, 3)
+        self.binary_op(u256::bitor, 3)?;
+        tail_call!(self.return_from_op())
     }
 
     fn xor(&mut self) -> OpResult {
-        self.binary_op(u256::bitxor, 3)
+        self.binary_op(u256::bitxor, 3)?;
+        tail_call!(self.return_from_op())
     }
 
     fn not(&mut self) -> OpResult {
-        self.unary_op(u256::not, 3)
+        self.unary_op(u256::not, 3)?;
+        tail_call!(self.return_from_op())
     }
 
     fn byte(&mut self) -> OpResult {
-        self.binary_op(|offset, value| value.byte(offset), 3)
+        self.binary_op(|offset, value| value.byte(offset), 3)?;
+        tail_call!(self.return_from_op())
     }
 
     fn shl(&mut self) -> OpResult {
-        self.binary_op(|shift, value| value << shift, 3)
+        self.binary_op(|shift, value| value << shift, 3)?;
+        tail_call!(self.return_from_op())
     }
 
     fn shr(&mut self) -> OpResult {
-        self.binary_op(|shift, value| value >> shift, 3)
+        self.binary_op(|shift, value| value >> shift, 3)?;
+        tail_call!(self.return_from_op())
     }
 
     fn sar(&mut self) -> OpResult {
-        self.binary_op(|shift, value| value.sar(shift), 3)
+        self.binary_op(|shift, value| value.sar(shift), 3)?;
+        tail_call!(self.return_from_op())
     }
 
     fn clz(&mut self) -> OpResult {
         check_min_revision(Revision::EVMC_OSAKA, self.revision)?;
-        self.unary_op(|value| value.leading_zeros(), 5)
+        self.unary_op(|value| value.leading_zeros(), 5)?;
+        tail_call!(self.return_from_op())
     }
 
     fn sha3(&mut self) -> OpResult {
@@ -669,11 +727,12 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let data = self.memory.get_mut_slice(offset, len, &mut self.gas_left)?;
         push_location.push(self.hash_cache.hash(data));
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn address(&mut self) -> OpResult {
-        self.push_value_op(|i| i.message.recipient, 2)
+        self.push_value_op(|i| i.message.recipient, 2)?;
+        tail_call!(self.return_from_op())
     }
 
     fn balance(&mut self) -> OpResult {
@@ -686,19 +745,22 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             .consume_address_access_cost(&addr, self.revision, self.context)?;
         push_location.push(self.context.get_balance(&addr));
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn origin(&mut self) -> OpResult {
-        self.push_value_op(|i| i.context.get_tx_context().tx_origin, 2)
+        self.push_value_op(|i| i.context.get_tx_context().tx_origin, 2)?;
+        tail_call!(self.return_from_op())
     }
 
     fn caller(&mut self) -> OpResult {
-        self.push_value_op(|i| i.message.sender, 2)
+        self.push_value_op(|i| i.message.sender, 2)?;
+        tail_call!(self.return_from_op())
     }
 
     fn call_value(&mut self) -> OpResult {
-        self.push_value_op(|i| i.message.value, 2)
+        self.push_value_op(|i| i.message.value, 2)?;
+        tail_call!(self.return_from_op())
     }
 
     fn call_data_load(&mut self) -> OpResult {
@@ -719,16 +781,18 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             push_location.push(u256::from_be_bytes(bytes));
         }
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn call_data_size(&mut self) -> OpResult {
-        self.push_value_op(|i| i.message.input.len(), 2)
+        self.push_value_op(|i| i.message.input.len(), 2)?;
+        tail_call!(self.return_from_op())
     }
 
     fn push0(&mut self) -> OpResult {
         check_min_revision(Revision::EVMC_SHANGHAI, self.revision)?;
-        self.push_value_op(|_| u256::ZERO, 2)
+        self.push_value_op(|_| u256::ZERO, 2)?;
+        tail_call!(self.return_from_op())
     }
 
     fn call_data_copy(&mut self) -> OpResult {
@@ -745,11 +809,12 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             dest.copy_padded(src, &mut self.gas_left)?;
         }
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn code_size(&mut self) -> OpResult {
-        self.push_value_op(|i| i.code_reader.len(), 2)
+        self.push_value_op(|i| i.code_reader.len(), 2)?;
+        tail_call!(self.return_from_op())
     }
 
     fn code_copy(&mut self) -> OpResult {
@@ -766,11 +831,12 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             dest.copy_padded(src, &mut self.gas_left)?;
         }
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn gas_price(&mut self) -> OpResult {
-        self.push_value_op(|i| i.context.get_tx_context().tx_gas_price, 2)
+        self.push_value_op(|i| i.context.get_tx_context().tx_gas_price, 2)?;
+        tail_call!(self.return_from_op())
     }
 
     fn ext_code_size(&mut self) -> OpResult {
@@ -783,7 +849,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             .consume_address_access_cost(&addr, self.revision, self.context)?;
         push_location.push(self.context.get_code_size(&addr));
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn ext_code_copy(&mut self) -> OpResult {
@@ -811,11 +877,12 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             }
         }
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn return_data_size(&mut self) -> OpResult {
-        self.push_value_op(|i| i.last_call_return_data.len(), 2)
+        self.push_value_op(|i| i.last_call_return_data.len(), 2)?;
+        tail_call!(self.return_from_op())
     }
 
     fn return_data_copy(&mut self) -> OpResult {
@@ -838,7 +905,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             dest.copy_padded(src, &mut self.gas_left)?;
         }
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn ext_code_hash(&mut self) -> OpResult {
@@ -851,7 +918,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             .consume_address_access_cost(&addr, self.revision, self.context)?;
         push_location.push(self.context.get_code_hash(&addr));
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn block_hash(&mut self) -> OpResult {
@@ -863,40 +930,46 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
                 .unwrap_or(u256::ZERO),
         );
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn coinbase(&mut self) -> OpResult {
-        self.push_value_op(|i| i.context.get_tx_context().block_coinbase, 2)
+        self.push_value_op(|i| i.context.get_tx_context().block_coinbase, 2)?;
+        tail_call!(self.return_from_op())
     }
 
     fn timestamp(&mut self) -> OpResult {
         self.push_value_op(
             |i| i.context.get_tx_context().block_timestamp.cast_unsigned(),
             2,
-        )
+        )?;
+        tail_call!(self.return_from_op())
     }
 
     fn number(&mut self) -> OpResult {
         self.push_value_op(
             |i| i.context.get_tx_context().block_number.cast_unsigned(),
             2,
-        )
+        )?;
+        tail_call!(self.return_from_op())
     }
 
     fn prev_randao(&mut self) -> OpResult {
-        self.push_value_op(|i| i.context.get_tx_context().block_prev_randao, 2)
+        self.push_value_op(|i| i.context.get_tx_context().block_prev_randao, 2)?;
+        tail_call!(self.return_from_op())
     }
 
     fn gas_limit(&mut self) -> OpResult {
         self.push_value_op(
             |i| i.context.get_tx_context().block_gas_limit.cast_unsigned(),
             2,
-        )
+        )?;
+        tail_call!(self.return_from_op())
     }
 
     fn chain_id(&mut self) -> OpResult {
-        self.push_value_op(|i| i.context.get_tx_context().chain_id, 2)
+        self.push_value_op(|i| i.context.get_tx_context().chain_id, 2)?;
+        tail_call!(self.return_from_op())
     }
 
     fn self_balance(&mut self) -> OpResult {
@@ -906,12 +979,13 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let addr = self.message.recipient;
         self.stack.push(self.context.get_balance(&addr))?;
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn base_fee(&mut self) -> OpResult {
         check_min_revision(Revision::EVMC_LONDON, self.revision)?;
-        self.push_value_op(|i| i.context.get_tx_context().block_base_fee, 2)
+        self.push_value_op(|i| i.context.get_tx_context().block_base_fee, 2)?;
+        tail_call!(self.return_from_op())
     }
 
     fn blob_hash(&mut self) -> OpResult {
@@ -927,19 +1001,20 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             push_location.push(u256::ZERO);
         }
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn blob_base_fee(&mut self) -> OpResult {
         check_min_revision(Revision::EVMC_CANCUN, self.revision)?;
-        self.push_value_op(|i| i.context.get_tx_context().blob_base_fee, 2)
+        self.push_value_op(|i| i.context.get_tx_context().blob_base_fee, 2)?;
+        tail_call!(self.return_from_op())
     }
 
     fn pop(&mut self) -> OpResult {
         self.gas_left.consume(2)?;
         let [_] = self.stack.pop()?;
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn m_load(&mut self) -> OpResult {
@@ -948,7 +1023,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
         push_location.push(self.memory.get_word(offset, &mut self.gas_left)?);
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn m_store(&mut self) -> OpResult {
@@ -957,7 +1032,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
         *self.memory.get_mut_array(offset, &mut self.gas_left)? = value.to_be_bytes();
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn m_store8(&mut self) -> OpResult {
@@ -967,7 +1042,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let dest = self.memory.get_mut_byte(offset, &mut self.gas_left)?;
         *dest = value.least_significant_byte();
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn s_load(&mut self) -> OpResult {
@@ -987,7 +1062,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let value = self.context.get_storage(addr, &key);
         push_location.push(value);
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn jump(&mut self) -> OpResult {
@@ -997,7 +1072,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         if !STEPPABLE {
             self.code_reader.next();
         }
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn jump_i(&mut self) -> OpResult {
@@ -1012,25 +1087,28 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
                 self.code_reader.next();
             }
         }
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn pc(&mut self) -> OpResult {
-        self.push_value_op(|i| i.code_reader.pc(), 2)
+        self.push_value_op(|i| i.code_reader.pc(), 2)?;
+        tail_call!(self.return_from_op())
     }
 
     fn m_size(&mut self) -> OpResult {
-        self.push_value_op(|i| i.memory.len(), 2)
+        self.push_value_op(|i| i.memory.len(), 2)?;
+        tail_call!(self.return_from_op())
     }
 
     fn gas(&mut self) -> OpResult {
-        self.push_value_op(|i| i.gas_left.as_u64(), 2)
+        self.push_value_op(|i| i.gas_left.as_u64(), 2)?;
+        tail_call!(self.return_from_op())
     }
 
     fn jump_dest(&mut self) -> OpResult {
         self.gas_left.consume(1)?;
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn t_load(&mut self) -> OpResult {
@@ -1042,7 +1120,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             .get_transient_storage(&self.message.recipient, &key.into());
         push_location.push(value);
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn t_store(&mut self) -> OpResult {
@@ -1053,7 +1131,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.context
             .set_transient_storage(&self.message.recipient, &key.into(), &value.into());
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn m_copy(&mut self) -> OpResult {
@@ -1065,7 +1143,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
                 .copy_within(offset, dest_offset, len, &mut self.gas_left)?;
         }
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn return_(&mut self) -> OpResult {
@@ -1166,7 +1244,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.gas_left.consume(dyn_gas)?;
         self.gas_refund.add(gas_refund_change);
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn push<const N: usize>(&mut self) -> OpResult {
@@ -1180,21 +1258,21 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
                 self.stack.push(self.code_reader.get_push_data::<N>())?;
             }
         }
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn dup<const N: usize>(&mut self) -> OpResult {
         self.gas_left.consume(3)?;
         self.stack.dup::<N>()?;
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn swap<const N: usize>(&mut self) -> OpResult {
         self.gas_left.consume(3)?;
         self.stack.swap_with_top::<N>()?;
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn log<const N: usize>(&mut self) -> OpResult {
@@ -1216,15 +1294,15 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.context
             .emit_log(&self.message.recipient, data, &topics_uint256);
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn create(&mut self) -> OpResult {
-        self.create_or_create2::<false>()
+        tail_call!(self.create_or_create2::<false>())
     }
 
     fn create2(&mut self) -> OpResult {
-        self.create_or_create2::<true>()
+        tail_call!(self.create_or_create2::<true>())
     }
 
     fn create_or_create2<const CREATE2: bool>(&mut self) -> OpResult {
@@ -1259,7 +1337,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             self.last_call_return_data = Box::default();
             self.stack.push(u256::ZERO)?;
             self.code_reader.next();
-            return self.return_from_op();
+            tail_call!(self.return_from_op())
         }
 
         let gas_left = self.gas_left.as_u64();
@@ -1301,15 +1379,15 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             self.stack.push(u256::ZERO)?;
         }
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn call(&mut self) -> OpResult {
-        self.call_or_call_code::<false>()
+        tail_call!(self.call_or_call_code::<false>())
     }
 
     fn call_code(&mut self) -> OpResult {
-        self.call_or_call_code::<true>()
+        tail_call!(self.call_or_call_code::<true>())
     }
 
     fn call_or_call_code<const CODE: bool>(&mut self) -> OpResult {
@@ -1356,7 +1434,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             self.last_call_return_data = Box::default();
             self.stack.push(u256::ZERO)?;
             self.code_reader.next();
-            return self.return_from_op();
+            tail_call!(self.return_from_op())
         }
 
         let call_message = if CODE {
@@ -1408,15 +1486,15 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.stack
             .push(result.status_code == StatusCode::EVMC_SUCCESS)?;
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 
     fn static_call(&mut self) -> OpResult {
-        self.static_or_delegate_call::<false>()
+        tail_call!(self.static_or_delegate_call::<false>())
     }
 
     fn delegate_call(&mut self) -> OpResult {
-        self.static_or_delegate_call::<true>()
+        tail_call!(self.static_or_delegate_call::<true>())
     }
 
     fn static_or_delegate_call<const DELEGATE: bool>(&mut self) -> OpResult {
@@ -1495,7 +1573,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.stack
             .push(result.status_code == StatusCode::EVMC_SUCCESS)?;
         self.code_reader.next();
-        self.return_from_op()
+        tail_call!(self.return_from_op())
     }
 }
 

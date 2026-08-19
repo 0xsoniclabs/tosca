@@ -60,7 +60,7 @@ jobs:
       run: cargo install cargo-hack
     - name: cargo clippy
       working-directory: rust
-      run: cargo hack --workspace --each-feature --exclude-features needs-cache clippy --all-targets -- --deny warnings
+      run: cargo hack --workspace --each-feature --exclude-features needs-cache,tail-call clippy --all-targets -- --deny warnings
 
   doc:
     name: doc
@@ -81,7 +81,7 @@ jobs:
       env:
         RUSTDOCFLAGS: "-D warnings"
       working-directory: rust
-      run: cargo hack --workspace --each-feature --exclude-features needs-cache doc --no-deps
+      run: cargo hack --workspace --each-feature --exclude-features needs-cache,tail-call doc --no-deps
 
   build:
     name: build
@@ -100,7 +100,7 @@ jobs:
       run: cargo install cargo-hack
     - name: cargo build
       working-directory: rust
-      run: cargo hack --workspace --each-feature --exclude-features needs-cache build
+      run: cargo hack --workspace --each-feature --exclude-features needs-cache,tail-call build
 
   test:
     name: test
@@ -119,10 +119,28 @@ jobs:
       run: cargo install cargo-hack
     - name: cargo test
       working-directory: rust
-      run: cargo hack --workspace --each-feature --exclude-features needs-cache test
-    - name: cargo test tail call elimination
+      run: cargo hack --workspace --each-feature --exclude-features needs-cache,tail-call test
+
+  tail-call:
+    name: tail-call
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: checkout
+      uses: actions/checkout@v7
+    - name: install rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: nightly-2026-08-05
+    - name: load cache
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: rust
+    - name: cargo test
       working-directory: rust
-      run: cargo test --profile release --features tail-call
+      run: |
+        cargo +nightly-2026-08-05 test --profile release --features tail-call
+        cargo +nightly-2026-08-05 test --profile release --features tail-call,fn-ptr-conversion-dispatch
 
   test-with-sanitizers:
     name: test-with-sanitizers
