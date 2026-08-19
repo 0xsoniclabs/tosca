@@ -47,7 +47,9 @@ func TestComputeStackUsage_MatchesTheYellowPaperForEveryOpCode(t *testing.T) {
 	require := require.New(t)
 	// Stack items removed (δ) and added (α) per opcode, Yellow Paper Appendix H
 	// plus the EIPs introducing PUSH0, TLOAD, TSTORE, MCOPY, BLOBHASH,
-	// BLOBBASEFEE and CLZ.
+	// BLOBBASEFEE, CLZ and SLOTNUM. DUPN, SWAPN and EXCHANGE of EIP-8024 address
+	// a stack depth given by their operand; listed are the bounds every operand
+	// shares.
 	type popsPushes struct{ pops, pushes int }
 	spec := map[vm.OpCode]popsPushes{
 		vm.STOP: {0, 0}, vm.ADD: {2, 1}, vm.MUL: {2, 1}, vm.SUB: {2, 1}, vm.DIV: {2, 1},
@@ -64,11 +66,11 @@ func TestComputeStackUsage_MatchesTheYellowPaperForEveryOpCode(t *testing.T) {
 		vm.RETURNDATACOPY: {3, 0}, vm.EXTCODEHASH: {1, 1},
 		vm.BLOCKHASH: {1, 1}, vm.COINBASE: {0, 1}, vm.TIMESTAMP: {0, 1}, vm.NUMBER: {0, 1},
 		vm.PREVRANDAO: {0, 1}, vm.GASLIMIT: {0, 1}, vm.CHAINID: {0, 1}, vm.SELFBALANCE: {0, 1},
-		vm.BASEFEE: {0, 1}, vm.BLOBHASH: {1, 1}, vm.BLOBBASEFEE: {0, 1},
+		vm.BASEFEE: {0, 1}, vm.BLOBHASH: {1, 1}, vm.BLOBBASEFEE: {0, 1}, vm.SLOTNUM: {0, 1},
 		vm.POP: {1, 0}, vm.MLOAD: {1, 1}, vm.MSTORE: {2, 0}, vm.MSTORE8: {2, 0}, vm.SLOAD: {1, 1},
 		vm.SSTORE: {2, 0}, vm.JUMP: {1, 0}, vm.JUMPI: {2, 0}, vm.PC: {0, 1}, vm.MSIZE: {0, 1},
 		vm.GAS: {0, 1}, vm.JUMPDEST: {0, 0}, vm.TLOAD: {1, 1}, vm.TSTORE: {2, 0}, vm.MCOPY: {3, 0},
-		vm.PUSH0:  {0, 1},
+		vm.PUSH0: {0, 1}, vm.DUPN: {1, 2}, vm.SWAPN: {2, 2}, vm.EXCHANGE: {2, 2},
 		vm.CREATE: {3, 1}, vm.CALL: {7, 1}, vm.CALLCODE: {7, 1}, vm.RETURN: {2, 0},
 		vm.DELEGATECALL: {6, 1}, vm.CREATE2: {4, 1}, vm.STATICCALL: {6, 1}, vm.REVERT: {2, 0},
 		vm.SELFDESTRUCT: {1, 0},

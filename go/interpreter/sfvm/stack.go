@@ -96,6 +96,13 @@ func (s *stack) dup(n int) {
 	s.stackPointer++
 }
 
+// exchange swaps the n-th and the m-th element from the top of the stack. The
+// top element is at index 0. Thus, exchange(0, n) is equivalent to swap(n).
+func (s *stack) exchange(n int, m int) {
+	i, j := s.len()-n-1, s.len()-m-1
+	s.data[i], s.data[j] = s.data[j], s.data[i]
+}
+
 // get returns the element at the given index. The bottom element is at index 0.
 func (s *stack) get(i int) *uint256.Int {
 	return &s.data[i]
