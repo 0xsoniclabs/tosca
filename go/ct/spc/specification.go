@@ -272,18 +272,7 @@ func getAllRules() []Rule {
 		}),
 	})...)
 
-	rules = append(rules, []Rule{
-		{
-			Name: "CLZ_invalid_revision",
-			Condition: And(
-				RevisionBounds(tosca.R07_Istanbul, tosca.R14_Prague),
-				Eq(Status(), st.Running),
-				Eq(Op(Pc()), vm.CLZ),
-				IsCode(Pc()),
-			),
-			Effect: FailEffect(),
-		},
-	}...)
+	rules = append(rules, unavailableOp(vm.CLZ, 5, tosca.R07_Istanbul, tosca.R14_Prague)...)
 
 	// --- SHA3 ---
 
@@ -943,17 +932,7 @@ func getAllRules() []Rule {
 		}),
 	})...)
 
-	rules = append(rules, rulesFor(instruction{
-		name:      "_invalid_revision",
-		op:        vm.PUSH0,
-		staticGas: 2,
-		pops:      0,
-		pushes:    1,
-		conditions: []Condition{
-			RevisionBounds(tosca.R07_Istanbul, tosca.R11_Paris),
-		},
-		effect: FailEffect(),
-	})...)
+	rules = append(rules, unavailableOp(vm.PUSH0, 2, tosca.R07_Istanbul, tosca.R11_Paris)...)
 
 	// --- MCOPY ---
 
@@ -992,18 +971,7 @@ func getAllRules() []Rule {
 		}),
 	})...)
 
-	rules = append(rules, []Rule{
-		{
-			Name: "mcopy_invalid_revision",
-			Condition: And(
-				RevisionBounds(tosca.R07_Istanbul, tosca.R12_Shanghai),
-				Eq(Status(), st.Running),
-				Eq(Op(Pc()), vm.MCOPY),
-				IsCode(Pc()),
-			),
-			Effect: FailEffect(),
-		},
-	}...)
+	rules = append(rules, unavailableOp(vm.MCOPY, 3, tosca.R07_Istanbul, tosca.R12_Shanghai)...)
 
 	// --- Stack PUSH ---
 
@@ -1041,7 +1009,7 @@ func getAllRules() []Rule {
 		rules = append(rules, dupNOp(byte(operand))...)
 	}
 
-	rules = append(rules, unavailableOp(vm.DUPN, tosca.R07_Istanbul, tosca.R15_Osaka)...)
+	rules = append(rules, unavailableOp(vm.DUPN, 3, tosca.R07_Istanbul, tosca.R15_Osaka)...)
 
 	// --- Stack SWAPN ---
 
@@ -1049,7 +1017,7 @@ func getAllRules() []Rule {
 		rules = append(rules, swapNOp(byte(operand))...)
 	}
 
-	rules = append(rules, unavailableOp(vm.SWAPN, tosca.R07_Istanbul, tosca.R15_Osaka)...)
+	rules = append(rules, unavailableOp(vm.SWAPN, 3, tosca.R07_Istanbul, tosca.R15_Osaka)...)
 
 	// --- Stack EXCHANGE ---
 
@@ -1057,7 +1025,7 @@ func getAllRules() []Rule {
 		rules = append(rules, exchangeOp(byte(operand))...)
 	}
 
-	rules = append(rules, unavailableOp(vm.EXCHANGE, tosca.R07_Istanbul, tosca.R15_Osaka)...)
+	rules = append(rules, unavailableOp(vm.EXCHANGE, 3, tosca.R07_Istanbul, tosca.R15_Osaka)...)
 
 	// --- LOG ---
 
@@ -1373,18 +1341,7 @@ func getAllRules() []Rule {
 			s.Stack.Push(s.BlockContext.BaseFee)
 		}),
 	})...)
-	rules = append(rules, []Rule{
-		{
-			Name: "basefee_invalid_revision",
-			Condition: And(
-				RevisionBounds(tosca.R07_Istanbul, tosca.R09_Berlin),
-				Eq(Status(), st.Running),
-				Eq(Op(Pc()), vm.BASEFEE),
-				IsCode(Pc()),
-			),
-			Effect: FailEffect(),
-		},
-	}...)
+	rules = append(rules, unavailableOp(vm.BASEFEE, 2, tosca.R07_Istanbul, tosca.R09_Berlin)...)
 
 	// --- BLOBHASH ---
 
@@ -1421,18 +1378,7 @@ func getAllRules() []Rule {
 		}),
 	})...)
 
-	rules = append(rules, []Rule{
-		{
-			Name: "blobhash_invalid_revision",
-			Condition: And(
-				RevisionBounds(tosca.R07_Istanbul, tosca.R12_Shanghai),
-				Eq(Status(), st.Running),
-				Eq(Op(Pc()), vm.BLOBHASH),
-				IsCode(Pc()),
-			),
-			Effect: FailEffect(),
-		},
-	}...)
+	rules = append(rules, unavailableOp(vm.BLOBHASH, 3, tosca.R07_Istanbul, tosca.R12_Shanghai)...)
 
 	// --- BLOBBASEFEE ---
 
@@ -1447,18 +1393,7 @@ func getAllRules() []Rule {
 		}),
 	})...)
 
-	rules = append(rules, []Rule{
-		{
-			Name: "blobbasefee_invalid_revision",
-			Condition: And(
-				RevisionBounds(tosca.R07_Istanbul, tosca.R12_Shanghai),
-				Eq(Status(), st.Running),
-				Eq(Op(Pc()), vm.BLOBBASEFEE),
-				IsCode(Pc()),
-			),
-			Effect: FailEffect(),
-		},
-	}...)
+	rules = append(rules, unavailableOp(vm.BLOBBASEFEE, 2, tosca.R07_Istanbul, tosca.R12_Shanghai)...)
 
 	// --- SLOTNUM ---
 
@@ -1473,18 +1408,7 @@ func getAllRules() []Rule {
 		}),
 	})...)
 
-	rules = append(rules, []Rule{
-		{
-			Name: "slotnum_invalid_revision",
-			Condition: And(
-				RevisionBounds(tosca.R07_Istanbul, tosca.R15_Osaka),
-				Eq(Status(), st.Running),
-				Eq(Op(Pc()), vm.SLOTNUM),
-				IsCode(Pc()),
-			),
-			Effect: FailEffect(),
-		},
-	}...)
+	rules = append(rules, unavailableOp(vm.SLOTNUM, 2, tosca.R07_Istanbul, tosca.R15_Osaka)...)
 
 	// --- EXTCODEHASH ---
 
@@ -2241,20 +2165,25 @@ func exchangeOp(operand byte) []Rule {
 	})
 }
 
-// invalidImmediateOp produces the rule for an EIP-8024 instruction with an
+// invalidImmediateOp produces the rules for an EIP-8024 instruction with an
 // inadmissible operand, which fails regardless of the stack.
 func invalidImmediateOp(op vm.OpCode, operand byte) []Rule {
-	return []Rule{{
-		Name: fmt.Sprintf("%v_with_invalid_immediate_%d", strings.ToLower(op.String()), operand),
-		Condition: And(
-			RevisionBounds(tosca.R16_Amsterdam, NewestSupportedRevision),
-			Eq(Status(), st.Running),
-			Eq(Op(Pc()), op),
-			IsCode(Pc()),
-			Eq(Immediate(), operand),
-		),
-		Effect: FailEffect(),
-	}}
+	res := []Rule{}
+	for _, gas := range gasBoundaryCases(3) {
+		res = append(res, Rule{
+			Name: fmt.Sprintf("%v_with_invalid_immediate_%d%v", strings.ToLower(op.String()), operand, gas.nameSuffix),
+			Condition: And(
+				RevisionBounds(tosca.R16_Amsterdam, NewestSupportedRevision),
+				Eq(Status(), st.Running),
+				Eq(Op(Pc()), op),
+				IsCode(Pc()),
+				Eq(Immediate(), operand),
+				gas.condition,
+			),
+			Effect: FailEffect(),
+		})
+	}
+	return res
 }
 
 func extCodeCopyEffect(s *st.State, markWarm bool) {
@@ -2606,20 +2535,45 @@ func selfDestructEffect(s *st.State) {
 	s.Status = st.Stopped
 }
 
-// unavailableOp produces the rule for an instruction that is not part of the
+// gasBoundaryCase is one of the two sides of the boundary between an
+// instruction having enough gas and running out of it.
+type gasBoundaryCase struct {
+	nameSuffix string
+	condition  Condition
+}
+
+// gasBoundaryCases splits a rule for a failing instruction along the gas
+// boundary of that instruction. Whether the instruction fails does not depend on
+// the available gas, but a rule not constraining the gas yields no test case
+// running out of it, leaving the combination of both failures uncovered.
+func gasBoundaryCases(staticGas tosca.Gas) []gasBoundaryCase {
+	return []gasBoundaryCase{
+		{"", Ge(Gas(), staticGas)},
+		{"_and_too_little_gas", Lt(Gas(), staticGas)},
+	}
+}
+
+// unavailableOp produces the rules for an instruction that is not part of the
 // instruction set of the given revisions, and thus fails independently of the
-// rest of the state.
-func unavailableOp(op vm.OpCode, first, last tosca.Revision) []Rule {
-	return []Rule{{
-		Name: fmt.Sprintf("%v_invalid_revision", strings.ToLower(op.String())),
-		Condition: And(
-			RevisionBounds(first, last),
-			Eq(Status(), st.Running),
-			Eq(Op(Pc()), op),
-			IsCode(Pc()),
-		),
-		Effect: FailEffect(),
-	}}
+// rest of the state. staticGas is the price of the instruction in the revisions
+// it is available in, which is only needed to cover the combination of the
+// unknown instruction with running out of gas.
+func unavailableOp(op vm.OpCode, staticGas tosca.Gas, first, last tosca.Revision) []Rule {
+	res := []Rule{}
+	for _, gas := range gasBoundaryCases(staticGas) {
+		res = append(res, Rule{
+			Name: fmt.Sprintf("%v_invalid_revision%v", strings.ToLower(op.String()), gas.nameSuffix),
+			Condition: And(
+				RevisionBounds(first, last),
+				Eq(Status(), st.Running),
+				Eq(Op(Pc()), op),
+				IsCode(Pc()),
+				gas.condition,
+			),
+			Effect: FailEffect(),
+		})
+	}
+	return res
 }
 
 // atOp holds if the instruction at the program counter is i, including its
