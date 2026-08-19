@@ -53,7 +53,7 @@ func computeStackUsage(op vm.OpCode) stackUsage {
 	case vm.PUSH0, vm.MSIZE, vm.ADDRESS, vm.ORIGIN, vm.CALLER, vm.CALLVALUE, vm.CALLDATASIZE,
 		vm.CODESIZE, vm.GASPRICE, vm.COINBASE, vm.TIMESTAMP, vm.NUMBER,
 		vm.PREVRANDAO, vm.GASLIMIT, vm.PC, vm.GAS, vm.RETURNDATASIZE,
-		vm.SELFBALANCE, vm.CHAINID, vm.BASEFEE, vm.BLOBBASEFEE:
+		vm.SELFBALANCE, vm.CHAINID, vm.BASEFEE, vm.BLOBBASEFEE, vm.SLOTNUM:
 		return makeUsage(0, 1)
 	case vm.POP, vm.JUMP, vm.SELFDESTRUCT:
 		return makeUsage(1, 0)
@@ -78,6 +78,14 @@ func computeStackUsage(op vm.OpCode) stackUsage {
 		return makeUsage(6, 1)
 	case vm.CALL, vm.CALLCODE:
 		return makeUsage(7, 1)
+
+	// The instructions of EIP-8024 address a stack depth only known once their
+	// operand is decoded. The bounds below are the ones every operand shares;
+	// the exact requirement is checked while executing the instruction.
+	case vm.DUPN:
+		return makeUsage(1, 2)
+	case vm.SWAPN, vm.EXCHANGE:
+		return makeUsage(2, 2)
 	}
 
 	return stackUsage{}
