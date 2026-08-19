@@ -115,6 +115,8 @@ impl Stack {
         Ok(())
     }
 
+    /// Pops `N` entries from the stack and returns them as an array which is ordered such that the
+    /// former top of stack is at the end of the array.
     pub fn pop<const N: usize>(&mut self) -> Result<[u256; N], FailStatus> {
         self.check_underflow(N)?;
 
@@ -124,6 +126,9 @@ impl Stack {
         Ok(array)
     }
 
+    /// Pops `N` entries from the stack, ordered like [`Stack::pop`], and returns a
+    /// [`PushLocation`] for the slot the result must be written to. That slot is already
+    /// accounted for in the stack's length.
     pub fn pop_with_location<const N: usize>(
         &'_ mut self,
     ) -> Result<(PushLocation<'_>, [u256; N]), FailStatus> {

@@ -493,28 +493,32 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         Err(FailStatus::Failure)
     }
 
+    /// Runs an opcode that charges `cost` gas, pops one value and pushes `op` applied to it.
     #[inline(always)]
-    fn unary_op<I: Into<u256>>(&mut self, f: fn(u256) -> I, cost: u64) -> OpResult {
+    fn unary_op<I: Into<u256>>(&mut self, op: fn(u256) -> I, cost: u64) -> OpResult {
         self.gas_left.consume(cost)?;
         let (push_location, [value]) = self.stack.pop_with_location()?;
-        push_location.push(f(value));
+        push_location.push(op(value));
         self.code_reader.next();
         self.return_from_op()
     }
 
+    /// Runs an opcode that charges `cost` gas, pops two values and pushes `op` applied to them.
+    /// `op` receives the top of stack as its first argument.
     #[inline(always)]
-    fn binary_op<I: Into<u256>>(&mut self, f: fn(u256, u256) -> I, cost: u64) -> OpResult {
+    fn binary_op<I: Into<u256>>(&mut self, op: fn(u256, u256) -> I, cost: u64) -> OpResult {
         self.gas_left.consume(cost)?;
         let (push_location, [value2, value1]) = self.stack.pop_with_location()?;
-        push_location.push(f(value1, value2));
+        push_location.push(op(value1, value2));
         self.code_reader.next();
         self.return_from_op()
     }
 
+    /// Runs an opcode that charges `cost` gas and pushes `op` applied to the interpreter state.
     #[inline(always)]
-    fn push_value_op<I: Into<u256>>(&mut self, f: fn(&mut Self) -> I, cost: u64) -> OpResult {
+    fn push_value_op<I: Into<u256>>(&mut self, op: fn(&mut Self) -> I, cost: u64) -> OpResult {
         self.gas_left.consume(cost)?;
-        let value = f(self);
+        let value = op(self);
         self.stack.push(value)?;
         self.code_reader.next();
         self.return_from_op()
