@@ -709,10 +709,13 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let call_data = self.message.input;
         if overflow || offset >= call_data.len() {
             push_location.push(u256::ZERO);
+        } else if let Some(word) = call_data[offset..].first_chunk() {
+            push_location.push(u256::from_be_bytes(*word));
         } else {
-            let end = min(call_data.len(), offset + 32);
+            // offset < call_data.len() && call_data[offset..].len() < 32
             let mut bytes = [0; 32];
-            bytes[..end - offset].copy_from_slice(&call_data[offset..end]);
+            let data = &call_data[offset..];
+            bytes[..data.len()].copy_from_slice(data);
             push_location.push(u256::from_be_bytes(bytes));
         }
         self.code_reader.next();
@@ -952,9 +955,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.gas_left.consume(3)?;
         let [value, offset] = self.stack.pop()?;
 
-        let mut value_be_bytes = value.to_le_bytes();
-        value_be_bytes.reverse();
-        *self.memory.get_mut_array(offset, &mut self.gas_left)? = value_be_bytes;
+        *self.memory.get_mut_array(offset, &mut self.gas_left)? = value.to_be_bytes();
         self.code_reader.next();
         self.return_from_op()
     }
