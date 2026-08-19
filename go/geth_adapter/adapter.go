@@ -527,6 +527,7 @@ func (a *runContextAdapter) SelfDestruct(addr tosca.Address, beneficiary tosca.A
 	selfdestructed := !stateDb.HasSelfDestructed(common.Address(addr))
 
 	isCancun := a.evm.ChainConfig().IsCancun(a.evm.Context.BlockNumber, a.evm.Context.Time)
+	isAmsterdam := a.evm.ChainConfig().IsAmsterdam(a.evm.Context.BlockNumber, a.evm.Context.Time)
 	isNewContract := stateDb.IsNewContract(common.Address(addr))
 	isSelfTransfer := beneficiary == addr
 
@@ -537,8 +538,11 @@ func (a *runContextAdapter) SelfDestruct(addr tosca.Address, beneficiary tosca.A
 	if !isCancun || isNewContract {
 		if !isSelfTransfer {
 			stateDb.AddBalance(common.Address(beneficiary), balance, tracing.BalanceIncreaseSelfdestruct)
+			stateDb.SubBalance(common.Address(addr), balance, tracing.BalanceDecreaseSelfdestruct)
+		} else if !isAmsterdam {
+			// Self-destructing to self burns the balance prior to EIP-8246.
+			stateDb.SubBalance(common.Address(addr), balance, tracing.BalanceDecreaseSelfdestruct)
 		}
-		stateDb.SubBalance(common.Address(addr), balance, tracing.BalanceDecreaseSelfdestruct)
 		stateDb.SelfDestruct(common.Address(addr))
 	}
 

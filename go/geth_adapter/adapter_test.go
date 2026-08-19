@@ -324,6 +324,49 @@ func TestRunContextAdapter_SelfDestructReportsWhetherTheAccountHasAlreadyBeenSel
 	}
 }
 
+func TestRunContextAdapter_SelfdestructToSelfBurnsTheBalanceOnlyBeforeAmsterdam(t *testing.T) {
+	amsterdamTime := uint64(42)
+	tests := map[string]struct {
+		blockTime uint64
+		burned    bool
+	}{
+		"preAmsterdam": {blockTime: amsterdamTime - 1, burned: true},
+		"amsterdam":    {blockTime: amsterdamTime, burned: false},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			stateDb := NewMockStateDb(ctrl)
+
+			address := common.Address{0x42}
+			cancunTime := uint64(0)
+			evm := geth.NewEVM(
+				geth.BlockContext{BlockNumber: big.NewInt(43), Time: test.blockTime},
+				stateDb,
+				&params.ChainConfig{
+					ChainID:       big.NewInt(42),
+					LondonBlock:   big.NewInt(42),
+					CancunTime:    &cancunTime,
+					AmsterdamTime: &amsterdamTime,
+				},
+				geth.Config{},
+			)
+			adapter := &runContextAdapter{evm: evm, caller: address}
+
+			stateDb.EXPECT().HasSelfDestructed(address)
+			stateDb.EXPECT().GetBalance(address).Return(uint256.NewInt(24))
+			stateDb.EXPECT().IsNewContract(address).Return(true)
+			if test.burned {
+				stateDb.EXPECT().SubBalance(address, uint256.NewInt(24), tracing.BalanceDecreaseSelfdestruct)
+			}
+			stateDb.EXPECT().SelfDestruct(address)
+
+			adapter.SelfDestruct(tosca.Address(address), tosca.Address(address))
+		})
+	}
+}
+
 func TestRunContextAdapter_SelfdestructDependsOnIsNewContract(t *testing.T) {
 	cancunTime := uint64(42)
 	tests := map[string]struct {
