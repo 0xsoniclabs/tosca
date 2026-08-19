@@ -403,6 +403,68 @@ func TestConvert_PushOperationsUsePaddedImmediateData(t *testing.T) {
 	}
 }
 
+func TestConvert_ImmediateOperandsAreCopiedIntoTheConsumingInstruction(t *testing.T) {
+	config := ConversionConfig{WithSuperInstructions: false}
+
+	for _, op := range []OpCode{DUPN, SWAPN, EXCHANGE} {
+		t.Run(op.String(), func(t *testing.T) {
+			const operand = byte(0x42)
+			res := convert([]byte{byte(op), operand, byte(STOP)}, config)
+
+			if want, got := op, res[0].opcode; want != got {
+				t.Errorf("unexpected instruction, wanted %v, got %v", want, got)
+			}
+			if want, got := uint16(operand), res[0].arg; want != got {
+				t.Errorf("unexpected operand, wanted %d, got %d", want, got)
+			}
+			// The operand is not excluded from jumpdest analysis, so it stays a code
+			// position of its own that the instruction consuming it skips.
+			if want, got := 3, len(res); want != got {
+				t.Fatalf("unexpected code length, wanted %d, got %d", want, got)
+			}
+			if want, got := OpCode(operand), res[1].opcode; want != got {
+				t.Errorf("unexpected instruction at the operand, wanted %v, got %v", want, got)
+			}
+		})
+	}
+}
+
+func TestConvert_TruncatedImmediateOperandReadsAsZero(t *testing.T) {
+	res := convert([]byte{byte(DUPN)}, ConversionConfig{})
+	if want, got := 1, len(res); want != got {
+		t.Fatalf("unexpected code length, wanted %d, got %d", want, got)
+	}
+	if want, got := uint16(0), res[0].arg; want != got {
+		t.Errorf("unexpected operand, wanted %d, got %d", want, got)
+	}
+}
+
+func TestConvert_JumpDestAtAnImmediateOperandRemainsAJumpTarget(t *testing.T) {
+	res := convert([]byte{byte(DUPN), byte(JUMPDEST), byte(STOP)}, ConversionConfig{})
+	if want, got := JUMPDEST, res[1].opcode; want != got {
+		t.Errorf("unexpected instruction at position 1, wanted %v, got %v", want, got)
+	}
+}
+
+func TestConvert_SI_ImmediateOperandsAreNotFusedWithTheirSuccessors(t *testing.T) {
+	config := ConversionConfig{WithSuperInstructions: true}
+
+	// SWAP1 is an admissible operand of DUPN, and SWAP1 POP would be fused into a
+	// super instruction anywhere else. Fusing it here would make the operand span
+	// two code positions, while DUPN skips exactly one.
+	code := []byte{byte(DUPN), byte(SWAP1), byte(POP), byte(STOP)}
+	res := convert(code, config)
+
+	if want, got := 4, len(res); want != got {
+		t.Fatalf("unexpected code length, wanted %d, got %d", want, got)
+	}
+	for i, want := range []OpCode{DUPN, SWAP1, POP, STOP} {
+		if got := res[i].opcode; want != got {
+			t.Errorf("unexpected instruction at position %d, wanted %v, got %v", i, want, got)
+		}
+	}
+}
+
 func TestConvert_AllJumpToOperationsPointToSubsequentJumpdest(t *testing.T) {
 	r := rand.New(rand.NewSource(int64(time.Now().Nanosecond())))
 

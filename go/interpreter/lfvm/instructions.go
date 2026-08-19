@@ -15,6 +15,7 @@ import (
 	"math"
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/tosca/vm"
 	"github.com/holiman/uint256"
 )
 
@@ -154,6 +155,52 @@ func opSwap(c *context, pos int) {
 	c.stack.swap(pos)
 }
 
+// immediateOperand consumes the operand of an EIP-8024 instruction. The operand
+// is an ordinary code position of its own, so the program counter is advanced
+// past it. Failing on an inadmissible operand is what makes the instructions of
+// EIP-8024 backward compatible: every code that was invalid before stays so.
+func immediateOperand(c *context, op vm.OpCode) (byte, error) {
+	if !c.isAtLeast(tosca.R16_Amsterdam) {
+		return 0, errInvalidRevision
+	}
+	operand := byte(c.code[c.pc].arg)
+	if !vm.IsValidImmediateOperand(op, operand) {
+		return 0, errInvalidOpCode
+	}
+	if c.stack.len() < vm.MinStackSizeForImmediate(op, operand) {
+		return 0, errStackUnderflow
+	}
+	c.pc++
+	return operand, nil
+}
+
+func opDupN(c *context) error {
+	operand, err := immediateOperand(c, vm.DUPN)
+	if err != nil {
+		return err
+	}
+	c.stack.dup(vm.DecodeSingleImmediate(operand) - 1)
+	return nil
+}
+
+func opSwapN(c *context) error {
+	operand, err := immediateOperand(c, vm.SWAPN)
+	if err != nil {
+		return err
+	}
+	c.stack.swap(vm.DecodeSingleImmediate(operand))
+	return nil
+}
+
+func opExchange(c *context) error {
+	operand, err := immediateOperand(c, vm.EXCHANGE)
+	if err != nil {
+		return err
+	}
+	c.stack.exchange(vm.DecodePairImmediate(operand))
+	return nil
+}
+
 func opMstore(c *context) error {
 	var addr = c.stack.pop()
 	var value = c.stack.pop()
@@ -222,7 +269,7 @@ func opSstore(c *context) error {
 	cost := tosca.Gas(0)
 	if c.isAtLeast(tosca.R09_Berlin) &&
 		c.context.AccessStorage(c.params.Recipient, key) == tosca.ColdAccess {
-		cost += 2100
+		cost += getSstoreColdAccessSurcharge(c.params.Revision)
 	}
 
 	storageStatus := c.context.SetStorage(c.params.Recipient, key, value)
@@ -231,6 +278,15 @@ func opSstore(c *context) error {
 	if err := c.useGas(cost); err != nil {
 		return err
 	}
+
+	// Since EIP-8037 the durable growth of creating a storage slot is charged in
+	// the state dimension, and handed back again once the slot is cleared within
+	// the same transaction.
+	stateCost, stateRefund := getStateCostsForSstore(c.params.Revision, storageStatus)
+	if err := c.useStateGas(stateCost); err != nil {
+		return err
+	}
+	c.refundStateGas(stateRefund)
 
 	c.refund += getRefundForSstore(c.params.Revision, storageStatus)
 	return nil
@@ -243,10 +299,8 @@ func opSload(c *context) error {
 	slot := tosca.Key(top.Bytes32())
 	if c.isAtLeast(tosca.R09_Berlin) {
 		// charge costs for warm/cold slot access
-		costs := tosca.Gas(100)
-		if c.context.AccessStorage(addr, slot) == tosca.ColdAccess {
-			costs = 2100
-		}
+		accessStatus := c.context.AccessStorage(addr, slot)
+		costs := getStorageAccessCost(c.params.Revision, accessStatus)
 		if err := c.useGas(costs); err != nil {
 			return err
 		}
@@ -582,6 +636,14 @@ func opNumber(c *context) {
 	c.stack.pushUndefined().SetUint64(uint64(number))
 }
 
+func opSlotNum(c *context) error {
+	if !c.isAtLeast(tosca.R16_Amsterdam) {
+		return errInvalidRevision
+	}
+	c.stack.pushUndefined().SetUint64(c.params.SlotNumber)
+	return nil
+}
+
 func opCoinbase(c *context) {
 	coinbase := c.params.Coinbase
 	c.stack.pushUndefined().SetBytes20(coinbase[:])
@@ -601,7 +663,7 @@ func opBalance(c *context) error {
 	slot := c.stack.peek()
 	address := tosca.Address(slot.Bytes20())
 	if c.isAtLeast(tosca.R09_Berlin) {
-		if err := c.useGas(getAccessCost(c.context.AccessAccount(address))); err != nil {
+		if err := c.useGas(getAccountAccessCost(c.params.Revision, c.context.AccessAccount(address))); err != nil {
 			return err
 		}
 	}
@@ -662,32 +724,93 @@ func opSelfdestruct(c *context) (status, error) {
 		// as https://eips.ethereum.org/EIPS/eip-2929#selfdestruct-changes says,
 		// selfdestruct does not charge for warm access
 		if accessStatus := c.context.AccessAccount(beneficiary); accessStatus != tosca.WarmAccess {
-			cost += getAccessCost(accessStatus)
+			cost += getAccountAccessCost(c.params.Revision, accessStatus)
 		}
 	}
 
-	cost += selfDestructNewAccountCost(
+	balance := c.context.GetBalance(c.params.Recipient)
+	newAccountCost, newAccountStateCost := selfDestructNewAccountCost(
+		c.params.Revision,
 		isEmpty(c.context, beneficiary),
-		c.context.GetBalance(c.params.Recipient),
+		balance,
 	)
+	cost += newAccountCost
+
 	// even death is not for free
 	if err := c.useGas(cost); err != nil {
+		return statusStopped, err
+	}
+	if err := c.useStateGas(newAccountStateCost); err != nil {
 		return statusStopped, err
 	}
 
 	destructed := c.context.SelfDestruct(c.params.Recipient, beneficiary)
 	c.refund += selfDestructRefund(destructed, c.params.Revision)
+
+	// Since EIP-7708 the moved balance is reported by a transfer log. A
+	// self-destruct to self moves nothing, since EIP-8246 dropped the burn it
+	// used to perform, and thus emits no log either.
+	if c.isAtLeast(tosca.R16_Amsterdam) && balance != (tosca.Value{}) && beneficiary != c.params.Recipient {
+		emitTransferLog(c, c.params.Recipient, beneficiary, balance)
+	}
 	return statusSelfDestructed, nil
 }
 
-func selfDestructNewAccountCost(beneficiaryEmpty bool, balance tosca.Value) tosca.Gas {
-	if beneficiaryEmpty && balance != (tosca.Value{}) {
-		// cost of creating an account defined in eip-150 (see https://eips.ethereum.org/EIPS/eip-150)
-		// CreateBySelfdestructGas is used when the refunded account is one that does
-		// not exist. This logic is similar to call.
-		return 25_000
+// selfDestructNewAccountCost is what SELFDESTRUCT pays for the empty account it
+// sends the balance of the destructed contract to. Unlike a call it has no value
+// transfer to fold the write to the account into, so since Amsterdam it pays for
+// that write next to the state dimension of the creation.
+func selfDestructNewAccountCost(
+	revision tosca.Revision,
+	beneficiaryEmpty bool,
+	balance tosca.Value,
+) (gas tosca.Gas, stateGas tosca.Gas) {
+	if !beneficiaryEmpty || balance == (tosca.Value{}) {
+		return 0, 0
 	}
-	return 0
+	if revision >= tosca.R16_Amsterdam {
+		return AccountWriteCostAmsterdam, AccountCreationStateCostAmsterdam
+	}
+	// cost of creating an account defined in eip-150 (see https://eips.ethereum.org/EIPS/eip-150)
+	// CreateBySelfdestructGas is used when the refunded account is one that does
+	// not exist. This logic is similar to call.
+	return 25_000, 0
+}
+
+// transferLogEvent is the first topic of the transfer log EIP-7708 has every
+// value transfer emit, keccak256("Transfer(address,address,uint256)"). It mirrors
+// params.EthTransferLogEvent of go-ethereum.
+var transferLogEvent = tosca.Hash{
+	0xdd, 0xf2, 0x52, 0xad, 0x1b, 0xe2, 0xc8, 0x9b,
+	0x69, 0xc2, 0xb0, 0x68, 0xfc, 0x37, 0x8d, 0xaa,
+	0x95, 0x2b, 0xa7, 0xf1, 0x63, 0xc4, 0xa1, 0x16,
+	0x28, 0xf5, 0x5a, 0x4d, 0xf5, 0x23, 0xb3, 0xef,
+}
+
+// transferLogAddress is the address the transfer logs of EIP-7708 are emitted
+// for, mirroring params.SystemAddress of go-ethereum.
+var transferLogAddress = tosca.Address{
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe,
+}
+
+// emitTransferLog reports a value transfer as required by EIP-7708.
+func emitTransferLog(c *context, from tosca.Address, to tosca.Address, amount tosca.Value) {
+	c.context.EmitLog(tosca.Log{
+		Address: transferLogAddress,
+		Topics: []tosca.Hash{
+			transferLogEvent,
+			addressToHash(from),
+			addressToHash(to),
+		},
+		Data: amount[:],
+	})
+}
+
+func addressToHash(address tosca.Address) tosca.Hash {
+	var res tosca.Hash
+	copy(res[len(res)-len(address):], address[:])
+	return res
 }
 
 func selfDestructRefund(destructed bool, revision tosca.Revision) tosca.Gas {
@@ -745,7 +868,10 @@ func opExtcodesize(c *context) error {
 	top := c.stack.peek()
 	address := tosca.Address(top.Bytes20())
 	if c.isAtLeast(tosca.R09_Berlin) {
-		if err := c.useGas(getAccessCost(c.context.AccessAccount(address))); err != nil {
+		// Reading the size of the code is charged for on top of the access to the
+		// account holding it, see getCodeReadCost.
+		cost := getAccountAccessCost(c.params.Revision, c.context.AccessAccount(address))
+		if err := c.useGas(cost + getCodeReadCost(c.params.Revision)); err != nil {
 			return err
 		}
 	}
@@ -757,7 +883,7 @@ func opExtcodehash(c *context) error {
 	slot := c.stack.peek()
 	address := tosca.Address(slot.Bytes20())
 	if c.isAtLeast(tosca.R09_Berlin) {
-		if err := c.useGas(getAccessCost(c.context.AccessAccount(address))); err != nil {
+		if err := c.useGas(getAccountAccessCost(c.params.Revision, c.context.AccessAccount(address))); err != nil {
 			return err
 		}
 	}
@@ -794,7 +920,7 @@ func genericCreate(c *context, kind tosca.CallKind) error {
 	}
 
 	if c.isAtLeast(tosca.R12_Shanghai) {
-		initCodeCost, err := computeCodeSizeCost(size.Uint64())
+		initCodeCost, err := computeCodeSizeCost(c.params.Revision, size.Uint64())
 		if err != nil {
 			return err
 		}
@@ -822,16 +948,32 @@ func genericCreate(c *context, kind tosca.CallKind) error {
 		}
 	}
 
+	// Since Amsterdam, the account of the new contract is created at the expense
+	// of the creator, charged before the gas handed to the new contract's
+	// initialization is determined. The address of the new contract is derived by
+	// hashing, so an account at that address would have to collide with a hash
+	// and it is therefore always considered to be in need of being created.
+	accountCreationCost := getAccountCreationStateCost(c.params.Revision)
+	if err := c.useStateGas(accountCreationCost); err != nil {
+		return err
+	}
+
 	// compute and apply eip150 https://eips.ethereum.org/EIPS/eip-150
 	nestedCallGas := c.gas
 	nestedCallGas -= nestedCallGas / 64
 
+	// The state-gas reservoir is handed to the nested execution as a whole and
+	// taken back over once it reports how much of it was charged.
+	reservoir := c.stateGas
+	c.stateGas = 0
+
 	res, err := c.context.Call(kind, tosca.CallParameters{
-		Sender: c.params.Recipient,
-		Value:  tosca.Value(value.Bytes32()),
-		Input:  input,
-		Gas:    nestedCallGas,
-		Salt:   salt,
+		Sender:   c.params.Recipient,
+		Value:    tosca.Value(value.Bytes32()),
+		Input:    input,
+		Gas:      nestedCallGas,
+		StateGas: reservoir,
+		Salt:     salt,
 	})
 
 	// Push item on the stack based on the returned error.
@@ -851,18 +993,22 @@ func genericCreate(c *context, kind tosca.CallKind) error {
 	c.gas -= nestedCallGas
 	c.gas += res.GasLeft
 	c.refund += res.GasRefund
+	c.absorbStateGas(reservoir, res.StateGasCharged)
+
+	// The charge for the account of the new contract is undone if the
+	// initialization did not succeed, since then no account is created after all.
+	if !res.Success || err != nil {
+		c.refundStateGas(accountCreationCost)
+	}
 	return nil
 }
 
 // computeCodeSizeCost checks the size of the init code.
 // Returns the gas cost for the size of the init code and nil, or
-// zero and an error if size is greater than MaxInitCodeSize.
-func computeCodeSizeCost(size uint64) (tosca.Gas, error) {
-	const (
-		maxCodeSize     = 24576           // Maximum bytecode to permit for a contract
-		maxInitCodeSize = 2 * maxCodeSize // Maximum initcode to permit in a creation transaction and create instructions
-	)
-	if size > maxInitCodeSize {
+// zero and an error if size is greater than the largest init code accepted by
+// the given revision.
+func computeCodeSizeCost(revision tosca.Revision, size uint64) (tosca.Gas, error) {
+	if size > getMaxInitCodeSize(revision) {
 		return 0, errInitCodeTooLarge
 	}
 	// Once per word of the init code when creating a contract.
@@ -910,21 +1056,15 @@ func opExtCodeCopy(c *context) error {
 	address := c.stack.pop().Bytes20()
 
 	if c.isAtLeast(tosca.R09_Berlin) {
-		if err := c.useGas(getAccessCost(c.context.AccessAccount(address))); err != nil {
+		// Reading the code is charged for on top of the access to the account
+		// holding it, see getCodeReadCost.
+		cost := getAccountAccessCost(c.params.Revision, c.context.AccessAccount(address))
+		if err := c.useGas(cost + getCodeReadCost(c.params.Revision)); err != nil {
 			return err
 		}
 	}
 
 	return genericDataCopy(c, c.context.GetCode(address))
-}
-
-func getAccessCost(accessStatus tosca.AccessStatus) tosca.Gas {
-	// EIP-2929 says that cold access cost is 2600 and warm is 100.
-	// (https://eips.ethereum.org/EIPS/eip-2929)
-	if accessStatus == tosca.ColdAccess {
-		return tosca.Gas(2600)
-	}
-	return tosca.Gas(100)
 }
 
 func genericCall(c *context, kind tosca.CallKind) error {
@@ -956,7 +1096,7 @@ func genericCall(c *context, kind tosca.CallKind) error {
 
 	// from berlin onwards access cost changes depending on warm/cold access.
 	if c.isAtLeast(tosca.R09_Berlin) {
-		if err := c.useGas(getAccessCost(c.context.AccessAccount(toAddr))); err != nil {
+		if err := c.useGas(getAccountAccessCost(c.params.Revision, c.context.AccessAccount(toAddr))); err != nil {
 			return err
 		}
 	}
@@ -965,7 +1105,7 @@ func genericCall(c *context, kind tosca.CallKind) error {
 	if c.isAtLeast(tosca.R14_Prague) {
 		target, isDelegation := parseDelegationDesignation(c.context.GetCode(toAddr))
 		if isDelegation {
-			if err := c.useGas(getAccessCost(c.context.AccessAccount(target))); err != nil {
+			if err := c.useGas(getAccountAccessCost(c.params.Revision, c.context.AccessAccount(target))); err != nil {
 				return err
 			}
 		}
@@ -974,17 +1114,25 @@ func genericCall(c *context, kind tosca.CallKind) error {
 	// for static and delegate calls, the following value checks will always be zero.
 	// Charge for transferring value to a new address
 	if !value.IsZero() {
-		if err := c.useGas(CallValueTransferGas); err != nil {
+		if err := c.useGas(getCallValueTransferCost(c.params.Revision)); err != nil {
 			return err
 		}
 	}
 
 	// EIP158 states that non-zero value calls that create a new account should
-	// be charged an additional gas fee.
+	// be charged an additional gas fee. Since EIP-8037 the durable growth of that
+	// account is charged in the state dimension, which is handed back if the call
+	// does not go through and thus creates no account after all.
+	accountCreationRefund := tosca.Gas(0)
 	if kind == tosca.Call && !value.IsZero() && isEmpty(c.context, toAddr) {
-		if err := c.useGas(CallNewAccountGas); err != nil {
+		cost, stateCost := getCallAccountCreationCost(c.params.Revision)
+		if err := c.useGas(cost); err != nil {
 			return err
 		}
+		if err := c.useStateGas(stateCost); err != nil {
+			return err
+		}
+		accountCreationRefund = stateCost
 	}
 
 	// The Homestead hard-fork introduced a limit on the amount of gas that can be
@@ -1011,6 +1159,7 @@ func genericCall(c *context, kind tosca.CallKind) error {
 			c.stack.pushUndefined().Clear()
 			c.returnData = nil
 			c.gas += nestedCallGas // the gas send to the nested contract is returned
+			c.refundStateGas(accountCreationRefund)
 			return nil
 		}
 	}
@@ -1023,10 +1172,16 @@ func genericCall(c *context, kind tosca.CallKind) error {
 		kind = tosca.StaticCall
 	}
 
+	// The state-gas reservoir is handed to the nested execution as a whole and
+	// taken back over once it reports how much of it was charged.
+	reservoir := c.stateGas
+	c.stateGas = 0
+
 	// Prepare arguments, depending on call kind
 	callParams := tosca.CallParameters{
 		Input:       args,
 		Gas:         nestedCallGas,
+		StateGas:    reservoir,
 		Value:       tosca.Value(value.Bytes32()),
 		CodeAddress: toAddr,
 	}
@@ -1062,6 +1217,13 @@ func genericCall(c *context, kind tosca.CallKind) error {
 	c.gas += ret.GasLeft
 	c.refund += ret.GasRefund
 	c.returnData = ret.Output
+	c.absorbStateGas(reservoir, ret.StateGasCharged)
+
+	// The charge for the account funded by this call is undone if the call did
+	// not go through, since then no account is created after all.
+	if err != nil || !ret.Success {
+		c.refundStateGas(accountCreationRefund)
+	}
 	return nil
 }
 

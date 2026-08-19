@@ -683,6 +683,12 @@ func fillStackFor(op OpCode, stack *stack, code Code) error {
 	limits := _precomputedStackLimits.get(op)
 	stack.stackPointer = limits.min
 
+	// The instructions of EIP-8024 address a stack depth encoded in their
+	// operand, which reaches beyond the limits shared by every operand.
+	if op.isBaseInstruction() && vm.HasImmediateOperand(vm.OpCode(op)) {
+		stack.stackPointer = vm.MinStackSizeForImmediate(vm.OpCode(op), byte(code[0].arg))
+	}
+
 	// jump instructions need a valid jump destination
 	if isJump(op) {
 		counter := slices.IndexFunc(code, func(v Instruction) bool {
@@ -704,11 +710,6 @@ var _isUndefinedOpCodeRegex = regexp.MustCompile(`^op\(0x[0-9A-Fa-f]+\)$`)
 
 func isExecutable(op OpCode) bool {
 	if slices.Contains([]OpCode{INVALID, NOOP, DATA}, op) {
-		return false
-	}
-	// The instructions introduced by EIP-7843 and EIP-8024 are named but not
-	// implemented by this interpreter yet, see newestSupportedRevision.
-	if slices.Contains([]OpCode{OpCode(vm.SLOTNUM), OpCode(vm.DUPN), OpCode(vm.SWAPN), OpCode(vm.EXCHANGE)}, op) {
 		return false
 	}
 	return !_isUndefinedOpCodeRegex.MatchString(op.String())
@@ -822,6 +823,14 @@ var _introducedIn = newOpCodePropertyMap(func(op OpCode) tosca.Revision {
 		return tosca.R13_Cancun
 	case MCOPY:
 		return tosca.R13_Cancun
+	case SLOTNUM:
+		return tosca.R16_Amsterdam
+	case DUPN:
+		return tosca.R16_Amsterdam
+	case SWAPN:
+		return tosca.R16_Amsterdam
+	case EXCHANGE:
+		return tosca.R16_Amsterdam
 	}
 	return tosca.R07_Istanbul
 })

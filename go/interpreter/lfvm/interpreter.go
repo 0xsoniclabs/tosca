@@ -47,6 +47,15 @@ type context struct {
 	stack  *stack
 	memory *Memory
 
+	// State-dimension accounting of EIP-8037, see tosca.Gas. stateGas is what
+	// is left of the reservoir the execution was funded with, chargedStateGas
+	// the net amount charged in the state dimension so far, and spilledStateGas
+	// the part of it that had to be taken from regular gas because the reservoir
+	// did not cover it.
+	stateGas        tosca.Gas
+	chargedStateGas tosca.Gas
+	spilledStateGas tosca.Gas
+
 	// Intermediate data
 	returnData []byte // < the result of the last nested contract call
 
@@ -64,6 +73,49 @@ func (c *context) useGas(amount tosca.Gas) error {
 	}
 	c.gas -= amount
 	return nil
+}
+
+// useStateGas charges the given amount in the state dimension, taking it from
+// the reservoir first and falling back to regular gas for the part the reservoir
+// does not cover, see tosca.Gas. It returns errOutOfGas if neither suffices, in
+// which case the caller should stop the execution with an error status.
+func (c *context) useStateGas(amount tosca.Gas) error {
+	if amount < 0 {
+		return errOutOfGas
+	}
+	if amount > c.stateGas {
+		spillover := amount - c.stateGas
+		if err := c.useGas(spillover); err != nil {
+			return err
+		}
+		c.spilledStateGas += spillover
+		c.stateGas = 0
+	} else {
+		c.stateGas -= amount
+	}
+	c.chargedStateGas += amount
+	return nil
+}
+
+// refundStateGas hands the given amount back in the state dimension, undoing a
+// charge made earlier in the same execution. The gas is returned in the reverse
+// order it was taken: what had to be borrowed from regular gas is repaid first,
+// the rest refills the reservoir.
+func (c *context) refundStateGas(amount tosca.Gas) {
+	repaid := min(amount, c.spilledStateGas)
+	c.gas += repaid
+	c.spilledStateGas -= repaid
+	c.stateGas += amount - repaid
+	c.chargedStateGas -= amount
+}
+
+// absorbStateGas takes over the state-dimension accounting of a nested call that
+// was handed the given reservoir and reported the given net charge.
+func (c *context) absorbStateGas(reservoir tosca.Gas, charged tosca.Gas) {
+	fromReservoir, fromGas := tosca.SplitStateGasCharge(reservoir, charged)
+	c.stateGas = reservoir - fromReservoir
+	c.chargedStateGas += charged
+	c.spilledStateGas += fromGas
 }
 
 // isAtLeast returns true if the interpreter is is running at least at the given
@@ -102,6 +154,7 @@ func run(
 		params:       params,
 		context:      params.Context,
 		gas:          params.Gas,
+		stateGas:     params.StateGas,
 		stack:        NewStack(),
 		memory:       NewMemory(),
 		code:         code,
@@ -125,24 +178,32 @@ func generateResult(status status, ctxt *context) (tosca.Result, error) {
 	switch status {
 	case statusStopped, statusSelfDestructed:
 		return tosca.Result{
-			Success:   true,
-			GasLeft:   ctxt.gas,
-			GasRefund: ctxt.refund,
+			Success:         true,
+			GasLeft:         ctxt.gas,
+			GasRefund:       ctxt.refund,
+			StateGasCharged: ctxt.chargedStateGas,
 		}, nil
 	case statusReturned:
 		return tosca.Result{
-			Success:   true,
-			Output:    ctxt.returnData,
-			GasLeft:   ctxt.gas,
-			GasRefund: ctxt.refund,
+			Success:         true,
+			Output:          ctxt.returnData,
+			GasLeft:         ctxt.gas,
+			GasRefund:       ctxt.refund,
+			StateGasCharged: ctxt.chargedStateGas,
 		}, nil
 	case statusReverted:
+		// The state changes of a reverted execution are rolled back, so all the
+		// state gas it charged is handed back: the part it had to borrow from
+		// regular gas is returned to the caller as regular gas, the rest is left
+		// in the reservoir by reporting no charge at all, see tosca.Gas.
 		return tosca.Result{
 			Success: false,
 			Output:  ctxt.returnData,
-			GasLeft: ctxt.gas,
+			GasLeft: ctxt.gas + ctxt.spilledStateGas,
 		}, nil
 	case statusFailed:
+		// Like a revert, except that the regular gas of the execution is lost,
+		// including the part that was borrowed to cover state-gas charges.
 		return tosca.Result{
 			Success: false,
 		}, nil
@@ -419,6 +480,12 @@ func steps(c *context, oneStepOnly bool) (status, error) {
 			opDup(c, 15)
 		case DUP16:
 			opDup(c, 16)
+		case DUPN:
+			err = opDupN(c)
+		case SWAPN:
+			err = opSwapN(c)
+		case EXCHANGE:
+			err = opExchange(c)
 		case RETURN:
 			err = opEndWithResult(c)
 			status = statusReturned
@@ -467,6 +534,8 @@ func steps(c *context, oneStepOnly bool) (status, error) {
 			opTimestamp(c)
 		case NUMBER:
 			opNumber(c)
+		case SLOTNUM:
+			err = opSlotNum(c)
 		case GASLIMIT:
 			opGasLimit(c)
 		case GASPRICE:

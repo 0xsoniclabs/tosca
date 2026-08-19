@@ -106,6 +106,11 @@ const (
 	SWAP15 = OpCode(vm.SWAP15)
 	SWAP16 = OpCode(vm.SWAP16)
 
+	// Stack operations reading an immediate operand, see EIP-8024.
+	DUPN     = OpCode(vm.DUPN)
+	SWAPN    = OpCode(vm.SWAPN)
+	EXCHANGE = OpCode(vm.EXCHANGE)
+
 	// Control flow
 	JUMP     = OpCode(vm.JUMP)
 	JUMPI    = OpCode(vm.JUMPI)
@@ -208,6 +213,7 @@ const (
 	BASEFEE     = OpCode(vm.BASEFEE)
 	BLOBHASH    = OpCode(vm.BLOBHASH)
 	BLOBBASEFEE = OpCode(vm.BLOBBASEFEE)
+	SLOTNUM     = OpCode(vm.SLOTNUM)
 
 	// Invalid instruction
 	INVALID = OpCode(vm.INVALID)
@@ -336,6 +342,8 @@ func (o OpCode) HasArgument() bool {
 	case DATA:
 		return true
 	case JUMP_TO:
+		return true
+	case DUPN, SWAPN, EXCHANGE:
 		return true
 	}
 	if o.isSuperInstruction() {

@@ -29,11 +29,119 @@ const (
 	SstoreSetGasEIP2200        tosca.Gas = 20000 // Once per SSTORE operation from clean zero to non-zero
 	WarmStorageReadCostEIP2929 tosca.Gas = 100   // Cost of reading warm storage after EIP 2929
 
+	// The prices of EIP-8038, which reprices every access to durable state and
+	// splits a write into an access and a write component.
+	ColdAccountAccessCostAmsterdam tosca.Gas = 3000  // Cost of the first touch of an account
+	ColdStorageAccessCostAmsterdam tosca.Gas = 3000  // Cost of the first touch of a storage slot
+	AccountWriteCostAmsterdam      tosca.Gas = 8000  // Surcharge for the first write to an account
+	StorageWriteCostAmsterdam      tosca.Gas = 10000 // Surcharge for the first write to a storage slot
+	StorageClearRefundAmsterdam    tosca.Gas = 12480 // Refund for clearing a storage slot
+	CreateAccessCostAmsterdam      tosca.Gas = 11000 // Constant cost of CREATE and CREATE2
+
+	// The prices of EIP-8037, which charges the durable growth of the state in a
+	// second gas dimension, priced by the size of the state entry it adds.
+	CostPerStateByteAmsterdam         tosca.Gas = 1530
+	AccountCreationStateCostAmsterdam tosca.Gas = 120 * CostPerStateByteAmsterdam
+	StorageCreationStateCostAmsterdam tosca.Gas = 64 * CostPerStateByteAmsterdam
+
 	UNKNOWN_GAS_PRICE = 999999
 )
 
+// getAccountAccessCost is the price of touching an account, depending on whether
+// it has been touched before within the same transaction. Only relevant from
+// Berlin onwards, where EIP-2929 introduced the distinction.
+func getAccountAccessCost(revision tosca.Revision, accessStatus tosca.AccessStatus) tosca.Gas {
+	if accessStatus == tosca.WarmAccess {
+		return WarmStorageReadCostEIP2929
+	}
+	if revision >= tosca.R16_Amsterdam {
+		return ColdAccountAccessCostAmsterdam
+	}
+	return ColdAccountAccessCostEIP2929
+}
+
+// getStorageAccessCost is the price of touching a storage slot, depending on
+// whether it has been touched before within the same transaction. Only relevant
+// from Berlin onwards, where EIP-2929 introduced the distinction.
+func getStorageAccessCost(revision tosca.Revision, accessStatus tosca.AccessStatus) tosca.Gas {
+	if accessStatus == tosca.WarmAccess {
+		return WarmStorageReadCostEIP2929
+	}
+	if revision >= tosca.R16_Amsterdam {
+		return ColdStorageAccessCostAmsterdam
+	}
+	return ColdSloadCostEIP2929
+}
+
+// getSstoreColdAccessSurcharge is what SSTORE pays on top of the price
+// of a warm slot access, which is part of the costs reported by
+// getDynamicCostsForSstore, when it touches the slot for the first time. Before
+// Amsterdam the full cold-access price was added to the warm one, while EIP-8038
+// replaced the warm price by the cold one.
+func getSstoreColdAccessSurcharge(revision tosca.Revision) tosca.Gas {
+	if revision >= tosca.R16_Amsterdam {
+		return ColdStorageAccessCostAmsterdam - WarmStorageReadCostEIP2929
+	}
+	return ColdSloadCostEIP2929
+}
+
+// getCodeReadCost is what EXTCODESIZE and EXTCODECOPY pay on top of the access
+// to the account for reading its code, which EIP-8038 accounts for as a second
+// database lookup.
+func getCodeReadCost(revision tosca.Revision) tosca.Gas {
+	if revision >= tosca.R16_Amsterdam {
+		return WarmStorageReadCostEIP2929
+	}
+	return 0
+}
+
+// getCallValueTransferCost is the price of attaching a non-zero value to a call.
+// It contains the stipend granted to the callee.
+func getCallValueTransferCost(revision tosca.Revision) tosca.Gas {
+	if revision >= tosca.R16_Amsterdam {
+		return AccountWriteCostAmsterdam + CallStipend
+	}
+	return CallValueTransferGas
+}
+
+// getAccountCreationStateCost is the share of creating an account charged in the
+// state dimension, priced by the size of the account entry it adds to the state,
+// see tosca.Gas. An operation that ends up not creating the account after all
+// hands it back.
+func getAccountCreationStateCost(revision tosca.Revision) tosca.Gas {
+	if revision >= tosca.R16_Amsterdam {
+		return AccountCreationStateCostAmsterdam
+	}
+	return 0
+}
+
+// getCallAccountCreationCost is what a call attaching a value pays for the empty
+// account it funds. Since Amsterdam the write to the account is part of
+// getCallValueTransferCost, leaving only the state dimension of the creation.
+func getCallAccountCreationCost(revision tosca.Revision) (gas tosca.Gas, stateGas tosca.Gas) {
+	if revision >= tosca.R16_Amsterdam {
+		return 0, AccountCreationStateCostAmsterdam
+	}
+	return CallNewAccountGas, 0
+}
+
+// getMaxInitCodeSize returns the largest init code CREATE and CREATE2 accept.
+// The limit was introduced by EIP-3860 (Shanghai) as twice the maximum size of
+// deployed code and raised along with it by EIP-8038.
+func getMaxInitCodeSize(revision tosca.Revision) uint64 {
+	const (
+		maxCodeSize          = 24576
+		maxCodeSizeAmsterdam = 65536
+	)
+	if revision >= tosca.R16_Amsterdam {
+		return 2 * maxCodeSizeAmsterdam
+	}
+	return 2 * maxCodeSize
+}
+
 var static_gas_prices = newOpCodePropertyMap(getStaticGasPriceInternal)
 var static_gas_prices_berlin = newOpCodePropertyMap(getBerlinGasPriceInternal)
+var static_gas_prices_amsterdam = newOpCodePropertyMap(getAmsterdamGasPriceInternal)
 
 func getBerlinGasPriceInternal(op OpCode) tosca.Gas {
 	gp := getStaticGasPriceInternal(op)
@@ -62,7 +170,23 @@ func getBerlinGasPriceInternal(op OpCode) tosca.Gas {
 	return gp
 }
 
+func getAmsterdamGasPriceInternal(op OpCode) tosca.Gas {
+	gp := getBerlinGasPriceInternal(op)
+
+	// Changed static gas prices with EIP-8038
+	switch op {
+	case CREATE:
+		gp = CreateAccessCostAmsterdam
+	case CREATE2:
+		gp = CreateAccessCostAmsterdam
+	}
+	return gp
+}
+
 func getStaticGasPrices(revision tosca.Revision) *opCodePropertyMap[tosca.Gas] {
+	if revision >= tosca.R16_Amsterdam {
+		return &static_gas_prices_amsterdam
+	}
 	if revision >= tosca.R09_Berlin {
 		return &static_gas_prices_berlin
 	}
@@ -162,6 +286,14 @@ func getStaticGasPriceInternal(op OpCode) tosca.Gas {
 		return 3
 	case BLOBBASEFEE:
 		return 2
+	case SLOTNUM:
+		return 2
+	case DUPN:
+		return 3
+	case SWAPN:
+		return 3
+	case EXCHANGE:
+		return 3
 	case MLOAD:
 		return 3
 	case MSTORE:
@@ -241,6 +373,21 @@ func getDynamicCostsForSstore(
 	revision tosca.Revision,
 	storageStatus tosca.StorageStatus,
 ) tosca.Gas {
+	// EIP-8038 replaced the distinct prices for creating and overwriting a slot
+	// by a single write surcharge on top of the access to the slot. The durable
+	// growth creating a slot causes is charged in the state dimension instead,
+	// see getStateCostsForSstore.
+	if revision >= tosca.R16_Amsterdam {
+		switch storageStatus {
+		case tosca.StorageAdded,
+			tosca.StorageModified,
+			tosca.StorageDeleted:
+			return WarmStorageReadCostEIP2929 + StorageWriteCostAmsterdam
+		default:
+			return WarmStorageReadCostEIP2929
+		}
+	}
+
 	switch storageStatus {
 	case tosca.StorageAdded:
 		return 20000
@@ -259,10 +406,49 @@ func getDynamicCostsForSstore(
 	}
 }
 
+// getStateCostsForSstore returns the gas an SSTORE charges in the state
+// dimension for the durable growth of creating a storage slot, and the part of
+// such an earlier charge it hands back by clearing the slot again within the
+// same transaction, see tosca.Gas.
+func getStateCostsForSstore(
+	revision tosca.Revision,
+	storageStatus tosca.StorageStatus,
+) (charge tosca.Gas, refund tosca.Gas) {
+	if revision < tosca.R16_Amsterdam {
+		return 0, 0
+	}
+	switch storageStatus {
+	case tosca.StorageAdded:
+		return StorageCreationStateCostAmsterdam, 0
+	case tosca.StorageAddedDeleted:
+		return 0, StorageCreationStateCostAmsterdam
+	}
+	return 0, 0
+}
+
 func getRefundForSstore(
 	revision tosca.Revision,
 	storageStatus tosca.StorageStatus,
 ) tosca.Gas {
+	// EIP-8038 reprices the refund for clearing a slot and grants back the write
+	// surcharge whenever a slot ends up holding its committed value again.
+	if revision >= tosca.R16_Amsterdam {
+		switch storageStatus {
+		case tosca.StorageDeleted,
+			tosca.StorageModifiedDeleted:
+			return StorageClearRefundAmsterdam
+		case tosca.StorageDeletedAdded:
+			return -StorageClearRefundAmsterdam
+		case tosca.StorageDeletedRestored:
+			return StorageWriteCostAmsterdam - StorageClearRefundAmsterdam
+		case tosca.StorageAddedDeleted,
+			tosca.StorageModifiedRestored:
+			return StorageWriteCostAmsterdam
+		default:
+			return 0
+		}
+	}
+
 	switch storageStatus {
 	case tosca.StorageDeleted,
 		tosca.StorageModifiedDeleted:

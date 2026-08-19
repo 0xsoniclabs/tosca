@@ -127,8 +127,14 @@ type pcMap struct {
 // genPcMap creates a bidirectional program counter map for a given code,
 // allowing mapping from a program counter in evm code to lfvm and vice versa.
 func genPcMap(code []byte) *pcMap {
-	evmToLfvm := make([]uint16, len(code)+1)
-	lfvmToEvm := make([]uint16, len(code)+1)
+	// A program counter may correctly point to the position after the last
+	// instruction, which would lead to an implicit STOP. An EIP-8024 instruction
+	// at the very end of the code consumes an operand that is not there, which
+	// moves it one position further.
+	const positionsBeyondCode = 2
+
+	evmToLfvm := make([]uint16, len(code)+positionsBeyondCode)
+	lfvmToEvm := make([]uint16, len(code)+positionsBeyondCode)
 
 	config := ConversionConfig{
 		WithSuperInstructions: false,
@@ -138,16 +144,15 @@ func genPcMap(code []byte) *pcMap {
 		lfvmToEvm[lfvm] = uint16(evm)
 	})
 
-	// A program counter may correctly point to the position after the last
-	// instruction, which would lead to an implicit STOP.
-	evmToLfvm[len(code)] = uint16(len(res))
-
 	// The LFVM code could also be longer than the input code if extra padding
 	// of truncated PUSH instructions has been added.
-	if len(res)+1 > len(lfvmToEvm) {
-		lfvmToEvm = append(lfvmToEvm, make([]uint16, len(res)+1-len(lfvmToEvm))...)
+	if size := len(res) + positionsBeyondCode; size > len(lfvmToEvm) {
+		lfvmToEvm = append(lfvmToEvm, make([]uint16, size-len(lfvmToEvm))...)
 	}
-	lfvmToEvm[len(res)] = uint16(len(code))
+	for i := range positionsBeyondCode {
+		evmToLfvm[len(code)+i] = uint16(len(res) + i)
+		lfvmToEvm[len(res)+i] = uint16(len(code) + i)
+	}
 
 	// Locations pointing to JUMP_TO instructions in LFVM need to be updated to
 	// the position of the jump target.
