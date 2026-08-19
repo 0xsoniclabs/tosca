@@ -21,9 +21,10 @@ import (
 
 func TestGas_getStaticGasPrices_MatchesTheSpecificationForEveryOpCodeAndRevision(t *testing.T) {
 	// Static gas prices as of Istanbul, taken from the Yellow Paper (Appendix G)
-	// and EIP-150, EIP-1884, EIP-2200, EIP-3198, EIP-3855, EIP-4844, EIP-5656 and
-	// EIP-7939. Opcodes introduced after Istanbul are listed with the price they
-	// have from their introduction on; the table is not revision gated.
+	// and EIP-150, EIP-1884, EIP-2200, EIP-3198, EIP-3855, EIP-4844, EIP-5656,
+	// EIP-7843, EIP-7939 and EIP-8024. Opcodes introduced after Istanbul are
+	// listed with the price they have from their introduction on; the table is
+	// not revision gated.
 	istanbul := map[vm.OpCode]tosca.Gas{
 		vm.STOP: 0, vm.ADD: 3, vm.MUL: 5, vm.SUB: 3, vm.DIV: 5, vm.SDIV: 5, vm.MOD: 5, vm.SMOD: 5,
 		vm.ADDMOD: 8, vm.MULMOD: 8, vm.EXP: 10, vm.SIGNEXTEND: 5,
@@ -35,11 +36,12 @@ func TestGas_getStaticGasPrices_MatchesTheSpecificationForEveryOpCodeAndRevision
 		vm.GASPRICE: 2, vm.EXTCODESIZE: 700, vm.EXTCODECOPY: 700, vm.RETURNDATASIZE: 2,
 		vm.RETURNDATACOPY: 3, vm.EXTCODEHASH: 700,
 		vm.BLOCKHASH: 20, vm.COINBASE: 2, vm.TIMESTAMP: 2, vm.NUMBER: 2, vm.PREVRANDAO: 2,
-		vm.GASLIMIT: 2, vm.CHAINID: 2, vm.SELFBALANCE: 5, vm.BASEFEE: 2, vm.BLOBHASH: 3, vm.BLOBBASEFEE: 2,
+		vm.GASLIMIT: 2, vm.CHAINID: 2, vm.SELFBALANCE: 5, vm.BASEFEE: 2, vm.BLOBHASH: 3, vm.BLOBBASEFEE: 2, vm.SLOTNUM: 2,
 		vm.POP: 2, vm.MLOAD: 3, vm.MSTORE: 3, vm.MSTORE8: 3, vm.SLOAD: 800, vm.SSTORE: 0,
 		vm.JUMP: 8, vm.JUMPI: 10, vm.PC: 2, vm.MSIZE: 2, vm.GAS: 2, vm.JUMPDEST: 1,
 		vm.TLOAD: 100, vm.TSTORE: 100, vm.MCOPY: 3, vm.PUSH0: 2,
 		vm.LOG0: 375, vm.LOG1: 750, vm.LOG2: 1125, vm.LOG3: 1500, vm.LOG4: 1875,
+		vm.DUPN: 3, vm.SWAPN: 3, vm.EXCHANGE: 3,
 		vm.CREATE: 32000, vm.CALL: 700, vm.CALLCODE: 700, vm.RETURN: 0, vm.DELEGATECALL: 700,
 		vm.CREATE2: 32000, vm.STATICCALL: 700, vm.REVERT: 0, vm.INVALID: 0, vm.SELFDESTRUCT: 5000,
 	}
@@ -59,6 +61,12 @@ func TestGas_getStaticGasPrices_MatchesTheSpecificationForEveryOpCodeAndRevision
 		vm.CALL, vm.CALLCODE, vm.STATICCALL, vm.DELEGATECALL,
 	}
 
+	// EIP-8038 replaced the price of creating a contract by the cost of the
+	// access to the new account.
+	repricedFromAmsterdam := map[vm.OpCode]tosca.Gas{
+		vm.CREATE: CreateAccessCostAmsterdam, vm.CREATE2: CreateAccessCostAmsterdam,
+	}
+
 	for revision := tosca.R07_Istanbul; revision <= newestSupportedRevision; revision++ {
 		t.Run(revision.String(), func(t *testing.T) {
 			require := require.New(t)
@@ -72,6 +80,9 @@ func TestGas_getStaticGasPrices_MatchesTheSpecificationForEveryOpCodeAndRevision
 				}
 				if revision >= tosca.R09_Berlin && slices.Contains(zeroedFromBerlin, op) {
 					price = 0
+				}
+				if repriced, found := repricedFromAmsterdam[op]; found && revision >= tosca.R16_Amsterdam {
+					price = repriced
 				}
 				want[op] = price
 				got[op] = getStaticGasPrices(revision).get(op)
@@ -126,7 +137,14 @@ func TestGas_getDynamicCostsForSstore_exhaustive(t *testing.T) {
 	specs[tosca.R13_Cancun] = specs[tosca.R12_Shanghai]
 	specs[tosca.R14_Prague] = specs[tosca.R13_Cancun]
 	specs[tosca.R15_Osaka] = specs[tosca.R14_Prague]
-	specs[tosca.R16_Amsterdam] = specs[tosca.R15_Osaka]
+	// EIP-8038 charges the same write surcharge for creating and for overwriting
+	// a slot; the durable growth creating one causes is charged in the state
+	// dimension instead, see TestGas_getStateCostsForSstore.
+	specs[tosca.R16_Amsterdam] = makeSpec(
+		WarmStorageReadCostEIP2929+StorageWriteCostAmsterdam,
+		WarmStorageReadCostEIP2929+StorageWriteCostAmsterdam,
+		WarmStorageReadCostEIP2929,
+	)
 
 	// Check that gas prices are computed correctly.
 	for _, revision := range tosca.GetAllKnownRevisions() {
@@ -205,7 +223,14 @@ func TestGas_getRefundForSstore_exhaustive(t *testing.T) {
 	specs[tosca.R13_Cancun] = specs[tosca.R12_Shanghai]
 	specs[tosca.R14_Prague] = specs[tosca.R13_Cancun]
 	specs[tosca.R15_Osaka] = specs[tosca.R14_Prague]
-	specs[tosca.R16_Amsterdam] = specs[tosca.R15_Osaka]
+	// EIP-8038 reprices the refund for clearing a slot and grants back the write
+	// surcharge whenever a slot ends up holding its committed value again,
+	// independently of whether that value is zero.
+	specs[tosca.R16_Amsterdam] = makeSpec(
+		StorageClearRefundAmsterdam,
+		StorageWriteCostAmsterdam,
+		StorageWriteCostAmsterdam,
+	)
 
 	// Check that gas prices are computed correctly.
 	for _, revision := range tosca.GetAllKnownRevisions() {
@@ -224,6 +249,41 @@ func TestGas_getRefundForSstore_exhaustive(t *testing.T) {
 					storageStatus,
 					want,
 					got,
+				)
+			}
+		}
+	}
+}
+
+// TestGas_getStateCostsForSstore covers the state dimension EIP-8037 adds to
+// SSTORE: creating a storage slot grows the state durably, and clearing it again
+// within the same transaction undoes that growth.
+func TestGas_getStateCostsForSstore(t *testing.T) {
+	charges := map[tosca.StorageStatus]tosca.Gas{
+		tosca.StorageAdded: StorageCreationStateCostAmsterdam,
+	}
+	refunds := map[tosca.StorageStatus]tosca.Gas{
+		tosca.StorageAddedDeleted: StorageCreationStateCostAmsterdam,
+	}
+
+	for _, revision := range tosca.GetAllKnownRevisions() {
+		for _, status := range tosca.GetAllStorageStatuses() {
+			wantCharge, wantRefund := charges[status], refunds[status]
+			if revision < tosca.R16_Amsterdam {
+				wantCharge, wantRefund = 0, 0
+			}
+
+			charge, refund := getStateCostsForSstore(revision, status)
+			if charge != wantCharge {
+				t.Errorf(
+					"unexpected state gas charge for (%v,%v), wanted %d, got %d",
+					revision, status, wantCharge, charge,
+				)
+			}
+			if refund != wantRefund {
+				t.Errorf(
+					"unexpected state gas refund for (%v,%v), wanted %d, got %d",
+					revision, status, wantRefund, refund,
 				)
 			}
 		}

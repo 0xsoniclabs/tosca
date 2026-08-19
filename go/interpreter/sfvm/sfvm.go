@@ -63,7 +63,7 @@ type sfvm struct {
 }
 
 // Defines the newest supported revision for this interpreter implementation
-const newestSupportedRevision = tosca.R15_Osaka
+const newestSupportedRevision = tosca.R16_Amsterdam
 
 func (s *sfvm) Run(params tosca.Parameters) (tosca.Result, error) {
 	if params.Revision > newestSupportedRevision {
