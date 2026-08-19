@@ -61,7 +61,14 @@ func TestGas_getDynamicCostsForSstore_exhaustive(t *testing.T) {
 	specs[tosca.R13_Cancun] = specs[tosca.R12_Shanghai]
 	specs[tosca.R14_Prague] = specs[tosca.R13_Cancun]
 	specs[tosca.R15_Osaka] = specs[tosca.R14_Prague]
-	specs[tosca.R16_Amsterdam] = specs[tosca.R15_Osaka]
+	// EIP-8038 charges the same write surcharge for creating and for overwriting
+	// a slot; the durable growth creating one causes is charged in the state
+	// dimension instead, see TestGas_getStateCostsForSstore.
+	specs[tosca.R16_Amsterdam] = makeSpec(
+		WarmStorageReadCostEIP2929+StorageWriteCostAmsterdam,
+		WarmStorageReadCostEIP2929+StorageWriteCostAmsterdam,
+		WarmStorageReadCostEIP2929,
+	)
 
 	// Check that gas prices are computed correctly.
 	for _, revision := range tosca.GetAllKnownRevisions() {
@@ -140,7 +147,14 @@ func TestGas_getRefundForSstore_exhaustive(t *testing.T) {
 	specs[tosca.R13_Cancun] = specs[tosca.R12_Shanghai]
 	specs[tosca.R14_Prague] = specs[tosca.R13_Cancun]
 	specs[tosca.R15_Osaka] = specs[tosca.R14_Prague]
-	specs[tosca.R16_Amsterdam] = specs[tosca.R15_Osaka]
+	// EIP-8038 reprices the refund for clearing a slot and grants back the write
+	// surcharge whenever a slot ends up holding its committed value again,
+	// independently of whether that value is zero.
+	specs[tosca.R16_Amsterdam] = makeSpec(
+		StorageClearRefundAmsterdam,
+		StorageWriteCostAmsterdam,
+		StorageWriteCostAmsterdam,
+	)
 
 	// Check that gas prices are computed correctly.
 	for _, revision := range tosca.GetAllKnownRevisions() {
@@ -159,6 +173,41 @@ func TestGas_getRefundForSstore_exhaustive(t *testing.T) {
 					storageStatus,
 					want,
 					got,
+				)
+			}
+		}
+	}
+}
+
+// TestGas_getStateCostsForSstore covers the state dimension EIP-8037 adds to
+// SSTORE: creating a storage slot grows the state durably, and clearing it again
+// within the same transaction undoes that growth.
+func TestGas_getStateCostsForSstore(t *testing.T) {
+	charges := map[tosca.StorageStatus]tosca.Gas{
+		tosca.StorageAdded: StorageCreationStateCostAmsterdam,
+	}
+	refunds := map[tosca.StorageStatus]tosca.Gas{
+		tosca.StorageAddedDeleted: StorageCreationStateCostAmsterdam,
+	}
+
+	for _, revision := range tosca.GetAllKnownRevisions() {
+		for _, status := range tosca.GetAllStorageStatuses() {
+			wantCharge, wantRefund := charges[status], refunds[status]
+			if revision < tosca.R16_Amsterdam {
+				wantCharge, wantRefund = 0, 0
+			}
+
+			charge, refund := getStateCostsForSstore(revision, status)
+			if charge != wantCharge {
+				t.Errorf(
+					"unexpected state gas charge for (%v,%v), wanted %d, got %d",
+					revision, status, wantCharge, charge,
+				)
+			}
+			if refund != wantRefund {
+				t.Errorf(
+					"unexpected state gas refund for (%v,%v), wanted %d, got %d",
+					revision, status, wantRefund, refund,
 				)
 			}
 		}

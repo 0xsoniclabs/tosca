@@ -51,7 +51,7 @@ func computeStackUsage(op OpCode) stackUsage {
 	case PUSH0, MSIZE, ADDRESS, ORIGIN, CALLER, CALLVALUE, CALLDATASIZE,
 		CODESIZE, GASPRICE, COINBASE, TIMESTAMP, NUMBER,
 		PREVRANDAO, GASLIMIT, PC, GAS, RETURNDATASIZE,
-		SELFBALANCE, CHAINID, BASEFEE, BLOBBASEFEE:
+		SELFBALANCE, CHAINID, BASEFEE, BLOBBASEFEE, SLOTNUM:
 		return makeUsage(0, 1)
 	case POP, JUMP, SELFDESTRUCT:
 		return makeUsage(1, 0)
@@ -76,6 +76,14 @@ func computeStackUsage(op OpCode) stackUsage {
 		return makeUsage(6, 1)
 	case CALL, CALLCODE:
 		return makeUsage(7, 1)
+
+	// The instructions of EIP-8024 address a stack depth only known once their
+	// operand is decoded. The bounds below are the ones every operand shares;
+	// the exact requirement is checked while executing the instruction.
+	case DUPN:
+		return makeUsage(1, 2)
+	case SWAPN, EXCHANGE:
+		return makeUsage(2, 2)
 	}
 
 	// For super-instructions, we need to decompose the instruction into its

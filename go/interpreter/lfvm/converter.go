@@ -153,6 +153,7 @@ func convertWithObserver(
 	res := newCodeBuilder(len(code))
 
 	// Convert each individual instruction.
+	precededByImmediateOp := false
 	for i := 0; i < len(code); {
 		// Handle jump destinations
 		if code[i] == byte(vm.JUMPDEST) {
@@ -163,13 +164,20 @@ func convertWithObserver(
 			res.padNoOpsUntil(i)
 			res.appendCode(JUMPDEST)
 			observer(i, i)
+			precededByImmediateOp = false
 			i++
 			continue
 		}
 
+		// The instruction consuming the operand of an EIP-8024 instruction skips a
+		// single position, so the operand has to stay an instruction of its own
+		// instead of being fused with its successors into a super instruction.
+		fuse := options.WithSuperInstructions && !precededByImmediateOp
+		precededByImmediateOp = vm.HasImmediateOperand(vm.OpCode(code[i]))
+
 		// Convert instructions
 		observer(i, res.nextPos)
-		inc := appendInstructions(&res, i, code, options.WithSuperInstructions)
+		inc := appendInstructions(&res, i, code, fuse)
 		i += inc + 1
 	}
 	return res.toCode()
@@ -232,6 +240,19 @@ func appendInstructions(res *codeBuilder, pos int, code []byte, withSuperInstruc
 		}
 
 		return numBytes
+	}
+
+	if vm.HasImmediateOperand(toscaOpCode) {
+		// EIP-8024 does not exclude the operand from jumpdest analysis, so it
+		// remains an ordinary code position that is converted on its own. Only
+		// its value is copied into the instruction consuming it. A truncated
+		// instruction reads its missing operand as zero.
+		var operand byte
+		if pos+1 < len(code) {
+			operand = code[pos+1]
+		}
+		res.appendOp(OpCode(toscaOpCode), uint16(operand))
+		return 0
 	}
 
 	// All the rest converts to a single instruction.
