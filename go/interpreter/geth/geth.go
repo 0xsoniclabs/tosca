@@ -35,23 +35,13 @@ func init() {
 type gethVm struct{}
 
 // Defines the newest supported revision for this interpreter implementation.
-// Geth itself implements Amsterdam, and its state-gas metering (EIP-8037), cost
-// schedule (EIP-8038), stack operations (EIP-8024) and SLOTNUM (EIP-7843) are
-// covered by the conformance test specification, but Amsterdam cannot be enabled
-// yet: the specification does not model the transfer log EIP-7708 has
-// SELFDESTRUCT emit.
-const newestSupportedRevision = tosca.R15_Osaka
+const newestSupportedRevision = tosca.R16_Amsterdam
 
 func (m *gethVm) Run(parameters tosca.Parameters) (tosca.Result, error) {
 	if parameters.Revision > newestSupportedRevision {
 		return tosca.Result{}, &tosca.ErrUnsupportedRevision{Revision: parameters.Revision}
 	}
-	return run(parameters)
-}
 
-// run executes the given parameters without checking the revision, allowing
-// tests to exercise revisions this interpreter does not support as a whole yet.
-func run(parameters tosca.Parameters) (tosca.Result, error) {
 	evm, contract, stateDb := createGethInterpreterContext(parameters)
 	defer evm.Release()
 

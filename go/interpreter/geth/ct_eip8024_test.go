@@ -25,9 +25,6 @@ import (
 // for DUPN, SWAPN and EXCHANGE against geth, the reference implementation of
 // EIP-8024. Every operand is covered, including the ones the rules only reach
 // through their generic conditions rather than through a test value.
-//
-// The adapter's revision check is bypassed because Amsterdam as a whole is
-// still blocked, see newestSupportedRevision.
 func TestCtAdapter_Eip8024RulesMatchGeth(t *testing.T) {
 	for _, op := range []vm.OpCode{vm.DUPN, vm.SWAPN, vm.EXCHANGE} {
 		for operand := 0; operand < 256; operand++ {
@@ -46,7 +43,7 @@ func TestCtAdapter_Eip8024RulesMatchGeth(t *testing.T) {
 					defer want.Release()
 					rules[0].Effect.Apply(want)
 
-					got, err := stepN(input.Clone(), 1)
+					got, err := ctAdapter{}.StepN(input.Clone(), 1)
 					if err != nil {
 						t.Fatalf("failed to run geth: %v", err)
 					}

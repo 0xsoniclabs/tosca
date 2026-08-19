@@ -2457,6 +2457,19 @@ func makeSelfDestructRules(
 	return rulesFor(instruction)
 }
 
+// ethTransferLogEvent is the first topic of the transfer log EIP-7708 has every
+// value transfer emit, keccak256("Transfer(address,address,uint256)"). It
+// mirrors params.EthTransferLogEvent of go-ethereum.
+//
+// The address such a log is emitted for, params.SystemAddress, is not modeled,
+// since the CT does not track the address of a log entry.
+var ethTransferLogEvent = NewU256(
+	0xddf252ad1be2c89b,
+	0x69c2b068fc378daa,
+	0x952ba7f163c4a116,
+	0x28f55a4df523b3ef,
+)
+
 func selfDestructEffect(s *st.State) {
 	// Behavior pre cancun: the current account is registered to be destroyed, and will be at the end of the current
 	// transaction. The transfer of the current balance to the given account cannot fail. In particular,
@@ -2509,6 +2522,19 @@ func selfDestructEffect(s *st.State) {
 				originatorAccount,
 				beneficiaryAccount,
 			),
+		)
+	}
+
+	// Since EIP-7708 the moved balance is reported by a transfer log. A
+	// self-destruct to self moves nothing, since EIP-8246 dropped the burn it
+	// used to perform, and thus emits no log either.
+	if s.Revision >= tosca.R16_Amsterdam && !originatorBalance.IsZero() && beneficiaryAccount != originatorAccount {
+		amount := originatorBalance.Bytes32be()
+		s.Logs.AddLog(
+			amount[:],
+			ethTransferLogEvent,
+			NewU256FromBytes(originatorAccount[:]...),
+			NewU256FromBytes(beneficiaryAccount[:]...),
 		)
 	}
 
