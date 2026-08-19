@@ -24,9 +24,6 @@ import (
 
 // TestCtAdapter_Eip7843RulesMatchGeth cross-checks the conformance test rules
 // for SLOTNUM against geth, the reference implementation of EIP-7843.
-//
-// The adapter's revision check is bypassed because Amsterdam as a whole is
-// still blocked, see newestSupportedRevision.
 func TestCtAdapter_Eip7843RulesMatchGeth(t *testing.T) {
 	for _, slotNumber := range []uint64{0, 1, 42, math.MaxUint64} {
 		for _, gas := range []tosca.Gas{1, 2, 1000} {
@@ -45,7 +42,7 @@ func TestCtAdapter_Eip7843RulesMatchGeth(t *testing.T) {
 					defer want.Release()
 					rules[0].Effect.Apply(want)
 
-					got, err := stepN(input.Clone(), 1)
+					got, err := ctAdapter{}.StepN(input.Clone(), 1)
 					if err != nil {
 						t.Fatalf("failed to run geth: %v", err)
 					}

@@ -113,8 +113,7 @@ func TestGeth_StateGasChargesCanExhaustRegularGas(t *testing.T) {
 }
 
 // runStoringInterpreter executes an SSTORE creating a fresh storage slot at
-// Amsterdam. The interpreter's revision check is bypassed because Amsterdam is
-// not supported as a whole yet, see newestSupportedRevision.
+// Amsterdam.
 func runStoringInterpreter(t *testing.T, gas, reservoir tosca.Gas) (tosca.Result, error) {
 	t.Helper()
 
@@ -132,7 +131,7 @@ func runStoringInterpreter(t *testing.T, gas, reservoir tosca.Gas) (tosca.Result
 	parameters.Gas = gas
 	parameters.StateGas = reservoir
 
-	return run(parameters)
+	return (&gethVm{}).Run(parameters)
 }
 
 // TestCtAdapter_InterceptedCallsCarryTheStateDimension covers the third place
@@ -226,7 +225,7 @@ func TestGeth_RevertRefundsStateGasAndTheGasBorrowedForIt(t *testing.T) {
 	parameters := utils.ToVmParameters(state)
 	parameters.Gas = gas
 
-	result, err := run(parameters)
+	result, err := (&gethVm{}).Run(parameters)
 	if err != nil {
 		t.Fatalf("failed to run: %v", err)
 	}

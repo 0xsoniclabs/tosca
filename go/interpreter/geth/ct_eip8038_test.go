@@ -26,12 +26,6 @@ import (
 // pricing the access to durable state in Amsterdam against geth, the reference
 // implementation of EIP-8038. Covered is one state per instruction and per
 // condition the prices distinguish.
-//
-// SELFDESTRUCT is repriced as well but not covered here, since Amsterdam also
-// has it emit the transfer log of EIP-7708, which the rules do not model yet.
-//
-// The adapter's revision check is bypassed because Amsterdam as a whole is
-// still blocked, see newestSupportedRevision.
 func TestCtAdapter_Eip8038RulesMatchGeth(t *testing.T) {
 	for name, input := range eip8038States() {
 		t.Run(name, func(t *testing.T) {
@@ -46,7 +40,7 @@ func TestCtAdapter_Eip8038RulesMatchGeth(t *testing.T) {
 			defer want.Release()
 			rules[0].Effect.Apply(want)
 
-			got, err := stepN(input.Clone(), 1)
+			got, err := ctAdapter{}.StepN(input.Clone(), 1)
 			if err != nil {
 				t.Fatalf("failed to run geth: %v", err)
 			}
@@ -231,7 +225,73 @@ func eip8038States() map[string]*st.State {
 		}
 	}
 
+	// --- destroying an account ---
+
+	fundedName := map[bool]string{false: "drained_originator", true: "funded_originator"}
+	contractName := map[bool]string{false: "existing_contract", true: "new_contract"}
+
+	for _, funded := range []bool{false, true} {
+		for _, beneficiary := range eip8038Beneficiaries(funded) {
+			for _, warm := range []bool{false, true} {
+				for _, newContract := range beneficiary.newContracts {
+					state := eip8038State(vm.SELFDESTRUCT, common.AddressToU256(beneficiary.address))
+					state.IsNewContract = newContract
+					state.Accounts = eip8038SelfDestructAccounts(
+						beneficiary.address, funded, warm, beneficiary.empty)
+					add(fmt.Sprintf("%v/%s/%s/%s/%s", vm.SELFDESTRUCT,
+						fundedName[funded], beneficiary.name,
+						warmName[warm], contractName[newContract]), state)
+				}
+			}
+		}
+	}
+
 	return states
+}
+
+// eip8038Beneficiary is a beneficiary a self-destruct is tested against.
+type eip8038Beneficiary struct {
+	name    string
+	address tosca.Address
+	empty   bool
+
+	// newContracts are the values of the is-new-contract flag to test the
+	// beneficiary with, which decides whether the account is truly destroyed.
+	newContracts []bool
+}
+
+// eip8038Beneficiaries lists the beneficiaries worth destroying an account in
+// favor of, given whether that account holds funds. A separate account can be
+// empty or not, whereas the executing account is empty exactly if it is drained.
+func eip8038Beneficiaries(funded bool) []eip8038Beneficiary {
+	both := []bool{false, true}
+	return []eip8038Beneficiary{
+		{"empty_beneficiary", eip8038Target, true, both},
+		{"funded_beneficiary", eip8038Target, false, both},
+		// Since EIP-8246 a self-destruct to self moves no balance, so it neither
+		// burns funds nor emits a transfer log. Destroying the account is left
+		// out: the geth adapter derives the beneficiary it journals from the
+		// balance transfer, which does not happen in this case.
+		{"self_beneficiary", eip8038Self, !funded, []bool{false}},
+	}
+}
+
+// eip8038SelfDestructAccounts describes the world state of a self-destruct
+// test: the executing account holding funds or not, and the beneficiary in the
+// requested shape.
+func eip8038SelfDestructAccounts(beneficiary tosca.Address, funded, warm, empty bool) *st.Accounts {
+	accounts := st.NewAccountsBuilder()
+	if funded {
+		accounts.SetBalance(eip8038Self, common.NewU256(eip8038Balance))
+	}
+	if beneficiary != eip8038Self && !empty {
+		accounts.SetBalance(beneficiary, common.NewU256(1))
+		accounts.SetCode(beneficiary, common.NewBytes([]byte{byte(vm.STOP)}))
+	}
+	if warm {
+		accounts.SetWarm(beneficiary)
+	}
+	return accounts.Build()
 }
 
 // eip8038Balance is the balance of the account executing the tested
