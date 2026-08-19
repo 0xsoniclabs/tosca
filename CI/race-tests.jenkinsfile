@@ -1,0 +1,81 @@
+// Copyright (c) 2025 Sonic Operations Ltd
+//
+// Use of this software is governed by the Business Source License included
+// in the LICENSE file and at soniclabs.com/bsl11.
+//
+// Change Date: 2028-4-16
+//
+// On the date above, in accordance with the Business Source License, use of
+// this software will be governed by the GNU Lesser General Public License v3.
+
+// Runs the Go unit tests under the race detector, three times a week and over every package - the
+// PR pipeline can only afford lfvm. The schedule and the toolchain are this repository's, because a
+// Jenkins dockerfile agent is resolved against the pipeline's own repository and only a pipeline in
+// Tosca can build on Tosca's CI/Dockerfile.jenkins.
+@Library('shared-library') _
+
+pipeline {
+    agent {
+        dockerfile {
+            filename 'CI/Dockerfile.jenkins'
+            label params.AgentLabel
+        }
+    }
+
+    options {
+        timestamps()
+        timeout(time: 6, unit: 'HOURS')
+        disableConcurrentBuilds()
+    }
+
+    triggers {
+        cron('H H * * 1,3,5')
+    }
+
+    environment {
+        CC = 'gcc'
+        CXX = 'g++'
+        GOMEMLIMIT = goMemLimit()
+        // Report the first race and stop, so the failure is the one at the top of the log.
+        GORACE = 'halt_on_error=1'
+    }
+
+    parameters {
+        string(
+            name: 'AgentLabel',
+            defaultValue: 'x86-8-32-m',
+            description: 'Jenkins agent label to run this job on.'
+        )
+    }
+
+    stages {
+        stage('prepare') {
+            steps {
+                describeBuild()
+                sh 'git submodule update --init --recursive --depth 1'
+            }
+        }
+
+        stage('build') {
+            steps {
+                sh 'make tosca-go'
+            }
+        }
+
+        stage('race-tests') {
+            steps {
+                // Instrumented tests run several times slower than the 10m Go allows a package by
+                // default; an hour below the build timeout, so a hang is reported by Go with a stack
+                // rather than killed by Jenkins. -count 1 keeps a cached pass from standing in.
+                sh 'go test -race -count 1 -timeout 5h ./go/...'
+            }
+        }
+    }
+
+    post {
+        always {
+            notifySlack(channel: 'tosca-jenkins')
+            sh 'make clean'
+        }
+    }
+}
