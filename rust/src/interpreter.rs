@@ -1,4 +1,7 @@
-use std::cmp::min;
+use std::{
+    cmp::min,
+    ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Not, Rem, Sub},
+};
 
 use evmc_vm::{
     AccessStatus, ExecutionMessage, ExecutionResult, MessageFlags, MessageKind, Revision,
@@ -490,6 +493,37 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         Err(FailStatus::Failure)
     }
 
+    /// Runs an opcode that charges `cost` gas, pops one value and pushes `op` applied to it.
+    #[inline(always)]
+    fn unary_op<I: Into<u256>>(&mut self, op: fn(u256) -> I, cost: u64) -> OpResult {
+        self.gas_left.consume(cost)?;
+        let (push_location, [value]) = self.stack.pop_with_location()?;
+        push_location.push(op(value));
+        self.code_reader.next();
+        self.return_from_op()
+    }
+
+    /// Runs an opcode that charges `cost` gas, pops two values and pushes `op` applied to them.
+    /// `op` receives the top of stack as its first argument.
+    #[inline(always)]
+    fn binary_op<I: Into<u256>>(&mut self, op: fn(u256, u256) -> I, cost: u64) -> OpResult {
+        self.gas_left.consume(cost)?;
+        let (push_location, [value2, value1]) = self.stack.pop_with_location()?;
+        push_location.push(op(value1, value2));
+        self.code_reader.next();
+        self.return_from_op()
+    }
+
+    /// Runs an opcode that charges `cost` gas and pushes `op` applied to the interpreter state.
+    #[inline(always)]
+    fn push_value_op<I: Into<u256>>(&mut self, op: fn(&mut Self) -> I, cost: u64) -> OpResult {
+        self.gas_left.consume(cost)?;
+        let value = op(self);
+        self.stack.push(value)?;
+        self.code_reader.next();
+        self.return_from_op()
+    }
+
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     pub fn no_op(&mut self) -> OpResult {
         self.code_reader.next();
@@ -508,59 +542,31 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn add(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
-        let (push_location, [value2, value1]) = self.stack.pop_with_location()?;
-        push_location.push(value1 + value2);
-        self.code_reader.next();
-        self.return_from_op()
+        self.binary_op(u256::add, 3)
     }
 
     fn mul(&mut self) -> OpResult {
-        self.gas_left.consume(5)?;
-        let (push_location, [fac2, fac1]) = self.stack.pop_with_location()?;
-        push_location.push(fac1 * fac2);
-        self.code_reader.next();
-        self.return_from_op()
+        self.binary_op(u256::mul, 5)
     }
 
     fn sub(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
-        let (push_location, [value2, value1]) = self.stack.pop_with_location()?;
-        push_location.push(value1 - value2);
-        self.code_reader.next();
-        self.return_from_op()
+        self.binary_op(u256::sub, 3)
     }
 
     fn div(&mut self) -> OpResult {
-        self.gas_left.consume(5)?;
-        let (push_location, [denominator, value]) = self.stack.pop_with_location()?;
-        push_location.push(value / denominator);
-        self.code_reader.next();
-        self.return_from_op()
+        self.binary_op(u256::div, 5)
     }
 
     fn s_div(&mut self) -> OpResult {
-        self.gas_left.consume(5)?;
-        let (push_location, [denominator, value]) = self.stack.pop_with_location()?;
-        push_location.push(value.sdiv(denominator));
-        self.code_reader.next();
-        self.return_from_op()
+        self.binary_op(u256::sdiv, 5)
     }
 
     fn mod_(&mut self) -> OpResult {
-        self.gas_left.consume(5)?;
-        let (push_location, [denominator, value]) = self.stack.pop_with_location()?;
-        push_location.push(value % denominator);
-        self.code_reader.next();
-        self.return_from_op()
+        self.binary_op(u256::rem, 5)
     }
 
     fn s_mod(&mut self) -> OpResult {
-        self.gas_left.consume(5)?;
-        let (push_location, [denominator, value]) = self.stack.pop_with_location()?;
-        push_location.push(value.srem(denominator));
-        self.code_reader.next();
-        self.return_from_op()
+        self.binary_op(u256::srem, 5)
     }
 
     fn add_mod(&mut self) -> OpResult {
@@ -589,132 +595,68 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn sign_extend(&mut self) -> OpResult {
-        self.gas_left.consume(5)?;
-        let (push_location, [value, size]) = self.stack.pop_with_location()?;
-        push_location.push(u256::signextend(size, value));
-        self.code_reader.next();
-        self.return_from_op()
+        self.binary_op(u256::signextend, 5)
     }
 
     fn lt(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
-        let (push_location, [rhs, lhs]) = self.stack.pop_with_location()?;
-        push_location.push(lhs < rhs);
-        self.code_reader.next();
-        self.return_from_op()
+        self.binary_op(|lhs, rhs| lhs < rhs, 3)
     }
 
     fn gt(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
-        let (push_location, [rhs, lhs]) = self.stack.pop_with_location()?;
-        push_location.push(lhs > rhs);
-        self.code_reader.next();
-        self.return_from_op()
+        self.binary_op(|lhs, rhs| lhs > rhs, 3)
     }
 
     fn s_lt(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
-        let (push_location, [rhs, lhs]) = self.stack.pop_with_location()?;
-        push_location.push(lhs.slt(&rhs));
-        self.code_reader.next();
-        self.return_from_op()
+        self.binary_op(|lhs, rhs| lhs.slt(&rhs), 3)
     }
 
     fn s_gt(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
-        let (push_location, [rhs, lhs]) = self.stack.pop_with_location()?;
-        push_location.push(lhs.sgt(&rhs));
-        self.code_reader.next();
-        self.return_from_op()
+        self.binary_op(|lhs, rhs| lhs.sgt(&rhs), 3)
     }
 
     fn eq(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
-        let (push_location, [rhs, lhs]) = self.stack.pop_with_location()?;
-        push_location.push(lhs == rhs);
-        self.code_reader.next();
-        self.return_from_op()
+        self.binary_op(|lhs, rhs| lhs == rhs, 3)
     }
 
     fn is_zero(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
-        let (push_location, [value]) = self.stack.pop_with_location()?;
-        push_location.push(value == u256::ZERO);
-        self.code_reader.next();
-        self.return_from_op()
+        self.unary_op(|value| value == u256::ZERO, 3)
     }
 
     fn and(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
-        let (push_location, [rhs, lhs]) = self.stack.pop_with_location()?;
-        push_location.push(lhs & rhs);
-        self.code_reader.next();
-        self.return_from_op()
+        self.binary_op(u256::bitand, 3)
     }
 
     fn or(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
-        let (push_location, [rhs, lhs]) = self.stack.pop_with_location()?;
-        push_location.push(lhs | rhs);
-        self.code_reader.next();
-        self.return_from_op()
+        self.binary_op(u256::bitor, 3)
     }
 
     fn xor(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
-        let (push_location, [rhs, lhs]) = self.stack.pop_with_location()?;
-        push_location.push(lhs ^ rhs);
-        self.code_reader.next();
-        self.return_from_op()
+        self.binary_op(u256::bitxor, 3)
     }
 
     fn not(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
-        let (push_location, [value]) = self.stack.pop_with_location()?;
-        push_location.push(!value);
-        self.code_reader.next();
-        self.return_from_op()
+        self.unary_op(u256::not, 3)
     }
 
     fn byte(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
-        let (push_location, [value, offset]) = self.stack.pop_with_location()?;
-        push_location.push(value.byte(offset));
-        self.code_reader.next();
-        self.return_from_op()
+        self.binary_op(|offset, value| value.byte(offset), 3)
     }
 
     fn shl(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
-        let (push_location, [value, shift]) = self.stack.pop_with_location()?;
-        push_location.push(value << shift);
-        self.code_reader.next();
-        self.return_from_op()
+        self.binary_op(|shift, value| value << shift, 3)
     }
 
     fn shr(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
-        let (push_location, [value, shift]) = self.stack.pop_with_location()?;
-        push_location.push(value >> shift);
-        self.code_reader.next();
-        self.return_from_op()
+        self.binary_op(|shift, value| value >> shift, 3)
     }
 
     fn sar(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
-        let (push_location, [value, shift]) = self.stack.pop_with_location()?;
-        push_location.push(value.sar(shift));
-        self.code_reader.next();
-        self.return_from_op()
+        self.binary_op(|shift, value| value.sar(shift), 3)
     }
 
     fn clz(&mut self) -> OpResult {
         check_min_revision(Revision::EVMC_OSAKA, self.revision)?;
-        self.gas_left.consume(5)?;
-        let (push_location, [value]) = self.stack.pop_with_location()?;
-        push_location.push(u256::from(value.leading_zeros()));
-        self.code_reader.next();
-        self.return_from_op()
+        self.unary_op(|value| value.leading_zeros(), 5)
     }
 
     fn sha3(&mut self) -> OpResult {
@@ -731,10 +673,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn address(&mut self) -> OpResult {
-        self.gas_left.consume(2)?;
-        self.stack.push(self.message.recipient)?;
-        self.code_reader.next();
-        self.return_from_op()
+        self.push_value_op(|i| i.message.recipient, 2)
     }
 
     fn balance(&mut self) -> OpResult {
@@ -751,24 +690,15 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn origin(&mut self) -> OpResult {
-        self.gas_left.consume(2)?;
-        self.stack.push(self.context.get_tx_context().tx_origin)?;
-        self.code_reader.next();
-        self.return_from_op()
+        self.push_value_op(|i| i.context.get_tx_context().tx_origin, 2)
     }
 
     fn caller(&mut self) -> OpResult {
-        self.gas_left.consume(2)?;
-        self.stack.push(self.message.sender)?;
-        self.code_reader.next();
-        self.return_from_op()
+        self.push_value_op(|i| i.message.sender, 2)
     }
 
     fn call_value(&mut self) -> OpResult {
-        self.gas_left.consume(2)?;
-        self.stack.push(self.message.value)?;
-        self.code_reader.next();
-        self.return_from_op()
+        self.push_value_op(|i| i.message.value, 2)
     }
 
     fn call_data_load(&mut self) -> OpResult {
@@ -790,19 +720,12 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn call_data_size(&mut self) -> OpResult {
-        self.gas_left.consume(2)?;
-        let call_data_len = self.message.input.len();
-        self.stack.push(call_data_len)?;
-        self.code_reader.next();
-        self.return_from_op()
+        self.push_value_op(|i| i.message.input.len(), 2)
     }
 
     fn push0(&mut self) -> OpResult {
         check_min_revision(Revision::EVMC_SHANGHAI, self.revision)?;
-        self.gas_left.consume(2)?;
-        self.stack.push(u256::ZERO)?;
-        self.code_reader.next();
-        self.return_from_op()
+        self.push_value_op(|_| u256::ZERO, 2)
     }
 
     fn call_data_copy(&mut self) -> OpResult {
@@ -823,10 +746,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn code_size(&mut self) -> OpResult {
-        self.gas_left.consume(2)?;
-        self.stack.push(self.code_reader.len())?;
-        self.code_reader.next();
-        self.return_from_op()
+        self.push_value_op(|i| i.code_reader.len(), 2)
     }
 
     fn code_copy(&mut self) -> OpResult {
@@ -847,11 +767,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn gas_price(&mut self) -> OpResult {
-        self.gas_left.consume(2)?;
-        self.stack
-            .push(self.context.get_tx_context().tx_gas_price)?;
-        self.code_reader.next();
-        self.return_from_op()
+        self.push_value_op(|i| i.context.get_tx_context().tx_gas_price, 2)
     }
 
     fn ext_code_size(&mut self) -> OpResult {
@@ -896,10 +812,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn return_data_size(&mut self) -> OpResult {
-        self.gas_left.consume(2)?;
-        self.stack.push(self.last_call_return_data.len())?;
-        self.code_reader.next();
-        self.return_from_op()
+        self.push_value_op(|i| i.last_call_return_data.len(), 2)
     }
 
     fn return_data_copy(&mut self) -> OpResult {
@@ -951,58 +864,36 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn coinbase(&mut self) -> OpResult {
-        self.gas_left.consume(2)?;
-        self.stack
-            .push(self.context.get_tx_context().block_coinbase)?;
-        self.code_reader.next();
-        self.return_from_op()
+        self.push_value_op(|i| i.context.get_tx_context().block_coinbase, 2)
     }
 
     fn timestamp(&mut self) -> OpResult {
-        self.gas_left.consume(2)?;
-        self.stack.push(
-            self.context
-                .get_tx_context()
-                .block_timestamp
-                .cast_unsigned(),
-        )?;
-        self.code_reader.next();
-        self.return_from_op()
+        self.push_value_op(
+            |i| i.context.get_tx_context().block_timestamp.cast_unsigned(),
+            2,
+        )
     }
 
     fn number(&mut self) -> OpResult {
-        self.gas_left.consume(2)?;
-        self.stack
-            .push(self.context.get_tx_context().block_number.cast_unsigned())?;
-        self.code_reader.next();
-        self.return_from_op()
+        self.push_value_op(
+            |i| i.context.get_tx_context().block_number.cast_unsigned(),
+            2,
+        )
     }
 
     fn prev_randao(&mut self) -> OpResult {
-        self.gas_left.consume(2)?;
-        self.stack
-            .push(self.context.get_tx_context().block_prev_randao)?;
-        self.code_reader.next();
-        self.return_from_op()
+        self.push_value_op(|i| i.context.get_tx_context().block_prev_randao, 2)
     }
 
     fn gas_limit(&mut self) -> OpResult {
-        self.gas_left.consume(2)?;
-        self.stack.push(
-            self.context
-                .get_tx_context()
-                .block_gas_limit
-                .cast_unsigned(),
-        )?;
-        self.code_reader.next();
-        self.return_from_op()
+        self.push_value_op(
+            |i| i.context.get_tx_context().block_gas_limit.cast_unsigned(),
+            2,
+        )
     }
 
     fn chain_id(&mut self) -> OpResult {
-        self.gas_left.consume(2)?;
-        self.stack.push(self.context.get_tx_context().chain_id)?;
-        self.code_reader.next();
-        self.return_from_op()
+        self.push_value_op(|i| i.context.get_tx_context().chain_id, 2)
     }
 
     fn self_balance(&mut self) -> OpResult {
@@ -1017,11 +908,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
     fn base_fee(&mut self) -> OpResult {
         check_min_revision(Revision::EVMC_LONDON, self.revision)?;
-        self.gas_left.consume(2)?;
-        self.stack
-            .push(self.context.get_tx_context().block_base_fee)?;
-        self.code_reader.next();
-        self.return_from_op()
+        self.push_value_op(|i| i.context.get_tx_context().block_base_fee, 2)
     }
 
     fn blob_hash(&mut self) -> OpResult {
@@ -1042,11 +929,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
     fn blob_base_fee(&mut self) -> OpResult {
         check_min_revision(Revision::EVMC_CANCUN, self.revision)?;
-        self.gas_left.consume(2)?;
-        self.stack
-            .push(self.context.get_tx_context().blob_base_fee)?;
-        self.code_reader.next();
-        self.return_from_op()
+        self.push_value_op(|i| i.context.get_tx_context().blob_base_fee, 2)
     }
 
     fn pop(&mut self) -> OpResult {
@@ -1132,24 +1015,15 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn pc(&mut self) -> OpResult {
-        self.gas_left.consume(2)?;
-        self.stack.push(self.code_reader.pc())?;
-        self.code_reader.next();
-        self.return_from_op()
+        self.push_value_op(|i| i.code_reader.pc(), 2)
     }
 
     fn m_size(&mut self) -> OpResult {
-        self.gas_left.consume(2)?;
-        self.stack.push(self.memory.len())?;
-        self.code_reader.next();
-        self.return_from_op()
+        self.push_value_op(|i| i.memory.len(), 2)
     }
 
     fn gas(&mut self) -> OpResult {
-        self.gas_left.consume(2)?;
-        self.stack.push(self.gas_left.as_u64())?;
-        self.code_reader.next();
-        self.return_from_op()
+        self.push_value_op(|i| i.gas_left.as_u64(), 2)
     }
 
     fn jump_dest(&mut self) -> OpResult {
