@@ -487,7 +487,6 @@ dependencies = [
  "mockall",
  "nohash-hasher",
  "sha3",
- "zerocopy",
 ]
 
 [[package]]
