@@ -1,5 +1,3 @@
-#[cfg(feature = "fn-ptr-conversion-dispatch")]
-use std::cmp::min;
 #[cfg(feature = "code-analysis-cache")]
 use std::sync::Arc;
 
@@ -142,11 +140,17 @@ impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
                     pc_map.add_mapping(pc - 1, analysis.len() - 1);
                 }
                 CodeByteType::Push => {
-                    let mut data = [0; 32];
-                    let avail = min(data_len, code.len() - pc);
-                    data[32 - data_len..32 - data_len + avail]
-                        .copy_from_slice(&code[pc..pc + avail]);
-                    let data = u256::from_be_bytes(data);
+                    // Copying a fixed size window of the code to offset `32 - data_len` right
+                    // aligns the push data in the first 32 bytes of the buffer. Unlike a copy of
+                    // `data_len` bytes this does not compile to a call to memcpy.
+                    let mut buf = [0; 64];
+                    if let Some(window) = code.get(pc..pc + 32) {
+                        buf[32 - data_len..64 - data_len].copy_from_slice(window);
+                    } else {
+                        let avail = code.len() - pc;
+                        buf[32 - data_len..32 - data_len + avail].copy_from_slice(&code[pc..]);
+                    }
+                    let data = u256::from_be_bytes(*buf[..32].as_array().unwrap());
                     analysis.push(OpFnData::func(op, data));
                     pc_map.add_mapping(pc - 1, analysis.len() - 1);
 
@@ -427,6 +431,22 @@ mod tests {
                     (u256::ONE << u256::from(8 * 20u8)) + u256::from(2u8)
                 ),
                 OpFnData::<false>::func(Opcode::Add as u8, u256::ZERO),
+                OpFnData::terminator(),
+            ]
+        );
+
+        // push data cut short by the end of the code is padded with zeros
+        assert_eq!(
+            CodeAnalysis::<false>::analyze_code(&[Opcode::Push2 as u8, 0xff]).analysis,
+            [
+                OpFnData::<false>::func(Opcode::Push2 as u8, u256::from(0xff00u32)),
+                OpFnData::terminator(),
+            ]
+        );
+        assert_eq!(
+            CodeAnalysis::<false>::analyze_code(&[Opcode::Push32 as u8]).analysis,
+            [
+                OpFnData::<false>::func(Opcode::Push32 as u8, u256::ZERO),
                 OpFnData::terminator(),
             ]
         );
