@@ -1,5 +1,6 @@
 use std::{
     cmp::min,
+    mem::ManuallyDrop,
     ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Not, Rem, Sub},
 };
 
@@ -13,7 +14,8 @@ use crate::types::GetOpcodeError;
 use crate::{
     types::{
         CodeAnalysisCache, CodeReader, ExecStatus, ExecutionContextTrait, FailStatus,
-        LastCallReturnData, Memory, Observer, Stack, hash_cache::HashCache, u256,
+        LastCallReturnData, Memory, Observer, Stack, hash_cache::HashCache, new_stack_and_memory,
+        release_stack_and_memory, u256,
     },
     utils::{Gas, GasRefund, SliceExt, check_min_revision, check_not_read_only, word_size},
 };
@@ -356,8 +358,8 @@ pub struct Interpreter<'a, const STEPPABLE: bool> {
     pub gas_left: Gas,
     pub gas_refund: GasRefund,
     pub output: Box<[u8]>,
-    pub stack: Stack,
-    pub memory: Memory,
+    pub stack: ManuallyDrop<Stack>,
+    pub memory: ManuallyDrop<Memory>,
     pub last_call_return_data: LastCallReturnData<'a>,
     pub steps: Option<i32>,
     pub hash_cache: &'a HashCache,
@@ -372,6 +374,7 @@ impl<'a> Interpreter<'a, false> {
         code_analysis_cache: &'a CodeAnalysisCache<false>,
         hash_cache: &'a HashCache,
     ) -> Self {
+        let (stack, memory) = new_stack_and_memory();
         Self {
             exec_status: ExecStatus::Running,
             message,
@@ -386,8 +389,8 @@ impl<'a> Interpreter<'a, false> {
             gas_left: Gas::new(message.gas),
             gas_refund: GasRefund::new(0),
             output: Box::default(),
-            stack: Stack::new(),
-            memory: Memory::new(),
+            stack: ManuallyDrop::new(stack),
+            memory: ManuallyDrop::new(memory),
             last_call_return_data: LastCallReturnData::Slice(&[]),
             steps: None,
             hash_cache,
@@ -404,13 +407,16 @@ impl<'a> Interpreter<'a, true> {
         code: &'a [u8],
         pc: usize,
         gas_refund: i64,
-        stack: Stack,
-        memory: Memory,
+        init_stack: &[u256],
+        init_memory: &[u8],
         last_call_return_data: &'a [u8],
         steps: Option<i32>,
         code_analysis_cache: &'a CodeAnalysisCache<true>,
         hash_cache: &'a HashCache,
     ) -> Self {
+        let (mut stack, mut memory) = new_stack_and_memory();
+        stack.reset_to(init_stack);
+        memory.reset_to(init_memory);
         Self {
             exec_status: ExecStatus::Running,
             message,
@@ -425,12 +431,25 @@ impl<'a> Interpreter<'a, true> {
             gas_left: Gas::new(message.gas),
             gas_refund: GasRefund::new(gas_refund),
             output: Box::default(),
-            stack,
-            memory,
+            stack: ManuallyDrop::new(stack),
+            memory: ManuallyDrop::new(memory),
             last_call_return_data: LastCallReturnData::Slice(last_call_return_data),
             steps,
             hash_cache,
         }
+    }
+}
+
+/// Puts the [`Stack`] and the [`Memory`] back into the reuse cache.
+impl<const STEPPABLE: bool> Drop for Interpreter<'_, STEPPABLE> {
+    fn drop(&mut self) {
+        // SAFETY:
+        // The interpreter is being dropped, so its stack is not read or dropped again.
+        let stack = unsafe { ManuallyDrop::take(&mut self.stack) };
+        // SAFETY:
+        // The interpreter is being dropped, so its memory is not read or dropped again.
+        let memory = unsafe { ManuallyDrop::take(&mut self.memory) };
+        release_stack_and_memory(stack, memory);
     }
 }
 
@@ -1592,7 +1611,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 }
 
 impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for StepResult {
-    fn from(value: Interpreter<STEPPABLE>) -> Self {
+    fn from(mut value: Interpreter<STEPPABLE>) -> Self {
         let stack = value
             .stack
             .as_slice()
@@ -1607,7 +1626,7 @@ impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for StepResult {
             pc: value.code_reader.pc() as u64,
             gas_left: value.gas_left.as_u64().cast_signed(),
             gas_refund: value.gas_refund.as_i64(),
-            output: value.output,
+            output: std::mem::take(&mut value.output),
             stack,
             memory: value.memory.as_slice().to_vec(),
             last_call_return_data: Box::from(&*value.last_call_return_data),
@@ -1616,12 +1635,12 @@ impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for StepResult {
 }
 
 impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for ExecutionResult {
-    fn from(value: Interpreter<STEPPABLE>) -> Self {
+    fn from(mut value: Interpreter<STEPPABLE>) -> Self {
         Self::new(
             value.exec_status.into(),
             value.gas_left.as_u64().cast_signed(),
             value.gas_refund.as_i64(),
-            value.output,
+            std::mem::take(&mut value.output),
             Address::default(),
         )
     }
@@ -1638,8 +1657,8 @@ mod tests {
     use crate::{
         interpreter::Interpreter,
         types::{
-            CodeAnalysisCache, Memory, MockExecutionContextTrait, MockExecutionMessage,
-            NoOpObserver, Opcode, Stack, hash_cache::HashCache, u256,
+            CodeAnalysisCache, MockExecutionContextTrait, MockExecutionMessage, NoOpObserver,
+            Opcode, hash_cache::HashCache, u256,
         },
     };
 
@@ -1679,8 +1698,8 @@ mod tests {
             &[Opcode::Add as u8],
             1,
             0,
-            Stack::new(),
-            Memory::new(),
+            &[],
+            &[],
             &[],
             None,
             &code_analysis_cache,
@@ -1710,8 +1729,8 @@ mod tests {
             &[Opcode::Push1 as u8, 0x00],
             1,
             0,
-            Stack::new(),
-            Memory::new(),
+            &[],
+            &[],
             &[],
             None,
             &code_analysis_cache,
@@ -1734,8 +1753,8 @@ mod tests {
             &[Opcode::Add as u8],
             0,
             0,
-            Stack::new(),
-            Memory::new(),
+            &[],
+            &[],
             &[],
             Some(0),
             &code_analysis_cache,
@@ -1756,8 +1775,6 @@ mod tests {
         let hash_cache = HashCache::default();
         let mut context = MockExecutionContextTrait::new();
         let message = MockExecutionMessage::default().into();
-        let mut interpreter_stack = Stack::new();
-        interpreter_stack.reset_to(&[1u8.into(), 2u8.into()]);
         let interpreter = Interpreter::new_steppable(
             Revision::EVMC_ISTANBUL,
             &message,
@@ -1765,8 +1782,8 @@ mod tests {
             &[Opcode::Add as u8, Opcode::Add as u8],
             0,
             0,
-            interpreter_stack,
-            Memory::new(),
+            &[1u8.into(), 2u8.into()],
+            &[],
             &[],
             Some(1),
             &code_analysis_cache,
@@ -1947,10 +1964,6 @@ mod tests {
             gas.into(),
         ];
 
-        let mut interpreter_stack = Stack::new();
-        interpreter_stack.reset_to(&stack);
-        let mut interpreter_memory = Memory::new();
-        interpreter_memory.reset_to(&memory);
         let interpreter = Interpreter::new_steppable(
             Revision::EVMC_ISTANBUL,
             &message,
@@ -1958,8 +1971,8 @@ mod tests {
             &[Opcode::Call as u8],
             0,
             0,
-            interpreter_stack,
-            interpreter_memory,
+            &stack,
+            &memory,
             &[],
             None,
             &code_analysis_cache,
