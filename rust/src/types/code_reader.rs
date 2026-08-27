@@ -1,5 +1,3 @@
-#[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
-use std::cmp::min;
 use std::{self, ops::Deref};
 
 use crate::types::{
@@ -131,9 +129,16 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
     pub fn get_push_data<const N: usize>(&mut self) -> u256 {
         const { assert!(N > 0 && N <= 32) };
 
-        let data_len = min(N, self.code.len().saturating_sub(self.pc));
+        // N is known at compile time, so copying a whole window of push data compiles to a fixed
+        // size copy. Only a push running past the end of the code needs a runtime length copy,
+        // which is a call to memcpy.
         let mut data = [0; 32];
-        data[32 - N..32 - N + data_len].copy_from_slice(&self.code[self.pc..self.pc + data_len]);
+        if let Some(window) = self.code.get(self.pc..self.pc + N) {
+            data[32 - N..].copy_from_slice(window);
+        } else {
+            let data_len = self.code.len() - self.pc;
+            data[32 - N..32 - N + data_len].copy_from_slice(&self.code[self.pc..]);
+        }
         let data = u256::from_be_bytes(data);
         self.pc += N;
 
