@@ -519,7 +519,7 @@ struct Impl<OpCode::SHA3> {
     const uint256_t size_u256 = top[1];
 
     const auto [mem_cost, offset, size] = ctx.MemoryExpansionCost(offset_u256, size_u256);
-    const int64_t minimum_word_size = static_cast<int64_t>((size + 31) / 32);
+    const int64_t minimum_word_size = static_cast<int64_t>((size / 32) + (size % 32 != 0));
 
     int64_t dynamic_gas = 0;
     {
@@ -650,7 +650,7 @@ struct Impl<OpCode::CALLDATACOPY> {
     const uint256_t size_u256 = top[2];
 
     const auto [mem_cost, memory_offset, size] = ctx.MemoryExpansionCost(memory_offset_u256, size_u256);
-    const int64_t minimum_word_size = static_cast<int64_t>((size + 31) / 32);
+    const int64_t minimum_word_size = static_cast<int64_t>((size / 32) + (size % 32 != 0));
 
     int64_t dynamic_gas = 0;
     {
@@ -703,7 +703,7 @@ struct Impl<OpCode::CODECOPY> {
     const uint256_t size_u256 = top[2];
 
     const auto [mem_cost, memory_offset, size] = ctx.MemoryExpansionCost(memory_offset_u256, size_u256);
-    const int64_t minimum_word_size = static_cast<int64_t>((size + 31) / 32);
+    const int64_t minimum_word_size = static_cast<int64_t>((size / 32) + (size % 32 != 0));
 
     int64_t dynamic_gas = 0;
     {
@@ -776,7 +776,7 @@ struct Impl<OpCode::EXTCODECOPY> {
     if (gas < dynamic_gas) [[unlikely]]
       return {.dynamic_gas_costs = dynamic_gas};
 
-    const int64_t minimum_word_size = static_cast<int64_t>((size + 31) / 32);
+    const int64_t minimum_word_size = static_cast<int64_t>((size / 32) + (size % 32 != 0));
     int64_t address_access_cost = 700;
     if (ctx.revision >= EVMC_BERLIN) {
       if (ctx.host->access_account(address) == EVMC_ACCESS_WARM) {
@@ -831,7 +831,7 @@ struct Impl<OpCode::RETURNDATACOPY> {
     if (gas < dynamic_gas) [[unlikely]]
       return {.dynamic_gas_costs = dynamic_gas};
 
-    const int64_t minimum_word_size = static_cast<int64_t>((size + 31) / 32);
+    const int64_t minimum_word_size = static_cast<int64_t>((size / 32) + (size % 32 != 0));
     dynamic_gas += 3 * minimum_word_size;
     if (gas < dynamic_gas) [[unlikely]]
       return {.dynamic_gas_costs = dynamic_gas};
@@ -1052,7 +1052,7 @@ struct Impl<OpCode::MCOPY> {
 
     const auto [expansion_cost_dest, dest_offset, size] = ctx.MemoryExpansionCost(dest_offset_u265, size_u256);
     const auto [expansion_cost_src, src_offset, _] = ctx.MemoryExpansionCost(src_offset_u256, size_u256);
-    const auto words_copied_cost = 3 * static_cast<int64_t>((size + 31) / 32);
+    const auto words_copied_cost = 3 * static_cast<int64_t>((size / 32) + (size % 32 != 0));
     int64_t dynamic_gas = 0;
     if (TOSCA_CHECK_OVERFLOW_ADD(words_copied_cost, std::max(expansion_cost_dest, expansion_cost_src), &dynamic_gas)) {
       return {.state = RunState::kErrorGas};
@@ -1610,14 +1610,14 @@ struct CreateImpl {
         };
       }
 
-      const int64_t init_code_cost = kInitCodeWordCost * static_cast<int64_t>(((init_code_size + 31) / 32));
+      const int64_t init_code_cost = kInitCodeWordCost * static_cast<int64_t>((init_code_size / 32) + (init_code_size % 32 != 0));
       if (gas -= init_code_cost, gas < 0) {
         return {.dynamic_gas_costs = initial_gas - gas};
       }
     }
 
     if constexpr (Op == op::CREATE2) {
-      const int64_t minimum_word_size = static_cast<int64_t>((init_code_size + 31) / 32);
+      const int64_t minimum_word_size = static_cast<int64_t>((init_code_size / 32) + (init_code_size % 32 != 0));
       if (gas -= 6 * minimum_word_size; gas < 0) [[unlikely]]
         return {.dynamic_gas_costs = initial_gas - gas};
     }
@@ -1927,10 +1927,7 @@ Context::MemoryExpansionCostResult Context::MemoryExpansionCost(uint256_t offset
   }
 
   auto calc_memory_cost = [](uint64_t size) -> int64_t {
-    if (TOSCA_CHECK_OVERFLOW_ADD(size, 31, &size)) [[unlikely]] {
-      return kMaxGas;
-    }
-    const int64_t memory_size_word = static_cast<int64_t>(size / 32);
+    const int64_t memory_size_word = static_cast<int64_t>((size / 32) + (size % 32 != 0));
     int64_t squared_size_word = 0;
     if (TOSCA_CHECK_OVERFLOW_MUL(memory_size_word, memory_size_word, &squared_size_word)) [[unlikely]] {
       return kMaxGas;

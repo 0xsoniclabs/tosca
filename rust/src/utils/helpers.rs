@@ -44,11 +44,10 @@ impl SliceExt for [u8] {
 
 #[inline(always)]
 pub fn word_size(byte_len: u64) -> Result<u64, FailStatus> {
-    let (end, overflow) = byte_len.overflowing_add(31);
-    if overflow {
-        return Err(FailStatus::OutOfGas);
+    if byte_len == 0 {
+        return Ok(0);
     }
-    Ok(end / 32)
+    Ok((byte_len - 1) / 32 + 1)
 }
 
 #[inline(always)]
@@ -121,7 +120,8 @@ mod tests {
         assert_eq!(utils::word_size(1), Ok(1));
         assert_eq!(utils::word_size(32), Ok(1));
         assert_eq!(utils::word_size(33), Ok(2));
-        assert_eq!(utils::word_size(u64::MAX), Err(FailStatus::OutOfGas));
+        assert_eq!(utils::word_size(u64::MAX - 30), Ok(576460752303423488));
+        assert_eq!(utils::word_size(u64::MAX), Ok(576460752303423488));
     }
 
     #[test]

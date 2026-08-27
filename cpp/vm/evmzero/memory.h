@@ -82,7 +82,7 @@ class Memory {
     if (size != 0) {
       const auto new_size = offset + size;
       if (new_size > memory_.size()) {
-        memory_.resize(((new_size + 31) / 32) * 32);
+        memory_.resize(((new_size / 32) + (new_size % 32 != 0)) * 32);
       }
     }
   }

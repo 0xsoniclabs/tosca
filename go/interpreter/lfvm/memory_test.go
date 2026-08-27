@@ -89,7 +89,7 @@ func TestGetExpansionCostsAndSize(t *testing.T) {
 				}
 
 				// all expansions must be done in 32-byte chunks
-				expectedSize := (test.size + 31) / 32 * 32
+				expectedSize := tosca.SizeInWords(test.size) * 32
 				if want, got := expectedSize, size; want != got {
 					t.Errorf("unexpected size: want: %d but got: %d", want, got)
 				}
@@ -304,7 +304,7 @@ func TestMemory_getSlice_ExpandsMemoryIn32ByteChunks(t *testing.T) {
 					t.Errorf("unexpected error: %v", err)
 				}
 
-				want := max((offset+size+31)/32*32, memSize)
+				want := max(tosca.SizeInWords(offset+size)*32, memSize)
 				if got, want := m.length(), want; got != want {
 					t.Errorf("unexpected memory length: %d, want: %d", got, want)
 				}
