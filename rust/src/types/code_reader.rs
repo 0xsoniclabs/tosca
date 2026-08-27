@@ -1,25 +1,23 @@
 use std::{self, ops::Deref};
 
-use crate::types::{
-    AnalysisContainer, CodeAnalysis, CodeAnalysisCache, CodeByteType, FailStatus, u256,
-};
+use crate::types::{CodeAnalysis, CodeAnalysisCache, CodeByteType, FailStatus, u256};
 #[cfg(feature = "fn-ptr-conversion-dispatch")]
 use crate::{interpreter::OpFn, types::OpFnData};
 
 #[derive(Debug)]
 pub struct CodeReader<'a, const STEPPABLE: bool> {
     code: &'a [u8],
-    code_analysis: AnalysisContainer<CodeAnalysis<STEPPABLE>>,
+    code_analysis: CodeAnalysis<STEPPABLE>,
     #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
     pc: usize,
-    /// Pointer to the current entry in `code_analysis.analysis`. Storing a pointer instead of an
-    /// index avoids recomputing the entry address on every dispatch. It always points at a valid
-    /// entry: execution cannot advance past the terminator entry and jumps are bounds checked.
+    /// Pointer to the current entry in `code_analysis`. Storing a pointer instead of an index
+    /// avoids recomputing the entry address on every dispatch. It always points at a valid entry:
+    /// execution cannot advance past the terminator entry and jumps are bounds checked.
     ///
-    /// It points into the heap buffer of `code_analysis.analysis`, not into this struct, so moving
-    /// the reader does not invalidate it and no pinning is needed. It stays valid because
+    /// It points into the heap buffer of `code_analysis`, not into this struct, so moving the
+    /// reader does not invalidate it and no pinning is needed. It stays valid because
     /// `code_analysis` keeps that buffer alive for as long as the reader exists and because the
-    /// buffer is never mutated (see [`CodeAnalysis::analysis`]).
+    /// buffer is never mutated: it is only reachable through shared references.
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     pc: *const OpFnData<STEPPABLE>,
 }
@@ -49,10 +47,11 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
         let code_analysis = CodeAnalysis::new(code, code_hash, cache);
         #[cfg(feature = "fn-ptr-conversion-dispatch")]
         let pc = {
-            let converted = code_analysis.pc_map.to_converted(pc);
+            let analysis_offset = code_analysis.analysis_offset(pc);
             // SAFETY:
-            // pc_map only maps to indices of existing analysis entries, so converted is in bounds.
-            unsafe { code_analysis.analysis.as_ptr().add(converted) }
+            // analysis_offset only returns offsets of existing analysis entries, so it is in
+            // bounds.
+            unsafe { code_analysis.as_ptr().add(analysis_offset) }
         };
         Self {
             code,
@@ -64,7 +63,7 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
     #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
     pub fn get(&self) -> Result<u8, GetOpcodeError> {
         if let Some(op) = self.code.get(self.pc) {
-            let analysis = self.code_analysis.analysis[self.pc];
+            let analysis = self.code_analysis[self.pc];
             if analysis == CodeByteType::DataOrInvalid {
                 Err(GetOpcodeError::Invalid)
             } else {
@@ -104,7 +103,7 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
 
     pub fn try_jump(&mut self, dest: u256) -> Result<(), FailStatus> {
         let dest = u64::try_from(dest).map_err(|_| FailStatus::BadJumpDestination)? as usize;
-        if !self.code_analysis.analysis.get(dest).is_some_and(|c| {
+        if !self.code_analysis.get(dest).is_some_and(|c| {
             let code_byte_type = std::cfg_select! {
                 feature = "fn-ptr-conversion-dispatch" => c.code_byte_type(),
                 _ => *c,
@@ -117,7 +116,7 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
             feature = "fn-ptr-conversion-dispatch" => {
                 // SAFETY:
                 // The check above ensures that dest is in bounds.
-                self.pc = unsafe { self.code_analysis.analysis.as_ptr().add(dest) };
+                self.pc = unsafe { self.code_analysis.as_ptr().add(dest) };
             }
             _ => self.pc = dest,
         }
@@ -170,13 +169,8 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
         std::cfg_select! {
             feature = "fn-ptr-conversion-dispatch" => {
                 // SAFETY:
-                // self.pc always points into self.code_analysis.analysis (see field
-                // documentation).
-                let converted_pc = unsafe {
-                    self.pc
-                        .offset_from_unsigned(self.code_analysis.analysis.as_ptr())
-                };
-                self.code_analysis.pc_map.to_ct(converted_pc)
+                // self.pc always points at a valid entry (see field documentation).
+                unsafe { (*self.pc).get_code_offset() }
             }
             _ => self.pc,
         }
