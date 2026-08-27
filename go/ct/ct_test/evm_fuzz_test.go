@@ -400,7 +400,7 @@ func TestCorpusEntryToCtState(t *testing.T) {
 				t.Errorf("Unexpected nil stack")
 			}
 
-			stateStackSize := (len(tt.stackBytes) + 31) / 32
+			stateStackSize := tosca.SizeInWords(uint64(len(tt.stackBytes)))
 			if state.Stack.Size() != stateStackSize {
 				t.Errorf("Unexpected stack size. Got: %v, Want: %v", state.Stack.Size(), stateStackSize)
 			}

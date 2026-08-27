@@ -16,12 +16,12 @@ namespace tosca::evmzero {
 
 Memory::Memory(std::initializer_list<uint8_t> init) : memory_(init) {
   // Ensure size is a multiple of 32.
-  memory_.resize(((init.size() + 31) / 32) * 32);
+  memory_.resize(((init.size() / 32) + (init.size() % 32 != 0)) * 32);
 }
 
 Memory::Memory(std::span<const uint8_t> init) : memory_(init.begin(), init.end()) {
   // Ensure size is a multiple of 32.
-  memory_.resize(((init.size() + 31) / 32) * 32);
+  memory_.resize(((init.size() / 32) + (init.size() % 32 != 0)) * 32);
 }
 
 std::ostream& operator<<(std::ostream& out, const Memory& memory) {

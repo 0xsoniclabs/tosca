@@ -61,7 +61,7 @@ func gasEXP(revision Revision) []*DynGasTest {
 // 30 is a static gas
 // gas_cost = 30 + 6 * data_size_words + mem_expansion_cost
 // data_size: size of the message to hash in bytes (len in the stack representation)
-// data_size_words = (data_size + 31) // 32: number of (32-byte) words in the message to hash
+// data_size_words = tosca.SizeInWords(data_size): number of (32-byte) words in the message to hash
 // mem_expansion_cost: the cost of any memory expansion required (see A0-1)
 func gasDynamicSHA3(revision Revision) []*DynGasTest {
 	return getDynamicMemGas(6, 2)
@@ -71,7 +71,7 @@ func gasDynamicSHA3(revision Revision) []*DynGasTest {
 // RETURNDATACOPY needs an external call to have return data to be copied
 
 // data_size: size of the data to copy in bytes (len in the stack representation)
-// data_size_words = (data_size + 31) // 32: number of (32-byte) words in the data to copy
+// data_size_words = tosca.SizeInWords(data_size): number of (32-byte) words in the data to copy
 // mem_expansion_cost: the cost of any memory expansion required (see A0-1)
 // gas_cost = 3 + 3 * data_size_words + mem_expansion_cost
 func gasDynamicCopy(revision Revision) []*DynGasTest {
@@ -106,7 +106,7 @@ func getDynamicMemGas(gasCoeficient uint64, numStackValues int) []*DynGasTest {
 // access_cost = 100 if target_addr in touched_addresses (warm access)
 // access_cost = 2600 if target_addr not in touched_addresses (cold access)
 // data_size: size of the data to copy in bytes (len in the stack representation)
-// data_size_words = (data_size + 31) // 32: number of (32-byte) words in the data to copy
+// data_size_words = tosca.SizeInWords(data_size): number of (32-byte) words in the data to copy
 // mem_expansion_cost: the cost of any memory expansion required (see A0-1)
 //
 // Gas Calculation:
@@ -863,11 +863,11 @@ func gasDynamicSelfDestruct(revision Revision) []*DynGasTest {
 
 // A0-1: Memory Expansion
 // new_mem_size: the highest referenced memory address after the operation in question (in bytes)
-// new_mem_size_words = (new_mem_size + 31) // 32
+// new_mem_size_words = tosca.SizeInWords(new_mem_size)
 // gas_cost = (new_mem_size_words ^ 2 // 512) + (3 * new_mem_size_words)
 // The memory cost function is linear up to 724 bytes of memory used, at which point additional memory costs substantially more.
 func memoryExpansionGasCost(newMemSize uint64) tosca.Gas {
-	newMemSizeWords := (newMemSize + 31) / 32
+	newMemSizeWords := tosca.SizeInWords(newMemSize)
 	gasCost := ((newMemSizeWords * newMemSizeWords) / 512) + (3 * newMemSizeWords)
 	return tosca.Gas(gasCost)
 }
@@ -918,8 +918,7 @@ func getSStoreAccessCost(revision Revision, warmAccess bool) (tosca.Gas, tosca.G
 
 // getDataSizeWords computesword size of data
 func getDataSizeWords(dataSize uint64) uint64 {
-	dataSizeWords := (dataSize + 31) / 32
-	return dataSizeWords
+	return tosca.SizeInWords(dataSize)
 }
 
 func addressToBigInt(address tosca.Address) *big.Int {
