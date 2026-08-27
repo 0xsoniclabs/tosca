@@ -2,17 +2,28 @@
 use std::cmp::min;
 use std::{self, ops::Deref};
 
-#[cfg(feature = "fn-ptr-conversion-dispatch")]
-use crate::interpreter::OpFn;
 use crate::types::{
     AnalysisContainer, CodeAnalysis, CodeAnalysisCache, CodeByteType, FailStatus, u256,
 };
+#[cfg(feature = "fn-ptr-conversion-dispatch")]
+use crate::{interpreter::OpFn, types::OpFnData};
 
 #[derive(Debug)]
 pub struct CodeReader<'a, const STEPPABLE: bool> {
     code: &'a [u8],
     code_analysis: AnalysisContainer<CodeAnalysis<STEPPABLE>>,
+    #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
     pc: usize,
+    /// Pointer to the current entry in `code_analysis.analysis`. Storing a pointer instead of an
+    /// index avoids recomputing the entry address on every dispatch. It always points at a valid
+    /// entry: execution cannot advance past the terminator entry and jumps are bounds checked.
+    ///
+    /// It points into the heap buffer of `code_analysis.analysis`, not into this struct, so moving
+    /// the reader does not invalidate it and no pinning is needed. It stays valid because
+    /// `code_analysis` keeps that buffer alive for as long as the reader exists and because the
+    /// buffer is never mutated (see [`CodeAnalysis::analysis`]).
+    #[cfg(feature = "fn-ptr-conversion-dispatch")]
+    pc: *const OpFnData<STEPPABLE>,
 }
 
 impl<const STEPPABLE: bool> Deref for CodeReader<'_, STEPPABLE> {
@@ -39,7 +50,12 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
     ) -> Self {
         let code_analysis = CodeAnalysis::new(code, code_hash, cache);
         #[cfg(feature = "fn-ptr-conversion-dispatch")]
-        let pc = code_analysis.pc_map.to_converted(pc);
+        let pc = {
+            let converted = code_analysis.pc_map.to_converted(pc);
+            // SAFETY:
+            // pc_map only maps to indices of existing analysis entries, so converted is in bounds.
+            unsafe { code_analysis.analysis.as_ptr().add(converted) }
+        };
         Self {
             code,
             code_analysis,
@@ -63,23 +79,29 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
     /// The analysis ends with a terminator entry that stops execution and the program counter can
     /// never advance past it, so there is always an entry to dispatch to. Invalid opcodes hold the
     /// handler for [crate::types::Opcode::Invalid], hence no error handling is needed either.
-    // TODO: technically this method is not save, because the invariant it relies on can be broken
+    // TODO: technically this method is not safe, because the invariant it relies on can be broken
     // by calling only safe public methods (calling next() until the pc is out of bounds).
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     pub fn get(&self) -> OpFn<STEPPABLE> {
-        #[cfg(feature = "unsafe-hints")]
         // SAFETY:
-        // The analysis contains a terminator entry which stops execution. The program counter only
-        // advances beyond entries that were dispatched, which the terminator prevents, and jumps
-        // are bounds checked. Therefore self.pc is always in bounds.
-        unsafe {
-            std::hint::assert_unchecked(self.pc < self.code_analysis.analysis.len());
-        }
-        self.code_analysis.analysis[self.pc].get_func()
+        // self.pc always points at a valid entry (see field documentation).
+        unsafe { (*self.pc).get_func() }
     }
 
+    // TODO: technically speaking, this method is not safe because it can break the invariant that
+    // the pc always points to a valid analysis item.
     pub fn next(&mut self) {
-        self.pc += 1;
+        std::cfg_select! {
+            feature = "fn-ptr-conversion-dispatch" => {
+                // SAFETY:
+                // next is only called for entries that do not stop execution, and every such entry
+                // is followed by another entry because the analysis ends with a terminator.
+                self.pc = unsafe { self.pc.add(1) };
+            }
+            _ => {
+                self.pc += 1;
+            }
+        }
     }
 
     pub fn try_jump(&mut self, dest: u256) -> Result<(), FailStatus> {
@@ -93,7 +115,14 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
         }) {
             return Err(FailStatus::BadJumpDestination);
         }
-        self.pc = dest;
+        std::cfg_select! {
+            feature = "fn-ptr-conversion-dispatch" => {
+                // SAFETY:
+                // The check above ensures that dest is in bounds.
+                self.pc = unsafe { self.code_analysis.analysis.as_ptr().add(dest) };
+            }
+            _ => self.pc = dest,
+        }
 
         Ok(())
     }
@@ -113,33 +142,37 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     pub fn get_push_data(&mut self) -> u256 {
         // SAFETY:
-        // This assertion assumes that the program counter (self.pc) was not modified after calling
-        // [`CodeReader::get`]. While this can not be guaranteed here, marking the function
-        // as unsafe would propagate all the way to the function dispatch function and also require
-        // that all opcode functions are unsafe. In practice, the only way to modify the
-        // program counter, is through one of the functions of CodeReader that take it by mutable
-        // reference. Those are next, try_jump, jump_to and get_push_data itself.
-        // Calling those and then calling get_push_data makes semantically no sense.
-        #[cfg(feature = "unsafe-hints")]
-        unsafe {
-            std::hint::assert_unchecked(self.pc < self.code_analysis.analysis.len());
-        }
-        let res = self.code_analysis.analysis[self.pc].get_data();
-        self.pc += 1;
+        // self.pc always points at a valid entry (see field documentation).
+        let res = unsafe { (*self.pc).get_data() };
+        // SAFETY:
+        // A push entry is never the last entry because the analysis ends with a terminator.
+        self.pc = unsafe { self.pc.add(1) };
         res
     }
 
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     pub fn jump_to(&mut self) {
-        let offset = self.code_analysis.analysis[self.pc]
-            .get_data()
-            .into_u64_saturating();
-        self.pc += offset as usize;
+        // SAFETY:
+        // self.pc always points at a valid entry (see field documentation).
+        let offset = unsafe { (*self.pc).get_data() }.into_u64_saturating();
+        // SAFETY:
+        // A skip-no-ops entry holds the distance to the following jump dest entry, which is in
+        // bounds.
+        self.pc = unsafe { self.pc.add(offset as usize) };
     }
 
     pub fn pc(&self) -> usize {
         std::cfg_select! {
-            feature = "fn-ptr-conversion-dispatch" => self.code_analysis.pc_map.to_ct(self.pc),
+            feature = "fn-ptr-conversion-dispatch" => {
+                // SAFETY:
+                // self.pc always points into self.code_analysis.analysis (see field
+                // documentation).
+                let converted_pc = unsafe {
+                    self.pc
+                        .offset_from_unsigned(self.code_analysis.analysis.as_ptr())
+                };
+                self.code_analysis.pc_map.to_ct(converted_pc)
+            }
             _ => self.pc,
         }
     }
@@ -170,34 +203,26 @@ mod tests {
         let code = [Opcode::Push1 as u8, Opcode::Add as u8, Opcode::Add as u8];
 
         let code_reader = CodeReader::<false>::new(&code, None, 0, &code_analysis_cache);
-        assert_eq!(code_reader.pc, 0);
         assert_eq!(code_reader.pc(), 0);
 
         let mut code_reader = CodeReader::<false>::new(&code, None, 0, &code_analysis_cache);
-        assert_eq!(code_reader.pc, 0);
         code_reader.get_push_data();
-        assert_eq!(code_reader.pc, 1);
         assert_eq!(code_reader.pc(), 2);
 
         let code_reader = CodeReader::<false>::new(&code, None, 2, &code_analysis_cache);
-        assert_eq!(code_reader.pc, 1);
         assert_eq!(code_reader.pc(), 2);
 
         let mut code = [Opcode::Add as u8; 23];
         code[0] = Opcode::Push21 as u8;
 
         let code_reader = CodeReader::<false>::new(&code, None, 0, &code_analysis_cache);
-        assert_eq!(code_reader.pc, 0);
         assert_eq!(code_reader.pc(), 0);
 
         let mut code_reader = CodeReader::<false>::new(&code, None, 0, &code_analysis_cache);
-        assert_eq!(code_reader.pc, 0);
         code_reader.get_push_data();
-        assert_eq!(code_reader.pc, 1);
         assert_eq!(code_reader.pc(), 22);
 
         let code_reader = CodeReader::<false>::new(&code, None, 22, &code_analysis_cache);
-        assert_eq!(code_reader.pc, 1);
         assert_eq!(code_reader.pc(), 22);
     }
 
