@@ -23,6 +23,7 @@ impl<const STEPPABLE: bool> Deref for CodeReader<'_, STEPPABLE> {
     }
 }
 
+#[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
 #[derive(Debug, PartialEq, Eq)]
 pub enum GetOpcodeError {
     OutOfRange,
@@ -59,13 +60,22 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
             Err(GetOpcodeError::OutOfRange)
         }
     }
+    /// The analysis ends with a terminator entry that stops execution and the program counter can
+    /// never advance past it, so there is always an entry to dispatch to. Invalid opcodes hold the
+    /// handler for [crate::types::Opcode::Invalid], hence no error handling is needed either.
+    // TODO: technically this method is not save, because the invariant it relies on can be broken
+    // by calling only safe public methods (calling next() until the pc is out of bounds).
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
-    pub fn get(&self) -> Result<OpFn<STEPPABLE>, GetOpcodeError> {
-        self.code_analysis
-            .analysis
-            .get(self.pc)
-            .ok_or(GetOpcodeError::OutOfRange)
-            .and_then(|analysis| analysis.get_func().ok_or(GetOpcodeError::Invalid))
+    pub fn get(&self) -> OpFn<STEPPABLE> {
+        #[cfg(feature = "unsafe-hints")]
+        // SAFETY:
+        // The analysis contains a terminator entry which stops execution. The program counter only
+        // advances beyond entries that were dispatched, which the terminator prevents, and jumps
+        // are bounds checked. Therefore self.pc is always in bounds.
+        unsafe {
+            std::hint::assert_unchecked(self.pc < self.code_analysis.analysis.len());
+        }
+        self.code_analysis.analysis[self.pc].get_func()
     }
 
     pub fn next(&mut self) {
@@ -137,11 +147,9 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
 
 #[cfg(test)]
 mod tests {
-    use crate::types::{
-        CodeAnalysisCache, FailStatus, Opcode,
-        code_reader::{CodeReader, GetOpcodeError},
-        u256,
-    };
+    #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
+    use crate::types::code_reader::GetOpcodeError;
+    use crate::types::{CodeAnalysisCache, FailStatus, Opcode, code_reader::CodeReader, u256};
 
     #[test]
     fn code_reader_internals() {
@@ -193,6 +201,7 @@ mod tests {
         assert_eq!(code_reader.pc(), 22);
     }
 
+    #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
     #[test]
     fn code_reader_get() {
         let code_analysis_cache = CodeAnalysisCache::default();
@@ -202,19 +211,45 @@ mod tests {
             0,
             &code_analysis_cache,
         );
-        #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
         assert_eq!(code_reader.get(), Ok(Opcode::Add as u8));
-        #[cfg(feature = "fn-ptr-conversion-dispatch")]
-        assert!(code_reader.get().is_ok(),);
         code_reader.next();
-        #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
         assert_eq!(code_reader.get(), Ok(Opcode::Add as u8));
-        #[cfg(feature = "fn-ptr-conversion-dispatch")]
-        assert!(code_reader.get().is_ok(),);
         code_reader.next();
         assert_eq!(code_reader.get(), Err(GetOpcodeError::Invalid));
         code_reader.next();
         assert_eq!(code_reader.get(), Err(GetOpcodeError::OutOfRange));
+    }
+
+    #[cfg(feature = "fn-ptr-conversion-dispatch")]
+    #[test]
+    fn code_reader_get() {
+        let jumptable = crate::interpreter::get_jumptable::<false>();
+        let code_analysis_cache = CodeAnalysisCache::default();
+        let mut code_reader = CodeReader::<false>::new(
+            &[Opcode::Add as u8, Opcode::Add as u8, 0xc0],
+            None,
+            0,
+            &code_analysis_cache,
+        );
+        assert!(std::ptr::fn_addr_eq(
+            code_reader.get(),
+            jumptable[Opcode::Add as u8 as usize]
+        ));
+        code_reader.next();
+        assert!(std::ptr::fn_addr_eq(
+            code_reader.get(),
+            jumptable[Opcode::Add as u8 as usize]
+        ));
+        code_reader.next();
+        assert!(std::ptr::fn_addr_eq(
+            code_reader.get(),
+            jumptable[Opcode::Invalid as u8 as usize]
+        ));
+        code_reader.next();
+        assert!(std::ptr::fn_addr_eq(
+            code_reader.get(),
+            jumptable[Opcode::Stop as u8 as usize]
+        ));
     }
 
     #[test]

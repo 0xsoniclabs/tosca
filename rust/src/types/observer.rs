@@ -3,6 +3,8 @@ use std::{borrow::Cow, io::Write};
 #[cfg(feature = "fn-ptr-conversion-dispatch")]
 use crate::Opcode;
 use crate::interpreter::Interpreter;
+#[cfg(feature = "fn-ptr-conversion-dispatch")]
+use crate::types::{CodeByteType, code_byte_type};
 
 pub trait Observer<const STEPPABLE: bool> {
     fn pre_op(&mut self, interpreter: &Interpreter<STEPPABLE>);
@@ -35,14 +37,23 @@ impl<W: Write> LoggingObserver<W> {
 impl<W: Write, const STEPPABLE: bool> Observer<STEPPABLE> for LoggingObserver<W> {
     fn pre_op(&mut self, interpreter: &Interpreter<STEPPABLE>) {
         let op = std::cfg_select! {
-            feature = "fn-ptr-conversion-dispatch" => {{
-                let op = interpreter.code_reader[interpreter.code_reader.pc()];
-                // SAFETY:
-                // pre_op is called after the op is fetched, which means that code_reader.get()
-                // returned Some(..) which in turn means that the code analysis determined that this
-                // byte is a valid Opcode.
-                unsafe { std::mem::transmute::<u8, Opcode>(op) }
-            }}
+            feature = "fn-ptr-conversion-dispatch" => {
+                {
+                    // The terminator entry past the end of the code is not an op, so don't log it.
+                    let Some(&op) = interpreter.code_reader[..].get(interpreter.code_reader.pc())
+                    else {
+                        return;
+                    };
+                    // Data and invalid bytes are dispatched to the Opcode::Invalid handler, so
+                    // pre_op is reached for them, but they have no Opcode variant to log.
+                    if code_byte_type(op).0 == CodeByteType::DataOrInvalid {
+                        return;
+                    }
+                    // SAFETY:
+                    // Every other code byte type is a byte the Opcode enum has a variant for.
+                    unsafe { std::mem::transmute::<u8, Opcode>(op) }
+                }
+            }
             // pre_op is called after the op is fetched so this will always be Ok(..)
             _ => interpreter.code_reader.get().unwrap(),
         };

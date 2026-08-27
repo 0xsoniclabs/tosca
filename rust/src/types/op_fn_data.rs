@@ -16,13 +16,19 @@ use crate::{
 #[allow(unpredictable_function_pointer_comparisons)]
 #[derive(Clone, PartialEq, Eq)]
 pub struct OpFnData<const STEPPABLE: bool> {
-    func: Option<OpFn<STEPPABLE>>,
+    func: OpFn<STEPPABLE>,
     data: u256,
 }
 
 impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
     pub fn data(data: u256) -> Self {
-        Self { func: None, data }
+        // Data entries hold the [Opcode::Invalid] handler so that executing them (only possible for
+        // invalid opcodes, push data is never materialized as an entry) fails like an invalid
+        // opcode without a separate check during dispatch.
+        Self {
+            func: interpreter::get_jumptable()[Opcode::Invalid as u8 as usize],
+            data,
+        }
     }
 
     pub fn skip_no_ops_iter(count: usize) -> impl Iterator<Item = Self> {
@@ -33,7 +39,7 @@ impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
 
     pub fn func(op: u8, data: u256) -> Self {
         Self {
-            func: Some(interpreter::get_jumptable()[op as usize]),
+            func: interpreter::get_jumptable()[op as usize],
             data,
         }
     }
@@ -42,23 +48,25 @@ impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
         Self::func(Opcode::JumpDest as u8, u256::ZERO)
     }
 
+    /// The terminator appended to every code analysis. Running past the end of the code stops
+    /// execution, so dispatching needs no bounds check as long as the program counter cannot jump
+    /// past this entry.
+    pub fn terminator() -> Self {
+        Self::func(Opcode::Stop as u8, u256::ZERO)
+    }
+
     pub fn code_byte_type(&self) -> CodeByteType {
-        match self.func {
-            None => CodeByteType::DataOrInvalid,
-            Some(func) => {
-                if std::ptr::fn_addr_eq(
-                    func,
-                    interpreter::get_jumptable::<STEPPABLE>()[Opcode::JumpDest as u8 as usize],
-                ) {
-                    CodeByteType::JumpDest
-                } else {
-                    CodeByteType::Opcode
-                }
-            }
+        let jumptable = interpreter::get_jumptable::<STEPPABLE>();
+        if std::ptr::fn_addr_eq(self.func, jumptable[Opcode::JumpDest as u8 as usize]) {
+            CodeByteType::JumpDest
+        } else if std::ptr::fn_addr_eq(self.func, jumptable[Opcode::Invalid as u8 as usize]) {
+            CodeByteType::DataOrInvalid
+        } else {
+            CodeByteType::Opcode
         }
     }
 
-    pub fn get_func(&self) -> Option<OpFn<STEPPABLE>> {
+    pub fn get_func(&self) -> OpFn<STEPPABLE> {
         self.func
     }
 
@@ -70,7 +78,7 @@ impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
 impl<const STEPPABLE: bool> Debug for OpFnData<STEPPABLE> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("OpFnData")
-            .field("func", &self.func.map(|f| f as *const u8))
+            .field("func", &(self.func as *const u8))
             .field("data", &self.data)
             .finish()
     }
