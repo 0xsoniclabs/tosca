@@ -455,10 +455,12 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             let op = match op {
                 Ok(op) => op,
                 Err(GetOpcodeError::OutOfRange) => {
+                    std::hint::cold_path();
                     self.exec_status = ExecStatus::Stopped;
                     break;
                 }
                 Err(GetOpcodeError::Invalid) => {
+                    std::hint::cold_path();
                     return FailStatus::InvalidInstruction.into();
                 }
             };
@@ -468,6 +470,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
                 _ => get_jumptable()[op as usize](&mut self),
             };
             if let Err(err) = res {
+                std::hint::cold_path();
                 return err.into();
             }
             observer.post_op(&self);
@@ -485,6 +488,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     {
         observer.log("feature \"tail-call\" does not support logging".into());
         if let Err(err) = self.next() {
+            std::hint::cold_path();
             return err.into();
         }
         self.into()
@@ -505,10 +509,14 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             _ => match op {
                 Ok(op) => tail_call!(get_jumptable()[op as usize](self)),
                 Err(GetOpcodeError::OutOfRange) => {
+                    std::hint::cold_path();
                     self.exec_status = ExecStatus::Stopped;
                     Ok(())
                 }
-                Err(GetOpcodeError::Invalid) => Err(FailStatus::InvalidInstruction),
+                Err(GetOpcodeError::Invalid) => {
+                    std::hint::cold_path();
+                    Err(FailStatus::InvalidInstruction)
+                }
             },
         }
     }
@@ -524,6 +532,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         }
     }
 
+    #[cold]
     #[expect(clippy::unused_self)]
     pub fn jumptable_placeholder(&mut self) -> OpResult {
         Err(FailStatus::Failure)
@@ -896,6 +905,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let (len, len_overflow) = len.into_u64_with_overflow();
         let (end, end_overflow) = offset.overflowing_add(len);
         if offset_overflow || len_overflow || end_overflow || end > src.len() as u64 {
+            std::hint::cold_path();
             return Err(FailStatus::InvalidMemoryAccess);
         }
 
@@ -1166,6 +1176,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         Ok(())
     }
 
+    #[cold]
     #[expect(clippy::unused_self)]
     fn invalid(&mut self) -> OpResult {
         Err(FailStatus::InvalidInstruction)
@@ -1202,6 +1213,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         check_not_read_only(self.message)?;
 
         if self.revision >= Revision::EVMC_ISTANBUL && self.gas_left <= 2_300 {
+            std::hint::cold_path();
             return Err(FailStatus::OutOfGas);
         }
         let [value, key] = self.stack.pop()?;
@@ -1286,6 +1298,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let (len8, len8_overflow) = len.overflowing_mul(8);
         let (cost, cost_overflow) = (375 * N as u64).overflowing_add(len8);
         if len_overflow || len8_overflow || cost_overflow {
+            std::hint::cold_path();
             return Err(FailStatus::OutOfGas);
         }
         self.gas_left.consume(cost)?;
@@ -1323,6 +1336,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         if self.revision >= Revision::EVMC_SHANGHAI {
             const MAX_INIT_CODE_LEN: u64 = 2 * 24576;
             if len > MAX_INIT_CODE_LEN {
+                std::hint::cold_path();
                 return Err(FailStatus::OutOfGas);
             }
             let init_code_cost = 2 * init_code_word_size; // does not overflow
@@ -1371,6 +1385,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
         if result.status_code == StatusCode::EVMC_SUCCESS {
             let Some(addr) = result.create_address else {
+                std::hint::cold_path();
                 return Err(FailStatus::InternalError);
             };
 
