@@ -62,6 +62,10 @@ impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
         self.data
     }
 
+    pub fn set_data(&mut self, data: u256) {
+        self.data = data;
+    }
+
     pub fn get_code_offset(&self) -> usize {
         self.code_offset as usize
     }

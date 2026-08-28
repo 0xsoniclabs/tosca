@@ -9,6 +9,8 @@ use nohash_hasher::BuildNoHashHasher;
 use crate::types::Cache;
 #[cfg(feature = "fn-ptr-conversion-dispatch")]
 use crate::types::OpFnData;
+#[cfg(feature = "fn-ptr-conversion-dispatch")]
+use crate::types::{BlockEnd, block_end, static_gas};
 use crate::types::{CodeByteType, code_byte_type, u256};
 
 /// This type represents a hash value in form of a u256.
@@ -84,6 +86,21 @@ pub struct CodeAnalysis<const STEPPABLE: bool> {
     /// created from, so jumping needs this to translate the two.
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     jump_dests: Arc<[u32]>,
+    /// Gas of the basic block that starts at the first entry. Every other block is charged from
+    /// the entry that precedes it (see [`analyze_code`](Self::analyze_code)).
+    #[cfg(feature = "fn-ptr-conversion-dispatch")]
+    first_block_gas: u64,
+}
+
+/// Where the gas of the basic block currently being analyzed has to be written to.
+#[cfg(feature = "fn-ptr-conversion-dispatch")]
+#[derive(Clone, Copy)]
+enum BlockGasSink {
+    FirstBlock,
+    Entry(usize),
+    /// The block cannot be entered by falling through, so its gas is charged by the jump
+    /// destination it starts with.
+    Unreachable,
 }
 
 impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
@@ -123,6 +140,12 @@ impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
         }
     }
 
+    /// See [`CodeAnalysis::first_block_gas`].
+    #[cfg(feature = "fn-ptr-conversion-dispatch")]
+    pub fn first_block_gas(&self) -> u64 {
+        self.first_block_gas
+    }
+
     #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
     fn analyze_code(code: &[u8]) -> Self {
         let mut code_byte_types = vec![CodeByteType::DataOrInvalid; code.len()];
@@ -139,10 +162,31 @@ impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
         }
     }
 
+    /// Splits the code into basic blocks and records the gas of each one in the entry that
+    /// precedes it, so that it can be charged once per block instead of once per instruction. A
+    /// block is charged by the jump destination it starts with, by the instruction that falls
+    /// through into it, or, for the block at the start of the code, by
+    /// [`CodeAnalysis::first_block_gas`].
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     fn analyze_code(code: &[u8]) -> Self {
+        fn flush<const STEPPABLE: bool>(
+            analysis: &mut [OpFnData<STEPPABLE>],
+            first_block_gas: &mut u64,
+            sink: BlockGasSink,
+            block_gas: u64,
+        ) {
+            match sink {
+                BlockGasSink::FirstBlock => *first_block_gas = block_gas,
+                BlockGasSink::Entry(index) => analysis[index].set_data(block_gas.into()),
+                BlockGasSink::Unreachable => (),
+            }
+        }
+
         let mut analysis = Vec::with_capacity(code.len() + 1); // +1 for terminator
         let mut jump_dests = vec![NO_JUMP_DEST; code.len()];
+        let mut first_block_gas = 0;
+        let mut sink = BlockGasSink::FirstBlock;
+        let mut block_gas = 0;
 
         let mut pc = 0;
         while let Some(op) = code.get(pc).copied() {
@@ -152,6 +196,9 @@ impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
             match code_byte_type {
                 CodeByteType::JumpDest => {
                     jump_dests[pc - 1] = analysis.len() as u32;
+                    flush(&mut analysis, &mut first_block_gas, sink, block_gas);
+                    sink = BlockGasSink::Entry(analysis.len());
+                    block_gas = 0;
                     analysis.push(OpFnData::jump_dest(pc - 1));
                 }
                 CodeByteType::Push => {
@@ -179,14 +226,38 @@ impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
                     analysis.push(OpFnData::data(u256::ZERO, pc - 1));
                 }
             };
+
+            block_gas += static_gas(op);
+            // An invalid opcode always fails, so nothing after it can be reached by falling
+            // through.
+            let block_end = if code_byte_type == CodeByteType::DataOrInvalid {
+                BlockEnd::Terminator
+            } else {
+                block_end(op)
+            };
+            match block_end {
+                BlockEnd::No => (),
+                BlockEnd::FallThrough => {
+                    flush(&mut analysis, &mut first_block_gas, sink, block_gas);
+                    sink = BlockGasSink::Entry(analysis.len() - 1);
+                    block_gas = 0;
+                }
+                BlockEnd::Terminator => {
+                    flush(&mut analysis, &mut first_block_gas, sink, block_gas);
+                    sink = BlockGasSink::Unreachable;
+                    block_gas = 0;
+                }
+            }
         }
 
         // Let the analysis always end with the terminator so dispatching needs no bounds check.
         analysis.push(OpFnData::terminator(pc));
+        flush(&mut analysis, &mut first_block_gas, sink, block_gas);
 
         Self {
             items: analysis.into(),
             jump_dests: jump_dests.into(),
+            first_block_gas,
         }
     }
 }
@@ -205,6 +276,20 @@ mod tests {
     use crate::types::Opcode;
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     use crate::types::{OpFnData, u256};
+
+    /// A jump destination entry as [`CodeAnalysis::analyze_code`] emits it, i.e. carrying the gas
+    /// of the block it starts.
+    #[cfg(feature = "fn-ptr-conversion-dispatch")]
+    fn jump_dest(code_offset: usize, block_gas: u64) -> OpFnData<false> {
+        let mut jump_dest = OpFnData::jump_dest(code_offset);
+        jump_dest.set_data(block_gas.into());
+        jump_dest
+    }
+
+    /// A code together with the gas of its first basic block and the block gas recorded in the
+    /// analysis entry at each of the listed indices.
+    #[cfg(feature = "fn-ptr-conversion-dispatch")]
+    type BlockGasCase = (&'static [u8], u64, &'static [(usize, u64)]);
 
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     const CODES: &[&[u8]] = {
@@ -320,13 +405,47 @@ mod tests {
         );
         assert_eq!(
             *CodeAnalysis::<false>::analyze_code(&[Opcode::JumpDest as u8]),
-            [OpFnData::jump_dest(0), OpFnData::terminator(1)]
+            [jump_dest(0, 1), OpFnData::terminator(1)]
         );
         assert_eq!(
             *CodeAnalysis::<false>::analyze_code(&[0xc0]),
             [OpFnData::data(u256::ZERO, 0), OpFnData::terminator(1)]
         );
     }
+    #[cfg(feature = "fn-ptr-conversion-dispatch")]
+    #[test]
+    fn analyze_code_records_the_gas_of_every_basic_block() {
+        const ADD: u8 = Opcode::Add as u8; // 3
+        const DEST: u8 = Opcode::JumpDest as u8; // 1
+        const GAS: u8 = Opcode::Gas as u8; // 2
+        const JUMP: u8 = Opcode::Jump as u8; // 8
+        const STOP: u8 = Opcode::Stop as u8; // 0
+
+        let cases: &[BlockGasCase] = &[
+            (&[], 0, &[]),
+            (&[ADD, ADD], 3 + 3, &[]),
+            // a jump destination charges the block it starts, its own gas included
+            (&[ADD, DEST, ADD], 3, &[(1, 1 + 3)]),
+            // ... which leaves no first block to charge if the code starts with one
+            (&[DEST, ADD], 0, &[(0, 1 + 3)]),
+            // GAS reads the gas left, so it ends its block and charges the following one
+            (&[GAS, ADD], 2, &[(0, 3)]),
+            // ... unless a jump destination follows, which charges its own block
+            (&[GAS, DEST], 2, &[(0, 0), (1, 1)]),
+            // code behind a terminator is only reachable through a jump destination
+            (&[JUMP, ADD, DEST, ADD], 8, &[(2, 1 + 3)]),
+            (&[STOP, ADD], 0, &[]),
+        ];
+
+        for (code, first_block_gas, entries) in cases {
+            let analysis = CodeAnalysis::<false>::analyze_code(code);
+            assert_eq!(*first_block_gas, analysis.first_block_gas());
+            for (index, block_gas) in *entries {
+                assert_eq!(u256::from(*block_gas), analysis[*index].get_data());
+            }
+        }
+    }
+
     #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
     #[test]
     fn analyze_code_jumpdest() {
@@ -348,7 +467,7 @@ mod tests {
         assert_eq!(
             *CodeAnalysis::<false>::analyze_code(&[Opcode::JumpDest as u8, Opcode::Add as u8]),
             [
-                OpFnData::jump_dest(0),
+                jump_dest(0, 1 + 3),
                 OpFnData::<false>::func(Opcode::Add as u8, u256::ZERO, 1),
                 OpFnData::terminator(2)
             ]
@@ -356,7 +475,7 @@ mod tests {
         assert_eq!(
             *CodeAnalysis::<false>::analyze_code(&[Opcode::JumpDest as u8, 0xc0]),
             [
-                OpFnData::jump_dest(0),
+                jump_dest(0, 1),
                 OpFnData::data(u256::ZERO, 1),
                 OpFnData::terminator(2)
             ]

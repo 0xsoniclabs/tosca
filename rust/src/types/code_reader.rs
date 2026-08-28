@@ -157,6 +157,23 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
         res
     }
 
+    /// The gas of the basic block that is charged from the current entry. See
+    /// [`CodeAnalysis::analyze_code`](crate::types::CodeAnalysis).
+    #[cfg(feature = "fn-ptr-conversion-dispatch")]
+    pub fn block_gas(&self) -> u64 {
+        // SAFETY:
+        // self.pc always points at a valid entry (see field documentation).
+        // The analysis stores the block gas as a u64, so the upper words are always zero and
+        // there is nothing to check for overflow.
+        unsafe { (*self.pc).get_data() }.into_u64_with_overflow().0
+    }
+
+    /// The gas of the basic block that starts at the first entry.
+    #[cfg(feature = "fn-ptr-conversion-dispatch")]
+    pub fn first_block_gas(&self) -> u64 {
+        self.code_analysis.first_block_gas()
+    }
+
     pub fn pc(&self) -> usize {
         std::cfg_select! {
             feature = "fn-ptr-conversion-dispatch" => {

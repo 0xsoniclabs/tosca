@@ -436,6 +436,10 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         O: Observer<STEPPABLE>,
         R: From<Self> + From<FailStatus>,
     {
+        if let Err(err) = self.charge_first_block() {
+            std::hint::cold_path();
+            return err.into();
+        }
         while self.exec_status == ExecStatus::Running {
             if STEPPABLE {
                 match &mut self.steps {
@@ -481,6 +485,10 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         R: From<Self> + From<FailStatus>,
     {
         observer.log("feature \"tail-call\" does not support logging".into());
+        if let Err(err) = self.charge_first_block() {
+            std::hint::cold_path();
+            return err.into();
+        }
         if let Err(err) = self.next() {
             std::hint::cold_path();
             return err.into();
@@ -532,10 +540,58 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         Err(FailStatus::Failure)
     }
 
+    /// Charges the gas an instruction costs regardless of the interpreter state and the revision.
+    /// With `fn-ptr-conversion-dispatch` that gas is charged once per basic block (see
+    /// [`crate::types::CodeAnalysis`]), so only the steppable interpreter, which has to report the
+    /// gas left after every single instruction, still charges it per instruction.
+    #[inline(always)]
+    fn consume_static_gas(&mut self, gas: u64) -> OpResult {
+        std::cfg_select! {
+            feature = "fn-ptr-conversion-dispatch" => {
+                if STEPPABLE {
+                    self.gas_left.consume(gas)
+                } else {
+                    Ok(())
+                }
+            }
+            _ => self.gas_left.consume(gas),
+        }
+    }
+
+    /// Charges the gas of the basic block that the current entry is responsible for.
+    #[inline(always)]
+    fn charge_block(&mut self) -> OpResult {
+        std::cfg_select! {
+            feature = "fn-ptr-conversion-dispatch" => {
+                if STEPPABLE {
+                    Ok(())
+                } else {
+                    self.gas_left.consume(self.code_reader.block_gas())
+                }
+            }
+            _ => Ok(()),
+        }
+    }
+
+    /// Charges the gas of the basic block that the code starts with.
+    #[inline(always)]
+    fn charge_first_block(&mut self) -> OpResult {
+        std::cfg_select! {
+            feature = "fn-ptr-conversion-dispatch" => {
+                if STEPPABLE {
+                    Ok(())
+                } else {
+                    self.gas_left.consume(self.code_reader.first_block_gas())
+                }
+            }
+            _ => Ok(()),
+        }
+    }
+
     /// Performs an operation that charges `cost` gas, pops one value and pushes `op` applied to it.
     #[inline(always)]
     fn unary_op<I: Into<u256>>(&mut self, op: fn(u256) -> I, cost: u64) -> OpResult {
-        self.gas_left.consume(cost)?;
+        self.consume_static_gas(cost)?;
         let (push_location, [value]) = self.stack.pop_with_location()?;
         push_location.push(op(value));
         self.code_reader.next();
@@ -546,7 +602,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     /// them. `op` receives the top of stack as its first argument.
     #[inline(always)]
     fn binary_op<I: Into<u256>>(&mut self, op: fn(u256, u256) -> I, cost: u64) -> OpResult {
-        self.gas_left.consume(cost)?;
+        self.consume_static_gas(cost)?;
         let (push_location, [value2, value1]) = self.stack.pop_with_location()?;
         push_location.push(op(value1, value2));
         self.code_reader.next();
@@ -557,7 +613,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     /// state.
     #[inline(always)]
     fn push_value_op<I: Into<u256>>(&mut self, op: fn(&mut Self) -> I, cost: u64) -> OpResult {
-        self.gas_left.consume(cost)?;
+        self.consume_static_gas(cost)?;
         let value = op(self);
         self.stack.push(value)?;
         self.code_reader.next();
@@ -605,7 +661,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn add_mod(&mut self) -> OpResult {
-        self.gas_left.consume(8)?;
+        self.consume_static_gas(8)?;
         let (push_location, [denominator, value2, value1]) = self.stack.pop_with_location()?;
         push_location.push(u256::addmod(value1, value2, denominator));
         self.code_reader.next();
@@ -613,7 +669,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn mul_mod(&mut self) -> OpResult {
-        self.gas_left.consume(8)?;
+        self.consume_static_gas(8)?;
         let (push_location, [denominator, fac2, fac1]) = self.stack.pop_with_location()?;
         push_location.push(u256::mulmod(fac1, fac2, denominator));
         self.code_reader.next();
@@ -621,7 +677,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn exp(&mut self) -> OpResult {
-        self.gas_left.consume(10)?;
+        self.consume_static_gas(10)?;
         let (push_location, [exp, value]) = self.stack.pop_with_location()?;
         self.gas_left.consume(exp.bits().div_ceil(8) as u64 * 50)?; // * does not overflow
         push_location.push(value.pow(exp));
@@ -711,7 +767,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn sha3(&mut self) -> OpResult {
-        self.gas_left.consume(30)?;
+        self.consume_static_gas(30)?;
         let (push_location, [len, offset]) = self.stack.pop_with_location()?;
 
         let len = u64::try_from(len).map_err(|_| FailStatus::OutOfGas)?;
@@ -757,7 +813,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn call_data_load(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
+        self.consume_static_gas(3)?;
         let (push_location, [offset]) = self.stack.pop_with_location()?;
         let (offset, overflow) = offset.into_u64_with_overflow();
         let offset = offset as usize;
@@ -789,7 +845,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn call_data_copy(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
+        self.consume_static_gas(3)?;
         let [len, offset, dest_offset] = self.stack.pop()?;
 
         if len != u256::ZERO {
@@ -811,7 +867,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn code_copy(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
+        self.consume_static_gas(3)?;
         let [len, offset, dest_offset] = self.stack.pop()?;
 
         if len != u256::ZERO {
@@ -879,7 +935,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn return_data_copy(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
+        self.consume_static_gas(3)?;
         let [len, offset, dest_offset] = self.stack.pop()?;
 
         let src = &self.last_call_return_data;
@@ -916,7 +972,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn block_hash(&mut self) -> OpResult {
-        self.gas_left.consume(20)?;
+        self.consume_static_gas(20)?;
         let (push_location, [block_number]) = self.stack.pop_with_location()?;
         push_location.push(
             u64::try_from(block_number)
@@ -968,7 +1024,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
     fn self_balance(&mut self) -> OpResult {
         check_min_revision(Revision::EVMC_ISTANBUL, self.revision)?;
-        self.gas_left.consume(5)?;
+        self.consume_static_gas(5)?;
         self.stack.check_overflow(1)?; // Check for stack overflow before querying the host
         let addr = self.message.recipient;
         self.stack.push(self.context.get_balance(&addr))?;
@@ -984,7 +1040,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
     fn blob_hash(&mut self) -> OpResult {
         check_min_revision(Revision::EVMC_CANCUN, self.revision)?;
-        self.gas_left.consume(3)?;
+        self.consume_static_gas(3)?;
         let (push_location, [idx]) = self.stack.pop_with_location()?;
         let hashes = self.context.get_tx_context().blob_hashes;
         if let Ok(idx) = u64::try_from(idx)
@@ -1005,14 +1061,14 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn pop(&mut self) -> OpResult {
-        self.gas_left.consume(2)?;
+        self.consume_static_gas(2)?;
         let [_] = self.stack.pop()?;
         self.code_reader.next();
         tail_call!(self.return_from_op())
     }
 
     fn m_load(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
+        self.consume_static_gas(3)?;
         let (push_location, [offset]) = self.stack.pop_with_location()?;
 
         push_location.push(self.memory.get_word(offset, &mut self.gas_left)?);
@@ -1021,7 +1077,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn m_store(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
+        self.consume_static_gas(3)?;
         let [value, offset] = self.stack.pop()?;
 
         *self.memory.get_mut_array(offset, &mut self.gas_left)? = value.to_be_bytes();
@@ -1030,7 +1086,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn m_store8(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
+        self.consume_static_gas(3)?;
         let [value, offset] = self.stack.pop()?;
 
         let dest = self.memory.get_mut_byte(offset, &mut self.gas_left)?;
@@ -1060,24 +1116,28 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn jump(&mut self) -> OpResult {
-        self.gas_left.consume(if STEPPABLE { 8 } else { 8 + 1 })?;
+        self.consume_static_gas(8)?;
         let [dest] = self.stack.pop()?;
         self.code_reader.try_jump(dest)?;
         if !STEPPABLE {
+            // The jump destination charges the block it starts, its own gas included, so its
+            // entry must not be dispatched to.
+            self.charge_block()?;
             self.code_reader.next();
         }
         tail_call!(self.return_from_op())
     }
 
     fn jump_i(&mut self) -> OpResult {
-        self.gas_left.consume(10)?;
+        self.consume_static_gas(10)?;
         let [cond, dest] = self.stack.pop()?;
         if cond == u256::ZERO {
+            self.charge_block()?;
             self.code_reader.next();
         } else {
             self.code_reader.try_jump(dest)?;
             if !STEPPABLE {
-                self.gas_left.consume(1)?;
+                self.charge_block()?;
                 self.code_reader.next();
             }
         }
@@ -1095,19 +1155,24 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn gas(&mut self) -> OpResult {
-        self.push_value_op(|i| i.gas_left.as_u64(), 2)?;
+        self.consume_static_gas(2)?;
+        let gas_left = self.gas_left.as_u64();
+        self.stack.push(gas_left)?;
+        self.charge_block()?;
+        self.code_reader.next();
         tail_call!(self.return_from_op())
     }
 
     fn jump_dest(&mut self) -> OpResult {
-        self.gas_left.consume(1)?;
+        self.consume_static_gas(1)?;
+        self.charge_block()?;
         self.code_reader.next();
         tail_call!(self.return_from_op())
     }
 
     fn t_load(&mut self) -> OpResult {
         check_min_revision(Revision::EVMC_CANCUN, self.revision)?;
-        self.gas_left.consume(100)?;
+        self.consume_static_gas(100)?;
         let (push_location, [key]) = self.stack.pop_with_location()?;
         let value = self
             .context
@@ -1120,7 +1185,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     fn t_store(&mut self) -> OpResult {
         check_min_revision(Revision::EVMC_CANCUN, self.revision)?;
         check_not_read_only(self.message)?;
-        self.gas_left.consume(100)?;
+        self.consume_static_gas(100)?;
         let [value, key] = self.stack.pop()?;
         self.context
             .set_transient_storage(&self.message.recipient, &key.into(), &value.into());
@@ -1130,7 +1195,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
     fn m_copy(&mut self) -> OpResult {
         check_min_revision(Revision::EVMC_CANCUN, self.revision)?;
-        self.gas_left.consume(3)?;
+        self.consume_static_gas(3)?;
         let [len, offset, dest_offset] = self.stack.pop()?;
         if len != u256::ZERO {
             self.memory
@@ -1166,7 +1231,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
     fn self_destruct(&mut self) -> OpResult {
         check_not_read_only(self.message)?;
-        self.gas_left.consume(5_000)?;
+        self.consume_static_gas(5_000)?;
         let [addr] = self.stack.pop()?;
         let addr = addr.into();
 
@@ -1239,12 +1304,13 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         }
         self.gas_left.consume(dyn_gas)?;
         self.gas_refund.add(gas_refund_change);
+        self.charge_block()?;
         self.code_reader.next();
         tail_call!(self.return_from_op())
     }
 
     fn push<const N: usize>(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
+        self.consume_static_gas(3)?;
         std::cfg_select! {
             feature = "fn-ptr-conversion-dispatch" => {
                 self.stack.push(self.code_reader.get_push_data())?;
@@ -1258,14 +1324,14 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn dup<const N: usize>(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
+        self.consume_static_gas(3)?;
         self.stack.dup::<N>()?;
         self.code_reader.next();
         tail_call!(self.return_from_op())
     }
 
     fn swap<const N: usize>(&mut self) -> OpResult {
-        self.gas_left.consume(3)?;
+        self.consume_static_gas(3)?;
         self.stack.swap_with_top::<N>()?;
         self.code_reader.next();
         tail_call!(self.return_from_op())
@@ -1273,7 +1339,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
     fn log<const N: usize>(&mut self) -> OpResult {
         check_not_read_only(self.message)?;
-        self.gas_left.consume(375)?;
+        self.consume_static_gas(375)?;
         let [len, offset] = self.stack.pop()?;
         let topics: [u256; N] = self.stack.pop()?;
         let (len, len_overflow) = len.into_u64_with_overflow();
@@ -1303,7 +1369,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     }
 
     fn create_or_create2<const CREATE2: bool>(&mut self) -> OpResult {
-        self.gas_left.consume(32_000)?;
+        self.consume_static_gas(32_000)?;
         check_not_read_only(self.message)?;
         let [len, offset, value] = self.stack.pop()?;
         let salt = if CREATE2 {
@@ -1334,6 +1400,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         if value > self.context.get_balance(&self.message.recipient).into() {
             self.last_call_return_data = Box::default();
             self.stack.push(u256::ZERO)?;
+            self.charge_block()?;
             self.code_reader.next();
             tail_call!(self.return_from_op())
         }
@@ -1377,6 +1444,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             self.last_call_return_data = result.output;
             self.stack.push(u256::ZERO)?;
         }
+        self.charge_block()?;
         self.code_reader.next();
         tail_call!(self.return_from_op())
     }
@@ -1432,6 +1500,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         if value > u256::from(self.context.get_balance(&self.message.recipient)) {
             self.last_call_return_data = Box::default();
             self.stack.push(u256::ZERO)?;
+            self.charge_block()?;
             self.code_reader.next();
             tail_call!(self.return_from_op())
         }
@@ -1484,6 +1553,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
         self.stack
             .push(result.status_code == StatusCode::EVMC_SUCCESS)?;
+        self.charge_block()?;
         self.code_reader.next();
         tail_call!(self.return_from_op())
     }
@@ -1571,6 +1641,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
         self.stack
             .push(result.status_code == StatusCode::EVMC_SUCCESS)?;
+        self.charge_block()?;
         self.code_reader.next();
         tail_call!(self.return_from_op())
     }

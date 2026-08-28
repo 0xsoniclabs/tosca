@@ -339,3 +339,59 @@ pub fn code_byte_type(code_byte: u8) -> (CodeByteType, usize) {
         _ => (CodeByteType::DataOrInvalid, 0),
     }
 }
+
+/// How an opcode delimits the basic block it belongs to.
+#[cfg(feature = "fn-ptr-conversion-dispatch")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BlockEnd {
+    /// The opcode does not end its block.
+    No,
+    /// The opcode ends its block and the following instruction starts a new one.
+    FallThrough,
+    /// The opcode ends its block and the following instruction is only reachable as a jump
+    /// destination, which starts a block of its own.
+    Terminator,
+}
+
+/// The gas an opcode charges regardless of the interpreter state and the revision, which is what
+/// [`crate::types::CodeAnalysis`] charges per basic block instead of per instruction.
+///
+/// Opcodes whose fixed cost depends on the revision report 0 here and keep charging it themselves,
+/// because the analysis is cached per code and shared between revisions.
+#[cfg(feature = "fn-ptr-conversion-dispatch")]
+pub const fn static_gas(code_byte: u8) -> u64 {
+    match code_byte {
+        ADD | SUB | LT | GT | SLT | SGT | EQ | ISZERO | AND | OR | XOR | NOT | BYTE | SHL | SHR
+        | SAR | CALLDATALOAD | CALLDATACOPY | CODECOPY | RETURNDATACOPY | BLOBHASH | MLOAD
+        | MSTORE | MSTORE8 | MCOPY | PUSH1..=PUSH32 | DUP1..=DUP16 | SWAP1..=SWAP16 => 3,
+        ADDRESS | ORIGIN | CALLER | CALLVALUE | CALLDATASIZE | CODESIZE | GASPRICE
+        | RETURNDATASIZE | COINBASE | TIMESTAMP | NUMBER | PREVRANDAO | GASLIMIT | CHAINID
+        | BASEFEE | BLOBBASEFEE | POP | PC | MSIZE | GAS | PUSH0 => 2,
+        MUL | DIV | SDIV | MOD | SMOD | SIGNEXTEND | CLZ | SELFBALANCE => 5,
+        JUMPDEST => 1,
+        ADDMOD | MULMOD | JUMP => 8,
+        EXP | JUMPI => 10,
+        BLOCKHASH => 20,
+        SHA3 => 30,
+        TLOAD | TSTORE => 100,
+        LOG0..=LOG4 => 375,
+        SELFDESTRUCT => 5_000,
+        CREATE | CREATE2 => 32_000,
+        // BALANCE, EXTCODESIZE, EXTCODECOPY, EXTCODEHASH, SLOAD and the call opcodes have a
+        // revision dependent fixed cost. Everything else has no fixed cost at all.
+        _ => 0,
+    }
+}
+
+/// Whether an opcode ends the basic block it belongs to.
+#[cfg(feature = "fn-ptr-conversion-dispatch")]
+pub const fn block_end(code_byte: u8) -> BlockEnd {
+    match code_byte {
+        // These read the remaining gas, so it must not be charged ahead for them.
+        GAS | SSTORE | JUMPI | CREATE | CALL | CALLCODE | DELEGATECALL | CREATE2 | STATICCALL => {
+            BlockEnd::FallThrough
+        }
+        STOP | JUMP | RETURN | REVERT | INVALID | SELFDESTRUCT => BlockEnd::Terminator,
+        _ => BlockEnd::No,
+    }
+}
