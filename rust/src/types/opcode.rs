@@ -180,10 +180,6 @@ pub enum Opcode {
     Sar = SAR,
     Clz = CLZ,
     Sha3 = SHA3,
-    #[cfg(feature = "fn-ptr-conversion-dispatch")]
-    NoOp = SHA3 + 1,
-    #[cfg(feature = "fn-ptr-conversion-dispatch")]
-    SkipNoOps = SHA3 + 2,
     Address = ADDRESS,
     Balance = BALANCE,
     Origin = ORIGIN,

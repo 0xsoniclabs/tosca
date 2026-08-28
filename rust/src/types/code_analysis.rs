@@ -68,14 +68,23 @@ impl<const STEPPABLE: bool> CodeAnalysisCache<STEPPABLE> {
     }
 }
 
+/// Marks a code offset that is not a jump destination in [`CodeAnalysis::jump_dests`].
+#[cfg(feature = "fn-ptr-conversion-dispatch")]
+const NO_JUMP_DEST: u32 = u32::MAX;
+
 /// The analysis of a code, i.e. the entries that [`crate::types::CodeReader`] uses.
 #[derive(Clone, Debug)]
-pub struct CodeAnalysis<const STEPPABLE: bool>(
+pub struct CodeAnalysis<const STEPPABLE: bool> {
     // Arc for shared ownership between the code reader and (if enabled) the code cache. It also
     // has the benefit of not allowing mutable access to the slice, so a pointer into the Arc is
     // valid for as long as the Arc lives.
-    Arc<[AnalysisItem<STEPPABLE>]>,
-);
+    items: Arc<[AnalysisItem<STEPPABLE>]>,
+    /// For every code offset the index of its entry in `items`, or [`NO_JUMP_DEST`] if the offset
+    /// is not a jump destination. Entries do not sit at the offset of the code byte they were
+    /// created from, so jumping needs this to translate the two.
+    #[cfg(feature = "fn-ptr-conversion-dispatch")]
+    jump_dests: Arc<[u32]>,
+}
 
 impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
     #[allow(unused_variables)]
@@ -98,10 +107,20 @@ impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
         // Entry offsets (see [`OpFnData::get_code_offset`]) never decrease, so the entry to enter
         // at is the last one whose offset does not exceed code_offset. No entry sits at a higher
         // offset in the analysis than in the code, so there is nothing to find beyond code_offset.
-        let end = min(code_offset, self.0.len() - 1);
-        self.0[..=end]
+        let end = min(code_offset, self.items.len() - 1);
+        self.items[..=end]
             .partition_point(|item| item.get_code_offset() <= code_offset)
             .saturating_sub(1)
+    }
+
+    /// The index of the entry a jump to `code_offset` continues at, if that offset is a jump
+    /// destination.
+    #[cfg(feature = "fn-ptr-conversion-dispatch")]
+    pub fn jump_dest(&self, code_offset: usize) -> Option<usize> {
+        match self.jump_dests.get(code_offset) {
+            Some(&index) if index != NO_JUMP_DEST => Some(index as usize),
+            _ => None,
+        }
     }
 
     #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
@@ -115,25 +134,24 @@ impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
             pc += 1 + data;
         }
 
-        Self(code_byte_types.into())
+        Self {
+            items: code_byte_types.into(),
+        }
     }
 
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     fn analyze_code(code: &[u8]) -> Self {
         let mut analysis = Vec::with_capacity(code.len() + 1); // +1 for terminator
+        let mut jump_dests = vec![NO_JUMP_DEST; code.len()];
 
         let mut pc = 0;
-        let mut no_ops = 0;
         while let Some(op) = code.get(pc).copied() {
             let (code_byte_type, data_len) = code_byte_type(op);
 
             pc += 1;
             match code_byte_type {
                 CodeByteType::JumpDest => {
-                    if no_ops > 0 {
-                        analysis.extend(OpFnData::skip_no_ops_iter(no_ops, pc - 1));
-                    }
-                    no_ops = 0;
+                    jump_dests[pc - 1] = analysis.len() as u32;
                     analysis.push(OpFnData::jump_dest(pc - 1));
                 }
                 CodeByteType::Push => {
@@ -150,7 +168,6 @@ impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
                     let data = u256::from_be_bytes(*buf[..32].as_array().unwrap());
                     analysis.push(OpFnData::func(op, data, pc - 1));
 
-                    no_ops += data_len;
                     pc += data_len;
                 }
                 CodeByteType::Opcode => {
@@ -167,7 +184,10 @@ impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
         // Let the analysis always end with the terminator so dispatching needs no bounds check.
         analysis.push(OpFnData::terminator(pc));
 
-        Self(analysis.into())
+        Self {
+            items: analysis.into(),
+            jump_dests: jump_dests.into(),
+        }
     }
 }
 
@@ -175,7 +195,7 @@ impl<const STEPPABLE: bool> Deref for CodeAnalysis<STEPPABLE> {
     type Target = [AnalysisItem<STEPPABLE>];
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.items
     }
 }
 
@@ -238,18 +258,25 @@ mod tests {
         }
     }
 
-    /// [`crate::types::CodeReader::try_jump`] uses the code offset of a jump destination as its
-    /// offset in the analysis.
+    /// [`crate::types::CodeReader::try_jump`] translates the code offset of a jump destination
+    /// into the offset of its entry in the analysis.
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     #[test]
-    fn jump_dest_entries_sit_at_their_code_offset() {
+    fn jump_dest_maps_a_code_offset_to_the_entry_at_that_offset() {
         for code in CODES {
             let analysis = CodeAnalysis::<false>::analyze_code(code);
+            let mut jump_dests = 0;
             for (index, item) in analysis.iter().enumerate() {
-                if item.code_byte_type() == CodeByteType::JumpDest {
-                    assert_eq!(index, item.get_code_offset());
+                let code_offset = item.get_code_offset();
+                if code.get(code_offset) == Some(&(Opcode::JumpDest as u8)) {
+                    jump_dests += 1;
+                    assert_eq!(Some(index), analysis.jump_dest(code_offset));
                 }
             }
+            // A jump destination byte that is push data does not become an entry, so it must not
+            // be mapped either.
+            let mapped = (0..code.len()).filter(|o| analysis.jump_dest(*o).is_some()).count();
+            assert_eq!(jump_dests, mapped);
         }
     }
 

@@ -93,14 +93,8 @@ const fn gen_jumptable<const STEPPABLE: bool>() -> [OpFn<STEPPABLE>; 256] {
         op_fn!(clz),
         op_fn!(jumptable_placeholder),
         op_fn!(sha3),
-        std::cfg_select! {
-            feature = "fn-ptr-conversion-dispatch" => op_fn!(no_op),
-            _ => op_fn!(jumptable_placeholder),
-        },
-        std::cfg_select! {
-            feature = "fn-ptr-conversion-dispatch" => op_fn!(skip_no_ops),
-            _ => op_fn!(jumptable_placeholder),
-        },
+        op_fn!(jumptable_placeholder),
+        op_fn!(jumptable_placeholder),
         op_fn!(jumptable_placeholder),
         op_fn!(jumptable_placeholder),
         op_fn!(jumptable_placeholder),
@@ -568,18 +562,6 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.stack.push(value)?;
         self.code_reader.next();
         Ok(())
-    }
-
-    #[cfg(feature = "fn-ptr-conversion-dispatch")]
-    pub fn no_op(&mut self) -> OpResult {
-        self.code_reader.next();
-        tail_call!(self.return_from_op())
-    }
-
-    #[cfg(feature = "fn-ptr-conversion-dispatch")]
-    pub fn skip_no_ops(&mut self) -> OpResult {
-        self.code_reader.jump_to();
-        tail_call!(self.return_from_op())
     }
 
     fn stop(&mut self) -> OpResult {

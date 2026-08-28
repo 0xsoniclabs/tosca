@@ -3,7 +3,6 @@ use std::fmt::Debug;
 use crate::{
     Opcode,
     interpreter::{self, OpFn},
-    types::CodeByteType,
     u256,
 };
 
@@ -35,14 +34,6 @@ impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
         }
     }
 
-    /// The padding entries in front of a jump destination. They all report the code offset of that
-    /// jump destination, which is the only offset reachable through them.
-    pub fn skip_no_ops_iter(count: usize, code_offset: usize) -> impl Iterator<Item = Self> {
-        let skip_no_ops = Self::func(Opcode::SkipNoOps as u8, (count as u64).into(), code_offset);
-        let no_op = Self::func(Opcode::NoOp as u8, u256::ZERO, code_offset);
-        std::iter::once(skip_no_ops).chain(std::iter::repeat_n(no_op, count - 1))
-    }
-
     pub fn func(op: u8, data: u256, code_offset: usize) -> Self {
         Self {
             func: interpreter::get_jumptable()[op as usize],
@@ -61,17 +52,6 @@ impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
     /// code length or, if the data of a trailing push is truncated, past it.
     pub fn terminator(code_offset: usize) -> Self {
         Self::func(Opcode::Stop as u8, u256::ZERO, code_offset)
-    }
-
-    pub fn code_byte_type(&self) -> CodeByteType {
-        let jumptable = interpreter::get_jumptable::<STEPPABLE>();
-        if std::ptr::fn_addr_eq(self.func, jumptable[Opcode::JumpDest as u8 as usize]) {
-            CodeByteType::JumpDest
-        } else if std::ptr::fn_addr_eq(self.func, jumptable[Opcode::Invalid as u8 as usize]) {
-            CodeByteType::DataOrInvalid
-        } else {
-            CodeByteType::Opcode
-        }
     }
 
     pub fn get_func(&self) -> OpFn<STEPPABLE> {

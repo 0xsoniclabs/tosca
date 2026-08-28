@@ -1,6 +1,8 @@
 use std::{self, ops::Deref};
 
-use crate::types::{CodeAnalysis, CodeAnalysisCache, CodeByteType, FailStatus, u256};
+#[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
+use crate::types::CodeByteType;
+use crate::types::{CodeAnalysis, CodeAnalysisCache, FailStatus, u256};
 #[cfg(feature = "fn-ptr-conversion-dispatch")]
 use crate::{interpreter::OpFn, types::OpFnData};
 
@@ -103,23 +105,23 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
 
     pub fn try_jump(&mut self, dest: u256) -> Result<(), FailStatus> {
         let dest = u64::try_from(dest).map_err(|_| FailStatus::BadJumpDestination)? as usize;
-        if !self.code_analysis.get(dest).is_some_and(|c| {
-            let code_byte_type = std::cfg_select! {
-                feature = "fn-ptr-conversion-dispatch" => c.code_byte_type(),
-                _ => *c,
-            };
-            code_byte_type == CodeByteType::JumpDest
-        }) {
-            std::hint::cold_path();
-            return Err(FailStatus::BadJumpDestination);
-        }
         std::cfg_select! {
             feature = "fn-ptr-conversion-dispatch" => {
+                let Some(index) = self.code_analysis.jump_dest(dest) else {
+                    std::hint::cold_path();
+                    return Err(FailStatus::BadJumpDestination);
+                };
                 // SAFETY:
-                // The check above ensures that dest is in bounds.
-                self.pc = unsafe { self.code_analysis.as_ptr().add(dest) };
+                // jump_dest only returns indices of existing analysis entries.
+                self.pc = unsafe { self.code_analysis.as_ptr().add(index) };
             }
-            _ => self.pc = dest,
+            _ => {
+                if self.code_analysis.get(dest) != Some(&CodeByteType::JumpDest) {
+                    std::hint::cold_path();
+                    return Err(FailStatus::BadJumpDestination);
+                }
+                self.pc = dest;
+            }
         }
 
         Ok(())
@@ -153,17 +155,6 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
         // A push entry is never the last entry because the analysis ends with a terminator.
         self.pc = unsafe { self.pc.add(1) };
         res
-    }
-
-    #[cfg(feature = "fn-ptr-conversion-dispatch")]
-    pub fn jump_to(&mut self) {
-        // SAFETY:
-        // self.pc always points at a valid entry (see field documentation).
-        let offset = unsafe { (*self.pc).get_data() }.into_u64_saturating();
-        // SAFETY:
-        // A skip-no-ops entry holds the distance to the following jump dest entry, which is in
-        // bounds.
-        self.pc = unsafe { self.pc.add(offset as usize) };
     }
 
     pub fn pc(&self) -> usize {
