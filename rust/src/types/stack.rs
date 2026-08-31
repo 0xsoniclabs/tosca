@@ -41,32 +41,27 @@ impl Drop for Stack {
 impl Stack {
     const CAPACITY: usize = 1024;
 
-    pub fn new(inner: &[u256]) -> Self {
-        let len = min(inner.len(), Self::CAPACITY);
-        let inner = &inner[..len];
+    #[inline(always)]
+    pub fn new() -> Self {
         let mut v = std::cfg_select! {
-            feature = "alloc-reuse" => REUSABLE_STACK
-                .lock()
-                .unwrap()
-                .pop()
-                .unwrap_or_else(|| Vec::with_capacity(Self::CAPACITY)),
+            feature = "alloc-reuse" => {
+                if let Some(s) = REUSABLE_STACK.lock().unwrap().pop() {
+                    s
+                } else {
+                    std::hint::cold_path();
+                    Vec::with_capacity(Self::CAPACITY)
+                }
+            }
             _ => Vec::with_capacity(Self::CAPACITY),
         };
         v.clear();
-        #[cfg(feature = "unsafe-stack")]
-        // SAFETY:
-        // v was either created with capacity at least Self::CAPACITY or taken from REUSABLE_STACK,
-        // where Stack::drop only puts vectors that were created that way and are never shrunk.
-        // inner is truncated to at most Self::CAPACITY elements.
-        // The length bound is part of the hint because the reallocation in extend_from_slice is
-        // only elided when both operands of the comparison are known.
-        unsafe {
-            std::hint::assert_unchecked(
-                v.capacity() >= Self::CAPACITY && inner.len() <= Self::CAPACITY,
-            );
-        }
-        v.extend_from_slice(inner);
         Self(v)
+    }
+
+    pub fn reset_to(&mut self, inner: &[u256]) {
+        let len = min(inner.len(), Self::CAPACITY);
+        self.0.clear();
+        self.0.extend_from_slice(&inner[..len]);
     }
 
     pub fn as_slice(&self) -> &[u256] {
@@ -173,57 +168,65 @@ mod tests {
 
     #[test]
     fn internals() {
-        let stack = Stack::new(&[u256::ONE]);
+        let mut stack = Stack::new();
+        stack.reset_to(&[u256::ONE]);
         assert_eq!(stack.len(), 1);
         assert_eq!(stack.as_slice(), &[u256::ONE]);
     }
 
     #[test]
     fn push() {
-        let mut stack = Stack::new(&[]);
+        let mut stack = Stack::new();
         assert_eq!(stack.push(u256::MAX), Ok(()));
         assert_eq!(stack.as_slice(), [u256::MAX]);
 
-        let mut stack = Stack::new(&[u256::ZERO; Stack::CAPACITY]);
+        let mut stack = Stack::new();
+        stack.reset_to(&[u256::ZERO; Stack::CAPACITY]);
         assert_eq!(stack.push(u256::ZERO), Err(FailStatus::StackOverflow));
     }
 
     #[test]
     fn pop() {
-        let mut stack = Stack::new(&[u256::MAX]);
+        let mut stack = Stack::new();
+        stack.reset_to(&[u256::MAX]);
         assert_eq!(stack.pop::<1>(), Ok([u256::MAX]));
 
-        let mut stack = Stack::new(&[]);
+        let mut stack = Stack::new();
         assert_eq!(stack.pop::<1>(), Err(FailStatus::StackUnderflow));
 
-        let mut stack = Stack::new(&[u256::ONE, u256::MAX]);
+        let mut stack = Stack::new();
+        stack.reset_to(&[u256::ONE, u256::MAX]);
         assert_eq!(stack.pop::<2>(), Ok([u256::ONE, u256::MAX]));
 
-        let mut stack = Stack::new(&[u256::MAX]);
+        let mut stack = Stack::new();
+        stack.reset_to(&[u256::MAX]);
         assert_eq!(stack.pop::<2>(), Err(FailStatus::StackUnderflow));
     }
 
     #[test]
     fn pop_with_location() {
-        let mut stack = Stack::new(&[u256::MAX]);
+        let mut stack = Stack::new();
+        stack.reset_to(&[u256::MAX]);
         let (push_location, data) = stack.pop_with_location::<1>().unwrap();
         assert_eq!(data, [u256::MAX]);
         push_location.push(u256::ONE);
         assert_eq!(stack.as_slice(), [u256::ONE]);
 
-        let mut stack = Stack::new(&[]);
+        let mut stack = Stack::new();
         assert_eq!(
             stack.pop_with_location::<1>().unwrap_err(),
             FailStatus::StackUnderflow
         );
 
-        let mut stack = Stack::new(&[u256::ONE, u256::MAX]);
+        let mut stack = Stack::new();
+        stack.reset_to(&[u256::ONE, u256::MAX]);
         let (push_location, data) = stack.pop_with_location::<2>().unwrap();
         assert_eq!(data, [u256::ONE, u256::MAX]);
         push_location.push(u256::ZERO);
         assert_eq!(stack.as_slice(), [u256::ZERO]);
 
-        let mut stack = Stack::new(&[u256::MAX]);
+        let mut stack = Stack::new();
+        stack.reset_to(&[u256::MAX]);
         assert_eq!(
             stack.pop_with_location::<2>().unwrap_err(),
             FailStatus::StackUnderflow
@@ -232,46 +235,55 @@ mod tests {
 
     #[test]
     fn dup() {
-        let mut stack = Stack::new(&[u256::MAX, u256::ZERO]);
+        let mut stack = Stack::new();
+        stack.reset_to(&[u256::MAX, u256::ZERO]);
         stack.dup::<1>().unwrap();
         assert_eq!(stack.as_slice(), [u256::MAX, u256::ZERO, u256::ZERO]);
 
-        let mut stack = Stack::new(&[u256::MAX, u256::ZERO]);
+        let mut stack = Stack::new();
+        stack.reset_to(&[u256::MAX, u256::ZERO]);
         stack.dup::<2>().unwrap();
         assert_eq!(stack.as_slice(), [u256::MAX, u256::ZERO, u256::MAX]);
 
-        let mut stack = Stack::new(&[u256::MAX, u256::ZERO]);
+        let mut stack = Stack::new();
+        stack.reset_to(&[u256::MAX, u256::ZERO]);
         assert_eq!(stack.dup::<3>(), Err(FailStatus::StackUnderflow));
 
-        let mut stack = Stack::new(&[u256::ZERO; 1024]);
+        let mut stack = Stack::new();
+        stack.reset_to(&[u256::ZERO; 1024]);
         assert_eq!(stack.dup::<1>(), Err(FailStatus::StackOverflow));
     }
 
     #[test]
     fn swap_with_top() {
-        let mut stack = Stack::new(&[u256::MAX, u256::ONE]);
+        let mut stack = Stack::new();
+        stack.reset_to(&[u256::MAX, u256::ONE]);
         assert_eq!(stack.swap_with_top::<1>(), Ok(()));
         assert_eq!(stack.as_slice(), [u256::ONE, u256::MAX]);
 
-        let mut stack = Stack::new(&[u256::MAX, u256::ONE]);
+        let mut stack = Stack::new();
+        stack.reset_to(&[u256::MAX, u256::ONE]);
         assert_eq!(stack.swap_with_top::<2>(), Err(FailStatus::StackUnderflow));
     }
 
     #[test]
     fn check_overflow() {
-        let stack = Stack::new(&[u256::ZERO; Stack::CAPACITY - 1]);
+        let mut stack = Stack::new();
+        stack.reset_to(&[u256::ZERO; Stack::CAPACITY - 1]);
         assert_eq!(stack.check_overflow(1), Ok(()));
         assert_eq!(stack.check_overflow(2), Err(FailStatus::StackOverflow));
-        let stack = Stack::new(&[u256::ZERO; Stack::CAPACITY]);
+        let mut stack = Stack::new();
+        stack.reset_to(&[u256::ZERO; Stack::CAPACITY]);
         assert_eq!(stack.check_overflow(0), Ok(()));
         assert_eq!(stack.check_overflow(1), Err(FailStatus::StackOverflow));
     }
 
     #[test]
     fn check_underflow() {
-        let stack = Stack::new(&[]);
+        let stack = Stack::new();
         assert_eq!(stack.check_underflow(0), Ok(()));
-        let stack = Stack::new(&[u256::ZERO]);
+        let mut stack = Stack::new();
+        stack.reset_to(&[u256::ZERO]);
         assert_eq!(stack.check_underflow(1), Ok(()));
         assert_eq!(stack.check_underflow(2), Err(FailStatus::StackUnderflow));
     }
