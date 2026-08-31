@@ -48,10 +48,7 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
         #[cfg(feature = "fn-ptr-conversion-dispatch")]
         let pc = {
             let analysis_offset = code_analysis.analysis_offset(pc);
-            // SAFETY:
-            // analysis_offset only returns offsets of existing analysis entries, so it is in
-            // bounds.
-            unsafe { code_analysis.as_ptr().add(analysis_offset) }
+            &code_analysis[analysis_offset] as *const _
         };
         Self {
             code,
@@ -103,22 +100,22 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
 
     pub fn try_jump(&mut self, dest: u256) -> Result<(), FailStatus> {
         let dest = u64::try_from(dest).map_err(|_| FailStatus::BadJumpDestination)? as usize;
-        if !self.code_analysis.get(dest).is_some_and(|c| {
-            let code_byte_type = std::cfg_select! {
-                feature = "fn-ptr-conversion-dispatch" => c.code_byte_type(),
-                _ => *c,
-            };
-            code_byte_type == CodeByteType::JumpDest
-        }) {
+
+        let Some(analysis_item) = self.code_analysis.get(dest) else {
+            std::hint::cold_path();
+            return Err(FailStatus::BadJumpDestination);
+        };
+
+        let code_byte_type = std::cfg_select! {
+            feature = "fn-ptr-conversion-dispatch" => analysis_item.code_byte_type(),
+            _ => *analysis_item,
+        };
+        if code_byte_type != CodeByteType::JumpDest {
             std::hint::cold_path();
             return Err(FailStatus::BadJumpDestination);
         }
         std::cfg_select! {
-            feature = "fn-ptr-conversion-dispatch" => {
-                // SAFETY:
-                // The check above ensures that dest is in bounds.
-                self.pc = unsafe { self.code_analysis.as_ptr().add(dest) };
-            }
+            feature = "fn-ptr-conversion-dispatch" => self.pc = analysis_item as *const _,
             _ => self.pc = dest,
         }
 

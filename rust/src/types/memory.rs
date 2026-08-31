@@ -58,6 +58,13 @@ impl Memory {
         if new_len > current_len {
             expand_raw(self, new_len, gas_left)?;
         }
+        #[cfg(feature = "unsafe-hints")]
+        // SAFETY:
+        // new_len is new_len_bytes rounded up to whole words and the memory was expanded to at
+        // least that length above.
+        unsafe {
+            std::hint::assert_unchecked(new_len_bytes <= self.0.len() as u64);
+        }
         Ok(())
     }
 
@@ -102,14 +109,6 @@ impl Memory {
 
         let offset = offset as usize;
         let end = end as usize;
-        #[cfg(feature = "unsafe-hints")]
-        // SAFETY:
-        // end = offset + len, so offset <= end
-        // end will always be in bounds because expand takes care of expanding the memory
-        // accordingly.
-        unsafe {
-            std::hint::assert_unchecked(offset <= end && end <= self.0.len());
-        }
         Ok(&mut self.0[offset..end])
     }
 
@@ -119,12 +118,6 @@ impl Memory {
         gas_left: &mut Gas,
     ) -> Result<&mut [u8; N], FailStatus> {
         let slice = self.get_mut_slice(offset, N as u64, gas_left)?;
-        #[cfg(feature = "unsafe-hints")]
-        // SAFETY:
-        // get_mut_slice returns a slice of the requested length.
-        unsafe {
-            std::hint::assert_unchecked(slice.len() == N);
-        }
         Ok(slice.as_mut_array().unwrap())
     }
 
