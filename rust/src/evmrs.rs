@@ -129,8 +129,16 @@ impl SteppableEvmcVm for EvmRs {
             // If this is not the case it violates the EVMC spec and is an irrecoverable error.
             process::abort();
         };
-        let stack = Stack::new(&stack.iter().map(|i| u256::from(*i)).collect::<Vec<_>>());
-        let memory = Memory::new(memory);
+        let stack = {
+            let mut s = Stack::new();
+            s.reset_to(&stack.iter().map(|i| u256::from(*i)).collect::<Vec<_>>());
+            s
+        };
+        let memory = {
+            let mut m = Memory::new();
+            m.reset_to(memory);
+            m
+        };
         let interpreter = Interpreter::new_steppable(
             revision,
             message,

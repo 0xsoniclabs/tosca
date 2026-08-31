@@ -386,8 +386,8 @@ impl<'a> Interpreter<'a, false> {
             gas_left: Gas::new(message.gas),
             gas_refund: GasRefund::new(0),
             output: Box::default(),
-            stack: Stack::new(&[]),
-            memory: Memory::new(&[]),
+            stack: Stack::new(),
+            memory: Memory::new(),
             last_call_return_data: Box::default(),
             steps: None,
             hash_cache,
@@ -1682,8 +1682,8 @@ mod tests {
             &[Opcode::Add as u8],
             1,
             0,
-            Stack::new(&[]),
-            Memory::new(&[]),
+            Stack::new(),
+            Memory::new(),
             Box::default(),
             None,
             &code_analysis_cache,
@@ -1713,8 +1713,8 @@ mod tests {
             &[Opcode::Push1 as u8, 0x00],
             1,
             0,
-            Stack::new(&[]),
-            Memory::new(&[]),
+            Stack::new(),
+            Memory::new(),
             Box::default(),
             None,
             &code_analysis_cache,
@@ -1737,8 +1737,8 @@ mod tests {
             &[Opcode::Add as u8],
             0,
             0,
-            Stack::new(&[]),
-            Memory::new(&[]),
+            Stack::new(),
+            Memory::new(),
             Box::default(),
             Some(0),
             &code_analysis_cache,
@@ -1759,6 +1759,8 @@ mod tests {
         let hash_cache = HashCache::default();
         let mut context = MockExecutionContextTrait::new();
         let message = MockExecutionMessage::default().into();
+        let mut interpreter_stack = Stack::new();
+        interpreter_stack.reset_to(&[1u8.into(), 2u8.into()]);
         let interpreter = Interpreter::new_steppable(
             Revision::EVMC_ISTANBUL,
             &message,
@@ -1766,8 +1768,8 @@ mod tests {
             &[Opcode::Add as u8, Opcode::Add as u8],
             0,
             0,
-            Stack::new(&[1u8.into(), 2u8.into()]),
-            Memory::new(&[]),
+            interpreter_stack,
+            Memory::new(),
             Box::default(),
             Some(1),
             &code_analysis_cache,
@@ -1796,7 +1798,7 @@ mod tests {
             &code_analysis_cache,
             &hash_cache,
         );
-        interpreter.stack = Stack::new(&[1u8.into(), 2u8.into()]);
+        interpreter.stack.reset_to(&[1u8.into(), 2u8.into()]);
         let result: StepResult = interpreter.run(&mut NoOpObserver());
         assert_eq!(result.step_status_code, StepStatusCode::EVMC_STEP_STOPPED);
         assert_eq!(result.stack.as_slice(), [u256::from(3u8).into()]);
@@ -1820,7 +1822,9 @@ mod tests {
             &code_analysis_cache,
             &hash_cache,
         );
-        interpreter.stack = Stack::new(&[1u8.into(), 2u8.into(), 3u8.into()]);
+        interpreter
+            .stack
+            .reset_to(&[1u8.into(), 2u8.into(), 3u8.into()]);
         let result: StepResult = interpreter.run(&mut NoOpObserver());
         assert_eq!(result.step_status_code, StepStatusCode::EVMC_STEP_STOPPED);
         assert_eq!(result.stack.as_slice(), [u256::from(6u8).into()]);
@@ -1871,7 +1875,7 @@ mod tests {
             &code_analysis_cache,
             &hash_cache,
         );
-        interpreter.stack = Stack::new(&[1u8.into(), 2u8.into()]);
+        interpreter.stack.reset_to(&[1u8.into(), 2u8.into()]);
         let result: ExecutionResult = interpreter.run(&mut NoOpObserver());
         assert_eq!(result.status_code, StatusCode::EVMC_OUT_OF_GAS);
     }
@@ -1944,6 +1948,10 @@ mod tests {
             gas.into(),
         ];
 
+        let mut interpreter_stack = Stack::new();
+        interpreter_stack.reset_to(&stack);
+        let mut interpreter_memory = Memory::new();
+        interpreter_memory.reset_to(&memory);
         let interpreter = Interpreter::new_steppable(
             Revision::EVMC_ISTANBUL,
             &message,
@@ -1951,8 +1959,8 @@ mod tests {
             &[Opcode::Call as u8],
             0,
             0,
-            Stack::new(&stack),
-            Memory::new(&memory),
+            interpreter_stack,
+            interpreter_memory,
             Box::default(),
             None,
             &code_analysis_cache,
