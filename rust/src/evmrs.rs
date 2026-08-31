@@ -148,7 +148,7 @@ impl SteppableEvmcVm for EvmRs {
             gas_refund,
             stack,
             memory,
-            Box::from(last_call_return_data),
+            last_call_return_data,
             Some(steps),
             &self.code_analysis_cache_steppable,
             &self.hash_cache,

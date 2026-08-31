@@ -459,7 +459,7 @@ pub fn run(args: &mut RunArgs) -> u32 {
     let result =
         args.instance
             .run_with_null_context(&args.host, args.revision, &args.message, args.code);
-    assert_eq!(result.status_code, StatusCode::EVMC_SUCCESS);
-    assert_eq!(result.output.len(), 32);
-    u32::from_be_bytes(result.output[28..32].try_into().unwrap())
+    assert_eq!(result.status_code(), StatusCode::EVMC_SUCCESS);
+    assert_eq!(result.output().len(), 32);
+    u32::from_be_bytes(result.output()[28..32].try_into().unwrap())
 }

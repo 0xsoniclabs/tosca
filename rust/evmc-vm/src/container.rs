@@ -157,13 +157,13 @@ mod tests {
             _message: &ExecutionMessage,
             _context: Option<&mut ExecutionContext>,
         ) -> ExecutionResult {
-            ExecutionResult {
-                status_code: StatusCode::EVMC_FAILURE,
-                gas_left: 0,
-                gas_refund: 0,
-                output: Box::default(),
-                create_address: None,
-            }
+            ExecutionResult::new(
+                StatusCode::EVMC_FAILURE,
+                0,
+                0,
+                Box::default(),
+                Address::default(),
+            )
         }
     }
 
@@ -250,7 +250,7 @@ mod tests {
                     &message,
                     Some(&mut context)
                 )
-                .status_code,
+                .status_code(),
             ::evmc_sys::evmc_status_code::EVMC_FAILURE
         );
 
@@ -266,7 +266,7 @@ mod tests {
                     &message,
                     Some(&mut context)
                 )
-                .status_code,
+                .status_code(),
             ::evmc_sys::evmc_status_code::EVMC_FAILURE
         );
     }

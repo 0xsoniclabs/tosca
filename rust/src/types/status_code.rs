@@ -1,5 +1,5 @@
 use evmc_vm::{
-    ExecutionResult, Revision, StatusCode as EvmcStatusCode, StepResult,
+    Address, ExecutionResult, Revision, StatusCode as EvmcStatusCode, StepResult,
     StepStatusCode as EvmcStepStatusCode,
 };
 
@@ -111,12 +111,6 @@ impl From<FailStatus> for StepResult {
 impl From<FailStatus> for ExecutionResult {
     #[cold]
     fn from(fail_status: FailStatus) -> Self {
-        Self {
-            status_code: fail_status.into(),
-            gas_left: 0,
-            gas_refund: 0,
-            output: Box::default(),
-            create_address: None,
-        }
+        Self::new(fail_status.into(), 0, 0, Box::default(), Address::default())
     }
 }
