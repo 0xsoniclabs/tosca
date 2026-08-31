@@ -41,7 +41,6 @@ impl Drop for Stack {
 impl Stack {
     const CAPACITY: usize = 1024;
 
-    #[inline(never)]
     pub fn new(inner: &[u256]) -> Self {
         let len = min(inner.len(), Self::CAPACITY);
         let inner = &inner[..len];
@@ -56,11 +55,15 @@ impl Stack {
         v.clear();
         #[cfg(feature = "unsafe-stack")]
         // SAFETY:
-        // inner was shorted to the minimum of its original length and Self::CAPACITY.
-        // v was taken from REUSABLE_STACK which was put there by Stack::drop or was created with
-        // capacity Self::CAPACITY. Therefore it always has capacity Self::CAPACITY.
+        // v was either created with capacity at least Self::CAPACITY or taken from REUSABLE_STACK,
+        // where Stack::drop only puts vectors that were created that way and are never shrunk.
+        // inner is truncated to at most Self::CAPACITY elements.
+        // The length bound is part of the hint because the reallocation in extend_from_slice is
+        // only elided when both operands of the comparison are known.
         unsafe {
-            std::hint::assert_unchecked(inner.len() <= v.capacity());
+            std::hint::assert_unchecked(
+                v.capacity() >= Self::CAPACITY && inner.len() <= Self::CAPACITY,
+            );
         }
         v.extend_from_slice(inner);
         Self(v)
@@ -78,9 +81,12 @@ impl Stack {
         self.check_overflow(1)?;
         #[cfg(feature = "unsafe-stack")]
         // SAFETY:
-        // self.0 is initialized with capacity Self::CAPACITY and never shrunk.
+        // self.0's capacity is at least Self::CAPACITY and never shrinks, and check_overflow
+        // guarantees that the length is below Self::CAPACITY.
         unsafe {
-            std::hint::assert_unchecked(self.0.capacity() == Self::CAPACITY);
+            std::hint::assert_unchecked(
+                self.0.capacity() >= Self::CAPACITY && self.0.len() < Self::CAPACITY,
+            );
         }
         self.0.push(value.into());
         Ok(())
@@ -91,26 +97,11 @@ impl Stack {
 
         self.check_underflow(N + 1)?;
 
-        std::cfg_select! {
-            feature = "unsafe-stack" => {
-                let start = self.0.as_mut_ptr();
-                // SAFETY:
-                // This does not wrap and the whole range is valid.
-                let top = unsafe { start.add(self.len() - 1) };
-                // SAFETY:
-                // This does not wrap and the whole range is valid.
-                let nth = unsafe { top.sub(N) };
-                // SAFETY:
-                // top and nth are valid pointers into the initialized part of the vector.
-                unsafe {
-                    std::ptr::swap_nonoverlapping(top, nth, 1);
-                }
-            }
-            _ => {
-                let len = self.0.len();
-                self.0.swap(len - 1, len - 1 - N);
-            }
-        }
+        // Swapping through two disjoint subslices instead of via [`slice::swap`] lets the
+        // compiler shuffle the values in registers instead of copying them through the stack.
+        let len = self.0.len();
+        let (rest, top) = self.0.split_at_mut(len - 1);
+        std::mem::swap(&mut rest[len - 1 - N], &mut top[0]);
 
         Ok(())
     }
@@ -136,18 +127,10 @@ impl Stack {
 
         self.check_underflow(N)?;
 
-        self.0.truncate(self.len() - (N - 1));
-        // SAFETY:
-        // This does not wrap and the whole range from start to start + self.len is valid.
-        let pop_start = unsafe { self.0.as_ptr().add(self.len() - 1) };
-        // SAFETY:
-        // The the first self.len elements are initialized (invariant).
-        // `self.len` just got decremented by N - 1, which means now that the first `self.len  +
-        // (N - 1)` elements are initialized. Therefore, it is safe to read N elements
-        // starting at index `self.len - 1` as an array of length N and type u256.
-        let pop_data = unsafe { *pop_start.cast::<[u256; N]>() };
         let len = self.len();
-        let push_location = PushLocation(&mut self.0[len - 1]);
+        let pop_data = *self.0[len - N..].as_array().unwrap();
+        self.0.truncate(len - (N - 1));
+        let push_location = PushLocation(&mut self.0[len - N]);
         Ok((push_location, pop_data))
     }
 
@@ -160,15 +143,7 @@ impl Stack {
         const { assert!(N > 0) };
 
         self.check_underflow(N)?;
-        let element = std::cfg_select! {
-            feature = "unsafe-stack" => {
-                // SAFETY:
-                // self.0.len() >= N was checked in check_underflow.
-                // Therefore self.0.len() - N is in bounds.
-                *unsafe { self.0.get_unchecked(self.0.len() - N) }
-            }
-            _ => self.0[self.0.len() - N],
-        };
+        let element = self.0[self.0.len() - N];
         self.push(element)
     }
 
