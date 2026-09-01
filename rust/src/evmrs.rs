@@ -10,8 +10,7 @@ use crate::{
     ffi::EVMC_CAPABILITY,
     interpreter::Interpreter,
     types::{
-        CodeAnalysisCache, LoggingObserver, Memory, NoOpObserver, ObserverType, Stack,
-        hash_cache::HashCache, u256,
+        CodeAnalysisCache, LoggingObserver, NoOpObserver, ObserverType, hash_cache::HashCache, u256,
     },
 };
 
@@ -129,16 +128,7 @@ impl SteppableEvmcVm for EvmRs {
             // If this is not the case it violates the EVMC spec and is an irrecoverable error.
             process::abort();
         };
-        let stack = {
-            let mut s = Stack::new();
-            s.reset_to(&stack.iter().map(|i| u256::from(*i)).collect::<Vec<_>>());
-            s
-        };
-        let memory = {
-            let mut m = Memory::new();
-            m.reset_to(memory);
-            m
-        };
+        let stack = stack.iter().map(|i| u256::from(*i)).collect::<Vec<_>>();
         let interpreter = Interpreter::new_steppable(
             revision,
             message,
@@ -146,7 +136,7 @@ impl SteppableEvmcVm for EvmRs {
             code,
             pc as usize,
             gas_refund,
-            stack,
+            &stack,
             memory,
             last_call_return_data,
             Some(steps),

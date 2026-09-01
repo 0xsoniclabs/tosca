@@ -1,47 +1,20 @@
 use std::cmp::max;
-#[cfg(feature = "alloc-reuse")]
-use std::sync::Mutex;
 
 use crate::{
     types::{FailStatus, u256},
     utils::{Gas, word_size},
 };
 
-#[cfg(feature = "alloc-reuse")]
-static REUSABLE_MEMORY: Mutex<Vec<Vec<u8>>> = Mutex::new(Vec::new());
-
 #[derive(Debug)]
 pub struct Memory(Vec<u8>);
-
-#[cfg(feature = "alloc-reuse")]
-impl Drop for Memory {
-    fn drop(&mut self) {
-        REUSABLE_MEMORY
-            .lock()
-            .unwrap()
-            .push(std::mem::take(&mut self.0));
-    }
-}
 
 impl Memory {
     #[inline(always)]
     pub fn new() -> Self {
-        let mut m = std::cfg_select! {
-            feature = "alloc-reuse" => {
-                if let Some(m) = REUSABLE_MEMORY.lock().unwrap().pop() {
-                    m
-                } else {
-                    std::hint::cold_path();
-                    Vec::new()
-                }
-            }
-            _ => Vec::new(),
-        };
-        m.clear();
-
-        Self(m)
+        Self(Vec::new())
     }
 
+    /// Replaces the content of the memory with `memory`.
     pub fn reset_to(&mut self, memory: &[u8]) {
         self.0.clear();
         self.0.extend_from_slice(memory);

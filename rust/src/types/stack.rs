@@ -1,6 +1,4 @@
 use std::cmp::min;
-#[cfg(feature = "alloc-reuse")]
-use std::sync::Mutex;
 
 use crate::types::{FailStatus, u256};
 
@@ -22,42 +20,18 @@ impl PushLocation<'_> {
     }
 }
 
-#[cfg(feature = "alloc-reuse")]
-static REUSABLE_STACK: Mutex<Vec<Vec<u256>>> = Mutex::new(Vec::new());
-
 #[derive(Debug)]
 pub struct Stack(Vec<u256>);
-
-#[cfg(feature = "alloc-reuse")]
-impl Drop for Stack {
-    fn drop(&mut self) {
-        REUSABLE_STACK
-            .lock()
-            .unwrap()
-            .push(std::mem::take(&mut self.0));
-    }
-}
 
 impl Stack {
     const CAPACITY: usize = 1024;
 
     #[inline(always)]
     pub fn new() -> Self {
-        let mut v = std::cfg_select! {
-            feature = "alloc-reuse" => {
-                if let Some(s) = REUSABLE_STACK.lock().unwrap().pop() {
-                    s
-                } else {
-                    std::hint::cold_path();
-                    Vec::with_capacity(Self::CAPACITY)
-                }
-            }
-            _ => Vec::with_capacity(Self::CAPACITY),
-        };
-        v.clear();
-        Self(v)
+        Self(Vec::with_capacity(Self::CAPACITY))
     }
 
+    /// Replaces the content of the stack with the first [`Self::CAPACITY`] elements of `inner`.
     pub fn reset_to(&mut self, inner: &[u256]) {
         let len = min(inner.len(), Self::CAPACITY);
         self.0.clear();
@@ -76,8 +50,8 @@ impl Stack {
         self.check_overflow(1)?;
         #[cfg(feature = "unsafe-stack")]
         // SAFETY:
-        // self.0's capacity is at least Self::CAPACITY and never shrinks, and check_overflow
-        // guarantees that the length is below Self::CAPACITY.
+        // Self::new is the only constructor and allocates Self::CAPACITY, nothing shrinks the
+        // buffer, and check_overflow guarantees that the length is below Self::CAPACITY.
         unsafe {
             std::hint::assert_unchecked(
                 self.0.capacity() >= Self::CAPACITY && self.0.len() < Self::CAPACITY,

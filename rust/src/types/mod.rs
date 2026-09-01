@@ -5,6 +5,7 @@ mod code_analysis;
 mod code_reader;
 mod execution_context;
 pub mod hash_cache;
+mod interpreter_allocations;
 mod last_call_return_data;
 mod memory;
 mod mock_execution_message;
@@ -23,6 +24,7 @@ pub use code_reader::CodeReader;
 #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
 pub use code_reader::GetOpcodeError;
 pub use execution_context::*;
+pub use interpreter_allocations::{new_stack_and_memory, release_stack_and_memory};
 pub use last_call_return_data::LastCallReturnData;
 pub use memory::Memory;
 pub use mock_execution_message::MockExecutionMessage;
