@@ -17,7 +17,7 @@ fn execute_can_be_called_with_mocked_context() {
     let message = MockExecutionMessage::default().to_evmc_message();
     let code = &[Opcode::Push0 as u8];
     let result = instance.run(&host, &mut context, revision, &message, code);
-    assert_eq!(result.status_code, StatusCode::EVMC_SUCCESS);
+    assert_eq!(result.status_code(), StatusCode::EVMC_SUCCESS);
 }
 
 #[test]
@@ -29,7 +29,7 @@ fn execute_can_be_called_with_hardcoded_context() {
     let message = MockExecutionMessage::default().to_evmc_message();
     let code = &[Opcode::Push0 as u8];
     let result = instance.run_with_null_context(&host, revision, &message, code);
-    assert_eq!(result.status_code, StatusCode::EVMC_SUCCESS);
+    assert_eq!(result.status_code(), StatusCode::EVMC_SUCCESS);
 }
 
 #[test]
@@ -41,7 +41,7 @@ fn execute_can_be_called_with_empty_code() {
     let message = MockExecutionMessage::default().to_evmc_message();
     let code = &[];
     let result = instance.run_with_null_context(&host, revision, &message, code);
-    assert_eq!(result.status_code, StatusCode::EVMC_SUCCESS);
+    assert_eq!(result.status_code(), StatusCode::EVMC_SUCCESS);
 }
 
 #[test]
@@ -53,7 +53,7 @@ fn execute_handles_error_correctly() {
     let message = MockExecutionMessage::default().to_evmc_message();
     let code = &[Opcode::Add as u8]; // this will error because the stack is empty
     let result = instance.run_with_null_context(&host, revision, &message, code);
-    assert_eq!(result.status_code, StatusCode::EVMC_STACK_UNDERFLOW);
+    assert_eq!(result.status_code(), StatusCode::EVMC_STACK_UNDERFLOW);
 }
 
 #[test]

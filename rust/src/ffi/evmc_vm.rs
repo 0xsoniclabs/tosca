@@ -4,7 +4,8 @@ use std::{
 };
 
 use evmc_vm::{
-    EvmcContainer, EvmcVm, ExecutionContext, ExecutionMessage, ExecutionResult, SetOptionError,
+    Address, EvmcContainer, EvmcVm, ExecutionContext, ExecutionMessage, ExecutionResult,
+    SetOptionError,
     ffi::{
         EVMC_ABI_VERSION, evmc_capabilities, evmc_capabilities_flagset, evmc_host_context,
         evmc_host_interface, evmc_message, evmc_result, evmc_revision, evmc_set_option_result,
@@ -164,12 +165,14 @@ extern "C" fn __evmc_execute(
             execution_context.as_mut(),
         )
     })
-    .unwrap_or(ExecutionResult {
-        status_code: evmc_status_code::EVMC_INTERNAL_ERROR,
-        gas_left: 0,
-        gas_refund: 0,
-        output: Box::default(),
-        create_address: None,
+    .unwrap_or_else(|_| {
+        ExecutionResult::new(
+            evmc_status_code::EVMC_INTERNAL_ERROR,
+            0,
+            0,
+            Box::default(),
+            Address::default(),
+        )
     })
     .into()
 }

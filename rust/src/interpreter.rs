@@ -4,7 +4,7 @@ use std::{
 };
 
 use evmc_vm::{
-    AccessStatus, ExecutionMessage, ExecutionResult, MessageFlags, MessageKind, Revision,
+    AccessStatus, Address, ExecutionMessage, ExecutionResult, MessageFlags, MessageKind, Revision,
     StatusCode, StepResult, StorageStatus, Uint256,
 };
 
@@ -12,8 +12,8 @@ use evmc_vm::{
 use crate::types::GetOpcodeError;
 use crate::{
     types::{
-        CodeAnalysisCache, CodeReader, ExecStatus, ExecutionContextTrait, FailStatus, Memory,
-        Observer, Stack, hash_cache::HashCache, u256,
+        CodeAnalysisCache, CodeReader, ExecStatus, ExecutionContextTrait, FailStatus,
+        LastCallReturnData, Memory, Observer, Stack, hash_cache::HashCache, u256,
     },
     utils::{Gas, GasRefund, SliceExt, check_min_revision, check_not_read_only, word_size},
 };
@@ -358,7 +358,7 @@ pub struct Interpreter<'a, const STEPPABLE: bool> {
     pub output: Box<[u8]>,
     pub stack: Stack,
     pub memory: Memory,
-    pub last_call_return_data: Box<[u8]>,
+    pub last_call_return_data: LastCallReturnData<'a>,
     pub steps: Option<i32>,
     pub hash_cache: &'a HashCache,
 }
@@ -388,7 +388,7 @@ impl<'a> Interpreter<'a, false> {
             output: Box::default(),
             stack: Stack::new(),
             memory: Memory::new(),
-            last_call_return_data: Box::default(),
+            last_call_return_data: LastCallReturnData::Slice(&[]),
             steps: None,
             hash_cache,
         }
@@ -406,7 +406,7 @@ impl<'a> Interpreter<'a, true> {
         gas_refund: i64,
         stack: Stack,
         memory: Memory,
-        last_call_return_data: Box<[u8]>,
+        last_call_return_data: &'a [u8],
         steps: Option<i32>,
         code_analysis_cache: &'a CodeAnalysisCache<true>,
         hash_cache: &'a HashCache,
@@ -427,7 +427,7 @@ impl<'a> Interpreter<'a, true> {
             output: Box::default(),
             stack,
             memory,
-            last_call_return_data,
+            last_call_return_data: LastCallReturnData::Slice(last_call_return_data),
             steps,
             hash_cache,
         }
@@ -1350,7 +1350,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let init_code = self.memory.get_mut_slice(offset, len, &mut self.gas_left)?;
 
         if value > self.context.get_balance(&self.message.recipient).into() {
-            self.last_call_return_data = Box::default();
+            self.last_call_return_data = LastCallReturnData::Slice(&[]);
             self.stack.push(u256::ZERO)?;
             self.code_reader.next();
             tail_call!(self.return_from_op())
@@ -1380,19 +1380,14 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         };
         let result = self.context.call(&message);
 
-        self.gas_left.add(result.gas_left)?;
-        self.gas_refund.add(result.gas_refund);
+        self.gas_left.add(result.gas_left())?;
+        self.gas_refund.add(result.gas_refund());
 
-        if result.status_code == StatusCode::EVMC_SUCCESS {
-            let Some(addr) = result.create_address else {
-                std::hint::cold_path();
-                return Err(FailStatus::InternalError);
-            };
-
-            self.last_call_return_data = Box::default();
-            self.stack.push(addr)?;
+        if result.status_code() == StatusCode::EVMC_SUCCESS {
+            self.last_call_return_data = LastCallReturnData::Slice(&[]);
+            self.stack.push(result.create_address())?;
         } else {
-            self.last_call_return_data = result.output;
+            self.last_call_return_data = LastCallReturnData::CallResult(result);
             self.stack.push(u256::ZERO)?;
         }
         self.code_reader.next();
@@ -1448,7 +1443,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.gas_left.add(stipend.cast_signed())?;
 
         if value > u256::from(self.context.get_balance(&self.message.recipient)) {
-            self.last_call_return_data = Box::default();
+            self.last_call_return_data = LastCallReturnData::Slice(&[]);
             self.stack.push(u256::ZERO)?;
             self.code_reader.next();
             tail_call!(self.return_from_op())
@@ -1487,7 +1482,9 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         };
 
         let result = self.context.call(&call_message);
-        self.last_call_return_data = result.output;
+        let (status_code, call_gas_left, call_gas_refund) =
+            (result.status_code(), result.gas_left(), result.gas_refund());
+        self.last_call_return_data = LastCallReturnData::CallResult(result);
         let dest = self
             .memory
             .get_mut_slice(ret_offset, ret_len, &mut self.gas_left)?;
@@ -1495,13 +1492,12 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let min_len = min(output.len(), ret_len as usize); // ret_len == dest.len()
         dest[..min_len].copy_from_slice(&output[..min_len]);
 
-        self.gas_left.add(result.gas_left)?;
+        self.gas_left.add(call_gas_left)?;
         self.gas_left.consume(endowment)?;
         self.gas_left.consume(stipend)?;
-        self.gas_refund.add(result.gas_refund);
+        self.gas_refund.add(call_gas_refund);
 
-        self.stack
-            .push(result.status_code == StatusCode::EVMC_SUCCESS)?;
+        self.stack.push(status_code == StatusCode::EVMC_SUCCESS)?;
         self.code_reader.next();
         tail_call!(self.return_from_op())
     }
@@ -1575,7 +1571,9 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         };
 
         let result = self.context.call(&call_message);
-        self.last_call_return_data = result.output;
+        let (status_code, call_gas_left, call_gas_refund) =
+            (result.status_code(), result.gas_left(), result.gas_refund());
+        self.last_call_return_data = LastCallReturnData::CallResult(result);
         let dest = self
             .memory
             .get_mut_slice(ret_offset, ret_len, &mut self.gas_left)?;
@@ -1583,12 +1581,11 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let min_len = min(output.len(), ret_len as usize); // ret_len == dest.len()
         dest[..min_len].copy_from_slice(&output[..min_len]);
 
-        self.gas_left.add(result.gas_left)?;
+        self.gas_left.add(call_gas_left)?;
         self.gas_left.consume(endowment)?;
-        self.gas_refund.add(result.gas_refund);
+        self.gas_refund.add(call_gas_refund);
 
-        self.stack
-            .push(result.status_code == StatusCode::EVMC_SUCCESS)?;
+        self.stack.push(status_code == StatusCode::EVMC_SUCCESS)?;
         self.code_reader.next();
         tail_call!(self.return_from_op())
     }
@@ -1613,20 +1610,20 @@ impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for StepResult {
             output: value.output,
             stack,
             memory: value.memory.as_slice().to_vec(),
-            last_call_return_data: value.last_call_return_data,
+            last_call_return_data: Box::from(&*value.last_call_return_data),
         }
     }
 }
 
 impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for ExecutionResult {
     fn from(value: Interpreter<STEPPABLE>) -> Self {
-        Self {
-            status_code: value.exec_status.into(),
-            gas_left: value.gas_left.as_u64().cast_signed(),
-            gas_refund: value.gas_refund.as_i64(),
-            output: value.output,
-            create_address: None,
-        }
+        Self::new(
+            value.exec_status.into(),
+            value.gas_left.as_u64().cast_signed(),
+            value.gas_refund.as_i64(),
+            value.output,
+            Address::default(),
+        )
     }
 }
 
@@ -1684,7 +1681,7 @@ mod tests {
             0,
             Stack::new(),
             Memory::new(),
-            Box::default(),
+            &[],
             None,
             &code_analysis_cache,
             &hash_cache,
@@ -1715,13 +1712,13 @@ mod tests {
             0,
             Stack::new(),
             Memory::new(),
-            Box::default(),
+            &[],
             None,
             &code_analysis_cache,
             &hash_cache,
         )
         .run(&mut NoOpObserver());
-        assert_eq!(result.status_code, StatusCode::EVMC_INVALID_INSTRUCTION);
+        assert_eq!(result.status_code(), StatusCode::EVMC_INVALID_INSTRUCTION);
     }
 
     #[test]
@@ -1739,7 +1736,7 @@ mod tests {
             0,
             Stack::new(),
             Memory::new(),
-            Box::default(),
+            &[],
             Some(0),
             &code_analysis_cache,
             &hash_cache,
@@ -1770,7 +1767,7 @@ mod tests {
             0,
             interpreter_stack,
             Memory::new(),
-            Box::default(),
+            &[],
             Some(1),
             &code_analysis_cache,
             &hash_cache,
@@ -1877,7 +1874,7 @@ mod tests {
         );
         interpreter.stack.reset_to(&[1u8.into(), 2u8.into()]);
         let result: ExecutionResult = interpreter.run(&mut NoOpObserver());
-        assert_eq!(result.status_code, StatusCode::EVMC_OUT_OF_GAS);
+        assert_eq!(result.status_code(), StatusCode::EVMC_OUT_OF_GAS);
     }
 
     #[test]
@@ -1928,12 +1925,14 @@ mod tests {
                     && call_message.code_address == Address::from(addr)
                     && call_message.code.is_empty()
             })
-            .returning(move |_| ExecutionResult {
-                status_code: StatusCode::EVMC_SUCCESS,
-                gas_left: 0,
-                gas_refund: 0,
-                output: Box::from(ret_data.as_slice()),
-                create_address: None,
+            .returning(move |_| {
+                ExecutionResult::new(
+                    StatusCode::EVMC_SUCCESS,
+                    0,
+                    0,
+                    Box::from(ret_data.as_slice()),
+                    Address::default(),
+                )
             });
 
         let message = message.into();
@@ -1961,7 +1960,7 @@ mod tests {
             0,
             interpreter_stack,
             interpreter_memory,
-            Box::default(),
+            &[],
             None,
             &code_analysis_cache,
             &hash_cache,

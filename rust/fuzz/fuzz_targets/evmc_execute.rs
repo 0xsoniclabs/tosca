@@ -117,43 +117,42 @@ impl<'a> Arbitrary<'a> for InterpreterArgs<'a> {
         context
             .expect_selfdestruct()
             .return_const(bool::arbitrary(u)?);
-        let execution_result = ExecutionResult {
-            status_code: *u.choose(&[
-                StatusCode::EVMC_SUCCESS,
-                StatusCode::EVMC_FAILURE,
-                StatusCode::EVMC_REVERT,
-                StatusCode::EVMC_OUT_OF_GAS,
-                StatusCode::EVMC_INVALID_INSTRUCTION,
-                StatusCode::EVMC_UNDEFINED_INSTRUCTION,
-                StatusCode::EVMC_STACK_OVERFLOW,
-                StatusCode::EVMC_STACK_UNDERFLOW,
-                StatusCode::EVMC_BAD_JUMP_DESTINATION,
-                StatusCode::EVMC_INVALID_MEMORY_ACCESS,
-                StatusCode::EVMC_CALL_DEPTH_EXCEEDED,
-                StatusCode::EVMC_STATIC_MODE_VIOLATION,
-                StatusCode::EVMC_PRECOMPILE_FAILURE,
-                StatusCode::EVMC_CONTRACT_VALIDATION_FAILURE,
-                StatusCode::EVMC_ARGUMENT_OUT_OF_RANGE,
-                StatusCode::EVMC_WASM_UNREACHABLE_INSTRUCTION,
-                StatusCode::EVMC_WASM_TRAP,
-                StatusCode::EVMC_INSUFFICIENT_BALANCE,
-                StatusCode::EVMC_INTERNAL_ERROR,
-                StatusCode::EVMC_REJECTED,
-                StatusCode::EVMC_OUT_OF_MEMORY,
-            ])?,
-            gas_left: Arbitrary::arbitrary(u)?,
-            gas_refund: Arbitrary::arbitrary(u)?,
-            output: Arbitrary::arbitrary(u)?,
-            create_address: Option::<u256>::arbitrary(u)?.map(Into::into),
-        };
-        let clone_result = move || ExecutionResult {
-            status_code: execution_result.status_code,
-            gas_left: execution_result.gas_left,
-            gas_refund: execution_result.gas_refund,
-            output: execution_result.output.clone(),
-            create_address: execution_result.create_address,
-        };
-        context.expect_call().returning(move |_| clone_result());
+        let status_code = *u.choose(&[
+            StatusCode::EVMC_SUCCESS,
+            StatusCode::EVMC_FAILURE,
+            StatusCode::EVMC_REVERT,
+            StatusCode::EVMC_OUT_OF_GAS,
+            StatusCode::EVMC_INVALID_INSTRUCTION,
+            StatusCode::EVMC_UNDEFINED_INSTRUCTION,
+            StatusCode::EVMC_STACK_OVERFLOW,
+            StatusCode::EVMC_STACK_UNDERFLOW,
+            StatusCode::EVMC_BAD_JUMP_DESTINATION,
+            StatusCode::EVMC_INVALID_MEMORY_ACCESS,
+            StatusCode::EVMC_CALL_DEPTH_EXCEEDED,
+            StatusCode::EVMC_STATIC_MODE_VIOLATION,
+            StatusCode::EVMC_PRECOMPILE_FAILURE,
+            StatusCode::EVMC_CONTRACT_VALIDATION_FAILURE,
+            StatusCode::EVMC_ARGUMENT_OUT_OF_RANGE,
+            StatusCode::EVMC_WASM_UNREACHABLE_INSTRUCTION,
+            StatusCode::EVMC_WASM_TRAP,
+            StatusCode::EVMC_INSUFFICIENT_BALANCE,
+            StatusCode::EVMC_INTERNAL_ERROR,
+            StatusCode::EVMC_REJECTED,
+            StatusCode::EVMC_OUT_OF_MEMORY,
+        ])?;
+        let gas_left = Arbitrary::arbitrary(u)?;
+        let gas_refund = Arbitrary::arbitrary(u)?;
+        let output: Box<[u8]> = Arbitrary::arbitrary(u)?;
+        let create_address = u256::arbitrary(u)?.into();
+        context.expect_call().returning(move |_| {
+            ExecutionResult::new(
+                status_code,
+                gas_left,
+                gas_refund,
+                output.clone(),
+                create_address,
+            )
+        });
         context
             .expect_get_block_hash()
             .return_const(Uint256::from(u256::arbitrary(u)?));

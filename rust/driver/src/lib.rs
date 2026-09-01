@@ -101,7 +101,11 @@ impl Instance {
     ) -> ExecutionResult {
         let execute = self.execute.unwrap();
 
-        unsafe { execute(self.0, host, context, revision, message, code, code_len).into() }
+        unsafe {
+            ExecutionResult::from_raw(execute(
+                self.0, host, context, revision, message, code, code_len,
+            ))
+        }
     }
 
     /// Run the interpreter (the `execute` function) with the supplied values. This is a safe

@@ -11,7 +11,7 @@
 mod container;
 mod types;
 
-use std::{ptr, slice};
+use std::{mem::ManuallyDrop, ptr, slice};
 
 pub use container::{EvmcContainer, SteppableEvmcContainer};
 pub use evmc_sys as ffi;
@@ -62,13 +62,79 @@ pub enum SetOptionError {
 }
 
 /// EVMC result structure.
+///
+/// Owns the raw result including its output buffer, which is released on drop.
 #[derive(Debug)]
 pub struct ExecutionResult {
-    pub status_code: StatusCode,
-    pub gas_left: i64,
-    pub gas_refund: i64,
-    pub output: Box<[u8]>,
-    pub create_address: Option<Address>,
+    result: ffi::evmc_result,
+}
+
+impl ExecutionResult {
+    pub fn new(
+        status_code: StatusCode,
+        gas_left: i64,
+        gas_refund: i64,
+        output: Box<[u8]>,
+        create_address: Address,
+    ) -> Self {
+        let (output_data, output_size) = boxed_slice_into_raw_parts(output);
+        Self {
+            result: ffi::evmc_result {
+                status_code,
+                gas_left,
+                gas_refund,
+                output_data,
+                output_size,
+                release: Some(release_stack_result),
+                create_address,
+                padding: [0u8; 4],
+            },
+        }
+    }
+
+    /// # Safety
+    /// output_data must be null or valid for reads for output_size many bytes until release is
+    /// called. If release is Some it must be safe to call exactly once with a pointer to a copy of
+    /// result, which is what dropping the returned value does.
+    pub unsafe fn from_raw(result: ffi::evmc_result) -> Self {
+        Self { result }
+    }
+
+    pub fn status_code(&self) -> StatusCode {
+        self.result.status_code
+    }
+
+    pub fn gas_left(&self) -> i64 {
+        self.result.gas_left
+    }
+
+    pub fn gas_refund(&self) -> i64 {
+        self.result.gas_refund
+    }
+
+    /// The output data. It is owned by the creator of the result and stays valid until the release
+    /// callback is called, which only happens when self is dropped.
+    pub fn output(&self) -> &[u8] {
+        // SAFETY:
+        // output_data is null or valid for reads for output_size many bytes as long as release was
+        // not called yet.
+        unsafe { slice_from_raw_parts(self.result.output_data, self.result.output_size) }
+    }
+
+    pub fn create_address(&self) -> Address {
+        self.result.create_address
+    }
+}
+
+impl Drop for ExecutionResult {
+    fn drop(&mut self) {
+        if let Some(release) = self.result.release {
+            // SAFETY:
+            // self is being dropped, so release is called exactly once and the result is not used
+            // afterwards.
+            unsafe { release(&self.result) }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -252,7 +318,7 @@ impl<'a> ExecutionContext<'a> {
             code_size,
             code_hash: ptr::null(),
         };
-        unsafe { self.host.call.unwrap()(self.context, &message).into() }
+        unsafe { ExecutionResult::from_raw(self.host.call.unwrap()(self.context, &message)) }
     }
 
     /// Get block hash of an account.
@@ -293,32 +359,6 @@ impl<'a> ExecutionContext<'a> {
     /// Set value of a transient storage key.
     pub fn set_transient_storage(&mut self, address: &Address, key: &Uint256, value: &Uint256) {
         unsafe { self.host.set_transient_storage.unwrap()(self.context, address, key, value) }
-    }
-}
-
-impl From<ffi::evmc_result> for ExecutionResult {
-    fn from(result: ffi::evmc_result) -> Self {
-        let ret = Self {
-            status_code: result.status_code,
-            gas_left: result.gas_left,
-            gas_refund: result.gas_refund,
-            // A fresh allocation is necessary because the data may come from a different allocator
-            // and is released by the release callback.
-            output: Box::from(unsafe {
-                slice_from_raw_parts(result.output_data as *mut u8, result.output_size)
-            }),
-            // Consider it is always valid.
-            create_address: Some(result.create_address),
-        };
-
-        // Release allocated ffi struct.
-        if let Some(release) = result.release {
-            unsafe {
-                release(&result);
-            }
-        }
-
-        ret
     }
 }
 
@@ -364,17 +404,8 @@ unsafe fn slice_from_raw_parts<'a, T>(ptr: *const T, len: usize) -> &'a [T] {
 
 impl From<ExecutionResult> for ffi::evmc_result {
     fn from(value: ExecutionResult) -> Self {
-        let (output_data, output_size) = boxed_slice_into_raw_parts(value.output);
-        Self {
-            status_code: value.status_code,
-            gas_left: value.gas_left,
-            gas_refund: value.gas_refund,
-            output_data,
-            output_size,
-            release: Some(release_stack_result),
-            create_address: value.create_address.unwrap_or_default(),
-            padding: [0u8; 4],
-        }
+        // Skip the drop implementation, the receiver of the raw result has to call release.
+        ManuallyDrop::new(value).result
     }
 }
 
@@ -515,6 +546,8 @@ impl From<ExecutionTxContext<'_>> for ffi::evmc_tx_context {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
     use super::*;
 
     // Test-specific helper to dispose of execution results in unit tests
@@ -528,6 +561,36 @@ mod tests {
                 ));
             }
         }
+    }
+
+    #[test]
+    fn result_releases_output_exactly_once_on_drop() {
+        static RELEASES: AtomicUsize = AtomicUsize::new(0);
+        static OUTPUT: [u8; 4] = [0xde, 0xad, 0xbe, 0xef];
+
+        extern "C" fn count_release(_result: *const ffi::evmc_result) {
+            RELEASES.fetch_add(1, Ordering::SeqCst);
+        }
+
+        // SAFETY:
+        // OUTPUT is static and count_release frees nothing.
+        let r = unsafe {
+            ExecutionResult::from_raw(ffi::evmc_result {
+                status_code: StatusCode::EVMC_SUCCESS,
+                gas_left: 0,
+                gas_refund: 0,
+                output_data: OUTPUT.as_ptr(),
+                output_size: OUTPUT.len(),
+                release: Some(count_release),
+                create_address: Address::default(),
+                padding: [0u8; 4],
+            })
+        };
+
+        assert_eq!(r.output(), &OUTPUT);
+        assert_eq!(RELEASES.load(Ordering::SeqCst), 0);
+        drop(r);
+        assert_eq!(RELEASES.load(Ordering::SeqCst), 1);
     }
 
     #[test]
@@ -545,24 +608,26 @@ mod tests {
             padding: [0u8; 4],
         };
 
-        let r: ExecutionResult = f.into();
+        // SAFETY:
+        // output_data is a leaked box which test_result_dispose reclaims.
+        let r = unsafe { ExecutionResult::from_raw(f) };
 
-        assert_eq!(r.status_code, StatusCode::EVMC_SUCCESS);
-        assert_eq!(r.gas_left, 1337);
-        assert_eq!(r.gas_refund, 21);
-        assert_eq!(r.output.len(), 4);
-        assert!(r.create_address.is_some());
+        assert_eq!(r.status_code(), StatusCode::EVMC_SUCCESS);
+        assert_eq!(r.gas_left(), 1337);
+        assert_eq!(r.gas_refund(), 21);
+        assert_eq!(r.output(), &[0xde, 0xad, 0xbe, 0xef]);
+        assert_eq!(r.create_address(), Address { bytes: [0u8; 20] });
     }
 
     #[test]
     fn result_into_stack_ffi() {
-        let r = ExecutionResult {
-            status_code: StatusCode::EVMC_FAILURE,
-            gas_left: 420,
-            gas_refund: 21,
-            output: vec![0xc0, 0xff, 0xee, 0x71, 0x75].into_boxed_slice(),
-            create_address: None,
-        };
+        let r = ExecutionResult::new(
+            StatusCode::EVMC_FAILURE,
+            420,
+            21,
+            vec![0xc0, 0xff, 0xee, 0x71, 0x75].into_boxed_slice(),
+            Address::default(),
+        );
 
         let f: ffi::evmc_result = r.into();
         unsafe {
@@ -584,13 +649,13 @@ mod tests {
 
     #[test]
     fn result_into_stack_ffi_empty_data() {
-        let r = ExecutionResult {
-            status_code: StatusCode::EVMC_FAILURE,
-            gas_left: 420,
-            gas_refund: 21,
-            output: Box::default(),
-            create_address: None,
-        };
+        let r = ExecutionResult::new(
+            StatusCode::EVMC_FAILURE,
+            420,
+            21,
+            Box::default(),
+            Address::default(),
+        );
 
         let f: ffi::evmc_result = r.into();
         unsafe {
@@ -861,10 +926,10 @@ mod tests {
 
         let b = exe_context.call(&message);
 
-        assert_eq!(b.status_code, StatusCode::EVMC_SUCCESS);
-        assert_eq!(b.gas_left, 2);
-        assert_eq!(b.output, Box::default());
-        assert_eq!(b.create_address, Some(Address::default()));
+        assert_eq!(b.status_code(), StatusCode::EVMC_SUCCESS);
+        assert_eq!(b.gas_left(), 2);
+        assert_eq!(b.output(), &[]);
+        assert_eq!(b.create_address(), Address::default());
     }
 
     #[test]
@@ -894,9 +959,9 @@ mod tests {
 
         let b = exe_context.call(&message);
 
-        assert_eq!(b.status_code, StatusCode::EVMC_SUCCESS);
-        assert_eq!(b.gas_left, 2);
-        assert_eq!(b.output, Box::from(data));
-        assert_eq!(b.create_address, Some(Address::default()));
+        assert_eq!(b.status_code(), StatusCode::EVMC_SUCCESS);
+        assert_eq!(b.gas_left(), 2);
+        assert_eq!(b.output(), &data);
+        assert_eq!(b.create_address(), Address::default());
     }
 }
