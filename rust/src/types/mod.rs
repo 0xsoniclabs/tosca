@@ -13,6 +13,7 @@ mod observer;
 #[cfg(feature = "fn-ptr-conversion-dispatch")]
 mod op_fn_data;
 mod opcode;
+mod output;
 mod stack;
 mod status_code;
 
@@ -32,5 +33,6 @@ pub use observer::*;
 #[cfg(feature = "fn-ptr-conversion-dispatch")]
 pub use op_fn_data::OpFnData;
 pub use opcode::*;
+pub use output::Output;
 pub use stack::Stack;
 pub use status_code::{ExecStatus, FailStatus};

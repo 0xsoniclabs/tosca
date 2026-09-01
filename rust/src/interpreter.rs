@@ -5,7 +5,7 @@ use std::{
 };
 
 use evmc_vm::{
-    AccessStatus, Address, ExecutionMessage, ExecutionResult, MessageFlags, MessageKind, Revision,
+    AccessStatus, ExecutionMessage, ExecutionResult, MessageFlags, MessageKind, Revision,
     StatusCode, StepResult, StorageStatus, Uint256,
 };
 
@@ -14,8 +14,8 @@ use crate::types::GetOpcodeError;
 use crate::{
     types::{
         CodeAnalysisCache, CodeReader, ExecStatus, ExecutionContextTrait, FailStatus,
-        LastCallReturnData, Memory, Observer, Stack, hash_cache::HashCache, new_stack_and_memory,
-        release_stack_and_memory, u256,
+        LastCallReturnData, Memory, Observer, Output, Stack, hash_cache::HashCache,
+        new_stack_and_memory, release_stack_and_memory, u256,
     },
     utils::{Gas, GasRefund, SliceExt, check_min_revision, check_not_read_only, word_size},
 };
@@ -357,7 +357,7 @@ pub struct Interpreter<'a, const STEPPABLE: bool> {
     pub code_reader: CodeReader<'a, STEPPABLE>,
     pub gas_left: Gas,
     pub gas_refund: GasRefund,
-    pub output: Box<[u8]>,
+    pub output: Output,
     pub stack: ManuallyDrop<Stack>,
     pub memory: ManuallyDrop<Memory>,
     pub last_call_return_data: LastCallReturnData<'a>,
@@ -388,7 +388,7 @@ impl<'a> Interpreter<'a, false> {
             ),
             gas_left: Gas::new(message.gas),
             gas_refund: GasRefund::new(0),
-            output: Box::default(),
+            output: Output::default(),
             stack: ManuallyDrop::new(stack),
             memory: ManuallyDrop::new(memory),
             last_call_return_data: LastCallReturnData::Slice(&[]),
@@ -430,7 +430,7 @@ impl<'a> Interpreter<'a, true> {
             ),
             gas_left: Gas::new(message.gas),
             gas_refund: GasRefund::new(gas_refund),
-            output: Box::default(),
+            output: Output::default(),
             stack: ManuallyDrop::new(stack),
             memory: ManuallyDrop::new(memory),
             last_call_return_data: LastCallReturnData::Slice(last_call_return_data),
@@ -1181,7 +1181,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let [len, offset] = self.stack.pop()?;
         let len = u64::try_from(len).map_err(|_| FailStatus::OutOfGas)?;
         let data = self.memory.get_mut_slice(offset, len, &mut self.gas_left)?;
-        self.output = Box::from(&*data);
+        self.output = Output::new(data);
         self.exec_status = ExecStatus::Returned;
         Ok(())
     }
@@ -1190,7 +1190,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let [len, offset] = self.stack.pop()?;
         let len = u64::try_from(len).map_err(|_| FailStatus::OutOfGas)?;
         let data = self.memory.get_mut_slice(offset, len, &mut self.gas_left)?;
-        self.output = Box::from(&*data);
+        self.output = Output::new(data);
         self.exec_status = ExecStatus::Revert;
         Ok(())
     }
@@ -1611,7 +1611,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 }
 
 impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for StepResult {
-    fn from(mut value: Interpreter<STEPPABLE>) -> Self {
+    fn from(value: Interpreter<STEPPABLE>) -> Self {
         let stack = value
             .stack
             .as_slice()
@@ -1626,7 +1626,7 @@ impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for StepResult {
             pc: value.code_reader.pc() as u64,
             gas_left: value.gas_left.as_u64().cast_signed(),
             gas_refund: value.gas_refund.as_i64(),
-            output: std::mem::take(&mut value.output),
+            output: Box::from(value.output.as_slice()),
             stack,
             memory: value.memory.as_slice().to_vec(),
             last_call_return_data: Box::from(&*value.last_call_return_data),
@@ -1636,12 +1636,10 @@ impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for StepResult {
 
 impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for ExecutionResult {
     fn from(mut value: Interpreter<STEPPABLE>) -> Self {
-        Self::new(
+        std::mem::take(&mut value.output).into_execution_result(
             value.exec_status.into(),
             value.gas_left.as_u64().cast_signed(),
             value.gas_refund.as_i64(),
-            std::mem::take(&mut value.output),
-            Address::default(),
         )
     }
 }
