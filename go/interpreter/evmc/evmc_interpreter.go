@@ -92,6 +92,9 @@ func (e *EvmcInterpreter) Run(params tosca.Parameters) (tosca.Result, error) {
 		revision,
 		evmc.Call,
 		params.Static,
+		// EIP-7702 delegated mode: only the host consumes this flag, and Tosca
+		// resolves designators before Run (not part of tosca.Parameters).
+		false,
 		params.Depth,
 		int64(params.Gas),
 		evmc.Address(params.Recipient),
@@ -276,6 +279,11 @@ func (ctx *hostContext) GetTxContext() evmc.TxContext {
 		BlobBaseFee: evmc.Hash(params.BlobBaseFee),
 		BlobHashes:  ctx.evmcBlobHashes,
 	}
+}
+
+// GetBlobHashes returns the same blob hashes that GetTxContext() hands out.
+func (ctx *hostContext) GetBlobHashes() []evmc.Hash {
+	return ctx.evmcBlobHashes
 }
 
 func (ctx *hostContext) GetBlockHash(number int64) evmc.Hash {
