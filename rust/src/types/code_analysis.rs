@@ -120,7 +120,13 @@ impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
 
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     fn analyze_code(code: &[u8]) -> Self {
-        let mut analysis = Vec::with_capacity(code.len() + 1); // +1 for terminator
+        // Every code byte contributes at most one entry: opcodes and data bytes one each, push
+        // data one padding entry per byte but only if a jump destination follows it. So
+        // code.len() + 1 is an upper bound, not the exact count, and since an Arc cannot be shrunk
+        // the unused tail is filled with terminators below.
+        let mut analysis = Arc::new_uninit_slice(code.len() + 1); // +1 for terminator
+        let entries = Arc::get_mut(&mut analysis).unwrap();
+        let mut index = 0;
 
         let mut pc = 0;
         let mut no_ops = 0;
@@ -131,10 +137,17 @@ impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
             match code_byte_type {
                 CodeByteType::JumpDest => {
                     if no_ops > 0 {
-                        analysis.extend(OpFnData::skip_no_ops_iter(no_ops, pc - 1));
+                        // for_each vectorizes the repeated entry, unlike a for loop.
+                        OpFnData::skip_no_ops_iter(no_ops, pc - 1)
+                            .enumerate()
+                            .for_each(|(i, entry)| {
+                                entries[index + i].write(entry);
+                            });
+                        index += no_ops;
                     }
                     no_ops = 0;
-                    analysis.push(OpFnData::jump_dest(pc - 1));
+                    entries[index].write(OpFnData::jump_dest(pc - 1));
+                    index += 1;
                 }
                 CodeByteType::Push => {
                     // Copying a fixed size window of the code to offset `32 - data_len` right
@@ -148,26 +161,34 @@ impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
                         buf[32 - data_len..32 - data_len + avail].copy_from_slice(&code[pc..]);
                     }
                     let data = u256::from_be_bytes_words(*buf[..32].as_array().unwrap());
-                    analysis.push(OpFnData::func(op, data, pc - 1));
+                    entries[index].write(OpFnData::func(op, data, pc - 1));
+                    index += 1;
 
                     no_ops += data_len;
                     pc += data_len;
                 }
                 CodeByteType::Opcode => {
-                    analysis.push(OpFnData::func(op, u256::ZERO, pc - 1));
+                    entries[index].write(OpFnData::func(op, u256::ZERO, pc - 1));
+                    index += 1;
                 }
                 CodeByteType::DataOrInvalid => {
                     // This should only be the case if an invalid opcode was not preceded by a push.
                     // In this case we don't care what the data contains.
-                    analysis.push(OpFnData::data(u256::ZERO, pc - 1));
+                    entries[index].write(OpFnData::data(u256::ZERO, pc - 1));
+                    index += 1;
                 }
             };
         }
 
-        // Let the analysis always end with the terminator so dispatching needs no bounds check.
-        analysis.push(OpFnData::terminator(pc));
+        // The walk writes at most one entry per code byte, so at least one of the code.len() + 1
+        // entries is left over: the analysis always ends with the terminator and dispatching
+        // needs no bounds check. Filling all remaining entries initializes the whole allocation.
+        for entry in &mut entries[index..] {
+            entry.write(OpFnData::terminator(pc));
+        }
 
-        Self(analysis.into())
+        // SAFETY: the loop above initialized every entry the walk did not write.
+        Self(unsafe { analysis.assume_init() })
     }
 }
 
@@ -417,6 +438,7 @@ mod tests {
                 OpFnData::<false>::func(Opcode::Push1 as u8, (Opcode::Add as u8).into(), 0),
                 OpFnData::<false>::func(Opcode::Add as u8, u256::ZERO, 2),
                 OpFnData::terminator(3),
+                OpFnData::terminator(3),
             ]
         );
         assert_eq!(
@@ -424,6 +446,7 @@ mod tests {
             [
                 OpFnData::<false>::func(Opcode::Push1 as u8, (Opcode::Add as u8).into(), 0),
                 OpFnData::data(u256::ZERO, 2),
+                OpFnData::terminator(3),
                 OpFnData::terminator(3),
             ]
         );
@@ -438,6 +461,7 @@ mod tests {
                 OpFnData::<false>::func(Opcode::Push1 as u8, (Opcode::Add as u8).into(), 0),
                 OpFnData::data(u256::ZERO, 2),
                 OpFnData::<false>::func(Opcode::Add as u8, u256::ZERO, 3),
+                OpFnData::terminator(4),
                 OpFnData::terminator(4),
             ]
         );
@@ -455,6 +479,8 @@ mod tests {
                     0
                 ),
                 OpFnData::<false>::func(Opcode::Add as u8, u256::ZERO, 3),
+                OpFnData::terminator(4),
+                OpFnData::terminator(4),
                 OpFnData::terminator(4),
             ]
         );
@@ -473,6 +499,8 @@ mod tests {
                 ),
                 OpFnData::data(u256::ZERO, 3),
                 OpFnData::terminator(4),
+                OpFnData::terminator(4),
+                OpFnData::terminator(4),
             ]
         );
         let mut code = [0; 23];
@@ -490,6 +518,27 @@ mod tests {
                 ),
                 OpFnData::<false>::func(Opcode::Add as u8, u256::ZERO, 22),
                 OpFnData::terminator(23),
+                OpFnData::terminator(23),
+                OpFnData::terminator(23),
+                OpFnData::terminator(23),
+                OpFnData::terminator(23),
+                OpFnData::terminator(23),
+                OpFnData::terminator(23),
+                OpFnData::terminator(23),
+                OpFnData::terminator(23),
+                OpFnData::terminator(23),
+                OpFnData::terminator(23),
+                OpFnData::terminator(23),
+                OpFnData::terminator(23),
+                OpFnData::terminator(23),
+                OpFnData::terminator(23),
+                OpFnData::terminator(23),
+                OpFnData::terminator(23),
+                OpFnData::terminator(23),
+                OpFnData::terminator(23),
+                OpFnData::terminator(23),
+                OpFnData::terminator(23),
+                OpFnData::terminator(23),
             ]
         );
 
@@ -498,6 +547,7 @@ mod tests {
             *CodeAnalysis::<false>::analyze_code(&[Opcode::Push2 as u8, 0xff]),
             [
                 OpFnData::<false>::func(Opcode::Push2 as u8, u256::from(0xff00u32), 0),
+                OpFnData::terminator(3),
                 OpFnData::terminator(3),
             ]
         );
