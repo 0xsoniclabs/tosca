@@ -43,6 +43,10 @@ type Expression[T any] interface {
 	// states.
 	Restrict(kind RestrictionKind, value T, generator *gen.StateGenerator)
 
+	// ToSmt encodes this expression as an SMT-LIB term over the state model
+	// declared by SmtStateModel.
+	ToSmt() SmtTerm
+
 	fmt.Stringer
 }
 
@@ -85,6 +89,8 @@ func (status) String() string {
 	return "status"
 }
 
+func (status) ToSmt() SmtTerm { return SmtTerm{Term: "status"} }
+
 ////////////////////////////////////////////////////////////
 // Program Counter
 
@@ -124,6 +130,8 @@ func (e pc) BindTo(generator *gen.StateGenerator) {
 	generator.BindPc(e.GetVariable())
 }
 
+func (pc) ToSmt() SmtTerm { return SmtTerm{Term: "pc"} }
+
 ////////////////////////////////////////////////////////////
 // Gas Counter
 
@@ -159,6 +167,8 @@ func (gas) Restrict(kind RestrictionKind, amount tosca.Gas, generator *gen.State
 func (gas) String() string {
 	return "Gas"
 }
+
+func (gas) ToSmt() SmtTerm { return SmtTerm{Term: "gas"} }
 
 ////////////////////////////////////////////////////////////
 // SelfAddress - the address of the called contract
@@ -196,6 +206,8 @@ func (s selfAddress) BindTo(generator *gen.StateGenerator) {
 	generator.BindToSelfAddress(s.GetVariable())
 }
 
+func (selfAddress) ToSmt() SmtTerm { return SmtTerm{Term: "selfAddress"} }
+
 // //////////////////////////////////////////////////////////
 // Read Only Mode
 type readOnly struct{}
@@ -222,6 +234,8 @@ func (readOnly) Restrict(kind RestrictionKind, isSet bool, generator *gen.StateG
 func (readOnly) String() string {
 	return "readOnly"
 }
+
+func (readOnly) ToSmt() SmtTerm { return SmtTerm{Term: "readOnly"} }
 
 ////////////////////////////////////////////////////////////
 // Balance
@@ -269,6 +283,8 @@ func (b balance) String() string {
 	return fmt.Sprintf("balance(%v)", b.account)
 }
 
+func (b balance) ToSmt() SmtTerm { return smtApply("balance", b.account.ToSmt()) }
+
 ////////////////////////////////////////////////////////////
 // Code Operation
 
@@ -314,6 +330,13 @@ func (e op) String() string {
 	return fmt.Sprintf("code[%v]", e.position)
 }
 
+func (e op) ToSmt() SmtTerm {
+	position := e.position.ToSmt()
+	res := smtApply("code", position)
+	res.Guards = append(res.Guards, smtApply("isCode", position).Term)
+	return res
+}
+
 ////////////////////////////////////////////////////////////
 // Stack Size
 
@@ -349,6 +372,8 @@ func (stackSize) Restrict(kind RestrictionKind, size int, generator *gen.StateGe
 func (stackSize) String() string {
 	return "stackSize"
 }
+
+func (stackSize) ToSmt() SmtTerm { return SmtTerm{Term: "stackSize"} }
 
 ////////////////////////////////////////////////////////////
 // Instruction Parameter
@@ -399,6 +424,13 @@ func (p param) BindTo(generator *gen.StateGenerator) {
 	generator.BindStackValue(p.position, p.GetVariable())
 }
 
+func (p param) ToSmt() SmtTerm {
+	return SmtTerm{
+		Term:   fmt.Sprintf("(param %d)", p.position),
+		Guards: []string{fmt.Sprintf("(< %d stackSize)", p.position)},
+	}
+}
+
 ////////////////////////////////////////////////////////////
 // Constants
 
@@ -442,6 +474,8 @@ func (c constant) BindTo(generator *gen.StateGenerator) {
 	generator.BindValue(c.GetVariable(), c.value)
 }
 
+func (c constant) ToSmt() SmtTerm { return SmtTerm{Term: smtLiteral(c.value)} }
+
 ////////////////////////////////////////////////////////////
 // ToAddress
 
@@ -480,3 +514,5 @@ func (a toAddress) GetVariable() gen.Variable {
 func (a toAddress) BindTo(generator *gen.StateGenerator) {
 	a.expr.BindTo(generator)
 }
+
+func (a toAddress) ToSmt() SmtTerm { return smtApply("toAddress", a.expr.ToSmt()) }

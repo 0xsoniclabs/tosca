@@ -31,12 +31,15 @@ func TestEffect_Change(t *testing.T) {
 }
 
 func TestEffect_String(t *testing.T) {
-	pcAdd1 := Change(func(s *st.State) {
-		s.Pc += 1
-	})
-
-	if pcAdd1.String() != "change" {
-		t.Errorf("effect string is wrong")
+	tests := map[string]Effect{
+		"change": Change(func(*st.State) {}),
+		"none":   NoEffect(),
+		"fail":   FailEffect(),
+	}
+	for want, effect := range tests {
+		if got := effect.String(); got != want {
+			t.Errorf("unexpected effect string: want %s, got %s", want, got)
+		}
 	}
 }
 

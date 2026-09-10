@@ -44,13 +44,33 @@ func (c *change) String() string {
 
 ////////////////////////////////////////////////////////////
 
+type noEffect struct{}
+
+// NoEffect returns an effect leaving the state unchanged. The returned effect
+// is comparable, so that rules without an effect can be identified.
 func NoEffect() Effect {
-	return Change(func(*st.State) {})
+	return noEffect{}
 }
 
+func (noEffect) Apply(*st.State) {}
+
+func (noEffect) String() string {
+	return "none"
+}
+
+type failEffect struct{}
+
+// FailEffect returns the effect of a failing instruction. The returned effect
+// is comparable, so that rules with a failing effect can be identified.
 func FailEffect() Effect {
-	return Change(func(s *st.State) {
-		s.Status = st.Failed
-		s.Gas = 0
-	})
+	return failEffect{}
+}
+
+func (failEffect) Apply(s *st.State) {
+	s.Status = st.Failed
+	s.Gas = 0
+}
+
+func (failEffect) String() string {
+	return "fail"
 }

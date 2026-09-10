@@ -34,6 +34,10 @@ type Condition interface {
 	// by this constraint.
 	GetTestValues() []TestValue
 
+	// ToSmt encodes this Condition as an SMT-LIB formula over the state model
+	// declared by SmtStateModel.
+	ToSmt() string
+
 	fmt.Stringer
 }
 
@@ -101,6 +105,17 @@ func (c *conjunction) String() string {
 	return builder.String()
 }
 
+func (c *conjunction) ToSmt() string {
+	if len(c.conditions) == 0 {
+		return "true"
+	}
+	terms := make([]string, len(c.conditions))
+	for i, cur := range c.conditions {
+		terms[i] = cur.ToSmt()
+	}
+	return fmt.Sprintf("(and %s)", strings.Join(terms, " "))
+}
+
 ////////////////////////////////////////////////////////////
 // Equal
 
@@ -143,6 +158,8 @@ func (e *eq[T]) String() string {
 	return fmt.Sprintf("%s = %v", e.lhs, e.rhs)
 }
 
+func (e *eq[T]) ToSmt() string { return smtCompare("=", e.lhs.ToSmt(), e.rhs) }
+
 ////////////////////////////////////////////////////////////
 // Not Equal
 
@@ -176,6 +193,8 @@ func (e *ne[T]) GetTestValues() []TestValue {
 func (e *ne[T]) String() string {
 	return fmt.Sprintf("%s ≠ %v", e.lhs, e.rhs)
 }
+
+func (e *ne[T]) ToSmt() string { return smtCompare("distinct", e.lhs.ToSmt(), e.rhs) }
 
 ////////////////////////////////////////////////////////////
 // Less Than
@@ -211,6 +230,8 @@ func (c *lt[T]) String() string {
 	return fmt.Sprintf("%s < %v", c.lhs, c.rhs)
 }
 
+func (c *lt[T]) ToSmt() string { return smtCompare("<", c.lhs.ToSmt(), c.rhs) }
+
 ////////////////////////////////////////////////////////////
 // Less Equal
 
@@ -243,6 +264,8 @@ func (c *le[T]) GetTestValues() []TestValue {
 func (c *le[T]) String() string {
 	return fmt.Sprintf("%s ≤ %v", c.lhs, c.rhs)
 }
+
+func (c *le[T]) ToSmt() string { return smtCompare("<=", c.lhs.ToSmt(), c.rhs) }
 
 ////////////////////////////////////////////////////////////
 // Greater Than
@@ -278,6 +301,8 @@ func (c *gt[T]) String() string {
 	return fmt.Sprintf("%s > %v", c.lhs, c.rhs)
 }
 
+func (c *gt[T]) ToSmt() string { return smtCompare(">", c.lhs.ToSmt(), c.rhs) }
+
 ////////////////////////////////////////////////////////////
 // Greater Equal
 
@@ -310,6 +335,8 @@ func (c *ge[T]) GetTestValues() []TestValue {
 func (c *ge[T]) String() string {
 	return fmt.Sprintf("%s ≥ %v", c.lhs, c.rhs)
 }
+
+func (c *ge[T]) ToSmt() string { return smtCompare(">=", c.lhs.ToSmt(), c.rhs) }
 
 ////////////////////////////////////////////////////////////
 // Revision Bounds
@@ -375,6 +402,10 @@ func (c *revisionBounds) String() string {
 	return fmt.Sprintf("revision(%v-%v)", c.min, c.max)
 }
 
+func (c *revisionBounds) ToSmt() string {
+	return fmt.Sprintf("(and (<= %d revision) (<= revision %d))", c.min, c.max)
+}
+
 ////////////////////////////////////////////////////////////
 // Is Code
 
@@ -425,6 +456,8 @@ func (c *isCode) String() string {
 	return fmt.Sprintf("isCode[%s]", c.position)
 }
 
+func (c *isCode) ToSmt() string { return smtPredicate("isCode", c.position.ToSmt()) }
+
 ////////////////////////////////////////////////////////////
 // Is Data
 
@@ -460,6 +493,8 @@ func (c *isData) GetTestValues() []TestValue {
 func (c *isData) String() string {
 	return fmt.Sprintf("isData[%s]", c.position)
 }
+
+func (c *isData) ToSmt() string { return smtNegatedPredicate("isCode", c.position.ToSmt()) }
 
 ////////////////////////////////////////////////////////////
 // Is Storage Warm
@@ -508,6 +543,8 @@ func (c *isStorageWarm) String() string {
 	return fmt.Sprintf("warm(%v)", c.key)
 }
 
+func (c *isStorageWarm) ToSmt() string { return smtPredicate("storageWarm", c.key.ToSmt()) }
+
 ////////////////////////////////////////////////////////////
 // Is Storage Cold
 
@@ -540,6 +577,8 @@ func (c *isStorageCold) GetTestValues() []TestValue {
 func (c *isStorageCold) String() string {
 	return fmt.Sprintf("cold(%v)", c.key)
 }
+
+func (c *isStorageCold) ToSmt() string { return smtNegatedPredicate("storageWarm", c.key.ToSmt()) }
 
 ////////////////////////////////////////////////////////////
 // Storage Configuration
@@ -591,6 +630,10 @@ func (c *storageConfiguration) String() string {
 	return fmt.Sprintf("StorageConfiguration(%v,%v,%v)", c.config, c.key, c.newValue)
 }
 
+func (c *storageConfiguration) ToSmt() string {
+	return smtEnumerated("storageStatus", c.config, c.key.ToSmt(), c.newValue.ToSmt())
+}
+
 ////////////////////////////////////////////////////////////
 // Bind Transient Storage to non zero value
 
@@ -638,6 +681,10 @@ func (c *bindTransientStorageToNonZero) String() string {
 	return fmt.Sprintf("Transient storage at [%v] is bound to non zero", c.key)
 }
 
+func (c *bindTransientStorageToNonZero) ToSmt() string {
+	return smtNegatedPredicate("transientStorageIsZero", c.key.ToSmt())
+}
+
 ////////////////////////////////////////////////////////////
 // Bind Transient Storage to zero value
 
@@ -666,6 +713,10 @@ func (c *bindTransientStorageToZero) GetTestValues() []TestValue {
 
 func (c *bindTransientStorageToZero) String() string {
 	return fmt.Sprintf("Transient storage at [%v] is bound to zero", c.key)
+}
+
+func (c *bindTransientStorageToZero) ToSmt() string {
+	return smtPredicate("transientStorageIsZero", c.key.ToSmt())
 }
 
 ////////////////////////////////////////////////////////////
@@ -712,6 +763,8 @@ func (c *accountIsEmpty) String() string {
 	return fmt.Sprintf("account_empty(%v)", c.address)
 }
 
+func (c *accountIsEmpty) ToSmt() string { return smtPredicate("accountEmpty", c.address.ToSmt()) }
+
 ////////////////////////////////////////////////////////////
 // Address not empty
 
@@ -740,6 +793,10 @@ func (c *accountIsNotEmpty) GetTestValues() []TestValue {
 
 func (c *accountIsNotEmpty) String() string {
 	return fmt.Sprintf("!account_empty(%v)", c.address)
+}
+
+func (c *accountIsNotEmpty) ToSmt() string {
+	return smtNegatedPredicate("accountEmpty", c.address.ToSmt())
 }
 
 ////////////////////////////////////////////////////////////
@@ -778,6 +835,8 @@ func (c *isAddressWarm) String() string {
 	return fmt.Sprintf("account warm(%v)", c.key)
 }
 
+func (c *isAddressWarm) ToSmt() string { return smtPredicate("accountWarm", c.key.ToSmt()) }
+
 ////////////////////////////////////////////////////////////
 // Is Address Cold
 
@@ -810,6 +869,8 @@ func (c *isAddressCold) GetTestValues() []TestValue {
 func (c *isAddressCold) String() string {
 	return fmt.Sprintf("account_cold(%v)", c.key)
 }
+
+func (c *isAddressCold) ToSmt() string { return smtNegatedPredicate("accountWarm", c.key.ToSmt()) }
 
 func restrictAccountWarmCold(bindKey BindableExpression[U256]) func(generator *gen.StateGenerator, isWarm bool) {
 	return func(generator *gen.StateGenerator, isWarm bool) {
@@ -862,6 +923,8 @@ func (c *isNewContract) String() string {
 
 }
 
+func (c *isNewContract) ToSmt() string { return "isNewContract" }
+
 ////////////////////////////////////////////////////////////
 // Is not new contract
 
@@ -888,6 +951,8 @@ func (c *isNotNewContract) GetTestValues() []TestValue {
 func (c *isNotNewContract) String() string {
 	return "isNotNewContract()"
 }
+
+func (c *isNotNewContract) ToSmt() string { return "(not isNewContract)" }
 
 ////////////////////////////////////////////////////////////
 // Has Self-Destructed
@@ -927,6 +992,8 @@ func (c *hasSelfDestructed) String() string {
 	return "hasSelfDestructed()"
 }
 
+func (c *hasSelfDestructed) ToSmt() string { return "hasSelfDestructed" }
+
 ////////////////////////////////////////////////////////////
 // Has Not Self-Destructed
 
@@ -952,6 +1019,8 @@ func (c *hasNotSelfDestructed) GetTestValues() []TestValue {
 func (c *hasNotSelfDestructed) String() string {
 	return "hasNotSelfDestructed()"
 }
+
+func (c *hasNotSelfDestructed) ToSmt() string { return "(not hasSelfDestructed)" }
 
 ////////////////////////////////////////////////////////////
 // In Range 256 From Current Block
@@ -1006,6 +1075,10 @@ func (c *inRange256FromCurrentBlock) String() string {
 	return c.blockNumber.String()
 }
 
+func (c *inRange256FromCurrentBlock) ToSmt() string {
+	return smtPredicate("inRange256FromCurrentBlock", c.blockNumber.ToSmt())
+}
+
 ////////////////////////////////////////////////////////////
 // Out Of Range 256 From Current Block
 
@@ -1034,6 +1107,10 @@ func (c *outOfRange256FromCurrentBlock) GetTestValues() []TestValue {
 
 func (c *outOfRange256FromCurrentBlock) String() string {
 	return c.blockNumber.String()
+}
+
+func (c *outOfRange256FromCurrentBlock) ToSmt() string {
+	return smtNegatedPredicate("inRange256FromCurrentBlock", c.blockNumber.ToSmt())
 }
 
 ////////////////////////////////////////////////////////////
@@ -1089,6 +1166,8 @@ func (c *hasBlobHash) String() string {
 	return fmt.Sprintf("%v has BlobHash", c.index.String())
 }
 
+func (c *hasBlobHash) ToSmt() string { return smtPredicate("hasBlobHash", c.index.ToSmt()) }
+
 ////////////////////////////////////////////////////////////
 // index does not have a blob hash
 
@@ -1118,6 +1197,8 @@ func (c *hasNoBlobHash) GetTestValues() []TestValue {
 func (c *hasNoBlobHash) String() string {
 	return fmt.Sprintf("%v does not have BlobHash", c.index.String())
 }
+
+func (c *hasNoBlobHash) ToSmt() string { return smtNegatedPredicate("hasBlobHash", c.index.ToSmt()) }
 
 ////////////////////////////////////////////////////////////////////////////////
 // callee account contains a delegation designator in code
@@ -1195,4 +1276,8 @@ func (c *containsDelegationDesignation) String() string {
 	default:
 		return "unknown DelegationDesignatorState"
 	}
+}
+
+func (c *containsDelegationDesignation) ToSmt() string {
+	return smtEnumerated("delegationDesignation", c.state, c.address.ToSmt())
 }
