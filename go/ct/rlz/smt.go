@@ -58,7 +58,7 @@ func SmtStateModel() string {
 (declare-fun delegationDesignation (Int) Int)
 
 (assert (and (<= 0 status) (< status %d)))
-(assert (and (<= %d revision) (<= revision %d)))
+(assert (or (and (<= %d revision) (<= revision %d)) (= revision %d)))
 (assert (<= 0 pc))
 (assert (<= 0 gas))
 (assert (and (<= 0 stackSize) (<= stackSize %d)))
@@ -73,7 +73,7 @@ func SmtStateModel() string {
 (assert (forall ((k Int) (v Int)) (=> (> (storageStatus k v) %d) (storageWarm k))))
 `,
 		st.NumStatusCodes,
-		MinRevision, NewestSupportedRevision,
+		MinRevision, NewestSupportedRevision, R99_UnknownNextRevision,
 		st.MaxStackSize,
 		tosca.StorageModifiedRestored,
 		ColdDelegationDesignation,

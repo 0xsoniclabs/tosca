@@ -87,7 +87,7 @@ func getAllRules() []Rule {
 
 		{
 			Name:      "pc_on_data_is_ignored",
-			Condition: IsData(Pc()),
+			Condition: And(AnyKnownRevision(), IsData(Pc())),
 			Effect:    NoEffect(),
 		},
 	}...)
