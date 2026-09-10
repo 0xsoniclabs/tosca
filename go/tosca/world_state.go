@@ -73,18 +73,18 @@ type StorageStatus int
 const (
 	// The comment indicates the storage values for the corresponding
 	// configuration. X, Y, Z are non-zero numbers, distinct from each other,
-	// while 0 is zero.
+	// while 0 is zero. A|B stands for either A or B.
 	//
 	// <original> -> <current> -> <new>
-	StorageAssigned         StorageStatus = iota
-	StorageAdded                          // 0 -> 0 -> Z
-	StorageDeleted                        // X -> X -> 0
-	StorageModified                       // X -> X -> Z
-	StorageDeletedAdded                   // X -> 0 -> Z
-	StorageModifiedDeleted                // X -> Y -> 0
-	StorageDeletedRestored                // X -> 0 -> X
-	StorageAddedDeleted                   // 0 -> Y -> 0
-	StorageModifiedRestored               // X -> Y -> X
+	StorageAssigned         StorageStatus = iota // all remaining: 0|X -> 0 -> 0, 0|X|Y -> Y -> Y, 0|X -> Y -> Z
+	StorageAdded                                 // 0 -> 0 -> Z
+	StorageDeleted                               // X -> X -> 0
+	StorageModified                              // X -> X -> Z
+	StorageDeletedAdded                          // X -> 0 -> Z
+	StorageModifiedDeleted                       // X -> Y -> 0
+	StorageDeletedRestored                       // X -> 0 -> X
+	StorageAddedDeleted                          // 0 -> Y -> 0
+	StorageModifiedRestored                      // X -> Y -> X
 )
 
 func (config StorageStatus) String() string {

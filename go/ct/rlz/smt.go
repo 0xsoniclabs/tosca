@@ -67,12 +67,17 @@ func SmtStateModel() string {
 (assert (forall ((a Int)) (<= 0 (balance a))))
 (assert (forall ((k Int) (v Int)) (and (<= 0 (storageStatus k v)) (<= (storageStatus k v) %d))))
 (assert (forall ((a Int)) (and (<= 0 (delegationDesignation a)) (<= (delegationDesignation a) %d))))
+
+; Storage statuses beyond StorageModified have a current value different from
+; the original one, so the slot was written in this transaction and is warm.
+(assert (forall ((k Int) (v Int)) (=> (> (storageStatus k v) %d) (storageWarm k))))
 `,
 		st.NumStatusCodes,
 		MinRevision, NewestSupportedRevision,
 		st.MaxStackSize,
 		tosca.StorageModifiedRestored,
 		ColdDelegationDesignation,
+		tosca.StorageModified,
 	)
 }
 
