@@ -1,6 +1,47 @@
-use std::cmp::min;
+use std::{
+    cmp::min,
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+    ptr::NonNull,
+};
 
 use crate::types::{FailStatus, u256};
+
+/// The number of elements in a [`StackBuffer`], which is the EVM stack limit.
+const CAPACITY: usize = 1024;
+
+/// Owns the memory a [`Stack`] lives in; the stack itself only borrows it. Between two borrows
+/// the buffer keeps the elements, so a stack can be recreated from it with [`Stack::with_len`].
+#[derive(Debug)]
+pub struct StackBuffer(Box<[u256; CAPACITY]>);
+
+impl StackBuffer {
+    pub fn new() -> Self {
+        let buffer = vec![u256::ZERO; CAPACITY].into_boxed_slice().try_into();
+        // try_into cannot fail, the vector has exactly CAPACITY elements
+        Self(buffer.unwrap_or_else(|_| unreachable!()))
+    }
+}
+
+impl Deref for StackBuffer {
+    type Target = [u256; CAPACITY];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for StackBuffer {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl Default for StackBuffer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// This type is created by calling [`Stack::pop_with_location`] and is intended to replace pushing
 /// to the stack directly. It and avoids the stack overflow check when pushing because it is no
@@ -20,44 +61,136 @@ impl PushLocation<'_> {
     }
 }
 
+/// A stack occupying the top of a borrowed fixed-size buffer and growing downward: element 0 is
+/// the top of the stack and pushing moves the top towards the start of the buffer. Anchoring at
+/// the moving top instead of the fixed start keeps element accesses at constant offsets, and the
+/// downward growth lets the length checks double as the bounds proofs for those accesses.
+///
+/// It is two words, so it is passed through the handler chain by value in registers, and it
+/// borrows the buffer, so it cannot outlive it.
+///
+/// Conceptually this is the `&mut [u256]` covering the used suffix of the buffer. It is stored as
+/// its raw parts because growing must move the pointer below the slice, which the provenance of a
+/// reborrowed suffix does not allow; the pointer here retains the provenance of the full buffer it
+/// was created from. All unsafe code is confined to this type; its soundness rests on the
+/// invariant that `top` points `len` elements before the end of a buffer of `CAP` initialized
+/// elements, exclusively borrowed for `'m`.
 #[derive(Debug)]
-pub struct Stack(Vec<u256>);
+pub struct SuffixStack<'m, const CAP: usize> {
+    /// The top element; one past the buffer's last element when the stack is empty.
+    top: NonNull<u256>,
+    len: usize,
+    _buffer: PhantomData<&'m mut [u256; CAP]>,
+}
 
-impl Stack {
-    const CAPACITY: usize = 1024;
-
-    #[inline(always)]
-    pub fn new() -> Self {
-        Self(Vec::with_capacity(Self::CAPACITY))
+impl<'m, const CAP: usize> SuffixStack<'m, CAP> {
+    pub fn new(buffer: &'m mut [u256; CAP]) -> Self {
+        Self::with_len(buffer, 0)
     }
 
-    /// Replaces the content of the stack with the first [`Self::CAPACITY`] elements of `inner`.
-    pub fn reset_to(&mut self, inner: &[u256]) {
-        let len = min(inner.len(), Self::CAPACITY);
-        self.0.clear();
-        self.0.extend_from_slice(&inner[..len]);
-    }
-
-    pub fn as_slice(&self) -> &[u256] {
-        self.0.as_slice()
+    /// The stack made up of the last `len` elements of the buffer, e.g. the one a previous borrow
+    /// of the buffer left behind. Lengths beyond the capacity are clamped to it.
+    pub fn with_len(buffer: &'m mut [u256; CAP], len: usize) -> Self {
+        let len = min(len, CAP);
+        let start = NonNull::from(buffer).cast::<u256>();
+        Self {
+            // SAFETY:
+            // len <= CAP, so the top stays inside the buffer or one past its last element.
+            top: unsafe { start.add(CAP - len) },
+            len,
+            _buffer: PhantomData,
+        }
     }
 
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.len
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    /// The number of free slots below the top.
+    pub fn free(&self) -> usize {
+        CAP - self.len
+    }
+
+    /// The used part of the buffer, top of the stack first.
+    pub fn as_slice(&self) -> &[u256] {
+        // SAFETY:
+        // The len elements starting at top are the used part of the exclusively borrowed buffer,
+        // which is initialized in its entirety (invariant).
+        unsafe { std::slice::from_raw_parts(self.top.as_ptr(), self.len) }
+    }
+
+    /// See [`SuffixStack::as_slice`].
+    pub fn as_mut_slice(&mut self) -> &mut [u256] {
+        // SAFETY:
+        // As in as_slice, and the buffer is exclusively borrowed by self.
+        unsafe { std::slice::from_raw_parts_mut(self.top.as_ptr(), self.len) }
+    }
+
+    /// The top of the stack.
+    pub fn peek(&self) -> Option<&u256> {
+        self.as_slice().first()
+    }
+
+    /// Iterates over the used part of the buffer, bottom of the stack first.
+    pub fn iter_from_bottom(&self) -> impl Iterator<Item = &u256> {
+        self.as_slice().iter().rev()
+    }
+
+    /// Grows the stack by one slot and returns that slot, which still holds its previous value,
+    /// or [`None`] when the stack is full.
+    pub fn grow(&mut self) -> Option<&mut u256> {
+        if self.len == CAP {
+            std::hint::cold_path();
+            return None;
+        }
+        // SAFETY:
+        // len < CAP, so there is a free slot directly below the top, and the pointer retains the
+        // provenance of the full buffer, so it may be moved onto that slot.
+        self.top = unsafe { self.top.sub(1) };
+        self.len += 1;
+        // SAFETY:
+        // The slot is inside the exclusively borrowed, fully initialized buffer.
+        Some(unsafe { &mut *self.top.as_ptr() })
+    }
+
+    /// Shrinks the stack by `n` slots, or returns [`None`] when it holds fewer than `n` elements.
+    pub fn shrink(&mut self, n: usize) -> Option<()> {
+        if self.len < n {
+            std::hint::cold_path();
+            return None;
+        }
+        // SAFETY:
+        // n <= len, so the new top stays inside the buffer or one past its last element.
+        self.top = unsafe { self.top.add(n) };
+        self.len -= n;
+        Some(())
+    }
+}
+
+/// The interpreter stack.
+pub type Stack<'m> = SuffixStack<'m, CAPACITY>;
+
+impl<'m> Stack<'m> {
+    /// A stack filled with `values`, where the last value is the top of the stack. Values beyond
+    /// the stack capacity are ignored.
+    pub fn new_with(buffer: &'m mut StackBuffer, values: &[u256]) -> Self {
+        let mut stack = Self::new(buffer);
+        for value in values.iter().take(CAPACITY) {
+            // push cannot fail, at most CAPACITY values are pushed
+            let _ = stack.push(*value);
+        }
+        stack
     }
 
     pub fn push(&mut self, value: impl Into<u256>) -> Result<(), FailStatus> {
-        self.check_overflow(1)?;
-        #[cfg(feature = "unsafe-stack")]
-        // SAFETY:
-        // Self::new is the only constructor and allocates Self::CAPACITY, nothing shrinks the
-        // buffer, and check_overflow guarantees that the length is below Self::CAPACITY.
-        unsafe {
-            std::hint::assert_unchecked(
-                self.0.capacity() >= Self::CAPACITY && self.0.len() < Self::CAPACITY,
-            );
-        }
-        self.0.push(value.into());
+        let Some(slot) = self.grow() else {
+            return Err(FailStatus::StackOverflow);
+        };
+        *slot = value.into();
         Ok(())
     }
 
@@ -68,9 +201,8 @@ impl Stack {
 
         // Swapping through two disjoint subslices instead of via [`slice::swap`] lets the
         // compiler shuffle the values in registers instead of copying them through the stack.
-        let len = self.0.len();
-        let (rest, top) = self.0.split_at_mut(len - 1);
-        std::mem::swap(&mut rest[len - 1 - N], &mut top[0]);
+        let (top, rest) = self.as_mut_slice().split_first_mut().expect("len > N >= 1");
+        std::mem::swap(top, &mut rest[N - 1]);
 
         Ok(())
     }
@@ -80,31 +212,26 @@ impl Stack {
     pub fn pop<const N: usize>(&mut self) -> Result<[u256; N], FailStatus> {
         self.check_underflow(N)?;
 
-        let new_len = self.0.len() - N;
-        let array = *self.0[new_len..].as_array().unwrap();
-        self.0.truncate(new_len);
-        Ok(array)
+        let slice = self.as_slice();
+        let values = std::array::from_fn(|i| slice[N - 1 - i]);
+        self.shrink(N).ok_or(FailStatus::StackUnderflow)?;
+        Ok(values)
     }
 
     /// Pops `N` entries from the stack, ordered like [`Stack::pop`], and returns a
     /// [`PushLocation`] for the slot the result must be written to. That slot is already
     /// accounted for in the stack's length.
     pub fn pop_with_location<const N: usize>(
-        &'_ mut self,
+        &mut self,
     ) -> Result<(PushLocation<'_>, [u256; N]), FailStatus> {
         const { assert!(N > 0) };
 
         self.check_underflow(N)?;
 
-        let len = self.len();
-        let pop_data = *self.0[len - N..].as_array().unwrap();
-        self.0.truncate(len - (N - 1));
-        let push_location = PushLocation(&mut self.0[len - N]);
-        Ok((push_location, pop_data))
-    }
-
-    pub fn peek(&self) -> Option<&u256> {
-        self.0.last()
+        let slice = self.as_slice();
+        let values = std::array::from_fn(|i| slice[N - 1 - i]);
+        self.shrink(N - 1).ok_or(FailStatus::StackUnderflow)?;
+        Ok((PushLocation(&mut self.as_mut_slice()[0]), values))
     }
 
     pub fn dup<const N: usize>(&mut self) -> Result<(), FailStatus> {
@@ -112,14 +239,17 @@ impl Stack {
         const { assert!(N > 0) };
 
         self.check_underflow(N)?;
-        let element = self.0[self.0.len() - N];
-        self.push(element)
+        let value = self.as_slice()[N - 1];
+        let Some(slot) = self.grow() else {
+            return Err(FailStatus::StackOverflow);
+        };
+        *slot = value;
+        Ok(())
     }
 
     #[inline(always)]
     pub fn check_overflow(&self, num_elements: usize) -> Result<(), FailStatus> {
-        // len <= CAPACITY (invariant), so this does not underflow
-        if Self::CAPACITY - self.0.len() < num_elements {
+        if self.free() < num_elements {
             std::hint::cold_path();
             return Err(FailStatus::StackOverflow);
         }
@@ -128,7 +258,7 @@ impl Stack {
 
     #[inline(always)]
     fn check_underflow(&self, min_len: usize) -> Result<(), FailStatus> {
-        if self.0.len() < min_len {
+        if self.len() < min_len {
             std::hint::cold_path();
             return Err(FailStatus::StackUnderflow);
         }
@@ -138,69 +268,119 @@ impl Stack {
 
 #[cfg(test)]
 mod tests {
-    use crate::types::{FailStatus, stack::Stack, u256};
+    use crate::types::{
+        FailStatus,
+        stack::{CAPACITY, Stack, StackBuffer},
+        u256,
+    };
 
     #[test]
-    fn internals() {
-        let mut stack = Stack::new();
-        stack.reset_to(&[u256::ONE]);
+    fn with_len() {
+        let mut buffer = StackBuffer::new();
+        Stack::new_with(&mut buffer, &[u256::ONE, u256::MAX]);
+        let stack = Stack::with_len(&mut buffer, 1);
+        assert_eq!(stack.as_slice(), [u256::ONE]);
+        let stack = Stack::with_len(&mut buffer, 2);
+        assert_eq!(stack.as_slice(), [u256::MAX, u256::ONE]);
+        assert_eq!(Stack::with_len(&mut buffer, CAPACITY + 1).len(), CAPACITY);
+    }
+
+    #[test]
+    fn grow_and_shrink() {
+        let mut buffer = StackBuffer::new();
+        let mut stack = Stack::new(&mut buffer);
+        assert_eq!(stack.len(), 0);
+        assert_eq!(stack.free(), CAPACITY);
+        *stack.grow().unwrap() = u256::ONE;
         assert_eq!(stack.len(), 1);
-        assert_eq!(stack.as_slice(), &[u256::ONE]);
+        assert_eq!(stack.as_slice(), [u256::ONE]);
+        assert_eq!(stack.shrink(2), None);
+        assert_eq!(stack.shrink(1), Some(()));
+        assert!(stack.is_empty());
+    }
+
+    #[test]
+    fn new_with() {
+        let mut buffer = StackBuffer::new();
+        let stack = Stack::new_with(&mut buffer, &[u256::ONE, u256::MAX]);
+        assert_eq!(stack.len(), 2);
+        assert_eq!(stack.peek(), Some(&u256::MAX));
+        assert_eq!(stack.as_slice(), [u256::MAX, u256::ONE]);
+        assert_eq!(
+            stack.iter_from_bottom().copied().collect::<Vec<_>>(),
+            [u256::ONE, u256::MAX]
+        );
     }
 
     #[test]
     fn push() {
-        let mut stack = Stack::new();
+        let mut buffer = StackBuffer::new();
+        let mut stack = Stack::new(&mut buffer);
         assert_eq!(stack.push(u256::MAX), Ok(()));
         assert_eq!(stack.as_slice(), [u256::MAX]);
 
-        let mut stack = Stack::new();
-        stack.reset_to(&[u256::ZERO; Stack::CAPACITY]);
+        let mut buffer = StackBuffer::new();
+        let mut stack = Stack::new_with(&mut buffer, &[u256::ZERO; CAPACITY]);
         assert_eq!(stack.push(u256::ZERO), Err(FailStatus::StackOverflow));
     }
 
     #[test]
-    fn pop() {
-        let mut stack = Stack::new();
-        stack.reset_to(&[u256::MAX]);
-        assert_eq!(stack.pop::<1>(), Ok([u256::MAX]));
+    fn swap_with_top() {
+        let mut buffer = StackBuffer::new();
+        let mut stack = Stack::new_with(&mut buffer, &[u256::MAX, u256::ONE]);
+        assert_eq!(stack.swap_with_top::<1>(), Ok(()));
+        assert_eq!(stack.as_slice(), [u256::MAX, u256::ONE]);
 
-        let mut stack = Stack::new();
+        let mut buffer = StackBuffer::new();
+        let mut stack = Stack::new_with(&mut buffer, &[u256::MAX, u256::ONE]);
+        assert_eq!(stack.swap_with_top::<2>(), Err(FailStatus::StackUnderflow));
+    }
+
+    #[test]
+    fn pop() {
+        let mut buffer = StackBuffer::new();
+        let mut stack = Stack::new_with(&mut buffer, &[u256::MAX]);
+        assert_eq!(stack.pop::<1>(), Ok([u256::MAX]));
+        assert_eq!(stack.len(), 0);
+
+        let mut buffer = StackBuffer::new();
+        let mut stack = Stack::new(&mut buffer);
         assert_eq!(stack.pop::<1>(), Err(FailStatus::StackUnderflow));
 
-        let mut stack = Stack::new();
-        stack.reset_to(&[u256::ONE, u256::MAX]);
+        let mut buffer = StackBuffer::new();
+        let mut stack = Stack::new_with(&mut buffer, &[u256::ONE, u256::MAX]);
         assert_eq!(stack.pop::<2>(), Ok([u256::ONE, u256::MAX]));
 
-        let mut stack = Stack::new();
-        stack.reset_to(&[u256::MAX]);
+        let mut buffer = StackBuffer::new();
+        let mut stack = Stack::new_with(&mut buffer, &[u256::MAX]);
         assert_eq!(stack.pop::<2>(), Err(FailStatus::StackUnderflow));
     }
 
     #[test]
     fn pop_with_location() {
-        let mut stack = Stack::new();
-        stack.reset_to(&[u256::MAX]);
-        let (push_location, data) = stack.pop_with_location::<1>().unwrap();
-        assert_eq!(data, [u256::MAX]);
+        let mut buffer = StackBuffer::new();
+        let mut stack = Stack::new_with(&mut buffer, &[u256::MAX]);
+        let (push_location, values) = stack.pop_with_location::<1>().unwrap();
+        assert_eq!(values, [u256::MAX]);
         push_location.push(u256::ONE);
         assert_eq!(stack.as_slice(), [u256::ONE]);
 
-        let mut stack = Stack::new();
+        let mut buffer = StackBuffer::new();
+        let mut stack = Stack::new(&mut buffer);
         assert_eq!(
             stack.pop_with_location::<1>().unwrap_err(),
             FailStatus::StackUnderflow
         );
 
-        let mut stack = Stack::new();
-        stack.reset_to(&[u256::ONE, u256::MAX]);
-        let (push_location, data) = stack.pop_with_location::<2>().unwrap();
-        assert_eq!(data, [u256::ONE, u256::MAX]);
+        let mut buffer = StackBuffer::new();
+        let mut stack = Stack::new_with(&mut buffer, &[u256::ONE, u256::MAX]);
+        let (push_location, values) = stack.pop_with_location::<2>().unwrap();
+        assert_eq!(values, [u256::ONE, u256::MAX]);
         push_location.push(u256::ZERO);
         assert_eq!(stack.as_slice(), [u256::ZERO]);
 
-        let mut stack = Stack::new();
-        stack.reset_to(&[u256::MAX]);
+        let mut buffer = StackBuffer::new();
+        let mut stack = Stack::new_with(&mut buffer, &[u256::MAX]);
         assert_eq!(
             stack.pop_with_location::<2>().unwrap_err(),
             FailStatus::StackUnderflow
@@ -209,55 +389,44 @@ mod tests {
 
     #[test]
     fn dup() {
-        let mut stack = Stack::new();
-        stack.reset_to(&[u256::MAX, u256::ZERO]);
+        let mut buffer = StackBuffer::new();
+        let mut stack = Stack::new_with(&mut buffer, &[u256::MAX, u256::ZERO]);
         stack.dup::<1>().unwrap();
-        assert_eq!(stack.as_slice(), [u256::MAX, u256::ZERO, u256::ZERO]);
+        assert_eq!(stack.as_slice(), [u256::ZERO, u256::ZERO, u256::MAX]);
 
-        let mut stack = Stack::new();
-        stack.reset_to(&[u256::MAX, u256::ZERO]);
+        let mut buffer = StackBuffer::new();
+        let mut stack = Stack::new_with(&mut buffer, &[u256::MAX, u256::ZERO]);
         stack.dup::<2>().unwrap();
         assert_eq!(stack.as_slice(), [u256::MAX, u256::ZERO, u256::MAX]);
 
-        let mut stack = Stack::new();
-        stack.reset_to(&[u256::MAX, u256::ZERO]);
+        let mut buffer = StackBuffer::new();
+        let mut stack = Stack::new_with(&mut buffer, &[u256::MAX, u256::ZERO]);
         assert_eq!(stack.dup::<3>(), Err(FailStatus::StackUnderflow));
 
-        let mut stack = Stack::new();
-        stack.reset_to(&[u256::ZERO; 1024]);
+        let mut buffer = StackBuffer::new();
+        let mut stack = Stack::new_with(&mut buffer, &[u256::ZERO; CAPACITY]);
         assert_eq!(stack.dup::<1>(), Err(FailStatus::StackOverflow));
     }
 
     #[test]
-    fn swap_with_top() {
-        let mut stack = Stack::new();
-        stack.reset_to(&[u256::MAX, u256::ONE]);
-        assert_eq!(stack.swap_with_top::<1>(), Ok(()));
-        assert_eq!(stack.as_slice(), [u256::ONE, u256::MAX]);
-
-        let mut stack = Stack::new();
-        stack.reset_to(&[u256::MAX, u256::ONE]);
-        assert_eq!(stack.swap_with_top::<2>(), Err(FailStatus::StackUnderflow));
-    }
-
-    #[test]
     fn check_overflow() {
-        let mut stack = Stack::new();
-        stack.reset_to(&[u256::ZERO; Stack::CAPACITY - 1]);
+        let mut buffer = StackBuffer::new();
+        let stack = Stack::new_with(&mut buffer, &[u256::ZERO; CAPACITY - 1]);
         assert_eq!(stack.check_overflow(1), Ok(()));
         assert_eq!(stack.check_overflow(2), Err(FailStatus::StackOverflow));
-        let mut stack = Stack::new();
-        stack.reset_to(&[u256::ZERO; Stack::CAPACITY]);
+
+        let mut buffer = StackBuffer::new();
+        let stack = Stack::new_with(&mut buffer, &[u256::ZERO; CAPACITY]);
         assert_eq!(stack.check_overflow(0), Ok(()));
         assert_eq!(stack.check_overflow(1), Err(FailStatus::StackOverflow));
     }
 
     #[test]
     fn check_underflow() {
-        let stack = Stack::new();
-        assert_eq!(stack.check_underflow(0), Ok(()));
-        let mut stack = Stack::new();
-        stack.reset_to(&[u256::ZERO]);
+        let mut buffer = StackBuffer::new();
+        assert_eq!(Stack::new(&mut buffer).check_underflow(0), Ok(()));
+
+        let stack = Stack::new_with(&mut buffer, &[u256::ZERO]);
         assert_eq!(stack.check_underflow(1), Ok(()));
         assert_eq!(stack.check_underflow(2), Err(FailStatus::StackUnderflow));
     }

@@ -24,7 +24,7 @@ pub use code_analysis::{CodeAnalysis, CodeAnalysisCache};
 pub use code_reader::GetOpcodeError;
 pub use code_reader::{Code, Pc};
 pub use execution_context::*;
-pub use interpreter_allocations::{new_stack_and_memory, release_stack_and_memory};
+pub use interpreter_allocations::{new_stack_buffer_and_memory, release_stack_buffer_and_memory};
 pub use last_call_return_data::LastCallReturnData;
 pub use memory::Memory;
 pub use mock_execution_message::MockExecutionMessage;
@@ -32,5 +32,5 @@ pub use observer::*;
 #[cfg(feature = "fn-ptr-conversion-dispatch")]
 pub use op_fn_data::OpFnData;
 pub use opcode::*;
-pub use stack::Stack;
+pub use stack::{Stack, StackBuffer};
 pub use status_code::{ExecStatus, FailStatus};

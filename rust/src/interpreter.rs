@@ -14,43 +14,51 @@ use crate::types::GetOpcodeError;
 use crate::{
     types::{
         Code, ExecStatus, ExecutionContextTrait, FailStatus, LastCallReturnData, Memory, Observer,
-        Pc, Stack, hash_cache::HashCache, new_stack_and_memory, release_stack_and_memory, u256,
+        Pc, Stack, StackBuffer, hash_cache::HashCache, new_stack_buffer_and_memory,
+        release_stack_buffer_and_memory, u256,
     },
     utils::{Gas, GasRefund, SliceExt, check_min_revision, check_not_read_only, word_size},
 };
 
 /// What an opcode method leaves behind: the state the chain keeps in registers, or the failure
 /// that ended the run. The wrappers in [`op_fn!`] turn it into an [`OpResult`].
-type OpState<'a, const STEPPABLE: bool> = Result<(Pc<'a, STEPPABLE>, Gas), FailStatus>;
+type OpState<'a, 'c, const STEPPABLE: bool> =
+    Result<(Pc<'a, STEPPABLE>, Gas, Stack<'c>), FailStatus>;
 
 /// What an [`OpFn`] hands back to whoever dispatches the next operation. With feature `tail-call`
 /// that is the whole state, because the chain passes it on in registers.
 #[cfg(feature = "tail-call")]
-type OpResult<'a, const STEPPABLE: bool> = OpState<'a, STEPPABLE>;
+type OpResult<'a, 'c, const STEPPABLE: bool> = OpState<'a, 'c, STEPPABLE>;
 /// Without `tail-call` a handler returns to the dispatch loop, and the ordinary calling
 /// convention returns at most two words in registers: anything larger goes through a memory slot
-/// the caller has to reload. The layout therefore has to *be* a scalar pair, which a `Result`
-/// cannot be because it needs a place for the failure in those two words. [`Option`] does not:
-/// with `fn-ptr-conversion-dispatch`, where [`Pc`] is a pointer, its niche carries [`None`].
-/// [`None`] means only that the run is over, the [`Interpreter`] then says how, see
-/// [`Interpreter::run`].
+/// the caller has to reload. So only the program counter and the gas counter come back by value,
+/// the stack travels through a slot the loop owns and lends out, and [`None`] ends the run - the
+/// [`Frame`] then says how, see [`Interpreter::run`].
 #[cfg(not(feature = "tail-call"))]
 type OpResult<'a, const STEPPABLE: bool> = Option<(Pc<'a, STEPPABLE>, Gas)>;
 
-/// An opcode handler as the dispatcher sees it. Next to the [`Interpreter`] it receives the
-/// program counter and the gas counter by value, see [`Interpreter::run`]. With feature
-/// `tail-call` the handlers form a chain of tail calls in the preserve-none convention, which
-/// leaves nothing callee-saved for the handlers to preserve.
+/// An opcode handler as the dispatcher sees it. Next to the [`Frame`] it receives the state the
+/// chain keeps in registers by value, see [`Interpreter::run`]. With feature `tail-call` the
+/// handlers form a chain of tail calls in the preserve-none convention, which has argument
+/// registers to spare for the returned state and leaves none callee-saved for the handlers to
+/// preserve.
 #[cfg(feature = "tail-call")]
 pub type OpFn<const STEPPABLE: bool> =
-    for<'a> extern "rust-preserve-none" fn(
-        &mut Interpreter<'a, STEPPABLE>,
+    for<'a, 'c> extern "rust-preserve-none" fn(
+        &mut Frame<'a, STEPPABLE>,
         Pc<'a, STEPPABLE>,
         Gas,
-    ) -> OpResult<'a, STEPPABLE>;
+        Stack<'c>,
+    ) -> OpResult<'a, 'c, STEPPABLE>;
+/// Without `tail-call` the stack travels through a slot the loop owns and lends out, because only
+/// two of the three values fit in the return, see [`OpResult`].
 #[cfg(not(feature = "tail-call"))]
-pub type OpFn<const STEPPABLE: bool> =
-    for<'a> fn(&mut Interpreter<'a, STEPPABLE>, Pc<'a, STEPPABLE>, Gas) -> OpResult<'a, STEPPABLE>;
+pub type OpFn<const STEPPABLE: bool> = for<'a, 'c> fn(
+    &mut Frame<'a, STEPPABLE>,
+    Pc<'a, STEPPABLE>,
+    Gas,
+    &mut Stack<'c>,
+) -> OpResult<'a, STEPPABLE>;
 
 /// Wraps an opcode method in an [`OpFn`], which methods themselves cannot be coerced to because
 /// they capture the lifetime of the type. With feature `tail-call` the wrapper tail calls [`next`]
@@ -59,24 +67,26 @@ pub type OpFn<const STEPPABLE: bool> =
 #[cfg(feature = "tail-call")]
 macro_rules! op_fn {
     ($name:ident) => {{
-        extern "rust-preserve-none" fn $name<'a, const STEPPABLE: bool>(
-            i: &mut Interpreter<'a, STEPPABLE>,
+        extern "rust-preserve-none" fn $name<'a, 'c, const STEPPABLE: bool>(
+            i: &mut Frame<'a, STEPPABLE>,
             pc: Pc<'a, STEPPABLE>,
             gas_left: Gas,
-        ) -> OpResult<'a, STEPPABLE> {
-            let (pc, gas_left) = i.$name(pc, gas_left)?;
-            become next(i, pc, gas_left)
+            stack: Stack<'c>,
+        ) -> OpResult<'a, 'c, STEPPABLE> {
+            let (pc, gas_left, stack) = i.$name(pc, gas_left, stack)?;
+            become next(i, pc, gas_left, stack)
         }
         $name::<STEPPABLE>
     }};
     ($name:ident::<$generic:literal>) => {{
-        extern "rust-preserve-none" fn $name<'a, const STEPPABLE: bool, const N: usize>(
-            i: &mut Interpreter<'a, STEPPABLE>,
+        extern "rust-preserve-none" fn $name<'a, 'c, const STEPPABLE: bool, const N: usize>(
+            i: &mut Frame<'a, STEPPABLE>,
             pc: Pc<'a, STEPPABLE>,
             gas_left: Gas,
-        ) -> OpResult<'a, STEPPABLE> {
-            let (pc, gas_left) = i.$name::<N>(pc, gas_left)?;
-            become next(i, pc, gas_left)
+            stack: Stack<'c>,
+        ) -> OpResult<'a, 'c, STEPPABLE> {
+            let (pc, gas_left, stack) = i.$name::<N>(pc, gas_left, stack)?;
+            become next(i, pc, gas_left, stack)
         }
         $name::<STEPPABLE, $generic>
     }};
@@ -84,13 +94,21 @@ macro_rules! op_fn {
 #[cfg(not(feature = "tail-call"))]
 macro_rules! op_fn {
     ($name:ident) => {{
-        fn $name<'a, const STEPPABLE: bool>(
-            i: &mut Interpreter<'a, STEPPABLE>,
+        fn $name<'a, 'c, const STEPPABLE: bool>(
+            i: &mut Frame<'a, STEPPABLE>,
             pc: Pc<'a, STEPPABLE>,
             gas_left: Gas,
+            stack: &mut Stack<'c>,
         ) -> OpResult<'a, STEPPABLE> {
-            match i.$name(pc, gas_left) {
-                Ok(state) => Some(state),
+            // SAFETY:
+            // The stack is moved out of the loop's slot and one is put back below. `Stack` has
+            // no `Drop`, so the copy left behind when a handler fails is never used or released.
+            let stack_value = unsafe { std::ptr::read(stack) };
+            match i.$name(pc, gas_left, stack_value) {
+                Ok((pc, gas_left, s)) => {
+                    *stack = s;
+                    Some((pc, gas_left))
+                }
                 Err(err) => {
                     std::hint::cold_path();
                     i.fail = Some(err);
@@ -101,13 +119,21 @@ macro_rules! op_fn {
         $name::<STEPPABLE>
     }};
     ($name:ident::<$generic:literal>) => {{
-        fn $name<'a, const STEPPABLE: bool, const N: usize>(
-            i: &mut Interpreter<'a, STEPPABLE>,
+        fn $name<'a, 'c, const STEPPABLE: bool, const N: usize>(
+            i: &mut Frame<'a, STEPPABLE>,
             pc: Pc<'a, STEPPABLE>,
             gas_left: Gas,
+            stack: &mut Stack<'c>,
         ) -> OpResult<'a, STEPPABLE> {
-            match i.$name::<N>(pc, gas_left) {
-                Ok(state) => Some(state),
+            // SAFETY:
+            // The stack is moved out of the loop's slot and one is put back below. `Stack` has
+            // no `Drop`, so the copy left behind when a handler fails is never used or released.
+            let stack_value = unsafe { std::ptr::read(stack) };
+            match i.$name::<N>(pc, gas_left, stack_value) {
+                Ok((pc, gas_left, s)) => {
+                    *stack = s;
+                    Some((pc, gas_left))
+                }
                 Err(err) => {
                     std::hint::cold_path();
                     i.fail = Some(err);
@@ -121,27 +147,29 @@ macro_rules! op_fn {
 
 /// Like [`op_fn!`] for the operations that end a run: the state the method returns is the final
 /// state, so the wrapper hands it back to [`Interpreter::run`] instead of dispatching further -
-/// with feature `tail-call` by returning it, otherwise by parking it, since the loop reads the
-/// state it dispatched with, not the state the run ended with.
+/// with feature `tail-call` by returning it, otherwise by parking it in the frame and ending the
+/// loop, since the loop reads the state it dispatched with, not the state the run ended with.
 #[cfg(feature = "tail-call")]
 macro_rules! exit_fn {
     ($name:ident) => {{
-        extern "rust-preserve-none" fn $name<'a, const STEPPABLE: bool>(
-            i: &mut Interpreter<'a, STEPPABLE>,
+        extern "rust-preserve-none" fn $name<'a, 'c, const STEPPABLE: bool>(
+            i: &mut Frame<'a, STEPPABLE>,
             pc: Pc<'a, STEPPABLE>,
             gas_left: Gas,
-        ) -> OpResult<'a, STEPPABLE> {
-            i.$name(pc, gas_left)
+            stack: Stack<'c>,
+        ) -> OpResult<'a, 'c, STEPPABLE> {
+            i.$name(pc, gas_left, stack)
         }
         $name::<STEPPABLE>
     }};
     ($name:ident::<$generic:literal>) => {{
-        extern "rust-preserve-none" fn $name<'a, const STEPPABLE: bool, const N: usize>(
-            i: &mut Interpreter<'a, STEPPABLE>,
+        extern "rust-preserve-none" fn $name<'a, 'c, const STEPPABLE: bool, const N: usize>(
+            i: &mut Frame<'a, STEPPABLE>,
             pc: Pc<'a, STEPPABLE>,
             gas_left: Gas,
-        ) -> OpResult<'a, STEPPABLE> {
-            i.$name::<N>(pc, gas_left)
+            stack: Stack<'c>,
+        ) -> OpResult<'a, 'c, STEPPABLE> {
+            i.$name::<N>(pc, gas_left, stack)
         }
         $name::<STEPPABLE, $generic>
     }};
@@ -149,19 +177,28 @@ macro_rules! exit_fn {
 #[cfg(not(feature = "tail-call"))]
 macro_rules! exit_fn {
     ($name:ident) => {{
-        fn $name<'a, const STEPPABLE: bool>(
-            i: &mut Interpreter<'a, STEPPABLE>,
+        fn $name<'a, 'c, const STEPPABLE: bool>(
+            i: &mut Frame<'a, STEPPABLE>,
             pc: Pc<'a, STEPPABLE>,
             gas_left: Gas,
+            stack: &mut Stack<'c>,
         ) -> OpResult<'a, STEPPABLE> {
-            match i.$name(pc, gas_left) {
-                Ok((pc, gas_left)) => i.park(pc, gas_left),
+            // SAFETY:
+            // The stack is moved out of the loop's slot and one is put back below. `Stack` has
+            // no `Drop`, so the copy left behind when a handler fails is never used or released.
+            let stack_value = unsafe { std::ptr::read(stack) };
+            match i.$name(pc, gas_left, stack_value) {
+                Ok((pc, gas_left, s)) => {
+                    *stack = s;
+                    i.park(pc, gas_left, stack.len());
+                    None
+                }
                 Err(err) => {
                     std::hint::cold_path();
                     i.fail = Some(err);
+                    None
                 }
             }
-            None
         }
         $name::<STEPPABLE>
     }};
@@ -456,10 +493,18 @@ pub const fn get_jumptable<const STEPPABLE: bool>() -> &'static [OpFn<STEPPABLE>
     }
 }
 
-/// One run over a message call. The program counter and the gas counter are not kept here: they
-/// are passed to and returned from the handlers by value so that they stay in registers, see
-/// [`OpFn`].
+/// One run over a message call. It owns the buffer of the [`Stack`] next to the [`Frame`], so
+/// that [`Interpreter::run`] can lend out the frame while it materializes the stack over the
+/// buffer.
 pub struct Interpreter<'a, const STEPPABLE: bool> {
+    stack_buffer: ManuallyDrop<StackBuffer>,
+    pub(crate) frame: Frame<'a, STEPPABLE>,
+}
+
+/// The state of a run that lives in memory while the handlers execute. The program counter and
+/// the gas counter are passed to and returned from the handlers by value instead so that they stay
+/// in registers, and so is the stack where the calling convention has room for it, see [`OpFn`].
+pub struct Frame<'a, const STEPPABLE: bool> {
     pub exec_status: ExecStatus,
     parked: Parked<'a, STEPPABLE>,
     /// How a handler failed, as recorded for the dispatch loop. With feature `tail-call` the
@@ -472,19 +517,19 @@ pub struct Interpreter<'a, const STEPPABLE: bool> {
     pub revision: Revision,
     pub gas_refund: GasRefund,
     pub output: Box<[u8]>,
-    pub stack: ManuallyDrop<Stack>,
     pub memory: ManuallyDrop<Memory>,
     pub last_call_return_data: LastCallReturnData<'a>,
     pub steps: Option<i32>,
     pub hash_cache: &'a HashCache,
 }
 
-/// The state the handlers keep in registers, as parked in the [`Interpreter`] while they do not
-/// run: before [`Interpreter::run`] and after it.
+/// The state the handlers keep in registers, as parked in the [`Frame`] while they do not run:
+/// before [`Interpreter::run`] and after it.
 #[derive(Debug)]
 struct Parked<'a, const STEPPABLE: bool> {
     pc: Pc<'a, STEPPABLE>,
     gas_left: Gas,
+    stack_len: usize,
 }
 
 impl<'a> Interpreter<'a, false> {
@@ -495,26 +540,29 @@ impl<'a> Interpreter<'a, false> {
         code: &'a Code<'a, false>,
         hash_cache: &'a HashCache,
     ) -> Self {
-        let (stack, memory) = new_stack_and_memory();
+        let (stack_buffer, memory) = new_stack_buffer_and_memory();
         Self {
-            exec_status: ExecStatus::Running,
-            parked: Parked {
-                pc: code.pc(0),
-                gas_left: Gas::new(message.gas),
+            stack_buffer: ManuallyDrop::new(stack_buffer),
+            frame: Frame {
+                exec_status: ExecStatus::Running,
+                parked: Parked {
+                    pc: code.pc(0),
+                    gas_left: Gas::new(message.gas),
+                    stack_len: 0,
+                },
+                #[cfg(not(feature = "tail-call"))]
+                fail: None,
+                code,
+                message,
+                context,
+                revision,
+                gas_refund: GasRefund::new(0),
+                output: Box::default(),
+                memory: ManuallyDrop::new(memory),
+                last_call_return_data: LastCallReturnData::Slice(&[]),
+                steps: None,
+                hash_cache,
             },
-            #[cfg(not(feature = "tail-call"))]
-            fail: None,
-            code,
-            message,
-            context,
-            revision,
-            gas_refund: GasRefund::new(0),
-            output: Box::default(),
-            stack: ManuallyDrop::new(stack),
-            memory: ManuallyDrop::new(memory),
-            last_call_return_data: LastCallReturnData::Slice(&[]),
-            steps: None,
-            hash_cache,
         }
     }
 }
@@ -534,81 +582,48 @@ impl<'a> Interpreter<'a, true> {
         steps: Option<i32>,
         hash_cache: &'a HashCache,
     ) -> Self {
-        let (mut stack, mut memory) = new_stack_and_memory();
-        stack.reset_to(init_stack);
+        let (mut stack_buffer, mut memory) = new_stack_buffer_and_memory();
+        let stack_len = Stack::new_with(&mut stack_buffer, init_stack).len();
         memory.reset_to(init_memory);
         Self {
-            exec_status: ExecStatus::Running,
-            parked: Parked {
-                pc: code.pc(pc),
-                gas_left: Gas::new(message.gas),
+            stack_buffer: ManuallyDrop::new(stack_buffer),
+            frame: Frame {
+                exec_status: ExecStatus::Running,
+                parked: Parked {
+                    pc: code.pc(pc),
+                    gas_left: Gas::new(message.gas),
+                    stack_len,
+                },
+                #[cfg(not(feature = "tail-call"))]
+                fail: None,
+                code,
+                message,
+                context,
+                revision,
+                gas_refund: GasRefund::new(gas_refund),
+                output: Box::default(),
+                memory: ManuallyDrop::new(memory),
+                last_call_return_data: LastCallReturnData::Slice(last_call_return_data),
+                steps,
+                hash_cache,
             },
-            #[cfg(not(feature = "tail-call"))]
-            fail: None,
-            code,
-            message,
-            context,
-            revision,
-            gas_refund: GasRefund::new(gas_refund),
-            output: Box::default(),
-            stack: ManuallyDrop::new(stack),
-            memory: ManuallyDrop::new(memory),
-            last_call_return_data: LastCallReturnData::Slice(last_call_return_data),
-            steps,
-            hash_cache,
         }
     }
 }
 
-/// Puts the [`Stack`] and the [`Memory`] back into the reuse cache.
+/// Puts the [`StackBuffer`] and the [`Memory`] back into the reuse cache.
 impl<const STEPPABLE: bool> Drop for Interpreter<'_, STEPPABLE> {
     fn drop(&mut self) {
         // SAFETY:
-        // The interpreter is being dropped, so its stack is not read or dropped again.
-        let stack = unsafe { ManuallyDrop::take(&mut self.stack) };
+        // The interpreter is being dropped, so its stack buffer is not read or dropped again.
+        let stack_buffer = unsafe { ManuallyDrop::take(&mut self.stack_buffer) };
         // SAFETY:
         // The interpreter is being dropped, so its memory is not read or dropped again.
-        let memory = unsafe { ManuallyDrop::take(&mut self.memory) };
-        release_stack_and_memory(stack, memory);
+        let memory = unsafe { ManuallyDrop::take(&mut self.frame.memory) };
+        release_stack_buffer_and_memory(stack_buffer, memory);
     }
 }
 
-/// Dispatches the operation at `pc` as a tail call, or returns the state when the run is out of
-/// steps or code.
-#[cfg(feature = "tail-call")]
-#[inline(always)]
-extern "rust-preserve-none" fn next<'a, const STEPPABLE: bool>(
-    interpreter: &mut Interpreter<'a, STEPPABLE>,
-    pc: Pc<'a, STEPPABLE>,
-    gas_left: Gas,
-) -> OpResult<'a, STEPPABLE> {
-    if STEPPABLE {
-        match &mut interpreter.steps {
-            None => (),
-            Some(0) => return Ok((pc, gas_left)),
-            Some(steps) => *steps -= 1,
-        }
-    }
-    std::cfg_select! {
-        feature = "fn-ptr-conversion-dispatch" => become pc.op_fn()(interpreter, pc, gas_left),
-        _ => match interpreter.code.get_at(pc) {
-            Ok(op) => become get_jumptable()[op as usize](interpreter, pc, gas_left),
-            Err(GetOpcodeError::OutOfRange) => {
-                std::hint::cold_path();
-                interpreter.exec_status = ExecStatus::Stopped;
-                Ok((pc, gas_left))
-            }
-            Err(GetOpcodeError::Invalid) => {
-                std::hint::cold_path();
-                Err(FailStatus::InvalidInstruction)
-            }
-        },
-    }
-}
-
-/// The dispatch loop and the opcode handlers. The handlers are methods for the uniform
-/// signature the jumptable needs, whether or not an operation touches the interpreter.
-#[expect(clippy::unused_self)]
 impl<'a, const STEPPABLE: bool> Interpreter<'a, STEPPABLE> {
     /// R is expected to be [ExecutionResult] or [StepResult].
     #[cfg(not(feature = "tail-call"))]
@@ -617,17 +632,22 @@ impl<'a, const STEPPABLE: bool> Interpreter<'a, STEPPABLE> {
         O: Observer<STEPPABLE>,
         R: From<Self> + From<FailStatus>,
     {
-        let mut pc = self.parked.pc;
-        let mut gas_left = self.parked.gas_left.clone();
+        let Self {
+            stack_buffer,
+            frame,
+        } = &mut self;
+        let mut pc = frame.parked.pc;
+        let mut gas_left = frame.parked.gas_left.clone();
+        let mut stack = Stack::with_len(stack_buffer, frame.parked.stack_len);
         // A handler returns `None` when the run is over, having parked the state it ended with;
         // the loop only ever holds the state it dispatched with, so it parks that itself when it
         // is the one that ends the run.
         loop {
             if STEPPABLE {
-                match &mut self.steps {
+                match &mut frame.steps {
                     None => (),
                     Some(0) => {
-                        self.park(pc, gas_left);
+                        frame.park(pc, gas_left, stack.len());
                         break;
                     }
                     Some(steps) => *steps -= 1,
@@ -636,12 +656,12 @@ impl<'a, const STEPPABLE: bool> Interpreter<'a, STEPPABLE> {
             #[cfg(feature = "fn-ptr-conversion-dispatch")]
             let op = pc.op_fn();
             #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
-            let op = match self.code.get_at(pc) {
+            let op = match frame.code.get_at(pc) {
                 Ok(op) => op,
                 Err(GetOpcodeError::OutOfRange) => {
                     std::hint::cold_path();
-                    self.exec_status = ExecStatus::Stopped;
-                    self.park(pc, gas_left);
+                    frame.exec_status = ExecStatus::Stopped;
+                    frame.park(pc, gas_left, stack.len());
                     break;
                 }
                 Err(GetOpcodeError::Invalid) => {
@@ -649,19 +669,19 @@ impl<'a, const STEPPABLE: bool> Interpreter<'a, STEPPABLE> {
                     return FailStatus::InvalidInstruction.into();
                 }
             };
-            observer.pre_op(&self, pc, &gas_left);
+            observer.pre_op(frame, pc, &gas_left, &stack);
             let registers = std::cfg_select! {
-                feature = "fn-ptr-conversion-dispatch" => op(&mut self, pc, gas_left),
-                _ => get_jumptable()[op as usize](&mut self, pc, gas_left),
+                feature = "fn-ptr-conversion-dispatch" => op(frame, pc, gas_left, &mut stack),
+                _ => get_jumptable()[op as usize](frame, pc, gas_left, &mut stack),
             };
             let Some(registers) = registers else {
                 std::hint::cold_path();
                 break;
             };
             (pc, gas_left) = registers;
-            observer.post_op(&self);
+            observer.post_op(frame);
         }
-        if let Some(err) = self.fail {
+        if let Some(err) = frame.fail {
             std::hint::cold_path();
             return err.into();
         }
@@ -680,10 +700,18 @@ impl<'a, const STEPPABLE: bool> Interpreter<'a, STEPPABLE> {
         observer.log("feature \"tail-call\" does not support logging".into());
         // The chain holds the parked state in registers until it ends and returns it; the error
         // conversions need none of it.
-        let pc = self.parked.pc;
-        let gas_left = self.parked.gas_left.clone();
-        match next(&mut self, pc, gas_left) {
-            Ok((pc, gas_left)) => self.park(pc, gas_left),
+        let Self {
+            stack_buffer,
+            frame,
+        } = &mut self;
+        let pc = frame.parked.pc;
+        let gas_left = frame.parked.gas_left.clone();
+        let stack = Stack::with_len(stack_buffer, frame.parked.stack_len);
+        match next(frame, pc, gas_left, stack) {
+            Ok((pc, gas_left, stack)) => {
+                let stack_len = stack.len();
+                frame.park(pc, gas_left, stack_len);
+            }
             Err(err) => {
                 std::hint::cold_path();
                 return err.into();
@@ -691,32 +719,76 @@ impl<'a, const STEPPABLE: bool> Interpreter<'a, STEPPABLE> {
         }
         self.into()
     }
+}
 
+/// Dispatches the operation at `pc` as a tail call, or returns the state when the run is out of
+/// steps or code.
+#[cfg(feature = "tail-call")]
+#[inline(always)]
+extern "rust-preserve-none" fn next<'a, 'c, const STEPPABLE: bool>(
+    frame: &mut Frame<'a, STEPPABLE>,
+    pc: Pc<'a, STEPPABLE>,
+    gas_left: Gas,
+    stack: Stack<'c>,
+) -> OpResult<'a, 'c, STEPPABLE> {
+    if STEPPABLE {
+        match &mut frame.steps {
+            None => (),
+            Some(0) => return Ok((pc, gas_left, stack)),
+            Some(steps) => *steps -= 1,
+        }
+    }
+    std::cfg_select! {
+        feature = "fn-ptr-conversion-dispatch" => become pc.op_fn()(frame, pc, gas_left, stack),
+        _ => match frame.code.get_at(pc) {
+            Ok(op) => become get_jumptable()[op as usize](frame, pc, gas_left, stack),
+            Err(GetOpcodeError::OutOfRange) => {
+                std::hint::cold_path();
+                frame.exec_status = ExecStatus::Stopped;
+                Ok((pc, gas_left, stack))
+            }
+            Err(GetOpcodeError::Invalid) => {
+                std::hint::cold_path();
+                Err(FailStatus::InvalidInstruction)
+            }
+        },
+    }
+}
+
+/// The opcode handlers. They are methods for the uniform signature the jumptable needs, whether
+/// or not an operation touches the frame.
+#[expect(clippy::unused_self)]
+impl<'a, const STEPPABLE: bool> Frame<'a, STEPPABLE> {
     /// Stores the register state for whoever picks the run up after the handlers.
-    fn park(&mut self, pc: Pc<'a, STEPPABLE>, gas_left: Gas) {
-        self.parked = Parked { pc, gas_left };
+    fn park(&mut self, pc: Pc<'a, STEPPABLE>, gas_left: Gas, stack_len: usize) {
+        self.parked = Parked {
+            pc,
+            gas_left,
+            stack_len,
+        };
     }
 
     #[cold]
-    pub fn jumptable_placeholder(
+    pub fn jumptable_placeholder<'c>(
         &mut self,
         _pc: Pc<'a, STEPPABLE>,
         _gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        _stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         Err(FailStatus::Failure)
     }
 
     /// Performs an operation that charges `cost` gas, pops one value and pushes `op` applied to it.
     #[inline(always)]
     fn unary_op<I: Into<u256>>(
-        &mut self,
         op: fn(u256) -> I,
         cost: u64,
         pc: &mut Pc<'a, STEPPABLE>,
         gas_left: &mut Gas,
+        stack: &mut Stack<'_>,
     ) -> Result<(), FailStatus> {
         gas_left.consume(cost)?;
-        let (push_location, [value]) = self.stack.pop_with_location()?;
+        let (push_location, [value]) = stack.pop_with_location()?;
         push_location.push(op(value));
         pc.advance();
         Ok(())
@@ -726,14 +798,14 @@ impl<'a, const STEPPABLE: bool> Interpreter<'a, STEPPABLE> {
     /// them. `op` receives the top of stack as its first argument.
     #[inline(always)]
     fn binary_op<I: Into<u256>>(
-        &mut self,
         op: fn(u256, u256) -> I,
         cost: u64,
         pc: &mut Pc<'a, STEPPABLE>,
         gas_left: &mut Gas,
+        stack: &mut Stack<'_>,
     ) -> Result<(), FailStatus> {
         gas_left.consume(cost)?;
-        let (push_location, [value2, value1]) = self.stack.pop_with_location()?;
+        let (push_location, [value2, value1]) = stack.pop_with_location()?;
         push_location.push(op(value1, value2));
         pc.advance();
         Ok(())
@@ -748,188 +820,374 @@ impl<'a, const STEPPABLE: bool> Interpreter<'a, STEPPABLE> {
         cost: u64,
         pc: &mut Pc<'a, STEPPABLE>,
         gas_left: &mut Gas,
+        stack: &mut Stack<'_>,
     ) -> Result<(), FailStatus> {
         gas_left.consume(cost)?;
         let value = op(self);
-        self.stack.push(value)?;
+        stack.push(value)?;
         pc.advance();
         Ok(())
     }
 
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
-    pub fn no_op(&mut self, mut pc: Pc<'a, STEPPABLE>, gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        pc.advance();
-        Ok((pc, gas_left))
-    }
-
-    #[cfg(feature = "fn-ptr-conversion-dispatch")]
-    pub fn skip_no_ops(
+    pub fn no_op<'c>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        pc.advance();
+        Ok((pc, gas_left, stack))
+    }
+
+    #[cfg(feature = "fn-ptr-conversion-dispatch")]
+    pub fn skip_no_ops<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        gas_left: Gas,
+        stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         pc.skip_no_ops();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn stop(&mut self, pc: Pc<'a, STEPPABLE>, gas_left: Gas) -> OpState<'a, STEPPABLE> {
+    fn stop<'c>(
+        &mut self,
+        pc: Pc<'a, STEPPABLE>,
+        gas_left: Gas,
+        stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         self.exec_status = ExecStatus::Stopped;
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn add(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.binary_op(u256::add, 3, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
-    }
-
-    fn mul(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.binary_op(u256::mul, 5, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
-    }
-
-    fn sub(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.binary_op(u256::sub, 3, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
-    }
-
-    fn div(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.binary_op(u256::div, 5, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
-    }
-
-    fn s_div(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.binary_op(u256::sdiv, 5, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
-    }
-
-    fn mod_(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.binary_op(u256::rem, 5, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
-    }
-
-    fn s_mod(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.binary_op(u256::srem, 5, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
-    }
-
-    fn add_mod(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        gas_left.consume(8)?;
-        let (push_location, [denominator, value2, value1]) = self.stack.pop_with_location()?;
-        push_location.push(u256::addmod(value1, value2, denominator));
-        pc.advance();
-        Ok((pc, gas_left))
-    }
-
-    fn mul_mod(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        gas_left.consume(8)?;
-        let (push_location, [denominator, fac2, fac1]) = self.stack.pop_with_location()?;
-        push_location.push(u256::mulmod(fac1, fac2, denominator));
-        pc.advance();
-        Ok((pc, gas_left))
-    }
-
-    fn exp(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        gas_left.consume(10)?;
-        let (push_location, [exp, value]) = self.stack.pop_with_location()?;
-        gas_left.consume(exp.bits().div_ceil(8) as u64 * 50)?; // * does not overflow
-        push_location.push(value.pow(exp));
-        pc.advance();
-        Ok((pc, gas_left))
-    }
-
-    fn sign_extend(
+    fn add<'c>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
-        self.binary_op(u256::signextend, 5, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        Self::binary_op(u256::add, 3, &mut pc, &mut gas_left, &mut stack)?;
+        Ok((pc, gas_left, stack))
     }
 
-    fn lt(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.binary_op(|lhs, rhs| lhs < rhs, 3, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
+    fn mul<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        Self::binary_op(u256::mul, 5, &mut pc, &mut gas_left, &mut stack)?;
+        Ok((pc, gas_left, stack))
     }
 
-    fn gt(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.binary_op(|lhs, rhs| lhs > rhs, 3, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
+    fn sub<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        Self::binary_op(u256::sub, 3, &mut pc, &mut gas_left, &mut stack)?;
+        Ok((pc, gas_left, stack))
     }
 
-    fn s_lt(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.binary_op(|lhs, rhs| lhs.slt(&rhs), 3, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
+    fn div<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        Self::binary_op(u256::div, 5, &mut pc, &mut gas_left, &mut stack)?;
+        Ok((pc, gas_left, stack))
     }
 
-    fn s_gt(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.binary_op(|lhs, rhs| lhs.sgt(&rhs), 3, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
+    fn s_div<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        Self::binary_op(u256::sdiv, 5, &mut pc, &mut gas_left, &mut stack)?;
+        Ok((pc, gas_left, stack))
     }
 
-    fn eq(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.binary_op(|lhs, rhs| lhs == rhs, 3, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
+    fn mod_<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        Self::binary_op(u256::rem, 5, &mut pc, &mut gas_left, &mut stack)?;
+        Ok((pc, gas_left, stack))
     }
 
-    fn is_zero(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.unary_op(|value| value == u256::ZERO, 3, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
+    fn s_mod<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        Self::binary_op(u256::srem, 5, &mut pc, &mut gas_left, &mut stack)?;
+        Ok((pc, gas_left, stack))
     }
 
-    fn and(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.binary_op(u256::bitand, 3, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
+    fn add_mod<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        gas_left.consume(8)?;
+        let (push_location, [denominator, value2, value1]) = stack.pop_with_location()?;
+        push_location.push(u256::addmod(value1, value2, denominator));
+        pc.advance();
+        Ok((pc, gas_left, stack))
     }
 
-    fn or(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.binary_op(u256::bitor, 3, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
+    fn mul_mod<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        gas_left.consume(8)?;
+        let (push_location, [denominator, fac2, fac1]) = stack.pop_with_location()?;
+        push_location.push(u256::mulmod(fac1, fac2, denominator));
+        pc.advance();
+        Ok((pc, gas_left, stack))
     }
 
-    fn xor(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.binary_op(u256::bitxor, 3, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
+    fn exp<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        gas_left.consume(10)?;
+        let (push_location, [exp, value]) = stack.pop_with_location()?;
+        gas_left.consume(exp.bits().div_ceil(8) as u64 * 50)?; // * does not overflow
+        push_location.push(value.pow(exp));
+        pc.advance();
+        Ok((pc, gas_left, stack))
     }
 
-    fn not(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.unary_op(u256::not, 3, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
+    fn sign_extend<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        Self::binary_op(u256::signextend, 5, &mut pc, &mut gas_left, &mut stack)?;
+        Ok((pc, gas_left, stack))
     }
 
-    fn byte(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.binary_op(
+    fn lt<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        Self::binary_op(|lhs, rhs| lhs < rhs, 3, &mut pc, &mut gas_left, &mut stack)?;
+        Ok((pc, gas_left, stack))
+    }
+
+    fn gt<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        Self::binary_op(|lhs, rhs| lhs > rhs, 3, &mut pc, &mut gas_left, &mut stack)?;
+        Ok((pc, gas_left, stack))
+    }
+
+    fn s_lt<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        Self::binary_op(
+            |lhs, rhs| lhs.slt(&rhs),
+            3,
+            &mut pc,
+            &mut gas_left,
+            &mut stack,
+        )?;
+        Ok((pc, gas_left, stack))
+    }
+
+    fn s_gt<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        Self::binary_op(
+            |lhs, rhs| lhs.sgt(&rhs),
+            3,
+            &mut pc,
+            &mut gas_left,
+            &mut stack,
+        )?;
+        Ok((pc, gas_left, stack))
+    }
+
+    fn eq<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        Self::binary_op(|lhs, rhs| lhs == rhs, 3, &mut pc, &mut gas_left, &mut stack)?;
+        Ok((pc, gas_left, stack))
+    }
+
+    fn is_zero<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        Self::unary_op(
+            |value| value == u256::ZERO,
+            3,
+            &mut pc,
+            &mut gas_left,
+            &mut stack,
+        )?;
+        Ok((pc, gas_left, stack))
+    }
+
+    fn and<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        Self::binary_op(u256::bitand, 3, &mut pc, &mut gas_left, &mut stack)?;
+        Ok((pc, gas_left, stack))
+    }
+
+    fn or<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        Self::binary_op(u256::bitor, 3, &mut pc, &mut gas_left, &mut stack)?;
+        Ok((pc, gas_left, stack))
+    }
+
+    fn xor<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        Self::binary_op(u256::bitxor, 3, &mut pc, &mut gas_left, &mut stack)?;
+        Ok((pc, gas_left, stack))
+    }
+
+    fn not<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        Self::unary_op(u256::not, 3, &mut pc, &mut gas_left, &mut stack)?;
+        Ok((pc, gas_left, stack))
+    }
+
+    fn byte<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        Self::binary_op(
             |offset, value| value.byte(offset),
             3,
             &mut pc,
             &mut gas_left,
+            &mut stack,
         )?;
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn shl(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.binary_op(|shift, value| value << shift, 3, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
+    fn shl<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        Self::binary_op(
+            |shift, value| value << shift,
+            3,
+            &mut pc,
+            &mut gas_left,
+            &mut stack,
+        )?;
+        Ok((pc, gas_left, stack))
     }
 
-    fn shr(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.binary_op(|shift, value| value >> shift, 3, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
+    fn shr<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        Self::binary_op(
+            |shift, value| value >> shift,
+            3,
+            &mut pc,
+            &mut gas_left,
+            &mut stack,
+        )?;
+        Ok((pc, gas_left, stack))
     }
 
-    fn sar(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.binary_op(|shift, value| value.sar(shift), 3, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
+    fn sar<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        Self::binary_op(
+            |shift, value| value.sar(shift),
+            3,
+            &mut pc,
+            &mut gas_left,
+            &mut stack,
+        )?;
+        Ok((pc, gas_left, stack))
     }
 
-    fn clz(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
+    fn clz<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         check_min_revision(Revision::EVMC_OSAKA, self.revision)?;
-        self.unary_op(|value| value.leading_zeros(), 5, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
+        Self::unary_op(
+            |value| value.leading_zeros(),
+            5,
+            &mut pc,
+            &mut gas_left,
+            &mut stack,
+        )?;
+        Ok((pc, gas_left, stack))
     }
 
-    fn sha3(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
+    fn sha3<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         gas_left.consume(30)?;
-        let (push_location, [len, offset]) = self.stack.pop_with_location()?;
+        let (push_location, [len, offset]) = stack.pop_with_location()?;
 
         let len = u64::try_from(len).map_err(|_| FailStatus::OutOfGas)?;
         gas_left.consume(6 * word_size(len)?)?; // * does not overflow
@@ -937,57 +1195,86 @@ impl<'a, const STEPPABLE: bool> Interpreter<'a, STEPPABLE> {
         let data = self.memory.get_mut_slice(offset, len, &mut gas_left)?;
         push_location.push(self.hash_cache.hash(data));
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn address(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.push_value_op(|i| i.message.recipient, 2, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
+    fn address<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        self.push_value_op(
+            |i| i.message.recipient,
+            2,
+            &mut pc,
+            &mut gas_left,
+            &mut stack,
+        )?;
+        Ok((pc, gas_left, stack))
     }
 
-    fn balance(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
+    fn balance<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         if self.revision < Revision::EVMC_BERLIN {
             gas_left.consume(700)?;
         }
-        let (push_location, [addr]) = self.stack.pop_with_location()?;
+        let (push_location, [addr]) = stack.pop_with_location()?;
         let addr = addr.into();
         gas_left.consume_address_access_cost(&addr, self.revision, self.context)?;
         push_location.push(self.context.get_balance(&addr));
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn origin(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
+    fn origin<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         self.push_value_op(
             |i| i.context.get_tx_context().tx_origin,
             2,
             &mut pc,
             &mut gas_left,
+            &mut stack,
         )?;
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn caller(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.push_value_op(|i| i.message.sender, 2, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
-    }
-
-    fn call_value(
+    fn caller<'c>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
-        self.push_value_op(|i| i.message.value, 2, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        self.push_value_op(|i| i.message.sender, 2, &mut pc, &mut gas_left, &mut stack)?;
+        Ok((pc, gas_left, stack))
     }
 
-    fn call_data_load(
+    fn call_value<'c>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        self.push_value_op(|i| i.message.value, 2, &mut pc, &mut gas_left, &mut stack)?;
+        Ok((pc, gas_left, stack))
+    }
+
+    fn call_data_load<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         gas_left.consume(3)?;
-        let (push_location, [offset]) = self.stack.pop_with_location()?;
+        let (push_location, [offset]) = stack.pop_with_location()?;
         let (offset, overflow) = offset.into_u64_with_overflow();
         let offset = offset as usize;
         let call_data = self.message.input;
@@ -1003,31 +1290,44 @@ impl<'a, const STEPPABLE: bool> Interpreter<'a, STEPPABLE> {
             push_location.push(u256::from_be_bytes(bytes));
         }
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn call_data_size(
+    fn call_data_size<'c>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
-        self.push_value_op(|i| i.message.input.len(), 2, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        self.push_value_op(
+            |i| i.message.input.len(),
+            2,
+            &mut pc,
+            &mut gas_left,
+            &mut stack,
+        )?;
+        Ok((pc, gas_left, stack))
     }
 
-    fn push0(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
+    fn push0<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         check_min_revision(Revision::EVMC_SHANGHAI, self.revision)?;
-        self.push_value_op(|_| u256::ZERO, 2, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
+        self.push_value_op(|_| u256::ZERO, 2, &mut pc, &mut gas_left, &mut stack)?;
+        Ok((pc, gas_left, stack))
     }
 
-    fn call_data_copy(
+    fn call_data_copy<'c>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         gas_left.consume(3)?;
-        let [len, offset, dest_offset] = self.stack.pop()?;
+        let [len, offset, dest_offset] = stack.pop()?;
 
         if len != u256::ZERO {
             let len = u64::try_from(len).map_err(|_| FailStatus::InvalidMemoryAccess)?;
@@ -1037,27 +1337,29 @@ impl<'a, const STEPPABLE: bool> Interpreter<'a, STEPPABLE> {
             dest.copy_padded(src, &mut gas_left)?;
         }
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn code_size(
+    fn code_size<'c>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         gas_left.consume(2)?;
-        self.stack.push(self.code.len())?;
+        stack.push(self.code.len())?;
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn code_copy(
+    fn code_copy<'c>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         gas_left.consume(3)?;
-        let [len, offset, dest_offset] = self.stack.pop()?;
+        let [len, offset, dest_offset] = stack.pop()?;
 
         if len != u256::ZERO {
             let len = u64::try_from(len).map_err(|_| FailStatus::OutOfGas)?;
@@ -1067,48 +1369,52 @@ impl<'a, const STEPPABLE: bool> Interpreter<'a, STEPPABLE> {
             dest.copy_padded(src, &mut gas_left)?;
         }
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn gas_price(
+    fn gas_price<'c>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         self.push_value_op(
             |i| i.context.get_tx_context().tx_gas_price,
             2,
             &mut pc,
             &mut gas_left,
+            &mut stack,
         )?;
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn ext_code_size(
+    fn ext_code_size<'c>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         if self.revision < Revision::EVMC_BERLIN {
             gas_left.consume(700)?;
         }
-        let (push_location, [addr]) = self.stack.pop_with_location()?;
+        let (push_location, [addr]) = stack.pop_with_location()?;
         let addr = addr.into();
         gas_left.consume_address_access_cost(&addr, self.revision, self.context)?;
         push_location.push(self.context.get_code_size(&addr));
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn ext_code_copy(
+    fn ext_code_copy<'c>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         if self.revision < Revision::EVMC_BERLIN {
             gas_left.consume(700)?;
         }
-        let [len, offset, dest_offset, addr] = self.stack.pop()?;
+        let [len, offset, dest_offset, addr] = stack.pop()?;
         let addr = addr.into();
 
         gas_left.consume_address_access_cost(&addr, self.revision, self.context)?;
@@ -1126,25 +1432,33 @@ impl<'a, const STEPPABLE: bool> Interpreter<'a, STEPPABLE> {
             }
         }
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn return_data_size(
+    fn return_data_size<'c>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
-        self.push_value_op(|i| i.last_call_return_data.len(), 2, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        self.push_value_op(
+            |i| i.last_call_return_data.len(),
+            2,
+            &mut pc,
+            &mut gas_left,
+            &mut stack,
+        )?;
+        Ok((pc, gas_left, stack))
     }
 
-    fn return_data_copy(
+    fn return_data_copy<'c>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         gas_left.consume(3)?;
-        let [len, offset, dest_offset] = self.stack.pop()?;
+        let [len, offset, dest_offset] = stack.pop()?;
 
         let src = &self.last_call_return_data;
         let (offset, offset_overflow) = offset.into_u64_with_overflow();
@@ -1161,146 +1475,180 @@ impl<'a, const STEPPABLE: bool> Interpreter<'a, STEPPABLE> {
             dest.copy_padded(src, &mut gas_left)?;
         }
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn ext_code_hash(
+    fn ext_code_hash<'c>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         if self.revision < Revision::EVMC_BERLIN {
             gas_left.consume(700)?;
         }
-        let (push_location, [addr]) = self.stack.pop_with_location()?;
+        let (push_location, [addr]) = stack.pop_with_location()?;
         let addr = addr.into();
         gas_left.consume_address_access_cost(&addr, self.revision, self.context)?;
         push_location.push(self.context.get_code_hash(&addr));
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn block_hash(
+    fn block_hash<'c>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         gas_left.consume(20)?;
-        let (push_location, [block_number]) = self.stack.pop_with_location()?;
+        let (push_location, [block_number]) = stack.pop_with_location()?;
         push_location.push(
             u64::try_from(block_number)
                 .map(|idx| self.context.get_block_hash(idx.cast_signed()).into())
                 .unwrap_or(u256::ZERO),
         );
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn coinbase(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
+    fn coinbase<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         self.push_value_op(
             |i| i.context.get_tx_context().block_coinbase,
             2,
             &mut pc,
             &mut gas_left,
+            &mut stack,
         )?;
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn timestamp(
+    fn timestamp<'c>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         self.push_value_op(
             |i| i.context.get_tx_context().block_timestamp.cast_unsigned(),
             2,
             &mut pc,
             &mut gas_left,
+            &mut stack,
         )?;
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn number(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
+    fn number<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         self.push_value_op(
             |i| i.context.get_tx_context().block_number.cast_unsigned(),
             2,
             &mut pc,
             &mut gas_left,
+            &mut stack,
         )?;
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn prev_randao(
+    fn prev_randao<'c>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         self.push_value_op(
             |i| i.context.get_tx_context().block_prev_randao,
             2,
             &mut pc,
             &mut gas_left,
+            &mut stack,
         )?;
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn gas_limit(
+    fn gas_limit<'c>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         self.push_value_op(
             |i| i.context.get_tx_context().block_gas_limit.cast_unsigned(),
             2,
             &mut pc,
             &mut gas_left,
+            &mut stack,
         )?;
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn chain_id(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
+    fn chain_id<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         self.push_value_op(
             |i| i.context.get_tx_context().chain_id,
             2,
             &mut pc,
             &mut gas_left,
+            &mut stack,
         )?;
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn self_balance(
+    fn self_balance<'c>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         check_min_revision(Revision::EVMC_ISTANBUL, self.revision)?;
         gas_left.consume(5)?;
-        self.stack.check_overflow(1)?; // Check for stack overflow before querying the host
+        stack.check_overflow(1)?; // Check for stack overflow before querying the host
         let addr = self.message.recipient;
-        self.stack.push(self.context.get_balance(&addr))?;
+        stack.push(self.context.get_balance(&addr))?;
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn base_fee(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
+    fn base_fee<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         check_min_revision(Revision::EVMC_LONDON, self.revision)?;
         self.push_value_op(
             |i| i.context.get_tx_context().block_base_fee,
             2,
             &mut pc,
             &mut gas_left,
+            &mut stack,
         )?;
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn blob_hash(
+    fn blob_hash<'c>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         check_min_revision(Revision::EVMC_CANCUN, self.revision)?;
         gas_left.consume(3)?;
-        let (push_location, [idx]) = self.stack.pop_with_location()?;
+        let (push_location, [idx]) = stack.pop_with_location()?;
         let hashes = self.context.get_tx_context().blob_hashes;
         if let Ok(idx) = u64::try_from(idx)
             && let Some(hash) = hashes.get(idx as usize)
@@ -1310,64 +1658,91 @@ impl<'a, const STEPPABLE: bool> Interpreter<'a, STEPPABLE> {
             push_location.push(u256::ZERO);
         }
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn blob_base_fee(
+    fn blob_base_fee<'c>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         check_min_revision(Revision::EVMC_CANCUN, self.revision)?;
         self.push_value_op(
             |i| i.context.get_tx_context().blob_base_fee,
             2,
             &mut pc,
             &mut gas_left,
+            &mut stack,
         )?;
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn pop(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
+    fn pop<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         gas_left.consume(2)?;
-        let [_] = self.stack.pop()?;
+        let [_] = stack.pop()?;
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn m_load(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
+    fn m_load<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         gas_left.consume(3)?;
-        let (push_location, [offset]) = self.stack.pop_with_location()?;
+        let (push_location, [offset]) = stack.pop_with_location()?;
 
         push_location.push(self.memory.get_word(offset, &mut gas_left)?);
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn m_store(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
+    fn m_store<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         gas_left.consume(3)?;
-        let [value, offset] = self.stack.pop()?;
+        let [value, offset] = stack.pop()?;
 
         *self.memory.get_mut_array(offset, &mut gas_left)? = value.to_be_bytes();
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn m_store8(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
+    fn m_store8<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         gas_left.consume(3)?;
-        let [value, offset] = self.stack.pop()?;
+        let [value, offset] = stack.pop()?;
 
         let dest = self.memory.get_mut_byte(offset, &mut gas_left)?;
         *dest = value.least_significant_byte();
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn s_load(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
+    fn s_load<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         if self.revision < Revision::EVMC_BERLIN {
             gas_left.consume(800)?;
         }
-        let (push_location, [key]) = self.stack.pop_with_location()?;
+        let (push_location, [key]) = stack.pop_with_location()?;
         let key = key.into();
         let addr = &self.message.recipient;
         if self.revision >= Revision::EVMC_BERLIN {
@@ -1380,22 +1755,32 @@ impl<'a, const STEPPABLE: bool> Interpreter<'a, STEPPABLE> {
         let value = self.context.get_storage(addr, &key);
         push_location.push(value);
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn jump(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
+    fn jump<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         gas_left.consume(if STEPPABLE { 8 } else { 8 + 1 })?;
-        let [dest] = self.stack.pop()?;
+        let [dest] = stack.pop()?;
         self.code.try_jump(&mut pc, dest)?;
         if !STEPPABLE {
             pc.advance();
         }
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn jump_i(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
+    fn jump_i<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         gas_left.consume(10)?;
-        let [cond, dest] = self.stack.pop()?;
+        let [cond, dest] = stack.pop()?;
         if cond == u256::ZERO {
             pc.advance();
         } else {
@@ -1405,106 +1790,153 @@ impl<'a, const STEPPABLE: bool> Interpreter<'a, STEPPABLE> {
                 pc.advance();
             }
         }
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn pc(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        gas_left.consume(2)?;
-        let offset = pc.code_offset();
-        self.stack.push(offset)?;
-        pc.advance();
-        Ok((pc, gas_left))
-    }
-
-    fn m_size(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.push_value_op(|i| i.memory.len(), 2, &mut pc, &mut gas_left)?;
-        Ok((pc, gas_left))
-    }
-
-    fn gas(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        gas_left.consume(2)?;
-        let remaining = gas_left.as_u64();
-        self.stack.push(remaining)?;
-        pc.advance();
-        Ok((pc, gas_left))
-    }
-
-    fn jump_dest(
+    fn pc<'c>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
-        gas_left.consume(1)?;
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        gas_left.consume(2)?;
+        let offset = pc.code_offset();
+        stack.push(offset)?;
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn t_load(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
+    fn m_size<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        self.push_value_op(|i| i.memory.len(), 2, &mut pc, &mut gas_left, &mut stack)?;
+        Ok((pc, gas_left, stack))
+    }
+
+    fn gas<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        gas_left.consume(2)?;
+        let remaining = gas_left.as_u64();
+        stack.push(remaining)?;
+        pc.advance();
+        Ok((pc, gas_left, stack))
+    }
+
+    fn jump_dest<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        gas_left.consume(1)?;
+        pc.advance();
+        Ok((pc, gas_left, stack))
+    }
+
+    fn t_load<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         check_min_revision(Revision::EVMC_CANCUN, self.revision)?;
         gas_left.consume(100)?;
-        let (push_location, [key]) = self.stack.pop_with_location()?;
+        let (push_location, [key]) = stack.pop_with_location()?;
         let value = self
             .context
             .get_transient_storage(&self.message.recipient, &key.into());
         push_location.push(value);
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn t_store(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
+    fn t_store<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         check_min_revision(Revision::EVMC_CANCUN, self.revision)?;
         check_not_read_only(self.message)?;
         gas_left.consume(100)?;
-        let [value, key] = self.stack.pop()?;
+        let [value, key] = stack.pop()?;
         self.context
             .set_transient_storage(&self.message.recipient, &key.into(), &value.into());
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn m_copy(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
+    fn m_copy<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         check_min_revision(Revision::EVMC_CANCUN, self.revision)?;
         gas_left.consume(3)?;
-        let [len, offset, dest_offset] = self.stack.pop()?;
+        let [len, offset, dest_offset] = stack.pop()?;
         if len != u256::ZERO {
             self.memory
                 .copy_within(offset, dest_offset, len, &mut gas_left)?;
         }
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn return_(&mut self, pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        let [len, offset] = self.stack.pop()?;
+    fn return_<'c>(
+        &mut self,
+        pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        let [len, offset] = stack.pop()?;
         let len = u64::try_from(len).map_err(|_| FailStatus::OutOfGas)?;
         let data = self.memory.get_mut_slice(offset, len, &mut gas_left)?;
         self.output = Box::from(&*data);
         self.exec_status = ExecStatus::Returned;
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn revert(&mut self, pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        let [len, offset] = self.stack.pop()?;
+    fn revert<'c>(
+        &mut self,
+        pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        let [len, offset] = stack.pop()?;
         let len = u64::try_from(len).map_err(|_| FailStatus::OutOfGas)?;
         let data = self.memory.get_mut_slice(offset, len, &mut gas_left)?;
         self.output = Box::from(&*data);
         self.exec_status = ExecStatus::Revert;
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
     #[cold]
-    fn invalid(&mut self, _pc: Pc<'a, STEPPABLE>, _gas_left: Gas) -> OpState<'a, STEPPABLE> {
+    fn invalid<'c>(
+        &mut self,
+        _pc: Pc<'a, STEPPABLE>,
+        _gas_left: Gas,
+        _stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         Err(FailStatus::InvalidInstruction)
     }
 
-    fn self_destruct(
+    fn self_destruct<'c>(
         &mut self,
         pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         check_not_read_only(self.message)?;
         gas_left.consume(5_000)?;
-        let [addr] = self.stack.pop()?;
+        let [addr] = stack.pop()?;
         let addr = addr.into();
 
         if self.revision >= Revision::EVMC_BERLIN
@@ -1525,17 +1957,22 @@ impl<'a, const STEPPABLE: bool> Interpreter<'a, STEPPABLE> {
         }
 
         self.exec_status = ExecStatus::Stopped;
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn sstore(&mut self, mut pc: Pc<'a, STEPPABLE>, mut gas_left: Gas) -> OpState<'a, STEPPABLE> {
+    fn sstore<'c>(
+        &mut self,
+        mut pc: Pc<'a, STEPPABLE>,
+        mut gas_left: Gas,
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         check_not_read_only(self.message)?;
 
         if self.revision >= Revision::EVMC_ISTANBUL && gas_left <= 2_300 {
             std::hint::cold_path();
             return Err(FailStatus::OutOfGas);
         }
-        let [value, key] = self.stack.pop()?;
+        let [value, key] = stack.pop()?;
         let key = key.into();
         let addr = &self.message.recipient;
 
@@ -1577,58 +2014,62 @@ impl<'a, const STEPPABLE: bool> Interpreter<'a, STEPPABLE> {
         gas_left.consume(dyn_gas)?;
         self.gas_refund.add(gas_refund_change);
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn push<const N: usize>(
+    fn push<'c, const N: usize>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         gas_left.consume(3)?;
         std::cfg_select! {
             feature = "fn-ptr-conversion-dispatch" => {
-                self.stack.push(pc.get_push_data())?;
+                stack.push(pc.get_push_data())?;
             }
             _ => {
                 pc.advance();
-                self.stack.push(self.code.get_push_data::<N>(&mut pc))?;
+                stack.push(self.code.get_push_data::<N>(&mut pc))?;
             }
         }
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn dup<const N: usize>(
+    fn dup<'c, const N: usize>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         gas_left.consume(3)?;
-        self.stack.dup::<N>()?;
+        stack.dup::<N>()?;
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn swap<const N: usize>(
+    fn swap<'c, const N: usize>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         gas_left.consume(3)?;
-        self.stack.swap_with_top::<N>()?;
+        stack.swap_with_top::<N>()?;
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn log<const N: usize>(
+    fn log<'c, const N: usize>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         check_not_read_only(self.message)?;
         gas_left.consume(375)?;
-        let [len, offset] = self.stack.pop()?;
-        let topics: [u256; N] = self.stack.pop()?;
+        let [len, offset] = stack.pop()?;
+        let topics: [u256; N] = stack.pop()?;
         let (len, len_overflow) = len.into_u64_with_overflow();
         let (len8, len8_overflow) = len.overflowing_mul(8);
         let (cost, cost_overflow) = (375 * N as u64).overflowing_add(len8);
@@ -1644,27 +2085,38 @@ impl<'a, const STEPPABLE: bool> Interpreter<'a, STEPPABLE> {
         self.context
             .emit_log(&self.message.recipient, data, &topics_uint256);
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn create(&mut self, pc: Pc<'a, STEPPABLE>, gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.create_or_create2::<false>(pc, gas_left)
+    fn create<'c>(
+        &mut self,
+        pc: Pc<'a, STEPPABLE>,
+        gas_left: Gas,
+        stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        self.create_or_create2::<false>(pc, gas_left, stack)
     }
 
-    fn create2(&mut self, pc: Pc<'a, STEPPABLE>, gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.create_or_create2::<true>(pc, gas_left)
+    fn create2<'c>(
+        &mut self,
+        pc: Pc<'a, STEPPABLE>,
+        gas_left: Gas,
+        stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        self.create_or_create2::<true>(pc, gas_left, stack)
     }
 
-    fn create_or_create2<const CREATE2: bool>(
+    fn create_or_create2<'c, const CREATE2: bool>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         gas_left.consume(32_000)?;
         check_not_read_only(self.message)?;
-        let [len, offset, value] = self.stack.pop()?;
+        let [len, offset, value] = stack.pop()?;
         let salt = if CREATE2 {
-            let [salt] = self.stack.pop()?;
+            let [salt] = stack.pop()?;
             salt
         } else {
             u256::ZERO // ignored
@@ -1690,9 +2142,9 @@ impl<'a, const STEPPABLE: bool> Interpreter<'a, STEPPABLE> {
 
         if value > self.context.get_balance(&self.message.recipient).into() {
             self.last_call_return_data = LastCallReturnData::Slice(&[]);
-            self.stack.push(u256::ZERO)?;
+            stack.push(u256::ZERO)?;
             pc.advance();
-            return Ok((pc, gas_left));
+            return Ok((pc, gas_left, stack));
         }
 
         let gas_left_u64 = gas_left.as_u64();
@@ -1724,32 +2176,43 @@ impl<'a, const STEPPABLE: bool> Interpreter<'a, STEPPABLE> {
 
         if result.status_code() == StatusCode::EVMC_SUCCESS {
             self.last_call_return_data = LastCallReturnData::Slice(&[]);
-            self.stack.push(result.create_address())?;
+            stack.push(result.create_address())?;
         } else {
             self.last_call_return_data = LastCallReturnData::CallResult(result);
-            self.stack.push(u256::ZERO)?;
+            stack.push(u256::ZERO)?;
         }
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn call(&mut self, pc: Pc<'a, STEPPABLE>, gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.call_or_call_code::<false>(pc, gas_left)
+    fn call<'c>(
+        &mut self,
+        pc: Pc<'a, STEPPABLE>,
+        gas_left: Gas,
+        stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        self.call_or_call_code::<false>(pc, gas_left, stack)
     }
 
-    fn call_code(&mut self, pc: Pc<'a, STEPPABLE>, gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.call_or_call_code::<true>(pc, gas_left)
+    fn call_code<'c>(
+        &mut self,
+        pc: Pc<'a, STEPPABLE>,
+        gas_left: Gas,
+        stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        self.call_or_call_code::<true>(pc, gas_left, stack)
     }
 
-    fn call_or_call_code<const CODE: bool>(
+    fn call_or_call_code<'c, const CODE: bool>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         if self.revision < Revision::EVMC_BERLIN {
             gas_left.consume(700)?;
         }
-        let [ret_len, ret_offset, args_len, args_offset, value, addr, gas] = self.stack.pop()?;
+        let [ret_len, ret_offset, args_len, args_offset, value, addr, gas] = stack.pop()?;
 
         if !CODE && value != u256::ZERO {
             check_not_read_only(self.message)?;
@@ -1784,9 +2247,9 @@ impl<'a, const STEPPABLE: bool> Interpreter<'a, STEPPABLE> {
 
         if value > u256::from(self.context.get_balance(&self.message.recipient)) {
             self.last_call_return_data = LastCallReturnData::Slice(&[]);
-            self.stack.push(u256::ZERO)?;
+            stack.push(u256::ZERO)?;
             pc.advance();
-            return Ok((pc, gas_left));
+            return Ok((pc, gas_left, stack));
         }
 
         let call_message = if CODE {
@@ -1837,28 +2300,39 @@ impl<'a, const STEPPABLE: bool> Interpreter<'a, STEPPABLE> {
         gas_left.consume(stipend)?;
         self.gas_refund.add(call_gas_refund);
 
-        self.stack.push(status_code == StatusCode::EVMC_SUCCESS)?;
+        stack.push(status_code == StatusCode::EVMC_SUCCESS)?;
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 
-    fn static_call(&mut self, pc: Pc<'a, STEPPABLE>, gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.static_or_delegate_call::<false>(pc, gas_left)
+    fn static_call<'c>(
+        &mut self,
+        pc: Pc<'a, STEPPABLE>,
+        gas_left: Gas,
+        stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        self.static_or_delegate_call::<false>(pc, gas_left, stack)
     }
 
-    fn delegate_call(&mut self, pc: Pc<'a, STEPPABLE>, gas_left: Gas) -> OpState<'a, STEPPABLE> {
-        self.static_or_delegate_call::<true>(pc, gas_left)
+    fn delegate_call<'c>(
+        &mut self,
+        pc: Pc<'a, STEPPABLE>,
+        gas_left: Gas,
+        stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
+        self.static_or_delegate_call::<true>(pc, gas_left, stack)
     }
 
-    fn static_or_delegate_call<const DELEGATE: bool>(
+    fn static_or_delegate_call<'c, const DELEGATE: bool>(
         &mut self,
         mut pc: Pc<'a, STEPPABLE>,
         mut gas_left: Gas,
-    ) -> OpState<'a, STEPPABLE> {
+        mut stack: Stack<'c>,
+    ) -> OpState<'a, 'c, STEPPABLE> {
         if self.revision < Revision::EVMC_BERLIN {
             gas_left.consume(700)?;
         }
-        let [ret_len, ret_offset, args_len, args_offset, addr, gas] = self.stack.pop()?;
+        let [ret_len, ret_offset, args_len, args_offset, addr, gas] = stack.pop()?;
 
         let addr = addr.into();
         let args_len = u64::try_from(args_len).map_err(|_| FailStatus::OutOfGas)?;
@@ -1927,32 +2401,35 @@ impl<'a, const STEPPABLE: bool> Interpreter<'a, STEPPABLE> {
         gas_left.consume(endowment)?;
         self.gas_refund.add(call_gas_refund);
 
-        self.stack.push(status_code == StatusCode::EVMC_SUCCESS)?;
+        stack.push(status_code == StatusCode::EVMC_SUCCESS)?;
         pc.advance();
-        Ok((pc, gas_left))
+        Ok((pc, gas_left, stack))
     }
 }
 
 impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for StepResult {
     fn from(mut value: Interpreter<STEPPABLE>) -> Self {
-        let stack = value
-            .stack
-            .as_slice()
-            .iter()
+        let Interpreter {
+            stack_buffer,
+            frame,
+        } = &mut value;
+        let parked = &frame.parked;
+        let stack = Stack::with_len(stack_buffer, parked.stack_len)
+            .iter_from_bottom()
             .copied()
             .map(Into::into)
             .collect();
         Self {
-            step_status_code: value.exec_status.into(),
+            step_status_code: frame.exec_status.into(),
             status_code: StatusCode::EVMC_SUCCESS,
-            revision: value.revision,
-            pc: value.parked.pc.code_offset() as u64,
-            gas_left: value.parked.gas_left.as_i64(),
-            gas_refund: value.gas_refund.as_i64(),
-            output: std::mem::take(&mut value.output),
+            revision: frame.revision,
+            pc: parked.pc.code_offset() as u64,
+            gas_left: parked.gas_left.as_i64(),
+            gas_refund: frame.gas_refund.as_i64(),
+            output: std::mem::take(&mut frame.output),
             stack,
-            memory: value.memory.as_slice().to_vec(),
-            last_call_return_data: Box::from(&*value.last_call_return_data),
+            memory: frame.memory.as_slice().to_vec(),
+            last_call_return_data: Box::from(&*frame.last_call_return_data),
         }
     }
 }
@@ -1960,10 +2437,10 @@ impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for StepResult {
 impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for ExecutionResult {
     fn from(mut value: Interpreter<STEPPABLE>) -> Self {
         Self::new(
-            value.exec_status.into(),
-            value.parked.gas_left.as_i64(),
-            value.gas_refund.as_i64(),
-            std::mem::take(&mut value.output),
+            value.frame.exec_status.into(),
+            value.frame.parked.gas_left.as_i64(),
+            value.frame.gas_refund.as_i64(),
+            std::mem::take(&mut value.frame.output),
             Address::default(),
         )
     }
@@ -1981,7 +2458,7 @@ mod tests {
         interpreter::Interpreter,
         types::{
             Code, CodeAnalysisCache, MockExecutionContextTrait, MockExecutionMessage, NoOpObserver,
-            Opcode, hash_cache::HashCache, u256,
+            Opcode, Stack, hash_cache::HashCache, u256,
         },
     };
 
@@ -2139,7 +2616,8 @@ mod tests {
             &code,
             &hash_cache,
         );
-        interpreter.stack.reset_to(&[1u8.into(), 2u8.into()]);
+        interpreter.frame.parked.stack_len =
+            Stack::new_with(&mut interpreter.stack_buffer, &[1u8.into(), 2u8.into()]).len();
         let result: StepResult = interpreter.run(&mut NoOpObserver());
         assert_eq!(result.step_status_code, StepStatusCode::EVMC_STEP_STOPPED);
         assert_eq!(result.stack.as_slice(), [u256::from(3u8).into()]);
@@ -2167,9 +2645,11 @@ mod tests {
             &code,
             &hash_cache,
         );
-        interpreter
-            .stack
-            .reset_to(&[1u8.into(), 2u8.into(), 3u8.into()]);
+        interpreter.frame.parked.stack_len = Stack::new_with(
+            &mut interpreter.stack_buffer,
+            &[1u8.into(), 2u8.into(), 3u8.into()],
+        )
+        .len();
         let result: StepResult = interpreter.run(&mut NoOpObserver());
         assert_eq!(result.step_status_code, StepStatusCode::EVMC_STEP_STOPPED);
         assert_eq!(result.stack.as_slice(), [u256::from(6u8).into()]);
@@ -2217,14 +2697,13 @@ mod tests {
         };
         let message = message.into();
         let code = Code::new(&[Opcode::Add as u8], None, &code_analysis_cache);
-        let mut interpreter = Interpreter::new(
+        let interpreter = Interpreter::new(
             Revision::EVMC_ISTANBUL,
             &message,
             &mut context,
             &code,
             &hash_cache,
         );
-        interpreter.stack.reset_to(&[1u8.into(), 2u8.into()]);
         let result: ExecutionResult = interpreter.run(&mut NoOpObserver());
         assert_eq!(result.status_code(), StatusCode::EVMC_OUT_OF_GAS);
     }
