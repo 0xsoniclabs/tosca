@@ -44,7 +44,7 @@ func TestSpecification_SpecificationIsSound(t *testing.T) {
 		if len(rules) > 1 {
 			s0 := state.Clone()
 			rules[0].Effect.Apply(s0)
-			for i := 1; i < len(rules)-1; i++ {
+			for i := 1; i < len(rules); i++ {
 				s := state.Clone()
 				rules[i].Effect.Apply(s)
 				if !s.Eq(s0) {
