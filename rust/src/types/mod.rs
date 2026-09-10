@@ -20,9 +20,9 @@ pub use amount::u256;
 #[cfg(feature = "needs-cache")]
 pub use cache::Cache;
 pub use code_analysis::{CodeAnalysis, CodeAnalysisCache};
-pub use code_reader::CodeReader;
 #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
 pub use code_reader::GetOpcodeError;
+pub use code_reader::{Code, Pc};
 pub use execution_context::*;
 pub use interpreter_allocations::{new_stack_and_memory, release_stack_and_memory};
 pub use last_call_return_data::LastCallReturnData;

@@ -10,7 +10,8 @@ use crate::{
     ffi::EVMC_CAPABILITY,
     interpreter::Interpreter,
     types::{
-        CodeAnalysisCache, LoggingObserver, NoOpObserver, ObserverType, hash_cache::HashCache, u256,
+        Code, CodeAnalysisCache, LoggingObserver, NoOpObserver, ObserverType,
+        hash_cache::HashCache, u256,
     },
 };
 
@@ -48,14 +49,12 @@ impl EvmcVm for EvmRs {
             // If this is not the case it violates the EVMC spec and is an irrecoverable error.
             process::abort();
         };
-        let interpreter = Interpreter::new(
-            revision,
-            message,
-            context,
+        let code = Code::new(
             code,
+            message.code_hash.map(u256::from),
             &self.code_analysis_cache_non_steppable,
-            &self.hash_cache,
         );
+        let interpreter = Interpreter::new(revision, message, context, &code, &self.hash_cache);
         match self.observer_type {
             ObserverType::NoOp => interpreter.run(&mut NoOpObserver()),
             ObserverType::Logging => {
@@ -128,19 +127,23 @@ impl SteppableEvmcVm for EvmRs {
             // If this is not the case it violates the EVMC spec and is an irrecoverable error.
             process::abort();
         };
+        let code = Code::new(
+            code,
+            message.code_hash.map(u256::from),
+            &self.code_analysis_cache_steppable,
+        );
         let stack = stack.iter().map(|i| u256::from(*i)).collect::<Vec<_>>();
         let interpreter = Interpreter::new_steppable(
             revision,
             message,
             context,
-            code,
+            &code,
             pc as usize,
             gas_refund,
             &stack,
             memory,
             last_call_return_data,
             Some(steps),
-            &self.code_analysis_cache_steppable,
             &self.hash_cache,
         );
         match self.observer_type {

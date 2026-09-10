@@ -68,7 +68,7 @@ impl<const STEPPABLE: bool> CodeAnalysisCache<STEPPABLE> {
     }
 }
 
-/// The analysis of a code, i.e. the entries that [`crate::types::CodeReader`] uses.
+/// The analysis of a code, i.e. the entries that [`crate::types::Pc`] moves over.
 #[derive(Clone, Debug)]
 pub struct CodeAnalysis<const STEPPABLE: bool>(
     // Arc for shared ownership between the code reader and (if enabled) the code cache. It also
@@ -259,7 +259,7 @@ mod tests {
         }
     }
 
-    /// [`crate::types::CodeReader::try_jump`] uses the code offset of a jump destination as its
+    /// [`crate::types::Code::try_jump`] uses the code offset of a jump destination as its
     /// offset in the analysis.
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     #[test]

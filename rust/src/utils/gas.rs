@@ -29,7 +29,7 @@ impl GasRefund {
 
 /// The gas left for execution.
 // Invariant: gas <= i64::MAX
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Gas(u64);
 
 impl PartialEq<u64> for Gas {
