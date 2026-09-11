@@ -2414,15 +2414,20 @@ func rulesFor(i instruction) []Rule {
 		localConditions = append(localConditions, AnyKnownRevision())
 	}
 
+	effect := i.effect
+	if effect != FailEffect() {
+		effect = Change(func(s *st.State) {
+			s.Gas -= i.staticGas
+			s.Pc++
+			i.effect.Apply(s)
+		})
+	}
+
 	res = append(res, Rule{
 		Name:      fmt.Sprintf("%s_regular%v", strings.ToLower(i.op.String()), i.name),
 		Condition: And(localConditions...),
 		Parameter: i.parameters,
-		Effect: Change(func(s *st.State) {
-			s.Gas -= i.staticGas
-			s.Pc++
-			i.effect.Apply(s)
-		}),
+		Effect:    effect,
 	})
 	return res
 }
