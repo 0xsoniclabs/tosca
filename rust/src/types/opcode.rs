@@ -149,6 +149,7 @@ const REVERT: u8 = 0xFD;
 const INVALID: u8 = 0xFE;
 const SELFDESTRUCT: u8 = 0xFF;
 
+/// The EVM opcode.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Opcode {
@@ -308,6 +309,8 @@ pub enum Opcode {
     SelfDestruct = SELFDESTRUCT,
 }
 
+/// The type of a byte in the code. It is used to determine how to dispatch the byte and whether it
+/// is a push opcode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CodeByteType {
     JumpDest,
@@ -317,6 +320,7 @@ pub enum CodeByteType {
     DataOrInvalid,
 }
 
+/// Returns the type of the code byte and, if it is a push opcode, the number of bytes of data.
 pub fn code_byte_type(code_byte: u8) -> (CodeByteType, usize) {
     match code_byte {
         STOP | ADD | MUL | SUB | DIV | SDIV | MOD | SMOD | ADDMOD | MULMOD | EXP | SIGNEXTEND
@@ -341,5 +345,47 @@ pub fn code_byte_type(code_byte: u8) -> (CodeByteType, usize) {
         ),
         JUMPDEST => (CodeByteType::JumpDest, 0),
         _ => (CodeByteType::DataOrInvalid, 0),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const PUSH_CODE_BYTE_TYPE: CodeByteType = std::cfg_select! {
+        feature = "fn-ptr-conversion-dispatch" => CodeByteType::Push,
+        _ => CodeByteType::Opcode,
+    };
+
+    #[test]
+    fn code_byte_type_classifies_every_byte() {
+        for code_byte in 0..=u8::MAX {
+            // The bytes the EVM does not assign an opcode to.
+            let expected = match code_byte {
+                0x0C..=0x0F
+                | 0x1F
+                | 0x21..=0x2F
+                | 0x4B..=0x4F
+                | 0xA5..=0xEF
+                | 0xF6..=0xF9
+                | 0xFB..=0xFC => CodeByteType::DataOrInvalid,
+                JUMPDEST => CodeByteType::JumpDest,
+                PUSH1..=PUSH32 => PUSH_CODE_BYTE_TYPE,
+                _ => CodeByteType::Opcode,
+            };
+            assert_eq!(code_byte_type(code_byte).0, expected);
+        }
+    }
+
+    #[test]
+    fn code_byte_type_returns_the_data_len_of_push_opcodes() {
+        assert_eq!(code_byte_type(PUSH0), (CodeByteType::Opcode, 0));
+        for (code_byte, data_len) in (PUSH1..=PUSH32).zip(1..=32) {
+            assert_eq!(code_byte_type(code_byte), (PUSH_CODE_BYTE_TYPE, data_len));
+        }
+
+        for code_byte in (0..PUSH1).chain(PUSH32 + 1..=u8::MAX) {
+            assert_eq!(code_byte_type(code_byte).1, 0);
+        }
     }
 }
