@@ -165,18 +165,18 @@ impl RunArgs {
                 let i_squared = i * i;
                 let i_cubed = i_squared * i;
                 let i_mod3 = i % u256::from(3u8);
-                result += i;
-                result *= i;
-                result += i_squared;
-                result -= i;
-                result /= i;
-                result *= i_mod3 + u256::ONE;
-                result += i_cubed;
+                result = result + i;
+                result = result * i;
+                result = result + i_squared;
+                result = result - i;
+                result = result / i;
+                result = result * (i_mod3 + u256::ONE);
+                result = result + i_cubed;
 
-                i += u256::ONE;
+                i = i + u256::ONE;
             }
             let max_u32 = u256::from(i32::MAX as u64);
-            result %= max_u32;
+            result = result % max_u32;
             result.into_u64_with_overflow().0 as u32
         }
 
