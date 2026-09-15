@@ -58,6 +58,10 @@ func (e testCondition) String() string {
 	return "Test Condition"
 }
 
+func (e testCondition) ToSmt() string {
+	return "true"
+}
+
 func TestEnumeration_GenerateMultipleStatesPerRule(t *testing.T) {
 	numJobs := runtime.NumCPU()
 	seed := 0

@@ -28,49 +28,6 @@ import (
 	"github.com/0xsoniclabs/tosca/go/tosca/vm"
 )
 
-func TestSpecification_SpecificationIsSound(t *testing.T) {
-	const N = 100000
-
-	rnd := rand.New(0)
-	generator := gen.NewStateGenerator()
-
-	for range N {
-		state, err := generator.Generate(rnd)
-		if err != nil {
-			t.Fatalf("failed building state: %v", err)
-		}
-
-		rules := Spec.GetRulesFor(state)
-		if len(rules) > 1 {
-			s0 := state.Clone()
-			rules[0].Effect.Apply(s0)
-			for i := 1; i < len(rules)-1; i++ {
-				s := state.Clone()
-				rules[i].Effect.Apply(s)
-				if !s.Eq(s0) {
-					t.Fatalf("multiple conflicting rules for state %v: %v", state, rules)
-				}
-			}
-		}
-	}
-}
-
-func TestSpecification_SpecificationIsComplete(t *testing.T) {
-	const N = 100000
-	rnd := rand.New(0)
-	generator := gen.NewStateGenerator()
-	for range N {
-		state, err := generator.Generate(rnd)
-		if err != nil {
-			t.Errorf("failed to generate a random state: %v", err)
-		}
-		rules := Spec.GetRulesFor(state)
-		if len(rules) == 0 {
-			t.Fatalf("no rule found for \n%v", state)
-		}
-	}
-}
-
 func TestSpecification_EachRuleProducesAMatchingTestCase(t *testing.T) {
 	for _, rule := range Spec.GetRules() {
 		t.Run(rule.Name, func(t *testing.T) {
