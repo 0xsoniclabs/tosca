@@ -41,15 +41,42 @@ pub fn release_stack_and_memory(stack: Stack, memory: Memory) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::u256;
 
     #[test]
-    fn reused_pair_is_empty() {
+    fn new_stack_and_memory_returns_empty_stack_and_memory() {
         let (mut stack, mut memory) = new_stack_and_memory();
-        stack.reset_to(&[1u8.into()]);
+        assert_eq!(stack.len(), 0);
+        assert_eq!(memory.len(), 0);
+
+        // ensure the stack and memory are not empty
+        stack.reset_to(&[u256::ONE]);
         memory.reset_to(&[1]);
         release_stack_and_memory(stack, memory);
-        let (stack, memory) = new_stack_and_memory();
-        assert!(stack.as_slice().is_empty());
-        assert!(memory.as_slice().is_empty());
+
+        let (stack, memory) = new_stack_and_memory(); // reused
+        assert_eq!(stack.len(), 0);
+        assert_eq!(memory.len(), 0);
+    }
+
+    #[cfg(feature = "alloc-reuse")]
+    #[test]
+    fn new_stack_and_memory_reuses_allocations() {
+        let (mut stack, mut memory) = new_stack_and_memory();
+        // ensure the stack and memory are not empty so that the backing Vecs are allocated
+        stack.reset_to(&[u256::ONE]);
+        memory.reset_to(&[1]);
+        let stack_ptr = stack.as_slice().as_ptr();
+        let memory_ptr = memory.as_slice().as_ptr();
+
+        release_stack_and_memory(stack, memory);
+
+        let (mut stack, mut memory) = new_stack_and_memory(); // reused
+        // ensure the stack and memory are not empty so the slices point to the same backing Vecs as
+        // before
+        stack.reset_to(&[u256::ONE]);
+        memory.reset_to(&[1]);
+        assert_eq!(stack.as_slice().as_ptr(), stack_ptr);
+        assert_eq!(memory.as_slice().as_ptr(), memory_ptr);
     }
 }
