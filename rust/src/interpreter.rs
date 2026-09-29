@@ -1624,7 +1624,7 @@ impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for StepResult {
             status_code: StatusCode::EVMC_SUCCESS,
             revision: value.revision,
             pc: value.code_reader.pc() as u64,
-            gas_left: value.gas_left.as_u64().cast_signed(),
+            gas_left: value.gas_left.as_i64(),
             gas_refund: value.gas_refund.as_i64(),
             output: std::mem::take(&mut value.output),
             stack,
@@ -1638,7 +1638,7 @@ impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for ExecutionResult
     fn from(mut value: Interpreter<STEPPABLE>) -> Self {
         Self::new(
             value.exec_status.into(),
-            value.gas_left.as_u64().cast_signed(),
+            value.gas_left.as_i64(),
             value.gas_refund.as_i64(),
             std::mem::take(&mut value.output),
             Address::default(),
