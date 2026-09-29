@@ -1,19 +1,20 @@
 use std::{borrow::Cow, io::Write};
 
-#[cfg(feature = "fn-ptr-conversion-dispatch")]
-use crate::Opcode;
 use crate::interpreter::Interpreter;
-#[cfg(feature = "fn-ptr-conversion-dispatch")]
-use crate::types::{CodeByteType, code_byte_type};
 
+/// Hooks that the interpreter calls during execution, e.g. for tracing.
 pub trait Observer<const STEPPABLE: bool> {
+    /// Called before the op at the current program counter is executed.
     fn pre_op(&mut self, interpreter: &Interpreter<STEPPABLE>);
 
+    /// Called after an op was executed successfully.
     fn post_op(&mut self, interpreter: &Interpreter<STEPPABLE>);
 
+    /// Called with a free-form message from the interpreter.
     fn log(&mut self, message: Cow<str>);
 }
 
+/// An [`Observer`] that ignores all events.
 pub struct NoOpObserver();
 
 impl<const STEPPABLE: bool> Observer<STEPPABLE> for NoOpObserver {
@@ -24,11 +25,14 @@ impl<const STEPPABLE: bool> Observer<STEPPABLE> for NoOpObserver {
     fn log(&mut self, _message: Cow<str>) {}
 }
 
+/// An [`Observer`] that writes the op, the gas left and the top of the stack before each op and
+/// all log messages to `writer`, one line per event.
 pub struct LoggingObserver<W: Write> {
     writer: W,
 }
 
 impl<W: Write> LoggingObserver<W> {
+    /// Creates a new [`LoggingObserver`] that writes to `writer`.
     pub fn new(writer: W) -> Self {
         Self { writer }
     }
@@ -44,14 +48,7 @@ impl<W: Write, const STEPPABLE: bool> Observer<STEPPABLE> for LoggingObserver<W>
                     else {
                         return;
                     };
-                    // Data and invalid bytes are dispatched to the Opcode::Invalid handler, so
-                    // pre_op is reached for them, but they have no Opcode variant to log.
-                    if code_byte_type(op).0 == CodeByteType::DataOrInvalid {
-                        return;
-                    }
-                    // SAFETY:
-                    // Every other code byte type is a byte the Opcode enum has a variant for.
-                    unsafe { std::mem::transmute::<u8, Opcode>(op) }
+                    op
                 }
             }
             // pre_op is called after the op is fetched so this will always be Ok(..)
@@ -62,7 +59,11 @@ impl<W: Write, const STEPPABLE: bool> Observer<STEPPABLE> for LoggingObserver<W>
             Some(top) => write!(f, "{top}"),
             None => f.write_str("-empty-"),
         });
-        writeln!(self.writer, "{op:?}, {gas}, {top}").unwrap();
+        writeln!(
+            self.writer,
+            "op: {op:#04x}, gas left: {gas}, top of stack: {top}"
+        )
+        .unwrap();
         self.writer.flush().unwrap();
     }
 
@@ -74,8 +75,68 @@ impl<W: Write, const STEPPABLE: bool> Observer<STEPPABLE> for LoggingObserver<W>
     }
 }
 
+/// Selects the [`Observer`] the interpreter runs with.
 #[derive(Debug, Clone, Copy)]
 pub enum ObserverType {
     NoOp,
     Logging,
+}
+
+#[cfg(test)]
+mod tests {
+    use evmc_vm::Revision;
+    use rstest::rstest;
+
+    use super::*;
+    use crate::{
+        Opcode,
+        types::{
+            CodeAnalysisCache, MockExecutionContextTrait, MockExecutionMessage,
+            hash_cache::HashCache, u256,
+        },
+    };
+
+    #[rstest]
+    #[case::empty_stack(&[Opcode::Add as u8], &[], "op: 0x01, gas left: 100, top of stack: -empty-\n")]
+    #[case::top_of_stack(&[Opcode::Add as u8], &[u256::ONE, u256::from(2u8)], "op: 0x01, gas left: 100, top of stack: 2\n")]
+    // Only fn-ptr dispatch reaches pre_op for invalid bytes.
+    #[cfg_attr(
+        feature = "fn-ptr-conversion-dispatch",
+        case::invalid(&[0x0c], &[], "op: 0x0c, gas left: 100, top of stack: -empty-\n")
+    )]
+    fn logging_observer_pre_op_writes_op_gas_and_top_of_stack(
+        #[case] code: &[u8],
+        #[case] stack: &[u256],
+        #[case] expected: &str,
+    ) {
+        let code_analysis_cache = CodeAnalysisCache::default();
+        let hash_cache = HashCache::default();
+        let mut context = MockExecutionContextTrait::new();
+        let message = MockExecutionMessage {
+            gas: 100,
+            ..Default::default()
+        }
+        .into();
+        let mut interpreter = Interpreter::new(
+            Revision::EVMC_ISTANBUL,
+            &message,
+            &mut context,
+            code,
+            &code_analysis_cache,
+            &hash_cache,
+        );
+        interpreter.stack.reset_to(stack);
+
+        let mut observer = LoggingObserver::new(Vec::new());
+        observer.pre_op(&interpreter);
+        assert_eq!(String::from_utf8(observer.writer).unwrap(), expected);
+    }
+
+    #[test]
+    fn logging_observer_log_writes_message_as_line() {
+        let mut observer = LoggingObserver::new(Vec::new());
+        Observer::<false>::log(&mut observer, "a".into());
+        Observer::<false>::log(&mut observer, "b".into());
+        assert_eq!(String::from_utf8(observer.writer).unwrap(), "a\nb\n");
+    }
 }

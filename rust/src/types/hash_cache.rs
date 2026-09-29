@@ -9,6 +9,8 @@ type HashCache32 = Cache<[u8; 32], u256>;
 #[cfg(feature = "hash-cache")]
 type HashCache64 = Cache<[u8; 64], u256>;
 
+/// Computes Keccak-256 hashes. With the `hash-cache` feature, hashes of 32 and 64 byte inputs, the
+/// most common sizes, are cached.
 pub struct HashCache {
     #[cfg(feature = "hash-cache")]
     hash_cache_32: HashCache32,
@@ -23,8 +25,10 @@ impl Default for HashCache {
 }
 
 impl HashCache {
+    /// The capacity per cached input length used by [`Default`].
     const DEFAULT_CACHE_SIZE: usize = 1024; // value taken from evmzero
 
+    /// Creates a new [`HashCache`] that caches up to `size` hashes per cached input length.
     #[allow(unused_variables)]
     pub fn new(size: usize) -> Self {
         Self {
@@ -35,6 +39,7 @@ impl HashCache {
         }
     }
 
+    /// Returns the Keccak-256 hash of `data` as [`u256`], converted from the big endian digest.
     fn sha3(data: &[u8]) -> u256 {
         let mut hasher = Keccak256::new();
         hasher.update(data);
@@ -43,6 +48,7 @@ impl HashCache {
         u256::from_be_bytes(bytes)
     }
 
+    /// Returns the Keccak-256 hash of `data`, taken from the cache if present.
     #[allow(clippy::unused_self)]
     pub fn hash(&self, data: &[u8]) -> u256 {
         std::cfg_select! {
@@ -61,6 +67,7 @@ impl HashCache {
         }
     }
 
+    /// Returns the capacity per cached input length, or zero if caching is disabled.
     #[cfg(test)]
     #[allow(clippy::unused_self)]
     pub fn capacity(&self) -> usize {
