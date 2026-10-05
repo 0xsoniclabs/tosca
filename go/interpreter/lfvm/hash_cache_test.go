@@ -251,9 +251,12 @@ func TestHashCache_AccessesAreThreadSafe(t *testing.T) {
 		return tosca.Hash{}
 	})
 
+	// Using more keys than the cache capacity ensures that entries are
+	// evicted and overwritten while other threads may be accessing them.
 	const (
 		threads  = 10
 		accesses = 1000
+		keys     = 20
 	)
 
 	var wg sync.WaitGroup
@@ -262,7 +265,7 @@ func TestHashCache_AccessesAreThreadSafe(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for j := range accesses {
-				cache.getHash(j % 10)
+				cache.getHash(j % keys)
 			}
 		}()
 	}
