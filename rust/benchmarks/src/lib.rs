@@ -417,17 +417,20 @@ impl RunArgs {
         let mut code_hash = [0; 32];
         hasher.finalize_into((&mut code_hash).into());
 
-        let message = MockExecutionMessage {
-            input: Box::leak(Box::from(input.as_slice())),
-            code_hash: Some(Box::leak(Box::new(u256::from_le_bytes(code_hash).into()))),
-            ..Default::default()
+        let input = Box::into_raw(Box::<[u8]>::from(input.as_slice()));
+        let code_hash = Box::into_raw(Box::new(u256::from_le_bytes(code_hash).into()));
+        let message = evmc_message {
+            input_data: input as *const u8,
+            input_size: input.len(),
+            code_hash,
+            ..MockExecutionMessage::default().to_evmc_message()
         };
 
         Self {
             instance,
             host,
             revision: Revision::EVMC_CANCUN,
-            message: message.to_evmc_message(),
+            message,
             code,
         }
     }

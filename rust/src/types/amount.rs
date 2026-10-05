@@ -15,7 +15,7 @@ use evmc_vm::{Address, Uint256};
 
 /// This represents a 256-bit integer in native endian.
 #[expect(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct u256(U256);
 
 #[cfg(feature = "fuzzing")]
@@ -44,7 +44,17 @@ impl LowerHex for u256 {
 
 impl Display for u256 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+        // Not ethnum's: its decimal formatting writes through a pointer to the first byte of its
+        // buffer, which Miri rejects under Stacked Borrows.
+        Display::fmt(&bnum::types::U256::from_le_bytes(self.0.to_le_bytes()), f)
+    }
+}
+
+impl Debug for u256 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("u256")
+            .field(&format_args!("{self}"))
+            .finish()
     }
 }
 
@@ -505,8 +515,9 @@ mod tests {
         "1780731860627700044960722568376592200742329637303199754547598369979440671",
         "0001020304050607_08090a0b0c0d0e0f_1011121314151617_18191a1b1c1d1e1f"
     )]
-    fn display_and_lower_hex(#[case] value: u256, #[case] decimal: &str, #[case] hex: &str) {
+    fn formatting(#[case] value: u256, #[case] decimal: &str, #[case] hex: &str) {
         assert_eq!(format!("{value}"), decimal);
+        assert_eq!(format!("{value:?}"), format!("u256({decimal})"));
         assert_eq!(format!("{value:x}"), hex);
         assert_eq!(format!("{value:#x}"), format!("0x{hex}"));
     }
