@@ -108,8 +108,9 @@ func (h *hashCache[K]) getHash(key K) tosca.Hash {
 			h.head.pred = entry
 			h.head = entry
 		}
+		hash := entry.hash
 		h.lock.Unlock()
-		return entry.hash
+		return hash
 	}
 
 	// Compute the hash without holding the lock.
