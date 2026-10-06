@@ -44,7 +44,7 @@ impl<W: Write, const STEPPABLE: bool> Observer<STEPPABLE> for LoggingObserver<W>
             feature = "fn-ptr-conversion-dispatch" => {
                 {
                     // The terminator entry past the end of the code is not an op, so don't log it.
-                    let Some(&op) = interpreter.code_reader[..].get(interpreter.code_reader.pc())
+                    let Some(&op) = interpreter.code[..].get(interpreter.pc.code_offset())
                     else {
                         return;
                     };
@@ -52,7 +52,7 @@ impl<W: Write, const STEPPABLE: bool> Observer<STEPPABLE> for LoggingObserver<W>
                 }
             }
             // pre_op is called after the op is fetched so this will always be Ok(..)
-            _ => interpreter.code_reader.get().unwrap(),
+            _ => interpreter.code.get(interpreter.pc).unwrap(),
         };
         let gas = interpreter.gas_left.as_u64();
         let top = std::fmt::from_fn(|f| match interpreter.stack.peek() {
