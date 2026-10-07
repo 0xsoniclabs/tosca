@@ -11,10 +11,12 @@
 package sfvm
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/tosca/vm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -87,6 +89,24 @@ func TestNewInterpreter_AnalysisCacheArgumentsAreForwarded(t *testing.T) {
 	}
 }
 
+func TestNewInterpreter_NonPositiveConfigValuesUseDefaults(t *testing.T) {
+	tests := map[string]Config{
+		"zero values":     {WithAnalysisCache: true},
+		"negative values": {WithAnalysisCache: true, AnalysisCacheSize: -1, MaxCachedCodeSize: -1},
+	}
+
+	for name, config := range tests {
+		t.Run(name, func(t *testing.T) {
+			require := require.New(t)
+			vm, err := NewInterpreter(config)
+			require.NoError(err)
+
+			require.Equal(1<<14+1<<13, vm.analysis.maxCachedCodeSize)
+			require.NotNil(vm.analysis.cache)
+		})
+	}
+}
+
 func TestSfvm_InterpreterReturnsErrorWhenExecutingUnsupportedRevision(t *testing.T) {
 	vm, err := tosca.NewInterpreter("sfvm")
 	if err != nil {
@@ -99,5 +119,57 @@ func TestSfvm_InterpreterReturnsErrorWhenExecutingUnsupportedRevision(t *testing
 	_, err = vm.Run(params)
 	if want, got := fmt.Sprintf("unsupported revision %d", params.Revision), err.Error(); want != got {
 		t.Fatalf("unexpected error: want %q, got %q", want, got)
+	}
+}
+
+func TestSfvm_Run_AcceptsNewestSupportedRevision(t *testing.T) {
+	require := require.New(t)
+	interpreter, err := NewInterpreter(Config{})
+	require.NoError(err)
+
+	result, err := interpreter.Run(tosca.Parameters{
+		BlockParameters: tosca.BlockParameters{Revision: newestSupportedRevision},
+		Gas:             10,
+		Code:            tosca.Code{byte(vm.STOP)},
+	})
+
+	require.NoError(err)
+	require.Equal(tosca.Result{Success: true, GasLeft: 10}, result)
+}
+
+func TestSfvm_Run_ForwardsShaCacheConfiguration(t *testing.T) {
+	// The SHA3 cache is a package-level instance; whether a 32-byte input is
+	// cached after a run is the only observable effect of the flag.
+	tests := map[string]struct {
+		withShaCache bool
+		marker       byte
+		cached       bool
+	}{
+		"cache disabled": {withShaCache: false, marker: 0xd1, cached: false},
+		"cache enabled":  {withShaCache: true, marker: 0xd2, cached: true},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			require := require.New(t)
+			interpreter, err := NewInterpreter(Config{WithShaCache: test.withShaCache})
+			require.NoError(err)
+			input := bytes.Repeat([]byte{test.marker}, 32)
+			code := append(tosca.Code{byte(vm.PUSH32)}, input...)
+			code = append(code,
+				byte(vm.PUSH1), 0, byte(vm.MSTORE),
+				byte(vm.PUSH1), 32, byte(vm.PUSH1), 0, byte(vm.SHA3),
+				byte(vm.STOP),
+			)
+
+			result, err := interpreter.Run(tosca.Parameters{Gas: 1_000, Code: code})
+			require.NoError(err)
+			require.True(result.Success)
+
+			sha3Cache.cache32.lock.Lock()
+			_, cached := sha3Cache.cache32.index[[32]byte(input)]
+			sha3Cache.cache32.lock.Unlock()
+			require.Equal(test.cached, cached)
+		})
 	}
 }
