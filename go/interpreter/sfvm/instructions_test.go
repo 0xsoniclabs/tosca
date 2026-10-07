@@ -22,6 +22,7 @@ import (
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"github.com/0xsoniclabs/tosca/go/tosca/vm"
 	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -580,6 +581,59 @@ func TestInstructions_TernaryOperationsPushTheCorrectValues(t *testing.T) {
 	}
 }
 
+func TestInstructions_ModularOperationsUseAllThreeOperands(t *testing.T) {
+	// top of stack first: a = 10, b = 7, n = 11
+	tests := map[string]struct {
+		operation func(*context)
+		expected  uint64
+	}{
+		"addmod": {operation: opAddMod, expected: (10 + 7) % 11},
+		"mulmod": {operation: opMulMod, expected: (10 * 7) % 11},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			require := require.New(t)
+			ctxt := context{stack: fillStack(*uint256.NewInt(10), *uint256.NewInt(7), *uint256.NewInt(11))}
+
+			test.operation(&ctxt)
+
+			require.Equal(uint256.NewInt(test.expected), ctxt.stack.peek())
+		})
+	}
+}
+
+func TestInstructions_ByteAndSignExtendUseTheTopAsIndex(t *testing.T) {
+	// top of stack first
+	tests := map[string]struct {
+		operation func(*context)
+		stack     *stack
+		expected  *uint256.Int
+	}{
+		"byte selects the indexed byte of the value": {
+			operation: opByte,
+			stack:     fillStack(*uint256.NewInt(31), *uint256.NewInt(0x1234)),
+			expected:  uint256.NewInt(0x34),
+		},
+		"signextend extends from the indexed byte": {
+			operation: opSignExtend,
+			stack:     fillStack(*uint256.NewInt(0), *uint256.NewInt(0xff)),
+			expected:  new(uint256.Int).SetAllOne(),
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			require := require.New(t)
+			ctxt := context{stack: test.stack}
+
+			test.operation(&ctxt)
+
+			require.Equal(test.expected, ctxt.stack.peek())
+		})
+	}
+}
+
 func TestInstructions_NotNegatesInput(t *testing.T) {
 	ctxt := context{
 		stack: NewStack(),
@@ -1056,7 +1110,12 @@ func TestSelfDestruct_Refund(t *testing.T) {
 		revision   tosca.Revision
 		refund     tosca.Gas
 	}{
-		"istanbul": {
+		"istanbul-first-destructed": {
+			destructed: true,
+			revision:   tosca.R07_Istanbul,
+			refund:     24_000,
+		},
+		"istanbul-not-first-destructed": {
 			revision: tosca.R07_Istanbul,
 		},
 		"berlin-first-destructed": {
@@ -1066,6 +1125,14 @@ func TestSelfDestruct_Refund(t *testing.T) {
 		},
 		"berlin-not-first-destructed": {
 			revision: tosca.R09_Berlin,
+		},
+		"london-first-destructed": {
+			destructed: true,
+			revision:   tosca.R10_London,
+		},
+		"cancun-first-destructed": {
+			destructed: true,
+			revision:   tosca.R13_Cancun,
 		},
 	}
 
@@ -1305,6 +1372,36 @@ func TestGenericCreate_ResultIsWrittenToStack(t *testing.T) {
 	}
 }
 
+func TestGenericCreate_ForwardsParametersAndReturnsCalleeResult(t *testing.T) {
+	require := require.New(t)
+	recipient := tosca.Address{1}
+	initCode := tosca.Data{0xaa, 0xbb}
+	runContext := tosca.NewMockRunContext(gomock.NewController(t))
+	runContext.EXPECT().GetBalance(recipient).Return(tosca.Value{31: 5})
+	runContext.EXPECT().Call(tosca.Create2, tosca.CallParameters{
+		Sender: recipient,
+		Value:  tosca.Value{31: 1},
+		Input:  initCode,
+		Gas:    64_000 - 1_000, // all but one 64th
+		Salt:   tosca.Hash{31: 9},
+	}).Return(tosca.CallResult{Output: []byte{0x01}, GasLeft: 100, GasRefund: 3}, nil)
+	ctxt := getEmptyContext()
+	ctxt.context = runContext
+	ctxt.params.Recipient = recipient
+	require.NoError(ctxt.memory.set(uint256.NewInt(0), initCode, &context{gas: 3}))
+	initCodeHashing := tosca.Gas(6)
+	ctxt.gas = 64_000 + initCodeHashing
+	// top of stack first: value, offset, size, salt
+	ctxt.stack = fillStack(*uint256.NewInt(1), *uint256.NewInt(0), *uint256.NewInt(2), *uint256.NewInt(9))
+
+	require.NoError(genericCreate(&ctxt, tosca.Create2))
+
+	require.Equal(uint256.NewInt(0), ctxt.stack.peek())
+	require.Equal([]byte{0x01}, ctxt.returnData)
+	require.Equal(tosca.Gas(64_000-63_000+100), ctxt.gas)
+	require.Equal(tosca.Gas(3), ctxt.refund)
+}
+
 func TestOpEndWithResult_ReturnsExpectedState(t *testing.T) {
 	c := getEmptyContext()
 	c.stack.push(uint256.NewInt(1))
@@ -1452,6 +1549,90 @@ func TestInstructions_EIP2929_SSTOREReportsOutOfGas(t *testing.T) {
 	}
 }
 
+func TestInstructions_Sstore_ReportsOutOfGasAtTheBoundaries(t *testing.T) {
+	// EIP-2200 demands more than 2300 gas to be left. From London on,
+	// StorageAssigned costs 100 and StorageDeleted costs 2900.
+	tests := map[string]struct {
+		access tosca.AccessStatus
+		status tosca.StorageStatus
+		gas    tosca.Gas
+		err    error
+	}{
+		"at the sentry": {
+			access: tosca.WarmAccess, status: tosca.StorageAssigned, gas: 2300, err: errOutOfGas,
+		},
+		"just above the sentry": {
+			access: tosca.WarmAccess, status: tosca.StorageAssigned, gas: 2301,
+		},
+		"one below the access and dynamic cost": {
+			access: tosca.ColdAccess, status: tosca.StorageDeleted, gas: 2100 + 2900 - 1, err: errOutOfGas,
+		},
+		"exactly the access and dynamic cost": {
+			access: tosca.ColdAccess, status: tosca.StorageDeleted, gas: 2100 + 2900,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			runContext := tosca.NewMockRunContext(gomock.NewController(t))
+			runContext.EXPECT().AccessStorage(gomock.Any(), gomock.Any()).Return(test.access).AnyTimes()
+			runContext.EXPECT().SetStorage(gomock.Any(), gomock.Any(), gomock.Any()).Return(test.status).AnyTimes()
+			ctxt := getEmptyContext()
+			ctxt.context = runContext
+			ctxt.params.Revision = tosca.R13_Cancun
+			ctxt.gas = test.gas
+			ctxt.stack = fillStack(*uint256.NewInt(1), *uint256.NewInt(0))
+
+			require.ErrorIs(t, opSstore(&ctxt), test.err)
+		})
+	}
+}
+
+func TestInstructions_Sstore_ChargesAccessCostAndGrantsRefund(t *testing.T) {
+	// StorageDeleted costs 2900 and refunds 4800 from London on.
+	tests := map[string]struct {
+		access tosca.AccessStatus
+		gas    tosca.Gas
+	}{
+		"cold slot": {access: tosca.ColdAccess, gas: 2100 + 2900},
+		"warm slot": {access: tosca.WarmAccess, gas: 2900},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			require := require.New(t)
+			runContext := tosca.NewMockRunContext(gomock.NewController(t))
+			runContext.EXPECT().AccessStorage(gomock.Any(), gomock.Any()).Return(test.access)
+			runContext.EXPECT().SetStorage(gomock.Any(), gomock.Any(), gomock.Any()).Return(tosca.StorageDeleted)
+			ctxt := getEmptyContext()
+			ctxt.context = runContext
+			ctxt.params.Revision = tosca.R13_Cancun
+			ctxt.gas = test.gas
+			ctxt.stack = fillStack(*uint256.NewInt(1), *uint256.NewInt(0))
+
+			require.NoError(opSstore(&ctxt))
+
+			require.Equal(tosca.Gas(0), ctxt.gas)
+			require.Equal(tosca.Gas(4800), ctxt.refund)
+		})
+	}
+}
+
+func TestInstructions_Tload_WritesTheLoadedValueOnTheStack(t *testing.T) {
+	require := require.New(t)
+	value := tosca.Word{31: 0x42}
+	runContext := tosca.NewMockRunContext(gomock.NewController(t))
+	runContext.EXPECT().GetTransientStorage(gomock.Any(), gomock.Any()).Return(value)
+	ctxt := getEmptyContext()
+	ctxt.context = runContext
+	ctxt.params.Revision = tosca.R13_Cancun
+	ctxt.stack = fillStack(*uint256.NewInt(1))
+
+	require.NoError(opTload(&ctxt))
+
+	require.Equal(uint256.NewInt(0x42), ctxt.stack.peek())
+}
+
 func TestInstructions_StorageOps_CallStorageContext(t *testing.T) {
 	address := tosca.Address{}
 	_, _ = rand.Read(address[:])
@@ -1538,6 +1719,35 @@ func TestJumps_checkJumpDestOnlyContainsValidDestinations(t *testing.T) {
 		if context.code[context.pc+1] != byte(vm.JUMPDEST) && err != errInvalidJump {
 			t.Errorf("expected errInvalidJump, but got: %v", err)
 		}
+	}
+}
+
+func TestInstructions_JumpOps_LandOnTheJumpDestination(t *testing.T) {
+	tests := map[string]tosca.Code{
+		"jump": {
+			byte(vm.PUSH1), 4, byte(vm.JUMP), byte(vm.INVALID),
+			byte(vm.JUMPDEST), byte(vm.PUSH1), 7, byte(vm.STOP),
+		},
+		"jumpi taken": {
+			byte(vm.PUSH1), 1, byte(vm.PUSH1), 6, byte(vm.JUMPI), byte(vm.INVALID),
+			byte(vm.JUMPDEST), byte(vm.PUSH1), 7, byte(vm.STOP),
+		},
+	}
+
+	for name, code := range tests {
+		t.Run(name, func(t *testing.T) {
+			require := require.New(t)
+			ctxt := getEmptyContext()
+			ctxt.code = code
+			ctxt.analysis = findJumpDestinations(code)
+
+			status, err := steps(&ctxt, false)
+
+			require.NoError(err)
+			require.Equal(statusStopped, status)
+			require.Equal(1, ctxt.stack.len())
+			require.Equal(uint256.NewInt(7), ctxt.stack.peek())
+		})
 	}
 }
 
@@ -1767,6 +1977,87 @@ func TestGenericCall_ProperlyReportsErrors(t *testing.T) {
 			if err != test.expectedError {
 				t.Errorf("unexpected status after call, wanted %v, got %v", test.expectedError, err)
 			}
+		})
+	}
+}
+
+func TestGenericCall_ForwardsGasWithStipendAndReturnsCalleeResult(t *testing.T) {
+	require := require.New(t)
+	recipient := tosca.Address{1}
+	target := tosca.Address{2}
+	runContext := tosca.NewMockRunContext(gomock.NewController(t))
+	runContext.EXPECT().GetNonce(target).Return(uint64(1))
+	runContext.EXPECT().GetBalance(recipient).Return(tosca.Value{31: 5})
+	runContext.EXPECT().Call(tosca.Call, tosca.CallParameters{
+		Sender:      recipient,
+		Recipient:   target,
+		CodeAddress: target,
+		Value:       tosca.Value{31: 1},
+		Gas:         1_000 + CallStipend,
+	}).Return(tosca.CallResult{Success: true, Output: []byte{0xaa, 0xbb}, GasLeft: 500, GasRefund: 7}, nil)
+	ctxt := getEmptyContext()
+	ctxt.context = runContext
+	ctxt.params.Recipient = recipient
+	ctxt.gas = 100_000
+	// top of stack first: gas, address, value, inOffset, inSize, retOffset, retSize
+	ctxt.stack = fillStack(
+		*uint256.NewInt(1_000), *new(uint256.Int).SetBytes20(target[:]), *uint256.NewInt(1),
+		*uint256.NewInt(0), *uint256.NewInt(0), *uint256.NewInt(0), *uint256.NewInt(2),
+	)
+
+	require.NoError(genericCall(&ctxt, tosca.Call))
+
+	require.Equal(uint256.NewInt(1), ctxt.stack.peek())
+	require.Equal([]byte{0xaa, 0xbb}, ctxt.memory.store[:2])
+	require.Equal([]byte{0xaa, 0xbb}, ctxt.returnData)
+	memoryExpansion, valueTransfer := tosca.Gas(3), CallValueTransferGas
+	require.Equal(100_000-memoryExpansion-valueTransfer-1_000+500, ctxt.gas)
+	require.Equal(tosca.Gas(7), ctxt.refund)
+}
+
+func TestGenericCall_CopiesOutputIntoTheReturnArea(t *testing.T) {
+	// Memory is filled with 0xff to show which bytes the output overwrites.
+	// The return area is the two bytes at offset 1.
+	tests := map[string]struct {
+		result tosca.CallResult
+		memory []byte
+	}{
+		"output fills the return area": {
+			result: tosca.CallResult{Success: true, Output: []byte{1, 2}},
+			memory: []byte{0xff, 1, 2, 0xff},
+		},
+		"output of a failed call is copied as well": {
+			result: tosca.CallResult{Output: []byte{1, 2}},
+			memory: []byte{0xff, 1, 2, 0xff},
+		},
+		"output longer than the return area is truncated": {
+			result: tosca.CallResult{Success: true, Output: []byte{1, 2, 3}},
+			memory: []byte{0xff, 1, 2, 0xff},
+		},
+		"output shorter than the return area leaves the rest untouched": {
+			result: tosca.CallResult{Success: true, Output: []byte{1}},
+			memory: []byte{0xff, 1, 0xff, 0xff},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			require := require.New(t)
+			runContext := tosca.NewMockRunContext(gomock.NewController(t))
+			runContext.EXPECT().Call(tosca.StaticCall, gomock.Any()).Return(test.result, nil)
+			ctxt := getEmptyContext()
+			ctxt.context = runContext
+			require.NoError(ctxt.memory.set(uint256.NewInt(0), bytes.Repeat([]byte{0xff}, 4), &context{gas: 3}))
+			// top of stack first: gas, address, inOffset, inSize, retOffset, retSize
+			ctxt.stack = fillStack(
+				*uint256.NewInt(0), *uint256.NewInt(0), *uint256.NewInt(0),
+				*uint256.NewInt(0), *uint256.NewInt(1), *uint256.NewInt(2),
+			)
+
+			require.NoError(genericCall(&ctxt, tosca.StaticCall))
+
+			require.Equal(test.memory, ctxt.memory.store[:4])
+			require.Equal([]byte(test.result.Output), ctxt.returnData)
 		})
 	}
 }
@@ -2569,7 +2860,7 @@ func TestInstructions_opLog(t *testing.T) {
 		},
 	}
 	for name, test := range tests {
-		for n := range 4 {
+		for n := range 5 {
 			t.Run(fmt.Sprintf("%v/LOG%d", name, n), func(t *testing.T) {
 
 				ctxt := getEmptyContext()
@@ -2596,7 +2887,7 @@ func TestInstructions_opLog(t *testing.T) {
 							t.Errorf("unexpected number of topics, wanted %v, got %v", want, got)
 						}
 
-						for i := n; i > n; i++ {
+						for i := range n {
 							if want, got := tosca.Hash(uint256.NewInt(uint64(i)).Bytes32()), log.Topics[i]; want != got {
 								t.Errorf("unexpected topic #%d, wanted %v, got %v", i, want, got)
 							}
@@ -2617,6 +2908,23 @@ func TestInstructions_opLog(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestInstructions_opLog_EmitsACopyOfTheMemory(t *testing.T) {
+	require := require.New(t)
+	var emitted tosca.Log
+	runContext := tosca.NewMockRunContext(gomock.NewController(t))
+	runContext.EXPECT().EmitLog(gomock.Any()).Do(func(log tosca.Log) { emitted = log })
+	ctxt := getEmptyContext()
+	ctxt.context = runContext
+	require.NoError(ctxt.memory.set(uint256.NewInt(0), []byte{1, 2}, &context{gas: 3}))
+	// top of stack first: offset, size
+	ctxt.stack = fillStack(*uint256.NewInt(0), *uint256.NewInt(2))
+
+	require.NoError(opLog(&ctxt, 0))
+	ctxt.memory.store[0] = 0xff
+
+	require.Equal(tosca.Data{1, 2}, emitted.Data)
 }
 
 func TestInstructions_MemoryOperationsAltersMemory(t *testing.T) {
