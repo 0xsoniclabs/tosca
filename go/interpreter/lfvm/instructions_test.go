@@ -21,6 +21,7 @@ import (
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -757,6 +758,14 @@ func TestSelfDestruct_Refund(t *testing.T) {
 		"berlin-not-first-destructed": {
 			revision: tosca.R09_Berlin,
 		},
+		"london-first-destructed": {
+			destructed: true,
+			revision:   tosca.R10_London,
+		},
+		"cancun-first-destructed": {
+			destructed: true,
+			revision:   tosca.R13_Cancun,
+		},
 	}
 
 	for name, test := range tests {
@@ -1137,6 +1146,62 @@ func TestInstructions_EIP2929_SSTOREReportsOutOfGas(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+func TestInstructions_Sstore_FailsWithGasAtTheSentry(t *testing.T) {
+	require := require.New(t)
+	ctxt := getEmptyContext()
+	ctxt.params.Revision = tosca.R13_Cancun
+	ctxt.gas = 2300
+	ctxt.stack = fillStack(*uint256.NewInt(1), *uint256.NewInt(1))
+
+	require.ErrorIs(opSstore(&ctxt), errOutOfGas)
+}
+
+func TestInstructions_Sstore_SucceedsWithGasJustAboveTheSentry(t *testing.T) {
+	require := require.New(t)
+	runContext := tosca.NewMockRunContext(gomock.NewController(t))
+	runContext.EXPECT().AccessStorage(gomock.Any(), gomock.Any()).Return(tosca.WarmAccess)
+	runContext.EXPECT().SetStorage(gomock.Any(), gomock.Any(), gomock.Any()).Return(tosca.StorageAssigned)
+	ctxt := getEmptyContext()
+	ctxt.context = runContext
+	ctxt.params.Revision = tosca.R13_Cancun
+	ctxt.gas = 2301
+	ctxt.stack = fillStack(*uint256.NewInt(1), *uint256.NewInt(1))
+
+	require.NoError(opSstore(&ctxt))
+
+	require.Equal(tosca.Gas(2301-100), ctxt.gas)
+}
+
+func TestInstructions_Sstore_ChargesAccessCostAndGrantsRefund(t *testing.T) {
+	// StorageDeleted costs 2900 and refunds 4800 from London on.
+	tests := map[string]struct {
+		access tosca.AccessStatus
+		gas    tosca.Gas
+	}{
+		"cold slot": {access: tosca.ColdAccess, gas: 2100 + 2900},
+		"warm slot": {access: tosca.WarmAccess, gas: 2900},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			require := require.New(t)
+			runContext := tosca.NewMockRunContext(gomock.NewController(t))
+			runContext.EXPECT().AccessStorage(gomock.Any(), gomock.Any()).Return(test.access)
+			runContext.EXPECT().SetStorage(gomock.Any(), gomock.Any(), gomock.Any()).Return(tosca.StorageDeleted)
+			ctxt := getEmptyContext()
+			ctxt.context = runContext
+			ctxt.params.Revision = tosca.R13_Cancun
+			ctxt.gas = test.gas
+			ctxt.stack = fillStack(*uint256.NewInt(1), *uint256.NewInt(0))
+
+			require.NoError(opSstore(&ctxt))
+
+			require.Equal(tosca.Gas(0), ctxt.gas)
+			require.Equal(tosca.Gas(4800), ctxt.refund)
+		})
 	}
 }
 
@@ -2174,7 +2239,7 @@ func TestInstructions_opLog(t *testing.T) {
 		},
 	}
 	for name, test := range tests {
-		for n := range 4 {
+		for n := range 5 {
 			t.Run(fmt.Sprintf("%v/LOG%d", name, n), func(t *testing.T) {
 
 				ctxt := getEmptyContext()
@@ -2201,7 +2266,7 @@ func TestInstructions_opLog(t *testing.T) {
 							t.Errorf("unexpected number of topics, wanted %v, got %v", want, got)
 						}
 
-						for i := n; i > n; i++ {
+						for i := range n {
 							if want, got := tosca.Hash(uint256.NewInt(uint64(i)).Bytes32()), log.Topics[i]; want != got {
 								t.Errorf("unexpected topic #%d, wanted %v, got %v", i, want, got)
 							}
