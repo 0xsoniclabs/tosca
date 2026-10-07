@@ -12,6 +12,9 @@ package sfvm
 
 import (
 	"bytes"
+	"fmt"
+	"slices"
+	"sync"
 	"testing"
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
@@ -23,6 +26,20 @@ func TestAnalysisCache_PanicsOnNegativeSize(t *testing.T) {
 	require.Panics(t, func() {
 		newAnalysis(-1, 1)
 	})
+}
+
+func TestAnalysis_NewAnalysis_BoundsNumberOfCachedEntries(t *testing.T) {
+	require := require.New(t)
+	// 64 bytes of cache for codes of up to 8 bytes holds (64/8)*8 = 64 entries.
+	analysis := newAnalysis(64, 8)
+	code := tosca.Code{byte(vm.JUMPDEST)}
+
+	for i := range 100 {
+		hash := tosca.Hash{byte(i), byte(i >> 8)}
+		analysis.analyzeJumpDest(code, &hash)
+	}
+
+	require.Equal(64, analysis.cache.Len())
 }
 
 func TestAnalysis_NewAnalysisIsNonEmpty(t *testing.T) {
@@ -146,6 +163,40 @@ func TestAnalysis_PushDataIsSkipped(t *testing.T) {
 	}
 }
 
+func TestAnalysis_FindJumpDestinations_HandlesEmptyAndTruncatedPushCode(t *testing.T) {
+	tests := map[string]struct {
+		code      tosca.Code
+		jumpDests []uint64
+	}{
+		"empty code": {
+			code: tosca.Code{},
+		},
+		"push without data at the end": {
+			code:      tosca.Code{byte(vm.JUMPDEST), byte(vm.PUSH1)},
+			jumpDests: []uint64{0},
+		},
+		"push with partial data at the end": {
+			code: tosca.Code{byte(vm.PUSH4), byte(vm.JUMPDEST), byte(vm.JUMPDEST)},
+		},
+		"jump destination before a truncated push": {
+			code:      tosca.Code{byte(vm.JUMPDEST), byte(vm.PUSH32), byte(vm.JUMPDEST)},
+			jumpDests: []uint64{0},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			require := require.New(t)
+			analysis := findJumpDestinations(test.code)
+
+			require.Equal(uint64(len(test.code)), analysis.codeSize)
+			for idx := range uint64(len(test.code) + 2) {
+				require.Equal(slices.Contains(test.jumpDests, idx), analysis.isJumpDest(idx))
+			}
+		})
+	}
+}
+
 func TestAnalysis_InputsAreCachedUsingCodeHashAsKey(t *testing.T) {
 	analysis := newAnalysis(1<<2, 1)
 
@@ -199,6 +250,85 @@ func TestAnalysis_CodesBiggerThanMaxCachedLengthAreNotCached(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAnalysis_AnalyzeJumpDest_ComputesResultWithoutCacheOrHash(t *testing.T) {
+	code := tosca.Code{byte(vm.PUSH1), byte(vm.JUMPDEST), byte(vm.JUMPDEST)}
+	hash := tosca.Hash{1}
+	tests := map[string]struct {
+		analysis analysis
+		hash     *tosca.Hash
+	}{
+		"without cache": {analysis: analysis{}, hash: &hash},
+		"without hash":  {analysis: newAnalysis(1<<10, 1<<8), hash: nil},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			require := require.New(t)
+			first := test.analysis.analyzeJumpDest(code, test.hash)
+			second := test.analysis.analyzeJumpDest(code, test.hash)
+
+			require.Equal(findJumpDestinations(code), first)
+			require.Equal(findJumpDestinations(code), second)
+			require.NotSame(&first.bitmap[0], &second.bitmap[0])
+		})
+	}
+}
+
+func TestAnalysis_AnalyzeJumpDest_ReturnsCorrectMapsUnderConcurrentEviction(t *testing.T) {
+	require := require.New(t)
+	// 64 cache entries for 256 distinct codes of 8 bytes, so entries are
+	// evicted and recomputed while other goroutines read them. Bit i of the
+	// code index selects whether byte i is a JUMPDEST, and every third code
+	// starts with a PUSH1 that hides the following byte.
+	const (
+		codes      = 256
+		workers    = 8
+		iterations = 2_000
+	)
+	analysis := newAnalysis(64, 8)
+
+	code := make([]tosca.Code, codes)
+	hash := make([]tosca.Hash, codes)
+	want := make([]jumpDestMap, codes)
+	for i := range codes {
+		code[i] = make(tosca.Code, 8)
+		for j := range 8 {
+			if i&(1<<j) != 0 {
+				code[i][j] = byte(vm.JUMPDEST)
+			} else {
+				code[i][j] = byte(vm.STOP)
+			}
+		}
+		if i%3 == 0 {
+			code[i][0] = byte(vm.PUSH1)
+		}
+		hash[i] = tosca.Hash{byte(i), 0xaa}
+		want[i] = findJumpDestinations(code[i])
+	}
+
+	errs := make(chan error, workers)
+	var wg sync.WaitGroup
+	for worker := range workers {
+		wg.Go(func() {
+			for k := range iterations {
+				i := (worker*7919 + k) % codes
+				got := analysis.analyzeJumpDest(code[i], &hash[i])
+				if got.codeSize != want[i].codeSize || !slices.Equal(got.bitmap, want[i].bitmap) {
+					errs <- fmt.Errorf("worker %d got %v for code %d, want %v", worker, got, i, want[i])
+					return
+				}
+			}
+		})
+	}
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		require.NoError(err)
+	}
+	require.LessOrEqual(analysis.cache.Len(), 64)
 }
 
 func TestAnalysis_NewAnalysisEnsuresMaxCachedCodeSizeIsInBounds(t *testing.T) {

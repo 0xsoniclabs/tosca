@@ -11,6 +11,7 @@
 package sfvm
 
 import (
+	"bytes"
 	"fmt"
 	"math/rand"
 	"slices"
@@ -19,6 +20,7 @@ import (
 	"time"
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSha3HashCache_hash_ProducesCorrectHashesForInputs(t *testing.T) {
@@ -45,6 +47,35 @@ func TestSha3HashCache_hash_ProducesCorrectHashesForInputs(t *testing.T) {
 		if want != got {
 			t.Errorf("expected hash to be %x, but got %x", want, got)
 		}
+	}
+}
+
+func TestSha3HashCache_hash_CachesOnly32And64ByteInputs(t *testing.T) {
+	tests := map[string]struct {
+		size      int
+		entries32 int
+		entries64 int
+	}{
+		"32 bytes are cached in the 32-byte cache": {size: 32, entries32: 2, entries64: 1},
+		"64 bytes are cached in the 64-byte cache": {size: 64, entries32: 1, entries64: 2},
+		"empty input is not cached":                {size: 0, entries32: 1, entries64: 1},
+		"16 bytes are not cached":                  {size: 16, entries32: 1, entries64: 1},
+		"33 bytes are not cached":                  {size: 33, entries32: 1, entries64: 1},
+		"128 bytes are not cached":                 {size: 128, entries32: 1, entries64: 1},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			require := require.New(t)
+			// Each cache starts with the pre-inserted zero key, so a non-zero
+			// input adds a second entry to the cache it is routed to.
+			cache := newSha3HashCache(10, 10)
+			input := bytes.Repeat([]byte{0x42}, test.size)
+
+			require.Equal(Keccak256(input), cache.hash(input))
+			require.Len(cache.cache32.index, test.entries32)
+			require.Len(cache.cache64.index, test.entries64)
+		})
 	}
 }
 
@@ -300,6 +331,57 @@ func TestHashCache_ConcurrentThreadsCanNotIntroduceDuplicates(t *testing.T) {
 	wg.Wait()
 
 	// Check that the cache is consistent.
+	checkIndexAndGetLruOrder(t, cache)
+}
+
+func TestHashCache_getHash_ReturnsCorrectHashesUnderConcurrentEviction(t *testing.T) {
+	require := require.New(t)
+	// The hash encodes the key so that a value served from a recycled entry
+	// is distinguishable from the correct one. Capacity 2 makes every insert
+	// evict, so hot keys are constantly evicted and re-inserted while being
+	// read.
+	hash := func(key int) tosca.Hash {
+		return tosca.Hash{byte(key), byte(key >> 8), byte(key >> 16), byte(key >> 24)}
+	}
+	cache := newHashCache(2, hash)
+
+	const (
+		readers  = 4
+		writers  = 4
+		accesses = 20_000
+	)
+
+	errs := make(chan error, readers+writers)
+	var wg sync.WaitGroup
+	for reader := range readers {
+		wg.Go(func() {
+			key := reader
+			for range accesses {
+				if want, got := hash(key), cache.getHash(key); want != got {
+					errs <- fmt.Errorf("reader %d got hash %x for key %d, want %x", reader, got, key, want)
+					return
+				}
+			}
+		})
+	}
+	for writer := range writers {
+		wg.Go(func() {
+			base := 1_000 + writer*accesses
+			for i := range accesses {
+				key := base + i
+				if want, got := hash(key), cache.getHash(key); want != got {
+					errs <- fmt.Errorf("writer %d got hash %x for key %d, want %x", writer, got, key, want)
+					return
+				}
+			}
+		})
+	}
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		require.NoError(err)
+	}
 	checkIndexAndGetLruOrder(t, cache)
 }
 
