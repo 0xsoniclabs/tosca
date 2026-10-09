@@ -1,23 +1,23 @@
 use std::{self, ops::Deref};
 
-use crate::types::{CodeAnalysis, CodeAnalysisCache, CodeByteType, FailStatus, u256};
+use crate::types::{CodeAnalysis, CodeByteType, FailStatus, code_analysis::AnalysisItem, u256};
 #[cfg(feature = "fn-ptr-conversion-dispatch")]
 use crate::{interpreter::OpFn, types::OpFnData};
 
 #[derive(Debug)]
 pub struct CodeReader<'a, const STEPPABLE: bool> {
     code: &'a [u8],
-    code_analysis: CodeAnalysis<STEPPABLE>,
+    code_analysis: &'a [AnalysisItem<STEPPABLE>],
     #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
     pc: usize,
     /// Pointer to the current entry in `code_analysis`. Storing a pointer instead of an index
     /// avoids recomputing the entry address on every dispatch. It always points at a valid entry:
     /// execution cannot advance past the terminator entry and jumps are bounds checked.
     ///
-    /// It points into the heap buffer of `code_analysis`, not into this struct, so moving the
-    /// reader does not invalidate it and no pinning is needed. It stays valid because
-    /// `code_analysis` keeps that buffer alive for as long as the reader exists and because the
-    /// buffer is never mutated: it is only reachable through shared references.
+    /// It points into `code_analysis`, not into this struct, so moving the reader does not
+    /// invalidate it and no pinning is needed. It stays valid because the reader borrows
+    /// `code_analysis` for as long as it exists and because the analysis is never mutated: it is
+    /// only reachable through shared references.
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     pc: *const OpFnData<STEPPABLE>,
 }
@@ -38,13 +38,7 @@ pub enum GetOpcodeError {
 }
 
 impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
-    pub fn new(
-        code: &'a [u8],
-        code_hash: Option<u256>,
-        pc: usize,
-        cache: &CodeAnalysisCache<STEPPABLE>,
-    ) -> Self {
-        let code_analysis = CodeAnalysis::new(code, code_hash, cache);
+    pub fn new(code: &'a [u8], code_analysis: &'a CodeAnalysis<STEPPABLE>, pc: usize) -> Self {
         #[cfg(feature = "fn-ptr-conversion-dispatch")]
         let pc = {
             let analysis_offset = code_analysis.analysis_offset(pc);
@@ -181,14 +175,17 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
 mod tests {
     #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
     use crate::types::code_reader::GetOpcodeError;
-    use crate::types::{CodeAnalysisCache, FailStatus, Opcode, code_reader::CodeReader, u256};
+    use crate::types::{
+        CodeAnalysis, CodeAnalysisCache, FailStatus, Opcode, code_reader::CodeReader, u256,
+    };
 
     #[test]
     fn code_reader_internals() {
         let code_analysis_cache = CodeAnalysisCache::default();
         let code = [Opcode::Add as u8, Opcode::Add as u8, 0xc0];
+        let analysis = CodeAnalysis::new(&code, None, &code_analysis_cache);
         let pc = 1;
-        let code_reader = CodeReader::<false>::new(&code, None, pc, &code_analysis_cache);
+        let code_reader = CodeReader::<false>::new(&code, &analysis, pc);
         assert_eq!(*code_reader, code);
         assert_eq!(code_reader.len(), code.len());
         assert_eq!(code_reader.pc(), pc);
@@ -200,28 +197,30 @@ mod tests {
         let code_analysis_cache = CodeAnalysisCache::default();
 
         let code = [Opcode::Push1 as u8, Opcode::Add as u8, Opcode::Add as u8];
+        let analysis = CodeAnalysis::new(&code, None, &code_analysis_cache);
 
-        let code_reader = CodeReader::<false>::new(&code, None, 0, &code_analysis_cache);
+        let code_reader = CodeReader::<false>::new(&code, &analysis, 0);
         assert_eq!(code_reader.pc(), 0);
 
-        let mut code_reader = CodeReader::<false>::new(&code, None, 0, &code_analysis_cache);
+        let mut code_reader = CodeReader::<false>::new(&code, &analysis, 0);
         code_reader.get_push_data();
         assert_eq!(code_reader.pc(), 2);
 
-        let code_reader = CodeReader::<false>::new(&code, None, 2, &code_analysis_cache);
+        let code_reader = CodeReader::<false>::new(&code, &analysis, 2);
         assert_eq!(code_reader.pc(), 2);
 
         let mut code = [Opcode::Add as u8; 23];
         code[0] = Opcode::Push21 as u8;
+        let analysis = CodeAnalysis::new(&code, None, &code_analysis_cache);
 
-        let code_reader = CodeReader::<false>::new(&code, None, 0, &code_analysis_cache);
+        let code_reader = CodeReader::<false>::new(&code, &analysis, 0);
         assert_eq!(code_reader.pc(), 0);
 
-        let mut code_reader = CodeReader::<false>::new(&code, None, 0, &code_analysis_cache);
+        let mut code_reader = CodeReader::<false>::new(&code, &analysis, 0);
         code_reader.get_push_data();
         assert_eq!(code_reader.pc(), 22);
 
-        let code_reader = CodeReader::<false>::new(&code, None, 22, &code_analysis_cache);
+        let code_reader = CodeReader::<false>::new(&code, &analysis, 22);
         assert_eq!(code_reader.pc(), 22);
     }
 
@@ -229,12 +228,9 @@ mod tests {
     #[test]
     fn code_reader_get() {
         let code_analysis_cache = CodeAnalysisCache::default();
-        let mut code_reader = CodeReader::<false>::new(
-            &[Opcode::Add as u8, Opcode::Add as u8, 0xc0],
-            None,
-            0,
-            &code_analysis_cache,
-        );
+        let code = [Opcode::Add as u8, Opcode::Add as u8, 0xc0];
+        let analysis = CodeAnalysis::new(&code, None, &code_analysis_cache);
+        let mut code_reader = CodeReader::<false>::new(&code, &analysis, 0);
         assert_eq!(code_reader.get(), Ok(Opcode::Add as u8));
         code_reader.next();
         assert_eq!(code_reader.get(), Ok(Opcode::Add as u8));
@@ -249,12 +245,9 @@ mod tests {
     fn code_reader_get() {
         let jumptable = crate::interpreter::get_jumptable::<false>();
         let code_analysis_cache = CodeAnalysisCache::default();
-        let mut code_reader = CodeReader::<false>::new(
-            &[Opcode::Add as u8, Opcode::Add as u8, 0xc0],
-            None,
-            0,
-            &code_analysis_cache,
-        );
+        let code = [Opcode::Add as u8, Opcode::Add as u8, 0xc0];
+        let analysis = CodeAnalysis::new(&code, None, &code_analysis_cache);
+        let mut code_reader = CodeReader::<false>::new(&code, &analysis, 0);
         assert!(std::ptr::fn_addr_eq(
             code_reader.get(),
             jumptable[Opcode::Add as u8 as usize]
@@ -279,16 +272,13 @@ mod tests {
     #[test]
     fn code_reader_try_jump() {
         let code_analysis_cache = CodeAnalysisCache::default();
-        let mut code_reader = CodeReader::<false>::new(
-            &[
-                Opcode::Push1 as u8,
-                Opcode::JumpDest as u8,
-                Opcode::JumpDest as u8,
-            ],
-            None,
-            0,
-            &code_analysis_cache,
-        );
+        let code = [
+            Opcode::Push1 as u8,
+            Opcode::JumpDest as u8,
+            Opcode::JumpDest as u8,
+        ];
+        let analysis = CodeAnalysis::new(&code, None, &code_analysis_cache);
+        let mut code_reader = CodeReader::<false>::new(&code, &analysis, 0);
         assert_eq!(
             code_reader.try_jump(1u8.into()),
             Err(FailStatus::BadJumpDestination)
@@ -308,19 +298,21 @@ mod tests {
     #[test]
     fn code_reader_get_push_data() {
         let code_analysis_cache = CodeAnalysisCache::default();
-        let mut code_reader = CodeReader::<false>::new(&[0xff; 32], None, 0, &code_analysis_cache);
+        let code = [0xff; 32];
+        let analysis = CodeAnalysis::new(&code, None, &code_analysis_cache);
+        let mut code_reader = CodeReader::<false>::new(&code, &analysis, 0);
         assert_eq!(code_reader.get_push_data::<1>(), 0xffu8.into());
 
-        let mut code_reader = CodeReader::<false>::new(&[0xff; 32], None, 0, &code_analysis_cache);
+        let mut code_reader = CodeReader::<false>::new(&code, &analysis, 0);
         assert_eq!(code_reader.get_push_data::<32>(), u256::MAX);
 
-        let mut code_reader = CodeReader::<false>::new(&[0xff; 32], None, 31, &code_analysis_cache);
+        let mut code_reader = CodeReader::<false>::new(&code, &analysis, 31);
         assert_eq!(
             code_reader.get_push_data::<32>(),
             u256::from(0xffu8) << u256::from(248u8)
         );
 
-        let mut code_reader = CodeReader::<false>::new(&[0xff; 32], None, 32, &code_analysis_cache);
+        let mut code_reader = CodeReader::<false>::new(&code, &analysis, 32);
         assert_eq!(code_reader.get_push_data::<32>(), u256::ZERO);
     }
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
@@ -330,7 +322,8 @@ mod tests {
         // pc on data is non longer possible because there are not data items anymore
         let mut code = [0xff; 33];
         code[0] = Opcode::Push32 as u8;
-        let mut code_reader = CodeReader::<false>::new(&code, None, 0, &code_analysis_cache);
+        let analysis = CodeAnalysis::new(&code, None, &code_analysis_cache);
+        let mut code_reader = CodeReader::<false>::new(&code, &analysis, 0);
         assert_eq!(code_reader.get_push_data(), u256::MAX);
     }
 }

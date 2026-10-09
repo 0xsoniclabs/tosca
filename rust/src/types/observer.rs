@@ -91,8 +91,8 @@ mod tests {
     use crate::{
         Opcode,
         types::{
-            CodeAnalysisCache, MockExecutionContextTrait, MockExecutionMessage,
-            hash_cache::HashCache, u256,
+            CodeAnalysis, CodeAnalysisCache, Memory, MockExecutionContextTrait,
+            MockExecutionMessage, Stack, hash_cache::HashCache, u256,
         },
     };
 
@@ -117,12 +117,16 @@ mod tests {
             ..Default::default()
         }
         .into();
+        let analysis = CodeAnalysis::new(code, None, &code_analysis_cache);
+        let (mut stack_buffer, mut memory) = (Stack::new_buffer(), Memory::new());
         let mut interpreter = Interpreter::new(
             Revision::EVMC_ISTANBUL,
             &message,
             &mut context,
             code,
-            &code_analysis_cache,
+            &analysis,
+            &mut stack_buffer,
+            &mut memory,
             &hash_cache,
         );
         interpreter.stack.reset_to(stack);

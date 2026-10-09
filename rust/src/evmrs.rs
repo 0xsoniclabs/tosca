@@ -10,7 +10,8 @@ use crate::{
     ffi::EVMC_CAPABILITY,
     interpreter::Interpreter,
     types::{
-        CodeAnalysisCache, LoggingObserver, NoOpObserver, ObserverType, hash_cache::HashCache, u256,
+        CodeAnalysis, CodeAnalysisCache, InterpreterAllocationsCache, LoggingObserver,
+        NoOpObserver, ObserverType, hash_cache::HashCache, u256,
     },
 };
 
@@ -19,6 +20,7 @@ pub struct EvmRs {
     hash_cache: HashCache,
     code_analysis_cache_steppable: CodeAnalysisCache<true>,
     code_analysis_cache_non_steppable: CodeAnalysisCache<false>,
+    interpreter_allocations: InterpreterAllocationsCache,
 }
 
 impl EvmcVm for EvmRs {
@@ -28,6 +30,7 @@ impl EvmcVm for EvmRs {
             hash_cache: HashCache::default(),
             code_analysis_cache_steppable: CodeAnalysisCache::default(),
             code_analysis_cache_non_steppable: CodeAnalysisCache::default(),
+            interpreter_allocations: InterpreterAllocationsCache::default(),
         }
     }
 
@@ -48,21 +51,32 @@ impl EvmcVm for EvmRs {
             // If this is not the case it violates the EVMC spec and is an irrecoverable error.
             process::abort();
         };
+        let (mut stack_buffer, mut memory) = self.interpreter_allocations.new_stack_and_memory();
+        let code_analysis = CodeAnalysis::new(
+            code,
+            message.code_hash.map(u256::from),
+            &self.code_analysis_cache_non_steppable,
+        );
         let interpreter = Interpreter::new(
             revision,
             message,
             context,
             code,
-            &self.code_analysis_cache_non_steppable,
+            &code_analysis,
+            &mut stack_buffer,
+            &mut memory,
             &self.hash_cache,
         );
-        match self.observer_type {
+        let result = match self.observer_type {
             ObserverType::NoOp => interpreter.run(&mut NoOpObserver()),
             ObserverType::Logging => {
                 hint::cold_path();
                 interpreter.run(&mut LoggingObserver::new(std::io::stdout()))
             }
-        }
+        };
+        self.interpreter_allocations
+            .release_stack_and_memory(stack_buffer, memory);
+        result
     }
 
     fn set_option(&mut self, key: &str, value: &str) -> Result<(), SetOptionError> {
@@ -129,6 +143,13 @@ impl SteppableEvmcVm for EvmRs {
             process::abort();
         };
         let stack = stack.iter().map(|i| u256::from(*i)).collect::<Vec<_>>();
+        let (mut stack_buffer, mut run_memory) =
+            self.interpreter_allocations.new_stack_and_memory();
+        let code_analysis = CodeAnalysis::new(
+            code,
+            message.code_hash.map(u256::from),
+            &self.code_analysis_cache_steppable,
+        );
         let interpreter = Interpreter::new_steppable(
             revision,
             message,
@@ -140,21 +161,71 @@ impl SteppableEvmcVm for EvmRs {
             memory,
             last_call_return_data,
             Some(steps),
-            &self.code_analysis_cache_steppable,
+            &code_analysis,
+            &mut stack_buffer,
+            &mut run_memory,
             &self.hash_cache,
         );
-        match self.observer_type {
+        let result = match self.observer_type {
             ObserverType::NoOp => interpreter.run(&mut NoOpObserver()),
             ObserverType::Logging => interpreter.run(&mut LoggingObserver::new(std::io::stdout())),
-        }
+        };
+        self.interpreter_allocations
+            .release_stack_and_memory(stack_buffer, run_memory);
+        result
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use evmc_vm::EvmcVm;
+    #[cfg(feature = "alloc-reuse")]
+    use evmc_vm::ffi::evmc_host_interface;
 
-    use crate::evmrs::EvmRs;
+    use super::*;
+    #[cfg(feature = "alloc-reuse")]
+    use crate::types::{MockExecutionMessage, Opcode};
+
+    #[cfg(feature = "alloc-reuse")]
+    fn host_interface_without_callbacks() -> evmc_host_interface {
+        evmc_host_interface {
+            account_exists: None,
+            get_storage: None,
+            set_storage: None,
+            get_balance: None,
+            get_code_size: None,
+            get_code_hash: None,
+            copy_code: None,
+            selfdestruct: None,
+            call: None,
+            get_tx_context: None,
+            get_block_hash: None,
+            emit_log: None,
+            access_account: None,
+            access_storage: None,
+            get_transient_storage: None,
+            set_transient_storage: None,
+        }
+    }
+
+    #[cfg(feature = "alloc-reuse")]
+    #[test]
+    fn execute_returns_stack_and_memory_to_pool() {
+        let evm = EvmRs::init();
+        let host = host_interface_without_callbacks();
+        let mut context = ExecutionContext::new(&host, std::ptr::null_mut());
+        let message = MockExecutionMessage::default().into();
+        let code = [
+            Opcode::Push1 as u8,
+            1,
+            Opcode::Push0 as u8,
+            Opcode::MStore8 as u8,
+        ];
+        evm.execute(Revision::EVMC_CANCUN, &code, &message, Some(&mut context));
+
+        let (stack_buffer, memory) = evm.interpreter_allocations.new_stack_and_memory();
+        assert_eq!(stack_buffer[0], u256::ONE);
+        assert_eq!(memory.as_slice()[0], 1);
+    }
 
     #[test]
     fn set_option_with_cache_sizes_correctly_handles_input() {
@@ -184,5 +255,37 @@ mod tests {
         assert!(evm.set_option("hash-cache-size", "invalid").is_err());
         #[cfg(feature = "hash-cache")]
         assert_eq!(evm.hash_cache.capacity(), 100);
+    }
+
+    #[cfg(feature = "alloc-reuse")]
+    #[test]
+    fn step_n_returns_stack_and_memory_to_pool() {
+        let evm = EvmRs::init();
+        let host = host_interface_without_callbacks();
+        let mut context = ExecutionContext::new(&host, std::ptr::null_mut());
+        let message = MockExecutionMessage::default().into();
+        let code = [
+            Opcode::Push1 as u8,
+            1,
+            Opcode::Push0 as u8,
+            Opcode::MStore8 as u8,
+        ];
+        evm.step_n(
+            Revision::EVMC_CANCUN,
+            &code,
+            &message,
+            Some(&mut context),
+            EvmcStepStatusCode::EVMC_STEP_RUNNING,
+            0,
+            0,
+            &mut [],
+            &mut [],
+            &mut [],
+            i32::MAX,
+        );
+
+        let (stack_buffer, memory) = evm.interpreter_allocations.new_stack_and_memory();
+        assert_eq!(stack_buffer[0], u256::ONE);
+        assert_eq!(memory.as_slice()[0], 1);
     }
 }
