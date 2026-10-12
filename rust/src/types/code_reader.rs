@@ -48,7 +48,8 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
         #[cfg(feature = "fn-ptr-conversion-dispatch")]
         let pc = {
             let analysis_offset = code_analysis.analysis_offset(pc);
-            &code_analysis[analysis_offset] as *const _
+            // Derived from the tail of the analysis, so its provenance covers the entries ahead.
+            code_analysis[analysis_offset..].as_ptr()
         };
         Self {
             code,
@@ -115,7 +116,8 @@ impl<'a, const STEPPABLE: bool> CodeReader<'a, STEPPABLE> {
             return Err(FailStatus::BadJumpDestination);
         }
         std::cfg_select! {
-            feature = "fn-ptr-conversion-dispatch" => self.pc = analysis_item as *const _,
+            // Derived from the tail of the analysis, so its provenance covers the entries ahead.
+            feature = "fn-ptr-conversion-dispatch" => self.pc = self.code_analysis[dest..].as_ptr(),
             _ => self.pc = dest,
         }
 

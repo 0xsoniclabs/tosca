@@ -43,18 +43,22 @@ pub extern "C" fn get_tx_context_zeroed(_context: *mut ffi::c_void) -> evmc_tx_c
     TX_CONTEXT_ZEROED
 }
 
-pub struct Instance(&'static mut evmc_vm_t);
+pub struct Instance(*mut evmc_vm_t);
 
 impl Deref for Instance {
     type Target = evmc_vm_t;
     fn deref(&self) -> &Self::Target {
-        self.0
+        // SAFETY:
+        // `self.0` is the non-null pointer returned on creation, which stays valid until `drop`.
+        unsafe { &*self.0 }
     }
 }
 
 impl DerefMut for Instance {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.0
+        // SAFETY:
+        // `self.0` is the non-null pointer returned on creation, which stays valid until `drop`.
+        unsafe { &mut *self.0 }
     }
 }
 
@@ -64,19 +68,15 @@ impl Default for Instance {
         if instance.is_null() {
             panic!("failed to construct evmrs instance")
         }
-        // SAFETY:
-        // `instance is not null`. `evmc_create_evmrs` must return a valid pointer to an
-        // `evmc_vm_t`.
-        let instance = unsafe { &mut *instance };
         Self(instance)
     }
 }
 
 impl Drop for Instance {
     fn drop(&mut self) {
-        let destroy = self.0.destroy.unwrap();
+        let destroy = self.destroy.unwrap();
         // SAFETY:
-        // The supplied pointer to `evmc_vm_t` is valid because it is created from a reference;
+        // The supplied pointer to `evmc_vm_t` is the one `evmc_create_evmrs` returned.
         unsafe { destroy(self.0) };
     }
 }
@@ -167,18 +167,22 @@ impl Instance {
     }
 }
 
-pub struct SteppableInstance(&'static mut evmc_vm_steppable);
+pub struct SteppableInstance(*mut evmc_vm_steppable);
 
 impl Deref for SteppableInstance {
     type Target = evmc_vm_steppable;
     fn deref(&self) -> &Self::Target {
-        self.0
+        // SAFETY:
+        // `self.0` is the non-null pointer returned on creation, which stays valid until `drop`.
+        unsafe { &*self.0 }
     }
 }
 
 impl DerefMut for SteppableInstance {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.0
+        // SAFETY:
+        // `self.0` is the non-null pointer returned on creation, which stays valid until `drop`.
+        unsafe { &mut *self.0 }
     }
 }
 
@@ -188,20 +192,16 @@ impl Default for SteppableInstance {
         if instance.is_null() {
             panic!("vm instance is null")
         }
-        // SAFETY:
-        // `instance is not null`. `evmc_create_steppable_evmrs` must return a valid pointer to an
-        // `evmc_vm_steppable`.
-        let instance = unsafe { &mut *instance };
         Self(instance)
     }
 }
 
 impl Drop for SteppableInstance {
     fn drop(&mut self) {
-        let destroy = self.0.destroy.unwrap();
+        let destroy = self.destroy.unwrap();
         // SAFETY:
-        // The supplied pointer to `evmc_vm_steppable` is valid because it is created from a
-        // reference;
+        // The supplied pointer to `evmc_vm_steppable` is the one `evmc_create_steppable_evmrs`
+        // returned.
         unsafe { destroy(self.0) };
     }
 }

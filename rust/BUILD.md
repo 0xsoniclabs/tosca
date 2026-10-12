@@ -204,7 +204,7 @@ This [script](.scripts/pgo.sh) automates this process also provides benchmark re
 # install miri
 rustup +nightly component add miri
 
-export MIRIFLAGS "-Zmiri-disable-stacked-borrows -Zmiri-permissive-provenance -Zmiri-backtrace=full"
+export MIRIFLAGS="-Zmiri-permissive-provenance -Zmiri-backtrace=full"
 
 # run tests with miri
 cargo +nightly miri test

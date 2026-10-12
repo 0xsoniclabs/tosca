@@ -241,12 +241,12 @@ jobs:
     - name: cargo miri test
       working-directory: rust
       env:
-        MIRIFLAGS: "-Zmiri-disable-stacked-borrows -Zmiri-permissive-provenance -Zmiri-backtrace=full"
+        MIRIFLAGS: "-Zmiri-permissive-provenance -Zmiri-backtrace=full"
       run: cargo +nightly-2026-08-05 hack miri test --workspace --each-feature --exclude-features needs-cache,mimalloc,performance,performance-nightly
     - name: cargo miri benchmarks
       working-directory: rust
       env:
-        MIRIFLAGS: "-Zmiri-disable-stacked-borrows -Zmiri-permissive-provenance -Zmiri-backtrace=full"
+        MIRIFLAGS: "-Zmiri-permissive-provenance -Zmiri-backtrace=full"
       run: cargo +nightly-2026-08-05 hack miri run --package benchmarks --each-feature --exclude-features mimalloc,performance,performance-nightly -- 1 all-short
 
   fuzz:
