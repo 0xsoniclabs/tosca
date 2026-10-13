@@ -62,6 +62,15 @@ func TestContext_useGas_ReturnsErrorIfOutOfGasOrNegativeCost(t *testing.T) {
 			if want != success {
 				t.Errorf("expected UseGas to return %v, got %v", want, success)
 			}
+
+			// Check that the gas is only deducted if there was enough gas.
+			wantGas := test.available
+			if want {
+				wantGas -= test.required
+			}
+			if wantGas != ctx.gas {
+				t.Errorf("expected %d gas to be left, got %d", wantGas, ctx.gas)
+			}
 		})
 	}
 }

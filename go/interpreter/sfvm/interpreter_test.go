@@ -27,6 +27,7 @@ import (
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"github.com/0xsoniclabs/tosca/go/tosca/vm"
 	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -62,6 +63,15 @@ func TestContext_useGas_ReturnsErrorIfOutOfGasOrNegativeCost(t *testing.T) {
 			success := err == nil
 			if want != success {
 				t.Errorf("expected UseGas to return %v, got %v", want, success)
+			}
+
+			// Check that the gas is only deducted if there was enough gas.
+			wantGas := test.available
+			if want {
+				wantGas -= test.required
+			}
+			if wantGas != ctx.gas {
+				t.Errorf("expected %d gas to be left, got %d", wantGas, ctx.gas)
 			}
 		})
 	}
@@ -232,41 +242,99 @@ func TestInterpreter_CanDispatchExecutableInstructions(t *testing.T) {
 	}
 }
 
-func TestInterpreter_ExecutionTerminates(t *testing.T) {
-
+func TestInterpreter_steps_ReportsStatusOfTerminatingInstruction(t *testing.T) {
 	tests := map[string]struct {
-		code tosca.Code
+		code   tosca.Code
+		status status
 	}{
-		"empty code":          {code: tosca.Code{}},
-		"single stop":         {code: tosca.Code{byte(vm.STOP)}},
-		"pc bigger than code": {code: tosca.Code{byte(vm.PUSH1)}},
-		"revert":              {code: tosca.Code{byte(vm.REVERT)}},
-		"return":              {code: tosca.Code{byte(vm.RETURN)}},
-		"selfdestruct":        {code: tosca.Code{byte(vm.SELFDESTRUCT)}},
+		"empty code":     {code: tosca.Code{}, status: statusStopped},
+		"stop":           {code: tosca.Code{byte(vm.STOP)}, status: statusStopped},
+		"return":         {code: tosca.Code{byte(vm.RETURN)}, status: statusReturned},
+		"revert":         {code: tosca.Code{byte(vm.REVERT)}, status: statusReverted},
+		"selfdestruct":   {code: tosca.Code{byte(vm.SELFDESTRUCT)}, status: statusSelfDestructed},
+		"pc beyond code": {code: tosca.Code{byte(vm.PUSH1)}, status: statusStopped},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-
+			require := require.New(t)
 			ctxt := getEmptyContext()
 			ctxt.code = test.code
-			ctxt.stack.push(uint256.NewInt(1))
-			ctxt.stack.push(uint256.NewInt(2))
-			ctxt.stack.push(uint256.NewInt(3))
-			// runcontext is needed for selfdestruct
+			ctxt.stack.push(uint256.NewInt(0))
+			ctxt.stack.push(uint256.NewInt(0))
 			mockContext := tosca.NewMockRunContext(gomock.NewController(t))
-			mockContext.EXPECT().GetBalance(gomock.Any()).Return(tosca.Value{1}).AnyTimes()
+			mockContext.EXPECT().GetBalance(gomock.Any()).Return(tosca.Value{}).AnyTimes()
 			mockContext.EXPECT().GetNonce(gomock.Any()).Return(uint64(1)).AnyTimes()
 			mockContext.EXPECT().SelfDestruct(gomock.Any(), gomock.Any()).Return(true).AnyTimes()
 			ctxt.context = mockContext
 
 			status, err := steps(&ctxt, false)
-			if err != nil {
-				t.Errorf("unexpected error: %v", err)
+
+			require.NoError(err)
+			require.Equal(test.status, status)
+		})
+	}
+}
+
+func TestInterpreter_steps_PushesExactlyTheOperandBytes(t *testing.T) {
+	for n := 1; n <= 32; n++ {
+		t.Run(fmt.Sprintf("PUSH%d", n), func(t *testing.T) {
+			require := require.New(t)
+			operand := make([]byte, n)
+			for i := range operand {
+				operand[i] = byte(i + 1)
 			}
-			if status == statusRunning {
-				t.Errorf("failed to terminate execution, status is %v", status)
+			code := append(tosca.Code{byte(vm.PUSH1) + byte(n-1)}, operand...)
+			code = append(code, byte(vm.STOP))
+			ctxt := getEmptyContext()
+			ctxt.code = code
+
+			status, err := steps(&ctxt, false)
+
+			require.NoError(err)
+			require.Equal(statusStopped, status)
+			require.Equal(1, ctxt.stack.len())
+			require.Equal(new(uint256.Int).SetBytes(operand), ctxt.stack.peek())
+		})
+	}
+}
+
+func TestInterpreter_steps_DuplicatesTheNthStackElement(t *testing.T) {
+	for n := 1; n <= 16; n++ {
+		t.Run(fmt.Sprintf("DUP%d", n), func(t *testing.T) {
+			require := require.New(t)
+			ctxt := getEmptyContext()
+			ctxt.code = tosca.Code{byte(vm.DUP1) + byte(n-1), byte(vm.STOP)}
+			for i := range 17 {
+				ctxt.stack.push(uint256.NewInt(uint64(i + 1)))
 			}
+
+			_, err := steps(&ctxt, false)
+
+			require.NoError(err)
+			require.Equal(18, ctxt.stack.len())
+			require.Equal(uint256.NewInt(uint64(18-n)), ctxt.stack.peek())
+			require.Equal(uint256.NewInt(17), ctxt.stack.peekN(1))
+		})
+	}
+}
+
+func TestInterpreter_steps_SwapsTopWithTheNthStackElement(t *testing.T) {
+	for n := 1; n <= 16; n++ {
+		t.Run(fmt.Sprintf("SWAP%d", n), func(t *testing.T) {
+			require := require.New(t)
+			ctxt := getEmptyContext()
+			ctxt.code = tosca.Code{byte(vm.SWAP1) + byte(n-1), byte(vm.STOP)}
+			for i := range 17 {
+				ctxt.stack.push(uint256.NewInt(uint64(i + 1)))
+			}
+
+			_, err := steps(&ctxt, false)
+
+			require.NoError(err)
+			require.Equal(17, ctxt.stack.len())
+			require.Equal(uint256.NewInt(uint64(17-n)), ctxt.stack.peek())
+			require.Equal(uint256.NewInt(17), ctxt.stack.peekN(n))
 		})
 	}
 }
@@ -306,19 +374,14 @@ func TestInterpreter_Vanilla_RunsWithoutOutput(t *testing.T) {
 	}
 }
 
-func TestInterpreter_EmptyCodeBypassesRunnerAndSucceeds(t *testing.T) {
-	code := tosca.Code{}
-	params := tosca.Parameters{Code: code}
-	config := Config{}
+func TestInterpreter_run_EmptyCodeReturnsAllGas(t *testing.T) {
+	require := require.New(t)
+	params := tosca.Parameters{Gas: 1000}
 
-	result, err := run(analysis{}, config, params)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
+	result, err := run(analysis{}, Config{}, params)
 
-	if !result.Success {
-		t.Errorf("unexpected result: want success, got %v", result.Success)
-	}
+	require.NoError(err)
+	require.Equal(tosca.Result{Success: true, GasLeft: 1000}, result)
 }
 
 func TestRun_GenerateResult(t *testing.T) {

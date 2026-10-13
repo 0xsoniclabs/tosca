@@ -19,6 +19,7 @@ import (
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMemory_NewMemoryIsEmpty(t *testing.T) {
@@ -94,10 +95,7 @@ func TestGetExpansionCostsAndSize(t *testing.T) {
 					t.Errorf("unexpected size: want: %d but got: %d", want, got)
 				}
 
-				// cost must be calculated by the formula
-				words := tosca.SizeInWords(test.size)
-				expectedCost := tosca.Gas((words*words)/512 + 3*words)
-				if want, got := expectedCost, cost; want != got {
+				if want, got := test.cost, cost; want != got {
 					t.Errorf("unexpected cost: want: %d but got: %d", want, got)
 				}
 			}
@@ -331,6 +329,45 @@ func TestMemory_getSlice_DoesNotExpandWithSizeZero(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestMemory_getSlice_RejectsOffsetsAndSizesBeyond64Bits(t *testing.T) {
+	huge := new(uint256.Int).Lsh(uint256.NewInt(1), 64)
+	tests := map[string]struct {
+		offset *uint256.Int
+		size   *uint256.Int
+	}{
+		"offset beyond 64 bits": {offset: huge, size: uint256.NewInt(1)},
+		"size beyond 64 bits":   {offset: uint256.NewInt(0), size: huge},
+		"both beyond 64 bits":   {offset: huge, size: huge},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			require := require.New(t)
+			c := context{gas: 100}
+			m := NewMemory()
+
+			_, err := m.getSlice(test.offset, test.size, &c)
+
+			require.ErrorIs(err, errOverflow)
+			require.Equal(uint64(0), m.length())
+			require.Equal(tosca.Gas(100), c.gas)
+		})
+	}
+}
+
+func TestMemory_getSlice_SizeZeroIsFreeForAnyOffset(t *testing.T) {
+	require := require.New(t)
+	c := context{gas: 0}
+	m := NewMemory()
+	offset := new(uint256.Int).Lsh(uint256.NewInt(1), 64)
+
+	slice, err := m.getSlice(offset, uint256.NewInt(0), &c)
+
+	require.NoError(err)
+	require.Nil(slice)
+	require.Equal(uint64(0), m.length())
 }
 
 func TestMemory_getSlice_MemoryExpansionDoesNotOverwriteExistingMemory(t *testing.T) {

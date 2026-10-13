@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStack_ZeroStackIsEmpty(t *testing.T) {
@@ -277,21 +278,45 @@ func TestStack_NewStack_IsEmpty(t *testing.T) {
 	}
 }
 
-func TestStack_NewStackAndReturnStack_AreThreadSafe(t *testing.T) {
-	// this test assumes to be executed using the --race flag.
-	const parallelism = 10
-	const iterations = 1000
+func TestStack_ReturnStack_ResetsLength(t *testing.T) {
+	stack := &stack{}
+	stack.push(uint256.NewInt(42))
 
+	ReturnStack(stack)
+
+	require.Equal(t, 0, stack.len())
+}
+
+func TestStack_NewStackAndReturnStack_AreThreadSafeAndReturnEmptyStacks(t *testing.T) {
+	require := require.New(t)
+	// Stacks are returned inside the loop so that goroutines keep re-acquiring
+	// stacks that other goroutines have just used. To be run with --race.
+	const (
+		goroutines = 10
+		iterations = 1_000
+	)
+
+	errs := make(chan error, goroutines)
 	var wg sync.WaitGroup
-	wg.Add(parallelism)
-	for range parallelism {
-		go func() {
-			defer wg.Done()
+	for goroutine := range goroutines {
+		wg.Go(func() {
+			marker := uint256.NewInt(uint64(goroutine) + 1)
 			for range iterations {
 				stack := NewStack()
-				defer ReturnStack(stack)
+				if got := stack.len(); got != 0 {
+					errs <- fmt.Errorf("goroutine %d got a stack with %d elements", goroutine, got)
+					ReturnStack(stack)
+					return
+				}
+				stack.push(marker)
+				ReturnStack(stack)
 			}
-		}()
+		})
 	}
 	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		require.NoError(err)
+	}
 }

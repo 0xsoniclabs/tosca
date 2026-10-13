@@ -11,10 +11,75 @@
 package sfvm
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/0xsoniclabs/tosca/go/tosca/vm"
+	"github.com/stretchr/testify/require"
 )
+
+func TestGas_getStaticGasPrices_MatchesTheSpecificationForEveryOpCodeAndRevision(t *testing.T) {
+	// Static gas prices as of Istanbul, taken from the Yellow Paper (Appendix G)
+	// and EIP-150, EIP-1884, EIP-2200, EIP-3198, EIP-3855, EIP-4844, EIP-5656 and
+	// EIP-7939. Opcodes introduced after Istanbul are listed with the price they
+	// have from their introduction on; the table is not revision gated.
+	istanbul := map[vm.OpCode]tosca.Gas{
+		vm.STOP: 0, vm.ADD: 3, vm.MUL: 5, vm.SUB: 3, vm.DIV: 5, vm.SDIV: 5, vm.MOD: 5, vm.SMOD: 5,
+		vm.ADDMOD: 8, vm.MULMOD: 8, vm.EXP: 10, vm.SIGNEXTEND: 5,
+		vm.LT: 3, vm.GT: 3, vm.SLT: 3, vm.SGT: 3, vm.EQ: 3, vm.ISZERO: 3, vm.AND: 3, vm.OR: 3,
+		vm.XOR: 3, vm.NOT: 3, vm.BYTE: 3, vm.SHL: 3, vm.SHR: 3, vm.SAR: 3, vm.CLZ: 5,
+		vm.SHA3:    30,
+		vm.ADDRESS: 2, vm.BALANCE: 700, vm.ORIGIN: 2, vm.CALLER: 2, vm.CALLVALUE: 2,
+		vm.CALLDATALOAD: 3, vm.CALLDATASIZE: 2, vm.CALLDATACOPY: 3, vm.CODESIZE: 2, vm.CODECOPY: 3,
+		vm.GASPRICE: 2, vm.EXTCODESIZE: 700, vm.EXTCODECOPY: 700, vm.RETURNDATASIZE: 2,
+		vm.RETURNDATACOPY: 3, vm.EXTCODEHASH: 700,
+		vm.BLOCKHASH: 20, vm.COINBASE: 2, vm.TIMESTAMP: 2, vm.NUMBER: 2, vm.PREVRANDAO: 2,
+		vm.GASLIMIT: 2, vm.CHAINID: 2, vm.SELFBALANCE: 5, vm.BASEFEE: 2, vm.BLOBHASH: 3, vm.BLOBBASEFEE: 2,
+		vm.POP: 2, vm.MLOAD: 3, vm.MSTORE: 3, vm.MSTORE8: 3, vm.SLOAD: 800, vm.SSTORE: 0,
+		vm.JUMP: 8, vm.JUMPI: 10, vm.PC: 2, vm.MSIZE: 2, vm.GAS: 2, vm.JUMPDEST: 1,
+		vm.TLOAD: 100, vm.TSTORE: 100, vm.MCOPY: 3, vm.PUSH0: 2,
+		vm.LOG0: 375, vm.LOG1: 750, vm.LOG2: 1125, vm.LOG3: 1500, vm.LOG4: 1875,
+		vm.CREATE: 32000, vm.CALL: 700, vm.CALLCODE: 700, vm.RETURN: 0, vm.DELEGATECALL: 700,
+		vm.CREATE2: 32000, vm.STATICCALL: 700, vm.REVERT: 0, vm.INVALID: 0, vm.SELFDESTRUCT: 5000,
+	}
+	for op := vm.PUSH1; op <= vm.PUSH32; op++ {
+		istanbul[op] = 3
+	}
+	for op := vm.DUP1; op <= vm.DUP16; op++ {
+		istanbul[op] = 3
+	}
+	for op := vm.SWAP1; op <= vm.SWAP16; op++ {
+		istanbul[op] = 3
+	}
+
+	// EIP-2929 replaced the static price of these by warm/cold dynamic pricing.
+	zeroedFromBerlin := []vm.OpCode{
+		vm.SLOAD, vm.EXTCODECOPY, vm.EXTCODESIZE, vm.EXTCODEHASH, vm.BALANCE,
+		vm.CALL, vm.CALLCODE, vm.STATICCALL, vm.DELEGATECALL,
+	}
+
+	for revision := tosca.R07_Istanbul; revision <= newestSupportedRevision; revision++ {
+		t.Run(revision.String(), func(t *testing.T) {
+			require := require.New(t)
+			want := map[vm.OpCode]tosca.Gas{}
+			got := map[vm.OpCode]tosca.Gas{}
+			for i := range numOpCodes {
+				op := vm.OpCode(i)
+				price, defined := istanbul[op]
+				if !defined {
+					price = UNKNOWN_GAS_PRICE
+				}
+				if revision >= tosca.R09_Berlin && slices.Contains(zeroedFromBerlin, op) {
+					price = 0
+				}
+				want[op] = price
+				got[op] = getStaticGasPrices(revision).get(op)
+			}
+			require.Equal(want, got)
+		})
+	}
+}
 
 // --- SStore ---
 
