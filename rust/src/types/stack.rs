@@ -21,10 +21,13 @@ impl PushLocation<'_> {
     }
 }
 
-/// The interpreter stack.
-pub struct Stack {
+/// The elements of a [`Stack`].
+pub type StackBuffer = [u256; Stack::CAPACITY];
+
+/// The interpreter stack: a borrowed [`StackBuffer`] and the size of its used part.
+pub struct Stack<'s> {
     /// The elements, bottom first. Only the first `size` bytes are on the stack.
-    buffer: Box<[u256; Self::CAPACITY]>,
+    buffer: &'s mut StackBuffer,
     /// The used part of the buffer in bytes. Bytes, not elements, so that it is the offset of the
     /// top: x86 addressing cannot scale an index by the element size of 32.
     ///
@@ -33,20 +36,23 @@ pub struct Stack {
     size: usize,
 }
 
-impl Stack {
+impl<'s> Stack<'s> {
     /// The maximum number of elements.
     const CAPACITY: usize = 1024;
 
-    /// Creates a new empty stack with a zeroed buffer of [`Self::CAPACITY`] elements.
+    /// Creates a zeroed buffer for a stack.
     #[inline(always)]
-    pub fn new() -> Self {
+    pub fn new_buffer() -> Box<StackBuffer> {
         // Built on the heap, not on the machine stack like Box::new would.
         let buffer = vec![u256::ZERO; Self::CAPACITY].into_boxed_slice();
-        Self {
-            // Cannot fail: the buffer has CAPACITY elements.
-            buffer: buffer.try_into().unwrap(),
-            size: 0,
-        }
+        // Cannot fail: the buffer has CAPACITY elements.
+        buffer.try_into().unwrap()
+    }
+
+    /// Lends `buffer` out as an empty stack.
+    #[inline(always)]
+    pub fn empty(buffer: &'s mut StackBuffer) -> Self {
+        Self { buffer, size: 0 }
     }
 
     /// Replaces the content of the stack with the first [`Self::CAPACITY`] elements of `values`.
@@ -75,7 +81,7 @@ impl Stack {
         unsafe {
             std::hint::assert_unchecked(
                 self.size.is_multiple_of(size_of::<u256>())
-                    && self.size <= size_of::<[u256; Self::CAPACITY]>(),
+                    && self.size <= size_of::<StackBuffer>(),
             );
         }
         self.size / size_of::<u256>()
@@ -182,7 +188,7 @@ impl Stack {
     }
 }
 
-impl std::fmt::Debug for Stack {
+impl std::fmt::Debug for Stack<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("Stack").field(&self.as_slice()).finish()
     }
@@ -199,15 +205,15 @@ mod tests {
         values.iter().copied().map(u256::from).collect()
     }
 
-    /// Creates a stack holding `values`, bottom first, without using the methods under test.
-    fn stack(values: &[u8]) -> Stack {
-        let mut stack = Stack::new();
-        for (slot, value) in stack.buffer.iter_mut().zip(values) {
+    /// Creates a stack on `buffer` holding `values`, bottom first, without using the methods under
+    /// test.
+    fn stack<'s>(buffer: &'s mut StackBuffer, values: &[u8]) -> Stack<'s> {
+        for (slot, value) in buffer.iter_mut().zip(values) {
             *slot = u256::from(*value);
         }
-        stack.size = values.len() * size_of::<u256>();
-        assert!(stack.size <= size_of::<[u256; Stack::CAPACITY]>());
-        stack
+        let size = values.len() * size_of::<u256>();
+        assert!(size <= size_of::<StackBuffer>());
+        Stack { buffer, size }
     }
 
     #[test]
@@ -218,10 +224,15 @@ mod tests {
     }
 
     #[test]
-    fn new_creates_empty_stack_with_zeroed_buffer() {
-        let stack = Stack::new();
-        assert_eq!(stack.size, 0);
-        assert!(stack.buffer.iter().all(|value| *value == u256::ZERO));
+    fn new_buffer_creates_zeroed_elements() {
+        assert!(Stack::new_buffer().iter().all(|value| *value == u256::ZERO));
+    }
+
+    #[test]
+    fn empty_lends_elements_as_empty_stack() {
+        let mut buffer = Stack::new_buffer();
+        buffer.fill(u256::ONE);
+        assert_eq!(Stack::empty(&mut buffer).len(), 0);
     }
 
     #[rstest]
@@ -235,7 +246,8 @@ mod tests {
         #[case] new: &[u8],
         #[case] expected: &[u8],
     ) {
-        let mut stack = stack(existing);
+        let mut buffer = Stack::new_buffer();
+        let mut stack = stack(&mut buffer, existing);
         stack.reset_to(&u256s(new));
         assert_eq!(stack.as_slice(), u256s(expected));
     }
@@ -245,7 +257,10 @@ mod tests {
     #[case::values(&[1, 2])]
     #[case::full(&[1; Stack::CAPACITY])]
     fn as_slice_returns_elements_bottom_first(#[case] values: &[u8]) {
-        assert_eq!(stack(values).as_slice(), u256s(values));
+        assert_eq!(
+            stack(&mut Stack::new_buffer(), values).as_slice(),
+            u256s(values)
+        );
     }
 
     #[rstest]
@@ -253,7 +268,8 @@ mod tests {
     #[case::values(&[1, 2])]
     #[case::full(&[1; Stack::CAPACITY])]
     fn as_mut_slice_returns_elements_bottom_first_for_modification(#[case] values: &[u8]) {
-        let mut stack = stack(values);
+        let mut buffer = Stack::new_buffer();
+        let mut stack = stack(&mut buffer, values);
         let slice = stack.as_mut_slice();
         assert_eq!(slice, u256s(values));
         slice.fill(u256::from(3u8));
@@ -265,7 +281,7 @@ mod tests {
     #[case::values(&[1, 2], 2)]
     #[case::full(&[1; Stack::CAPACITY], Stack::CAPACITY)]
     fn len_returns_number_of_elements(#[case] values: &[u8], #[case] expected: usize) {
-        assert_eq!(stack(values).len(), expected);
+        assert_eq!(stack(&mut Stack::new_buffer(), values).len(), expected);
     }
 
     #[rstest]
@@ -278,7 +294,8 @@ mod tests {
         #[case] n: usize,
         #[case] expected: &[u8],
     ) {
-        let mut stack = stack(values);
+        let mut buffer = Stack::new_buffer();
+        let mut stack = stack(&mut buffer, values);
         stack.shrink(n);
         assert_eq!(stack.as_slice(), u256s(expected));
     }
@@ -293,22 +310,24 @@ mod tests {
         #[case] expected: Result<(), FailStatus>,
         #[case] remaining: &[u8],
     ) {
-        let mut stack = stack(values);
+        let mut buffer = Stack::new_buffer();
+        let mut stack = stack(&mut buffer, values);
         assert_eq!(stack.push(3u8), expected);
         assert_eq!(stack.as_slice(), u256s(remaining));
     }
 
     #[rstest]
-    #[case::first(Stack::swap_with_top::<1>, &[1, 2, 3], Ok(()), &[1, 3, 2])]
-    #[case::second(Stack::swap_with_top::<2>, &[1, 2, 3], Ok(()), &[3, 2, 1])]
-    #[case::underflow(Stack::swap_with_top::<2>, &[1, 2], Err(FailStatus::StackUnderflow), &[1, 2])]
+    #[case::first(|stack: &mut Stack| stack.swap_with_top::<1>(), &[1, 2, 3], Ok(()), &[1, 3, 2])]
+    #[case::second(|stack: &mut Stack| stack.swap_with_top::<2>(), &[1, 2, 3], Ok(()), &[3, 2, 1])]
+    #[case::underflow(|stack: &mut Stack| stack.swap_with_top::<2>(), &[1, 2], Err(FailStatus::StackUnderflow), &[1, 2])]
     fn swap_with_top_swaps_top_with_nth_element_below_and_fails_on_underflow(
         #[case] swap: fn(&mut Stack) -> Result<(), FailStatus>,
         #[case] values: &[u8],
         #[case] expected: Result<(), FailStatus>,
         #[case] remaining: &[u8],
     ) {
-        let mut stack = stack(values);
+        let mut buffer = Stack::new_buffer();
+        let mut stack = stack(&mut buffer, values);
         assert_eq!(swap(&mut stack), expected);
         assert_eq!(stack.as_slice(), u256s(remaining));
     }
@@ -323,7 +342,8 @@ mod tests {
         #[case] expected: Result<[u8; N], FailStatus>,
         #[case] remaining: &[u8],
     ) {
-        let mut stack = stack(values);
+        let mut buffer = Stack::new_buffer();
+        let mut stack = stack(&mut buffer, values);
         assert_eq!(
             stack.pop::<N>(),
             expected.map(|values| values.map(u256::from))
@@ -343,7 +363,8 @@ mod tests {
         #[case] expected: Result<[u8; N], FailStatus>,
         #[case] remaining: &[u8],
     ) {
-        let mut stack = stack(values);
+        let mut buffer = Stack::new_buffer();
+        let mut stack = stack(&mut buffer, values);
         let data = stack.pop_with_location::<N>().map(|(slot, data)| {
             slot.push(9u8);
             data
@@ -356,15 +377,18 @@ mod tests {
     #[case::empty(&[], None)]
     #[case::values(&[1, 2], Some(u256::from(2u8)))]
     fn peek_returns_top_element(#[case] values: &[u8], #[case] expected: Option<u256>) {
-        assert_eq!(stack(values).peek(), expected.as_ref());
+        assert_eq!(
+            stack(&mut Stack::new_buffer(), values).peek(),
+            expected.as_ref()
+        );
     }
 
     #[rstest]
-    #[case::top(Stack::dup::<1>, &[1, 2], Ok(()), &[1, 2, 2])]
-    #[case::second(Stack::dup::<2>, &[1, 2], Ok(()), &[1, 2, 1])]
-    #[case::underflow(Stack::dup::<3>, &[1, 2], Err(FailStatus::StackUnderflow), &[1, 2])]
+    #[case::top(|stack: &mut Stack| stack.dup::<1>(), &[1, 2], Ok(()), &[1, 2, 2])]
+    #[case::second(|stack: &mut Stack| stack.dup::<2>(), &[1, 2], Ok(()), &[1, 2, 1])]
+    #[case::underflow(|stack: &mut Stack| stack.dup::<3>(), &[1, 2], Err(FailStatus::StackUnderflow), &[1, 2])]
     #[case::overflow(
-        Stack::dup::<1>,
+        |stack: &mut Stack| stack.dup::<1>(),
         &[1; Stack::CAPACITY],
         Err(FailStatus::StackOverflow),
         &[1; Stack::CAPACITY]
@@ -375,7 +399,8 @@ mod tests {
         #[case] expected: Result<(), FailStatus>,
         #[case] remaining: &[u8],
     ) {
-        let mut stack = stack(values);
+        let mut buffer = Stack::new_buffer();
+        let mut stack = stack(&mut buffer, values);
         assert_eq!(dup(&mut stack), expected);
         assert_eq!(stack.as_slice(), u256s(remaining));
     }
@@ -392,7 +417,10 @@ mod tests {
         #[case] num_elements: usize,
         #[case] expected: Result<(), FailStatus>,
     ) {
-        assert_eq!(stack(values).check_overflow(num_elements), expected);
+        assert_eq!(
+            stack(&mut Stack::new_buffer(), values).check_overflow(num_elements),
+            expected
+        );
     }
 
     #[rstest]
@@ -405,13 +433,16 @@ mod tests {
         #[case] min_len: usize,
         #[case] expected: Result<(), FailStatus>,
     ) {
-        assert_eq!(stack(values).check_underflow(min_len), expected);
+        assert_eq!(
+            stack(&mut Stack::new_buffer(), values).check_underflow(min_len),
+            expected
+        );
     }
 
     #[test]
     fn debug_formats_only_the_elements_on_the_stack() {
         assert_eq!(
-            format!("{:?}", stack(&[1, 2])),
+            format!("{:?}", stack(&mut Stack::new_buffer(), &[1, 2])),
             format!("Stack({:?})", u256s(&[1, 2]))
         );
     }

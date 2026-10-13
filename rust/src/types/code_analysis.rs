@@ -71,7 +71,7 @@ impl<const STEPPABLE: bool> CodeAnalysisCache<STEPPABLE> {
 /// The analysis of a code, i.e. the entries that [`crate::types::CodeReader`] uses.
 #[derive(Clone, Debug)]
 pub struct CodeAnalysis<const STEPPABLE: bool>(
-    // Arc for shared ownership between the code reader and (if enabled) the code cache. It also
+    // Arc for shared ownership between a run and (if enabled) the code cache. It also
     // has the benefit of not allowing mutable access to the slice, so a pointer into the Arc is
     // valid for as long as the Arc lives.
     Arc<[AnalysisItem<STEPPABLE>]>,
