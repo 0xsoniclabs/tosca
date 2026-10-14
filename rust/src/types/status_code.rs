@@ -14,6 +14,8 @@ pub enum ExecStatus {
 
 /// This type combines the failure variants of [`EvmcStatusCode`] and [`EvmcStepStatusCode`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// A full word, see "Calling conventions" in [`crate::interpreter`].
+#[repr(isize)]
 pub enum FailStatus {
     Failure = EvmcStatusCode::EVMC_FAILURE as isize,
     OutOfGas = EvmcStatusCode::EVMC_OUT_OF_GAS as isize,

@@ -1,14 +1,30 @@
 use std::{borrow::Cow, io::Write};
 
-use crate::interpreter::Interpreter;
+use crate::{
+    interpreter::Interpreter,
+    types::{Pc, Stack},
+    utils::Gas,
+};
 
 /// Hooks that the interpreter calls during execution, e.g. for tracing.
 pub trait Observer<const STEPPABLE: bool> {
-    /// Called before the op at the current program counter is executed.
-    fn pre_op(&mut self, interpreter: &Interpreter<STEPPABLE>);
+    /// Called before the op at `pc` is executed.
+    fn pre_op<'a>(
+        &mut self,
+        interpreter: &Interpreter<'a, STEPPABLE>,
+        pc: Pc<'a, STEPPABLE>,
+        gas_left: &Gas,
+        stack: &Stack,
+    );
 
     /// Called after an op was executed successfully.
-    fn post_op(&mut self, interpreter: &Interpreter<STEPPABLE>);
+    fn post_op<'a>(
+        &mut self,
+        interpreter: &Interpreter<'a, STEPPABLE>,
+        pc: Pc<'a, STEPPABLE>,
+        gas_left: &Gas,
+        stack: &Stack,
+    );
 
     /// Called with a free-form message from the interpreter.
     fn log(&mut self, message: Cow<str>);
@@ -18,9 +34,17 @@ pub trait Observer<const STEPPABLE: bool> {
 pub struct NoOpObserver();
 
 impl<const STEPPABLE: bool> Observer<STEPPABLE> for NoOpObserver {
-    fn pre_op(&mut self, _interpreter: &Interpreter<STEPPABLE>) {}
+    fn pre_op(&mut self, _: &Interpreter<'_, STEPPABLE>, _: Pc<'_, STEPPABLE>, _: &Gas, _: &Stack) {
+    }
 
-    fn post_op(&mut self, _interpreter: &Interpreter<STEPPABLE>) {}
+    fn post_op(
+        &mut self,
+        _: &Interpreter<'_, STEPPABLE>,
+        _: Pc<'_, STEPPABLE>,
+        _: &Gas,
+        _: &Stack,
+    ) {
+    }
 
     fn log(&mut self, _message: Cow<str>) {}
 }
@@ -39,23 +63,28 @@ impl<W: Write> LoggingObserver<W> {
 }
 
 impl<W: Write, const STEPPABLE: bool> Observer<STEPPABLE> for LoggingObserver<W> {
-    fn pre_op(&mut self, interpreter: &Interpreter<STEPPABLE>) {
+    fn pre_op<'a>(
+        &mut self,
+        interpreter: &Interpreter<'a, STEPPABLE>,
+        pc: Pc<'a, STEPPABLE>,
+        gas_left: &Gas,
+        stack: &Stack,
+    ) {
         let op = std::cfg_select! {
             feature = "fn-ptr-conversion-dispatch" => {
                 {
                     // The terminator entry past the end of the code is not an op, so don't log it.
-                    let Some(&op) = interpreter.code[..].get(interpreter.pc.code_offset())
-                    else {
+                    let Some(&op) = interpreter.code[..].get(pc.code_offset()) else {
                         return;
                     };
                     op
                 }
             }
             // pre_op is called after the op is fetched so this will always be Ok(..)
-            _ => interpreter.code.get(interpreter.pc).unwrap(),
+            _ => interpreter.code.get(pc).unwrap(),
         };
-        let gas = interpreter.gas_left.as_u64();
-        let top = std::fmt::from_fn(|f| match interpreter.stack.peek() {
+        let gas = gas_left.as_u64();
+        let top = std::fmt::from_fn(|f| match stack.peek() {
             Some(top) => write!(f, "{top}"),
             None => f.write_str("-empty-"),
         });
@@ -67,7 +96,14 @@ impl<W: Write, const STEPPABLE: bool> Observer<STEPPABLE> for LoggingObserver<W>
         self.writer.flush().unwrap();
     }
 
-    fn post_op(&mut self, _interpreter: &Interpreter<STEPPABLE>) {}
+    fn post_op(
+        &mut self,
+        _: &Interpreter<'_, STEPPABLE>,
+        _: Pc<'_, STEPPABLE>,
+        _: &Gas,
+        _: &Stack,
+    ) {
+    }
 
     fn log(&mut self, message: Cow<str>) {
         writeln!(self.writer, "{message}").unwrap();
@@ -92,7 +128,7 @@ mod tests {
         Opcode,
         types::{
             CodeAnalysis, CodeAnalysisCache, Memory, MockExecutionContextTrait,
-            MockExecutionMessage, Stack, hash_cache::HashCache, u256,
+            MockExecutionMessage, hash_cache::HashCache, u256,
         },
     };
 
@@ -106,34 +142,37 @@ mod tests {
     )]
     fn logging_observer_pre_op_writes_op_gas_and_top_of_stack(
         #[case] code: &[u8],
-        #[case] stack: &[u256],
+        #[case] values: &[u256],
         #[case] expected: &str,
     ) {
         let code_analysis_cache = CodeAnalysisCache::default();
         let hash_cache = HashCache::default();
         let mut context = MockExecutionContextTrait::new();
-        let message = MockExecutionMessage {
-            gas: 100,
-            ..Default::default()
-        }
-        .into();
+        let message = MockExecutionMessage::default().into();
         let analysis = CodeAnalysis::new(code, None, &code_analysis_cache);
-        let (mut stack_buffer, mut memory) = (Stack::new_buffer(), Memory::new());
-        let mut interpreter = Interpreter::new(
+        let (mut run_stack_buffer, mut memory) = (Stack::new_buffer(), Memory::new());
+        let interpreter = Interpreter::new(
             Revision::EVMC_ISTANBUL,
             &message,
             &mut context,
             code,
             &analysis,
-            &mut stack_buffer,
+            &mut run_stack_buffer,
             &mut memory,
             &hash_cache,
         )
         .unwrap();
-        interpreter.stack.reset_to(stack);
+        let mut stack_buffer = Stack::new_buffer();
+        let mut stack = Stack::empty(&mut stack_buffer);
+        stack.reset_to(values);
 
         let mut observer = LoggingObserver::new(Vec::new());
-        observer.pre_op(&interpreter);
+        observer.pre_op(
+            &interpreter,
+            Pc::new(&analysis, 0),
+            &Gas::new(100).unwrap(),
+            &stack,
+        );
         assert_eq!(String::from_utf8(observer.writer).unwrap(), expected);
     }
 
