@@ -355,16 +355,16 @@ impl<'a> Interpreter<'a, false> {
         stack_buffer: &'a mut StackBuffer,
         memory: &'a mut Memory,
         hash_cache: &'a HashCache,
-    ) -> Self {
+    ) -> Result<Self, FailStatus> {
         memory.reset_to(&[]);
-        Self {
+        Ok(Self {
             exec_status: ExecStatus::Running,
             message,
             context,
             revision,
             code: Code::new(code, code_analysis),
             pc: Pc::new(code_analysis, 0),
-            gas_left: Gas::new(message.gas),
+            gas_left: Gas::new(message.gas)?,
             gas_refund: GasRefund::new(0),
             output: Box::default(),
             stack: Stack::empty(stack_buffer),
@@ -372,7 +372,7 @@ impl<'a> Interpreter<'a, false> {
             last_call_return_data: LastCallReturnData::Slice(&[]),
             steps: None,
             hash_cache,
-        }
+        })
     }
 }
 
@@ -393,18 +393,18 @@ impl<'a> Interpreter<'a, true> {
         stack_buffer: &'a mut StackBuffer,
         memory: &'a mut Memory,
         hash_cache: &'a HashCache,
-    ) -> Self {
+    ) -> Result<Self, FailStatus> {
         let mut stack = Stack::empty(stack_buffer);
         stack.reset_to(init_stack);
         memory.reset_to(init_memory);
-        Self {
+        Ok(Self {
             exec_status: ExecStatus::Running,
             message,
             context,
             revision,
             code: Code::new(code, code_analysis),
             pc: Pc::new(code_analysis, pc),
-            gas_left: Gas::new(message.gas),
+            gas_left: Gas::new(message.gas)?,
             gas_refund: GasRefund::new(gas_refund),
             output: Box::default(),
             stack,
@@ -412,7 +412,7 @@ impl<'a> Interpreter<'a, true> {
             last_call_return_data: LastCallReturnData::Slice(last_call_return_data),
             steps,
             hash_cache,
-        }
+        })
     }
 }
 
@@ -1739,7 +1739,8 @@ mod tests {
             &mut stack_buffer,
             &mut memory,
             &hash_cache,
-        );
+        )
+        .unwrap();
         assert_eq!(interpreter.stack.as_slice(), []);
         assert_eq!(interpreter.memory.as_slice(), []);
     }
@@ -1770,7 +1771,8 @@ mod tests {
             &mut stack_buffer,
             &mut memory,
             &hash_cache,
-        );
+        )
+        .unwrap();
         assert_eq!(interpreter.stack.as_slice(), stack);
         assert_eq!(interpreter.memory.as_slice(), [3]);
     }
@@ -1792,7 +1794,8 @@ mod tests {
             &mut stack_buffer,
             &mut memory,
             &hash_cache,
-        );
+        )
+        .unwrap();
         let result: StepResult = interpreter.run(&mut NoOpObserver());
         assert_eq!(result.step_status_code, StepStatusCode::EVMC_STEP_STOPPED);
         assert_eq!(result.pc, 0);
@@ -1826,7 +1829,8 @@ mod tests {
             &mut stack_buffer,
             &mut memory,
             &hash_cache,
-        );
+        )
+        .unwrap();
         let result: StepResult = interpreter.run(&mut NoOpObserver());
         assert_eq!(result.step_status_code, StepStatusCode::EVMC_STEP_STOPPED);
         assert_eq!(result.pc, 1);
@@ -1863,6 +1867,7 @@ mod tests {
             &mut memory,
             &hash_cache,
         )
+        .unwrap()
         .run(&mut NoOpObserver());
         assert_eq!(result.status_code(), StatusCode::EVMC_INVALID_INSTRUCTION);
     }
@@ -1891,7 +1896,8 @@ mod tests {
             &mut stack_buffer,
             &mut memory,
             &hash_cache,
-        );
+        )
+        .unwrap();
         let result: StepResult = interpreter.run(&mut NoOpObserver());
         assert_eq!(result.step_status_code, StepStatusCode::EVMC_STEP_RUNNING);
         assert_eq!(result.pc, 0);
@@ -1925,7 +1931,8 @@ mod tests {
             &mut stack_buffer,
             &mut memory,
             &hash_cache,
-        );
+        )
+        .unwrap();
         let result: StepResult = interpreter.run(&mut NoOpObserver());
         assert_eq!(result.step_status_code, StepStatusCode::EVMC_STEP_RUNNING);
         assert_eq!(result.stack.as_slice(), [u256::from(3u8).into()]);
@@ -1953,7 +1960,8 @@ mod tests {
             &mut stack_buffer,
             &mut memory,
             &hash_cache,
-        );
+        )
+        .unwrap();
         interpreter.stack.reset_to(&[1u8.into(), 2u8.into()]);
         let result: StepResult = interpreter.run(&mut NoOpObserver());
         assert_eq!(result.step_status_code, StepStatusCode::EVMC_STEP_STOPPED);
@@ -1982,7 +1990,8 @@ mod tests {
             &mut stack_buffer,
             &mut memory,
             &hash_cache,
-        );
+        )
+        .unwrap();
         interpreter
             .stack
             .reset_to(&[1u8.into(), 2u8.into(), 3u8.into()]);
@@ -2018,7 +2027,8 @@ mod tests {
             &mut stack_buffer,
             &mut memory,
             &hash_cache,
-        );
+        )
+        .unwrap();
         let result: StepResult = interpreter.run(&mut NoOpObserver());
         assert_eq!(result.step_status_code, StepStatusCode::EVMC_STEP_STOPPED);
     }
@@ -2045,7 +2055,8 @@ mod tests {
             &mut stack_buffer,
             &mut memory,
             &hash_cache,
-        );
+        )
+        .unwrap();
         interpreter.stack.reset_to(&[1u8.into(), 2u8.into()]);
         let result: ExecutionResult = interpreter.run(&mut NoOpObserver());
         assert_eq!(result.status_code(), StatusCode::EVMC_OUT_OF_GAS);
@@ -2139,7 +2150,8 @@ mod tests {
             &mut stack_buffer,
             &mut run_memory,
             &hash_cache,
-        );
+        )
+        .unwrap();
         let result: StepResult = interpreter.run(&mut NoOpObserver());
         assert_eq!(result.step_status_code, StepStatusCode::EVMC_STEP_STOPPED);
         assert_eq!(result.pc, 1);
