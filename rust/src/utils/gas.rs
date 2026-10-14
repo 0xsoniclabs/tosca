@@ -28,7 +28,7 @@ impl GasRefund {
 }
 
 /// The gas left for execution.
-// Invariant: gas <= i64::MAX
+// Invariant: gas <= Gas::MAX
 #[derive(Debug)]
 pub struct Gas(u64);
 
@@ -45,9 +45,23 @@ impl PartialOrd<u64> for Gas {
 }
 
 impl Gas {
-    /// Creates a new [`Gas`] with the given amount, clamping negative amounts to zero.
-    pub fn new(gas: i64) -> Self {
-        Self(gas.max(0).cast_unsigned())
+    /// The most gas a run can have: 48 bits, so that it fits into one word with the size of the
+    /// stack. A run that starts with more is rejected.
+    ///
+    /// No real run comes close. Sonic gives a transaction at most its block gas limit, 5e9, and
+    /// Ethereum at most 2^24 (EIP-7825); a nested call gets less than its caller. Only RPC calls on
+    /// a node without a gas cap pass more, which no run could burn: even at one gas per
+    /// nanosecond, 2^48 gas takes 78 hours.
+    pub const MAX: u64 = (1 << 48) - 1;
+
+    /// Creates a new [`Gas`] with the given amount. Fails with [`FailStatus::Rejected`] if `gas` is
+    /// negative or exceeds [`Gas::MAX`].
+    pub fn new(gas: i64) -> Result<Self, FailStatus> {
+        if !(0..=Self::MAX.cast_signed()).contains(&gas) {
+            std::hint::cold_path();
+            return Err(FailStatus::Rejected);
+        }
+        Ok(Self(gas.cast_unsigned()))
     }
 
     /// Returns the gas left as `u64`.
@@ -62,11 +76,11 @@ impl Gas {
     }
 
     /// Adds `gas`, which may be negative, to the gas left. Fails with [`FailStatus::OutOfGas`] if
-    /// the result is negative or overflows `i64`.
+    /// the result is negative or exceeds [`Gas::MAX`].
     #[inline(always)]
     pub fn add(&mut self, gas: i64) -> Result<(), FailStatus> {
         let (gas, overflow) = self.0.cast_signed().overflowing_add(gas);
-        if gas < 0 || overflow {
+        if gas < 0 || overflow || gas.cast_unsigned() > Self::MAX {
             std::hint::cold_path();
             return Err(FailStatus::OutOfGas);
         }
@@ -194,7 +208,7 @@ mod tests {
 
     #[test]
     fn gas_compares_to_u64() {
-        let gas = Gas::new(1);
+        let gas = Gas::new(1).unwrap();
         assert!(gas == 1);
         assert!(gas != 2);
         assert!(gas < 2);
@@ -202,11 +216,15 @@ mod tests {
     }
 
     #[rstest]
-    #[case::positive(1, 1)]
-    #[case::max(i64::MAX, i64::MAX.cast_unsigned())]
-    #[case::negative_is_clamped_to_zero(-1, 0)]
-    fn gas_new_clamps_negative_values_to_zero(#[case] gas: i64, #[case] expected: u64) {
-        assert_eq!(Gas::new(gas).as_u64(), expected);
+    #[case::positive(1, Ok(1))]
+    #[case::max(Gas::MAX.cast_signed(), Ok(Gas::MAX))]
+    #[case::negative(-1, Err(FailStatus::Rejected))]
+    #[case::above_max(Gas::MAX.cast_signed() + 1, Err(FailStatus::Rejected))]
+    fn gas_new_fails_if_gas_is_negative_or_above_max(
+        #[case] gas: i64,
+        #[case] expected: Result<u64, FailStatus>,
+    ) {
+        assert_eq!(Gas::new(gas).map(|gas| gas.as_u64()), expected);
     }
 
     #[test]
@@ -216,7 +234,7 @@ mod tests {
 
     #[test]
     fn gas_as_i64_returns_non_negative_value_up_to_i64_max() {
-        assert_eq!(Gas(i64::MAX.cast_unsigned()).as_i64(), i64::MAX);
+        assert_eq!(Gas(Gas::MAX).as_i64(), Gas::MAX.cast_signed());
     }
 
     #[rstest]
@@ -224,14 +242,14 @@ mod tests {
     #[case::negative(2, -1, Ok(()), 1)]
     #[case::negative_to_zero(1, -1, Ok(()), 0)]
     #[case::negative_below_zero(1, -2, Err(FailStatus::OutOfGas), 1)]
-    #[case::overflow(i64::MAX, 1, Err(FailStatus::OutOfGas), i64::MAX.cast_unsigned())]
-    fn gas_add_adds_gas_and_fails_if_the_result_is_negative_or_overflows(
+    #[case::above_max(Gas::MAX.cast_signed(), 1, Err(FailStatus::OutOfGas), Gas::MAX)]
+    fn gas_add_adds_gas_and_fails_if_the_result_is_negative_or_above_max(
         #[case] gas: i64,
         #[case] add: i64,
         #[case] expected: Result<(), FailStatus>,
         #[case] gas_left: u64,
     ) {
-        let mut gas = Gas::new(gas);
+        let mut gas = Gas::new(gas).unwrap();
         assert_eq!(gas.add(add), expected);
         assert_eq!(gas, gas_left);
     }
@@ -247,7 +265,7 @@ mod tests {
         #[case] expected: Result<(), FailStatus>,
         #[case] gas_left: u64,
     ) {
-        let mut gas = Gas::new(gas);
+        let mut gas = Gas::new(gas).unwrap();
         assert_eq!(gas.consume(cost), expected);
         assert_eq!(gas, gas_left);
     }
@@ -264,7 +282,7 @@ mod tests {
         #[case] expected: Result<(), FailStatus>,
         #[case] gas_left: u64,
     ) {
-        let mut gas = Gas::new(gas);
+        let mut gas = Gas::new(gas).unwrap();
         assert_eq!(gas.consume_positive_value_cost(&value), expected);
         assert_eq!(gas, gas_left);
     }
@@ -292,7 +310,7 @@ mod tests {
                 .return_const(exists);
         }
 
-        let mut gas = Gas::new(gas);
+        let mut gas = Gas::new(gas).unwrap();
         assert_eq!(
             gas.consume_value_to_empty_account_cost(&value, &addr, &mut context),
             expected
@@ -328,7 +346,7 @@ mod tests {
                 .return_const(access_status);
         }
 
-        let mut gas = Gas::new(gas);
+        let mut gas = Gas::new(gas).unwrap();
         assert_eq!(
             gas.consume_address_access_cost(&addr, revision, &mut context),
             expected
@@ -399,7 +417,7 @@ mod tests {
                 .return_const(access_status);
         }
 
-        let mut gas = Gas::new(gas);
+        let mut gas = Gas::new(gas).unwrap();
         assert_eq!(
             gas.consume_delegate_resolution_cost(&addr, revision, &mut context),
             expected
@@ -420,7 +438,7 @@ mod tests {
         #[case] expected: Result<(), FailStatus>,
         #[case] gas_left: u64,
     ) {
-        let mut gas = Gas::new(gas);
+        let mut gas = Gas::new(gas).unwrap();
         assert_eq!(gas.consume_copy_cost(len), expected);
         assert_eq!(gas, gas_left);
     }

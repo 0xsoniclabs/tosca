@@ -12,7 +12,6 @@ package examples
 
 import (
 	"fmt"
-	"math"
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"golang.org/x/crypto/sha3"
@@ -51,7 +50,8 @@ type Result struct {
 // RunOn runs this example on the given interpreter, using the given argument.
 func (e *Example) RunOn(interpreter tosca.Interpreter, argument int) (Result, error) {
 
-	const initialGas = math.MaxInt64
+	// 2^48 - 1 is the maximum gas supported by evmrs.
+	const initialGas = 1<<48 - 1
 	params := tosca.Parameters{
 		Code:     e.Code,
 		CodeHash: (*tosca.Hash)(&e.codeHash),

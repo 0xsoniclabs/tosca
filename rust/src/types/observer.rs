@@ -128,7 +128,8 @@ mod tests {
             &mut stack_buffer,
             &mut memory,
             &hash_cache,
-        );
+        )
+        .unwrap();
         interpreter.stack.reset_to(stack);
 
         let mut observer = LoggingObserver::new(Vec::new());
