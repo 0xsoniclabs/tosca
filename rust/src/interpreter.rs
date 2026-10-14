@@ -12,8 +12,8 @@ use evmc_vm::{
 use crate::types::GetOpcodeError;
 use crate::{
     types::{
-        CodeAnalysis, CodeReader, ExecStatus, ExecutionContextTrait, FailStatus,
-        LastCallReturnData, Memory, Observer, Stack, StackBuffer, hash_cache::HashCache, u256,
+        Code, CodeAnalysis, ExecStatus, ExecutionContextTrait, FailStatus, LastCallReturnData,
+        Memory, Observer, Pc, Stack, StackBuffer, hash_cache::HashCache, u256,
     },
     utils::{Gas, GasRefund, SliceExt, check_min_revision, check_not_read_only, word_size},
 };
@@ -352,7 +352,8 @@ pub struct Interpreter<'a, const STEPPABLE: bool> {
     pub message: &'a ExecutionMessage<'a>,
     pub context: &'a mut dyn ExecutionContextTrait,
     pub revision: Revision,
-    pub code_reader: CodeReader<'a, STEPPABLE>,
+    pub code: Code<'a, STEPPABLE>,
+    pub pc: Pc<'a, STEPPABLE>,
     pub gas_left: Gas,
     pub gas_refund: GasRefund,
     pub output: Box<[u8]>,
@@ -381,7 +382,8 @@ impl<'a> Interpreter<'a, false> {
             message,
             context,
             revision,
-            code_reader: CodeReader::new(code, code_analysis, 0),
+            code: Code::new(code, code_analysis),
+            pc: Pc::new(code_analysis, 0),
             gas_left: Gas::new(message.gas),
             gas_refund: GasRefund::new(0),
             output: Box::default(),
@@ -420,7 +422,8 @@ impl<'a> Interpreter<'a, true> {
             message,
             context,
             revision,
-            code_reader: CodeReader::new(code, code_analysis, pc),
+            code: Code::new(code, code_analysis),
+            pc: Pc::new(code_analysis, pc),
             gas_left: Gas::new(message.gas),
             gas_refund: GasRefund::new(gas_refund),
             output: Box::default(),
@@ -449,9 +452,10 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
                     Some(steps) => *steps -= 1,
                 }
             }
-            let op = self.code_reader.get();
+            #[cfg(feature = "fn-ptr-conversion-dispatch")]
+            let op = self.pc.get();
             #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
-            let op = match op {
+            let op = match self.code.get(self.pc) {
                 Ok(op) => op,
                 Err(GetOpcodeError::OutOfRange) => {
                     std::hint::cold_path();
@@ -502,10 +506,12 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
                 Some(steps) => *steps -= 1,
             }
         }
-        let op = self.code_reader.get();
         std::cfg_select! {
-            feature = "fn-ptr-conversion-dispatch" => tail_call!(op(self)),
-            _ => match op {
+            feature = "fn-ptr-conversion-dispatch" => {
+                let op = self.pc.get();
+                tail_call!(op(self))
+            }
+            _ => match self.code.get(self.pc) {
                 Ok(op) => tail_call!(get_jumptable()[op as usize](self)),
                 Err(GetOpcodeError::OutOfRange) => {
                     std::hint::cold_path();
@@ -543,7 +549,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.gas_left.consume(cost)?;
         let (push_location, [value]) = self.stack.pop_with_location()?;
         push_location.push(op(value));
-        self.code_reader.next();
+        self.pc.next();
         Ok(())
     }
 
@@ -554,7 +560,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.gas_left.consume(cost)?;
         let (push_location, [value2, value1]) = self.stack.pop_with_location()?;
         push_location.push(op(value1, value2));
-        self.code_reader.next();
+        self.pc.next();
         Ok(())
     }
 
@@ -565,19 +571,19 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.gas_left.consume(cost)?;
         let value = op(self);
         self.stack.push(value)?;
-        self.code_reader.next();
+        self.pc.next();
         Ok(())
     }
 
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     pub fn no_op(&mut self) -> OpResult {
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     pub fn skip_no_ops(&mut self) -> OpResult {
-        self.code_reader.jump_to();
+        self.pc.jump_to_jumpdest();
         tail_call!(self.return_from_op())
     }
 
@@ -625,7 +631,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.gas_left.consume(8)?;
         let (push_location, [denominator, value2, value1]) = self.stack.pop_with_location()?;
         push_location.push(u256::addmod(value1, value2, denominator));
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -633,7 +639,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.gas_left.consume(8)?;
         let (push_location, [denominator, fac2, fac1]) = self.stack.pop_with_location()?;
         push_location.push(u256::mulmod(fac1, fac2, denominator));
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -642,7 +648,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let (push_location, [exp, value]) = self.stack.pop_with_location()?;
         self.gas_left.consume(exp.bits().div_ceil(8) as u64 * 50)?; // * does not overflow
         push_location.push(value.pow(exp));
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -736,7 +742,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
         let data = self.memory.get_mut_slice(offset, len, &mut self.gas_left)?;
         push_location.push(self.hash_cache.hash(data));
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -754,7 +760,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.gas_left
             .consume_address_access_cost(&addr, self.revision, self.context)?;
         push_location.push(self.context.get_balance(&addr));
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -790,7 +796,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             bytes[..data.len()].copy_from_slice(data);
             push_location.push(u256::from_be_bytes(bytes));
         }
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -818,12 +824,12 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
                 .get_mut_slice(dest_offset, len, &mut self.gas_left)?;
             dest.copy_padded(src, &mut self.gas_left)?;
         }
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
     fn code_size(&mut self) -> OpResult {
-        self.push_value_op(|i| i.code_reader.len(), 2)?;
+        self.push_value_op(|i| i.code.len(), 2)?;
         tail_call!(self.return_from_op())
     }
 
@@ -834,13 +840,13 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         if len != u256::ZERO {
             let len = u64::try_from(len).map_err(|_| FailStatus::OutOfGas)?;
 
-            let src = self.code_reader.get_within_bounds(offset, len);
+            let src = self.code.get_within_bounds(offset, len);
             let dest = self
                 .memory
                 .get_mut_slice(dest_offset, len, &mut self.gas_left)?;
             dest.copy_padded(src, &mut self.gas_left)?;
         }
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -858,7 +864,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.gas_left
             .consume_address_access_cost(&addr, self.revision, self.context)?;
         push_location.push(self.context.get_code_size(&addr));
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -886,7 +892,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
                 dest[bytes_written..].fill(0);
             }
         }
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -915,7 +921,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
                 .get_mut_slice(dest_offset, len, &mut self.gas_left)?;
             dest.copy_padded(src, &mut self.gas_left)?;
         }
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -928,7 +934,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.gas_left
             .consume_address_access_cost(&addr, self.revision, self.context)?;
         push_location.push(self.context.get_code_hash(&addr));
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -940,7 +946,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
                 .map(|idx| self.context.get_block_hash(idx.cast_signed()).into())
                 .unwrap_or(u256::ZERO),
         );
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -989,7 +995,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.stack.check_overflow(1)?; // Check for stack overflow before querying the host
         let addr = self.message.recipient;
         self.stack.push(self.context.get_balance(&addr))?;
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -1011,7 +1017,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         } else {
             push_location.push(u256::ZERO);
         }
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -1024,7 +1030,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     fn pop(&mut self) -> OpResult {
         self.gas_left.consume(2)?;
         let [_] = self.stack.pop()?;
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -1033,7 +1039,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let (push_location, [offset]) = self.stack.pop_with_location()?;
 
         push_location.push(self.memory.get_word(offset, &mut self.gas_left)?);
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -1042,7 +1048,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let [value, offset] = self.stack.pop()?;
 
         *self.memory.get_mut_array(offset, &mut self.gas_left)? = value.to_be_bytes();
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -1052,7 +1058,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
         let dest = self.memory.get_mut_byte(offset, &mut self.gas_left)?;
         *dest = value.least_significant_byte();
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -1072,16 +1078,16 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         }
         let value = self.context.get_storage(addr, &key);
         push_location.push(value);
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
     fn jump(&mut self) -> OpResult {
         self.gas_left.consume(if STEPPABLE { 8 } else { 8 + 1 })?;
         let [dest] = self.stack.pop()?;
-        self.code_reader.try_jump(dest)?;
+        self.code.try_jump(&mut self.pc, dest)?;
         if !STEPPABLE {
-            self.code_reader.next();
+            self.pc.next();
         }
         tail_call!(self.return_from_op())
     }
@@ -1090,19 +1096,19 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.gas_left.consume(10)?;
         let [cond, dest] = self.stack.pop()?;
         if cond == u256::ZERO {
-            self.code_reader.next();
+            self.pc.next();
         } else {
-            self.code_reader.try_jump(dest)?;
+            self.code.try_jump(&mut self.pc, dest)?;
             if !STEPPABLE {
                 self.gas_left.consume(1)?;
-                self.code_reader.next();
+                self.pc.next();
             }
         }
         tail_call!(self.return_from_op())
     }
 
     fn pc(&mut self) -> OpResult {
-        self.push_value_op(|i| i.code_reader.pc(), 2)?;
+        self.push_value_op(|i| i.pc.code_offset(), 2)?;
         tail_call!(self.return_from_op())
     }
 
@@ -1118,7 +1124,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
 
     fn jump_dest(&mut self) -> OpResult {
         self.gas_left.consume(1)?;
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -1130,7 +1136,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             .context
             .get_transient_storage(&self.message.recipient, &key.into());
         push_location.push(value);
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -1141,7 +1147,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         let [value, key] = self.stack.pop()?;
         self.context
             .set_transient_storage(&self.message.recipient, &key.into(), &value.into());
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -1153,7 +1159,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             self.memory
                 .copy_within(offset, dest_offset, len, &mut self.gas_left)?;
         }
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -1256,7 +1262,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         }
         self.gas_left.consume(dyn_gas)?;
         self.gas_refund.add(gas_refund_change);
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -1264,11 +1270,11 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.gas_left.consume(3)?;
         std::cfg_select! {
             feature = "fn-ptr-conversion-dispatch" => {
-                self.stack.push(self.code_reader.get_push_data())?;
+                self.stack.push(self.pc.get_push_data())?;
             }
             _ => {
-                self.code_reader.next();
-                self.stack.push(self.code_reader.get_push_data::<N>())?;
+                self.pc.next();
+                self.stack.push(self.code.get_push_data::<N>(&mut self.pc))?;
             }
         }
         tail_call!(self.return_from_op())
@@ -1277,14 +1283,14 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
     fn dup<const N: usize>(&mut self) -> OpResult {
         self.gas_left.consume(3)?;
         self.stack.dup::<N>()?;
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
     fn swap<const N: usize>(&mut self) -> OpResult {
         self.gas_left.consume(3)?;
         self.stack.swap_with_top::<N>()?;
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -1307,7 +1313,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         topics_uint256.reverse();
         self.context
             .emit_log(&self.message.recipient, data, &topics_uint256);
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -1351,7 +1357,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         if value > self.context.get_balance(&self.message.recipient).into() {
             self.last_call_return_data = LastCallReturnData::Slice(&[]);
             self.stack.push(u256::ZERO)?;
-            self.code_reader.next();
+            self.pc.next();
             tail_call!(self.return_from_op())
         }
 
@@ -1389,7 +1395,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
             self.last_call_return_data = LastCallReturnData::CallResult(result);
             self.stack.push(u256::ZERO)?;
         }
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -1444,7 +1450,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         if value > u256::from(self.context.get_balance(&self.message.recipient)) {
             self.last_call_return_data = LastCallReturnData::Slice(&[]);
             self.stack.push(u256::ZERO)?;
-            self.code_reader.next();
+            self.pc.next();
             tail_call!(self.return_from_op())
         }
 
@@ -1497,7 +1503,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.gas_refund.add(call_gas_refund);
 
         self.stack.push(status_code == StatusCode::EVMC_SUCCESS)?;
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 
@@ -1585,7 +1591,7 @@ impl<const STEPPABLE: bool> Interpreter<'_, STEPPABLE> {
         self.gas_refund.add(call_gas_refund);
 
         self.stack.push(status_code == StatusCode::EVMC_SUCCESS)?;
-        self.code_reader.next();
+        self.pc.next();
         tail_call!(self.return_from_op())
     }
 }
@@ -1603,7 +1609,7 @@ impl<const STEPPABLE: bool> From<Interpreter<'_, STEPPABLE>> for StepResult {
             step_status_code: value.exec_status.into(),
             status_code: StatusCode::EVMC_SUCCESS,
             revision: value.revision,
-            pc: value.code_reader.pc() as u64,
+            pc: value.pc.code_offset() as u64,
             gas_left: value.gas_left.as_i64(),
             gas_refund: value.gas_refund.as_i64(),
             output: value.output,
