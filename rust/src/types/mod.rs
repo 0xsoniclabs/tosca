@@ -32,5 +32,5 @@ pub use observer::*;
 #[cfg(feature = "fn-ptr-conversion-dispatch")]
 pub use op_fn_data::OpFnData;
 pub use opcode::*;
-pub use stack::{Stack, StackBuffer};
+pub use stack::{GasAndSize, Stack, StackBuffer};
 pub use status_code::{ExecStatus, FailStatus};

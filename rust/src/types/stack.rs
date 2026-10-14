@@ -1,6 +1,9 @@
 use std::cmp::min;
 
-use crate::types::{FailStatus, u256};
+use crate::{
+    types::{FailStatus, u256},
+    utils::Gas,
+};
 
 /// This type is created by calling [`Stack::pop_with_location`] and is intended to replace pushing
 /// to the stack directly. It avoids the stack overflow check when pushing because it is no
@@ -24,7 +27,34 @@ impl PushLocation<'_> {
 /// The elements of a [`Stack`].
 pub type StackBuffer = [u256; Stack::CAPACITY];
 
-/// The interpreter stack: a borrowed [`StackBuffer`] and the size of its used part.
+/// The gas counter and the size of a [`Stack`] packed into one word, so that both fit into one
+/// register, see [Return value](crate::interpreter#return-value). The gas counter takes the upper
+/// 48 bits. Only [`GasAndSize::new`] packs them, from a [`Gas`] and a [`Stack`], so both keep the
+/// invariants of their types.
+#[derive(Clone, Copy, Debug)]
+pub struct GasAndSize(u64);
+
+impl GasAndSize {
+    /// Packs `gas_left` and the size of `stack`.
+    #[expect(clippy::needless_pass_by_value)]
+    pub fn new(gas_left: Gas, stack: Stack<'_>) -> Self {
+        Self(gas_left.as_u64() << 16 | stack.size as u64)
+    }
+
+    /// Returns the gas counter.
+    pub fn gas(self) -> Gas {
+        // Cannot fail: the upper 48 bits are at most `Gas::MAX`, so the compiler drops the check.
+        Gas::new((self.0 >> 16).cast_signed()).unwrap()
+    }
+
+    /// Returns the size of the stack.
+    fn stack_size(self) -> usize {
+        (self.0 & 0xffff) as usize
+    }
+}
+
+/// The interpreter stack: a borrowed [`StackBuffer`] and the size of its used part, two words that
+/// a run passes from handler to handler.
 pub struct Stack<'s> {
     /// The elements, bottom first. Only the first `size` bytes are on the stack.
     buffer: &'s mut StackBuffer,
@@ -53,6 +83,14 @@ impl<'s> Stack<'s> {
     #[inline(always)]
     pub fn empty(buffer: &'s mut StackBuffer) -> Self {
         Self { buffer, size: 0 }
+    }
+
+    /// Lends `buffer` out as the stack whose size `state` holds.
+    pub fn new(buffer: &'s mut StackBuffer, state: GasAndSize) -> Self {
+        Self {
+            buffer,
+            size: state.stack_size(),
+        }
     }
 
     /// Replaces the content of the stack with the first [`Self::CAPACITY`] elements of `values`.
@@ -223,6 +261,42 @@ mod tests {
         assert_eq!(slot, u256::ONE);
     }
 
+    #[rstest]
+    #[case::empty(0, &[], 0)]
+    #[case::gas_only(1, &[], 1 << 16)]
+    #[case::size_only(0, &[1, 2], 2 * 32)]
+    #[case::both(5, &[1, 2], (5 << 16) | (2 * 32))]
+    #[case::full(Gas::MAX, &[1; Stack::CAPACITY], (Gas::MAX << 16) | (Stack::CAPACITY as u64 * 32))]
+    fn gas_and_size_new_packs_gas_into_upper_48_bits_and_stack_size_into_lower_16(
+        #[case] gas: u64,
+        #[case] values: &[u8],
+        #[case] expected: u64,
+    ) {
+        let gas = Gas::new(gas.cast_signed()).unwrap();
+        let mut buffer = Stack::new_buffer();
+        assert_eq!(GasAndSize::new(gas, stack(&mut buffer, values)).0, expected);
+    }
+
+    #[rstest]
+    #[case::empty(0, 0)]
+    #[case::ignores_size(2 * 32, 0)]
+    #[case::gas(5 << 16, 5)]
+    #[case::both((5 << 16) | (2 * 32), 5)]
+    #[case::max((Gas::MAX << 16) | (Stack::CAPACITY as u64 * 32), Gas::MAX)]
+    fn gas_and_size_gas_returns_upper_48_bits(#[case] word: u64, #[case] expected: u64) {
+        assert_eq!(GasAndSize(word).gas(), expected);
+    }
+
+    #[rstest]
+    #[case::empty(0, 0)]
+    #[case::ignores_gas(5 << 16, 0)]
+    #[case::size(2 * 32, 2 * 32)]
+    #[case::both((5 << 16) | (2 * 32), 2 * 32)]
+    #[case::max((Gas::MAX << 16) | (Stack::CAPACITY as u64 * 32), Stack::CAPACITY * 32)]
+    fn gas_and_size_stack_size_returns_lower_16_bits(#[case] word: u64, #[case] expected: usize) {
+        assert_eq!(GasAndSize(word).stack_size(), expected);
+    }
+
     #[test]
     fn new_buffer_creates_zeroed_elements() {
         assert!(Stack::new_buffer().iter().all(|value| *value == u256::ZERO));
@@ -233,6 +307,16 @@ mod tests {
         let mut buffer = Stack::new_buffer();
         buffer.fill(u256::ONE);
         assert_eq!(Stack::empty(&mut buffer).len(), 0);
+    }
+
+    #[rstest]
+    #[case::empty(&[])]
+    #[case::values(&[1, 2])]
+    #[case::full(&[1; Stack::CAPACITY])]
+    fn new_lends_elements_as_stack_of_the_size_in_state(#[case] values: &[u8]) {
+        let mut buffer = Stack::new_buffer();
+        let state = GasAndSize::new(Gas::new(7).unwrap(), stack(&mut buffer, values));
+        assert_eq!(Stack::new(&mut buffer, state).as_slice(), u256s(values));
     }
 
     #[rstest]
