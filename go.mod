@@ -12,7 +12,7 @@ module github.com/0xsoniclabs/tosca
 
 go 1.26.0
 
-toolchain go1.26.5
+toolchain go1.27.2
 
 require (
 	github.com/dsnet/golib/unitconv v1.0.2
