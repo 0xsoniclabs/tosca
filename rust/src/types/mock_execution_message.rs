@@ -2,7 +2,7 @@ use std::ptr;
 
 use evmc_vm::{Address, ExecutionMessage, MessageKind, Uint256, ffi::evmc_message};
 
-use crate::types::u256;
+use crate::{types::u256, utils::Gas};
 
 /// A test variant of [`ExecutionMessage`] with `'static` slices and a `'static` reference as code
 /// hash, so that [`Self::to_evmc_message`] can point to them.
@@ -24,7 +24,7 @@ pub struct MockExecutionMessage {
 
 impl MockExecutionMessage {
     /// The gas of the [`Default`] message.
-    pub const DEFAULT_INIT_GAS: u64 = i64::MAX.cast_unsigned();
+    pub const DEFAULT_INIT_GAS: u64 = Gas::MAX;
 
     /// Converts the message into its FFI representation. Empty slices and a missing code hash
     /// become null pointers.

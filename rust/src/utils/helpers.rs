@@ -122,7 +122,7 @@ mod tests {
         #[case] expected: Result<(), FailStatus>,
         #[case] expected_dest: Vec<u8>,
     ) {
-        assert_eq!(dest.copy_padded(src, &mut Gas::new(gas)), expected);
+        assert_eq!(dest.copy_padded(src, &mut Gas::new(gas).unwrap()), expected);
         assert_eq!(dest, expected_dest);
     }
 

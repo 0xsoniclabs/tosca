@@ -12,7 +12,6 @@ package examples
 
 import (
 	"fmt"
-	"math"
 
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"golang.org/x/crypto/sha3"
@@ -51,7 +50,11 @@ type Result struct {
 // RunOn runs this example on the given interpreter, using the given argument.
 func (e *Example) RunOn(interpreter tosca.Interpreter, argument int) (Result, error) {
 
-	const initialGas = math.MaxInt64
+	// 2^48 - 1 is the maximum gas supported by evmrs.
+	// Sonic limits the gas per transaction to MaxEventGas, which defaults to
+	// 15,000,000 × 1000 / 600 + 28,000 = 25,028,000 gas:
+	// https://github.com/0xsoniclabs/sonic/blob/29e781a2a75a987d8137f5c7865e489125844dee/opera/rules.go#L462
+	const initialGas = 1<<48 - 1
 	params := tosca.Parameters{
 		Code:     e.Code,
 		CodeHash: (*tosca.Hash)(&e.codeHash),

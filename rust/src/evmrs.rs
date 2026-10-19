@@ -67,12 +67,15 @@ impl EvmcVm for EvmRs {
             &mut memory,
             &self.hash_cache,
         );
-        let result = match self.observer_type {
-            ObserverType::NoOp => interpreter.run(&mut NoOpObserver()),
-            ObserverType::Logging => {
-                hint::cold_path();
-                interpreter.run(&mut LoggingObserver::new(std::io::stdout()))
-            }
+        let result = match interpreter {
+            Ok(interpreter) => match self.observer_type {
+                ObserverType::NoOp => interpreter.run(&mut NoOpObserver()),
+                ObserverType::Logging => {
+                    hint::cold_path();
+                    interpreter.run(&mut LoggingObserver::new(std::io::stdout()))
+                }
+            },
+            Err(fail_status) => fail_status.into(),
         };
         self.interpreter_allocations
             .release_stack_and_memory(stack_buffer, memory);
@@ -166,9 +169,14 @@ impl SteppableEvmcVm for EvmRs {
             &mut run_memory,
             &self.hash_cache,
         );
-        let result = match self.observer_type {
-            ObserverType::NoOp => interpreter.run(&mut NoOpObserver()),
-            ObserverType::Logging => interpreter.run(&mut LoggingObserver::new(std::io::stdout())),
+        let result = match interpreter {
+            Ok(interpreter) => match self.observer_type {
+                ObserverType::NoOp => interpreter.run(&mut NoOpObserver()),
+                ObserverType::Logging => {
+                    interpreter.run(&mut LoggingObserver::new(std::io::stdout()))
+                }
+            },
+            Err(fail_status) => fail_status.into(),
         };
         self.interpreter_allocations
             .release_stack_and_memory(stack_buffer, run_memory);
