@@ -1454,11 +1454,20 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
     ) -> OpFnResult<'a, STEPPABLE> {
         gas_left.consume(20)?;
         let (push_location, [block_number]) = stack.pop_with_location()?;
-        push_location.push(
-            u64::try_from(block_number)
-                .map(|idx| interpreter.context.get_block_hash(idx.cast_signed()).into())
-                .unwrap_or(u256::ZERO),
-        );
+        let current_block_number = interpreter
+            .context
+            .get_tx_context()
+            .block_number
+            .cast_unsigned();
+        let block_hash = if let Ok(idx) = u64::try_from(block_number)
+            && idx < current_block_number
+            && current_block_number - idx <= 256
+        {
+            interpreter.context.get_block_hash(idx.cast_signed()).into()
+        } else {
+            u256::ZERO
+        };
+        push_location.push(block_hash);
         pc.next();
         next!(interpreter, pc, gas_left, stack)
     }
