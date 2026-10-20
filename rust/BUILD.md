@@ -223,13 +223,16 @@ It is recommended to pass `--target` and `-Zbuild-std` to cargo.
 The thread sanitizer additionally needs `CFLAGS` so that mimalloc is instrumented as well.
 `-DMI_TSAN=1` makes mimalloc store its page flags in separate bytes instead of bits of a shared byte, which otherwise causes the thread sanitizer to report benign races.
 
+The address sanitizer additionally needs `-Cllvm-args=-asan-stack-dynamic-alloca=0` with features `tail-call` and `simd`.
+It keeps the locals in the fixed stack frame instead of a dynamic alloca, which LLVM rejects together with stack realignment in the preserve-none handlers.
+
 Examples:
 ```sh
 # required for -Zbuild-std
 rustup +nightly component add rust-src
 
 # run tests with address sanitizer
-RUSTFLAGS=-Zsanitizer=address \
+RUSTFLAGS="-Zsanitizer=address -Cllvm-args=-asan-stack-dynamic-alloca=0" \
     cargo +nightly test -Zbuild-std --target x86_64-unknown-linux-gnu
 
 # run tests with memory sanitizer
@@ -241,7 +244,7 @@ CFLAGS="-fsanitize=thread -DMI_TSAN=1" RUSTFLAGS=-Zsanitizer=thread \
     cargo +nightly test -Zbuild-std --target x86_64-unknown-linux-gnu
 
 # run benchmarks with address sanitizer
-RUSTFLAGS=-Zsanitizer=address \
+RUSTFLAGS="-Zsanitizer=address -Cllvm-args=-asan-stack-dynamic-alloca=0" \
     cargo +nightly run -Zbuild-std --target x86_64-unknown-linux-gnu --package benchmarks -- 1 all-short
 
 # run benchmarks with memory sanitizer
