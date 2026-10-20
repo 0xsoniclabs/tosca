@@ -1,5 +1,5 @@
 mod amount;
-#[cfg(feature = "needs-cache")]
+#[cfg(any(feature = "hash-cache", feature = "code-analysis-cache"))]
 mod cache;
 mod code_analysis;
 mod code_reader;
@@ -17,7 +17,7 @@ mod stack;
 mod status_code;
 
 pub use amount::u256;
-#[cfg(feature = "needs-cache")]
+#[cfg(any(feature = "hash-cache", feature = "code-analysis-cache"))]
 pub use cache::Cache;
 pub use code_analysis::{CodeAnalysis, CodeAnalysisCache};
 #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]

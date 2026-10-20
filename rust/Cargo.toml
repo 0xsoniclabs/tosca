@@ -24,34 +24,33 @@ debug = true
 
 [features]
 default = []
-# feature mock enables code generation for test mocking. This allows generating mocks for other build configuration but "test". 
-mock = ["dep:mockall"]
-fuzzing = ["dep:arbitrary"]
-# partial features (enabled by other features to simplify conditional compilation attributes. Not intended to be used on their own)
-needs-cache = ["dep:lru"]
-# optimizations:
+
+# all optimizations that compile on stable rust
 performance = [
     "mimalloc",
-    "unsafe-stack",
-    "unsafe-hints",
     "hash-cache",
     "code-analysis-cache",
     "alloc-reuse",
+    "unsafe-hints",
     "fn-ptr-conversion-dispatch",
 ]
-# every optimization, including the two that require a nightly compiler
+# every optimization, including ones that require nightly rust
 performance-nightly = ["performance", "tail-call", "simd"]
+
+# individual optimizations
 mimalloc = ["dep:mimalloc"]
-unsafe-stack = []
-unsafe-hints = []
-hash-cache = ["needs-cache"]
-code-analysis-cache = ["dep:nohash-hasher", "needs-cache"]
+hash-cache = ["dep:lru"]
+code-analysis-cache = ["dep:nohash-hasher", "dep:lru"]
 alloc-reuse = []
+unsafe-hints = []
+fn-ptr-conversion-dispatch = []
+# nightly only optimizations
 tail-call = []
 simd = []
-# function/ opcode dispatch:
-# feature precedence: jumptable-dispatch (default) < fn-ptr-conversion-dispatch
-fn-ptr-conversion-dispatch = []
+
+# code only used by other crates: mocks outside of `cfg(test)` and `Arbitrary` impls for the fuzz targets
+mock = ["dep:mockall"]
+fuzzing = ["dep:arbitrary"]
 
 [dependencies]
 evmc-vm = { path = "evmc-vm" }
