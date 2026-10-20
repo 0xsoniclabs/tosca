@@ -46,9 +46,9 @@ impl<const STEPPABLE: bool> CodeAnalysisCache<STEPPABLE> {
     const DEFAULT_CACHE_SIZE: usize = 1 << 16; // value taken from evmzero
     // 48B for OpFnData instead of 1B for CodeByteType -> reduce size from 2^16 to about
     // 2^16 / 48 to keep roughly the same memory size
-    // default to 2^13 nonetheless for better performance
+    // default to 2^12 nonetheless for better performance
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
-    const DEFAULT_CACHE_SIZE: usize = 1 << 13;
+    const DEFAULT_CACHE_SIZE: usize = 1 << 12;
 
     #[allow(unused_variables)]
     pub fn new(size: usize) -> Self {
