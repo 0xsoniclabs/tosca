@@ -12,16 +12,6 @@ mod interpreter;
 mod types;
 mod utils;
 
-#[cfg(all(
-    feature = "needs-cache",
-    not(feature = "code-analysis-cache"),
-    not(feature = "hash-cache"),
-))]
-compile_error!(
-    "Feature `needs-cache` is only a helper feature and not supposed to be enabled on its own.
-    Either disable it or enable one or all of `code-analysis-cache` or `hash-cache`."
-);
-
 pub use evmc_vm;
 use llvm_profile_wrappers::{
     llvm_profile_enabled, llvm_profile_reset_counters, llvm_profile_set_filename,

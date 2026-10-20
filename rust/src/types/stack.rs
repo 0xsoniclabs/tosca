@@ -62,7 +62,7 @@ pub struct Stack<'s> {
     /// top: x86 addressing cannot scale an index by the element size of 32.
     ///
     /// Invariant: a multiple of the element size and at most the size of the buffer. The hint in
-    /// [`Stack::len`] relies on it with `unsafe-stack`.
+    /// [`Stack::len`] relies on it with `unsafe-hints`.
     size: usize,
 }
 
@@ -113,7 +113,7 @@ impl<'s> Stack<'s> {
 
     /// Returns the number of elements on the stack.
     pub fn len(&self) -> usize {
-        #[cfg(feature = "unsafe-stack")]
+        #[cfg(feature = "unsafe-hints")]
         // SAFETY:
         // size is a multiple of the element size and at most the size of the buffer (invariant).
         unsafe {

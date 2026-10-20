@@ -60,7 +60,7 @@ jobs:
       run: cargo install cargo-hack
     - name: cargo clippy
       working-directory: rust
-      run: cargo hack --workspace --each-feature --exclude-features needs-cache,tail-call,simd,performance-nightly clippy --all-targets -- --deny warnings
+      run: cargo hack --workspace --each-feature --exclude-features performance-nightly,tail-call,simd clippy --all-targets -- --deny warnings
 
   doc:
     name: doc
@@ -81,7 +81,7 @@ jobs:
       env:
         RUSTDOCFLAGS: "-D warnings"
       working-directory: rust
-      run: cargo hack --workspace --each-feature --exclude-features needs-cache,tail-call,simd,performance-nightly doc --no-deps
+      run: cargo hack --workspace --each-feature --exclude-features performance-nightly,tail-call,simd doc --no-deps
 
   build:
     name: build
@@ -100,7 +100,7 @@ jobs:
       run: cargo install cargo-hack
     - name: cargo build
       working-directory: rust
-      run: cargo hack --workspace --each-feature --exclude-features needs-cache,tail-call,simd,performance-nightly build
+      run: cargo hack --workspace --each-feature --exclude-features performance-nightly,tail-call,simd build
 
   test:
     name: test
@@ -119,7 +119,7 @@ jobs:
       run: cargo install cargo-hack
     - name: cargo test
       working-directory: rust
-      run: cargo hack --workspace --each-feature --exclude-features needs-cache,tail-call,simd,performance-nightly test
+      run: cargo hack --workspace --each-feature --exclude-features performance-nightly,tail-call,simd test
 
   nightly-features:
     name: nightly-features
@@ -139,10 +139,10 @@ jobs:
     - name: cargo test
       working-directory: rust
       run: |
-        cargo +nightly-2026-08-05 test --profile release --features tail-call
-        cargo +nightly-2026-08-05 test --profile release --features tail-call,fn-ptr-conversion-dispatch
-        cargo +nightly-2026-08-05 test --profile release --features simd
         cargo +nightly-2026-08-05 test --profile release --features performance-nightly
+        cargo +nightly-2026-08-05 test --profile release --features tail-call
+        cargo +nightly-2026-08-05 test --profile release --features fn-ptr-conversion-dispatch,tail-call
+        cargo +nightly-2026-08-05 test --profile release --features simd
 
   test-with-sanitizers:
     name: test-with-sanitizers
@@ -168,13 +168,13 @@ jobs:
         # -asan-stack-dynamic-alloca=0 keeps the locals in the fixed stack frame instead of a dynamic
         # alloca, which LLVM rejects together with stack realignment in the preserve-none handlers.
         RUSTFLAGS: "-Zsanitizer=address -Cllvm-args=-asan-stack-dynamic-alloca=0"
-      run: cargo +nightly-2026-08-05 hack --workspace --each-feature --exclude-features needs-cache test -Zbuild-std --target x86_64-unknown-linux-gnu
+      run: cargo +nightly-2026-08-05 hack --workspace --each-feature test -Zbuild-std --target x86_64-unknown-linux-gnu
     - name: cargo test with memory sanitizer
       working-directory: rust
       env:
         RUSTFLAGS: "-Zsanitizer=memory -Zsanitizer-memory-track-origins"
         RUSTDOCFLAGS: "-Zsanitizer=memory -Zsanitizer-memory-track-origins -Cunsafe-allow-abi-mismatch=sanitizer"
-      run: cargo +nightly-2026-08-05 hack --workspace --each-feature --exclude-features needs-cache test -Zbuild-std --target x86_64-unknown-linux-gnu
+      run: cargo +nightly-2026-08-05 hack --workspace --each-feature test -Zbuild-std --target x86_64-unknown-linux-gnu
     - name: cargo test with thread sanitizer
       working-directory: rust
       env:
@@ -183,7 +183,7 @@ jobs:
         CFLAGS: "-fsanitize=thread -DMI_TSAN=1"
         RUSTFLAGS: -Zsanitizer=thread
         RUSTDOCFLAGS: "-Zsanitizer=thread -Cunsafe-allow-abi-mismatch=sanitizer"
-      run: cargo +nightly-2026-08-05 hack --workspace --each-feature --exclude-features needs-cache test -Zbuild-std --target x86_64-unknown-linux-gnu
+      run: cargo +nightly-2026-08-05 hack --workspace --each-feature test -Zbuild-std --target x86_64-unknown-linux-gnu
 
   benchmarks-with-sanitizers:
     name: benchmarks-with-sanitizers
@@ -246,12 +246,12 @@ jobs:
       working-directory: rust
       env:
         MIRIFLAGS: "-Zmiri-permissive-provenance -Zmiri-backtrace=full"
-      run: cargo +nightly-2026-08-05 hack miri test --workspace --each-feature --exclude-features needs-cache,mimalloc,performance,performance-nightly
+      run: cargo +nightly-2026-08-05 hack miri test --workspace --each-feature --exclude-features performance,performance-nightly,mimalloc
     - name: cargo miri benchmarks
       working-directory: rust
       env:
         MIRIFLAGS: "-Zmiri-permissive-provenance -Zmiri-backtrace=full"
-      run: cargo +nightly-2026-08-05 hack miri run --package benchmarks --each-feature --exclude-features mimalloc,performance,performance-nightly -- 1 all-short
+      run: cargo +nightly-2026-08-05 hack miri run --package benchmarks --each-feature --exclude-features performance,performance-nightly,mimalloc -- 1 all-short
 
   fuzz:
     name: fuzz
