@@ -17,8 +17,10 @@ mod stack;
 mod status_code;
 
 pub use amount::u256;
-#[cfg(any(feature = "hash-cache", feature = "code-analysis-cache"))]
+#[cfg(feature = "hash-cache")]
 pub use cache::Cache;
+#[cfg(feature = "code-analysis-cache")]
+pub use cache::{Weight, WeightedCache};
 pub use code_analysis::{CodeAnalysis, CodeAnalysisCache};
 #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
 pub use code_reader::GetOpcodeError;

@@ -5,11 +5,11 @@ use std::{ops::Deref, sync::Arc};
 #[cfg(feature = "code-analysis-cache")]
 use nohash_hasher::BuildNoHashHasher;
 
-#[cfg(feature = "code-analysis-cache")]
-use crate::types::Cache;
 #[cfg(feature = "fn-ptr-conversion-dispatch")]
 use crate::types::OpFnData;
 use crate::types::{CodeByteType, code_byte_type, u256};
+#[cfg(feature = "code-analysis-cache")]
+use crate::types::{Weight, WeightedCache};
 
 /// This type represents a hash value in form of a u256.
 /// Because it is already a hash value there is no need to hash it again when implementing Hash.
@@ -32,7 +32,7 @@ pub type AnalysisItem<const STEPPABLE: bool> = OpFnData<STEPPABLE>;
 
 pub struct CodeAnalysisCache<const STEPPABLE: bool>(
     #[cfg(feature = "code-analysis-cache")]
-    Cache<u256Hash, CodeAnalysis<STEPPABLE>, BuildNoHashHasher<u64>>,
+    WeightedCache<u256Hash, CodeAnalysis<STEPPABLE>, BuildNoHashHasher<u64>>,
 );
 
 impl<const STEPPABLE: bool> Default for CodeAnalysisCache<STEPPABLE> {
@@ -42,18 +42,15 @@ impl<const STEPPABLE: bool> Default for CodeAnalysisCache<STEPPABLE> {
 }
 
 impl<const STEPPABLE: bool> CodeAnalysisCache<STEPPABLE> {
-    #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
-    const DEFAULT_CACHE_SIZE: usize = 1 << 16; // value taken from evmzero
-    // 48B for OpFnData instead of 1B for CodeByteType -> reduce size from 2^16 to about
-    // 2^16 / 48 to keep roughly the same memory size
-    // default to 2^13 nonetheless for better performance
-    #[cfg(feature = "fn-ptr-conversion-dispatch")]
-    const DEFAULT_CACHE_SIZE: usize = 1 << 13;
+    /// The capacity in bytes used by [`Default`].
+    // evmzero's worst case: 2^16 entries of two 24 KiB buffers each
+    const DEFAULT_CACHE_SIZE: usize = 3 << 30;
 
+    /// Creates a new [`CodeAnalysisCache`] that holds analyses of up to `size` bytes in total.
     #[allow(unused_variables)]
     pub fn new(size: usize) -> Self {
         std::cfg_select! {
-            feature = "code-analysis-cache" => Self(Cache::new(size)),
+            feature = "code-analysis-cache" => Self(WeightedCache::new(size)),
             _ => Self(),
         }
     }
@@ -197,6 +194,13 @@ impl<const STEPPABLE: bool> Deref for CodeAnalysis<STEPPABLE> {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+#[cfg(feature = "code-analysis-cache")]
+impl<const STEPPABLE: bool> Weight for CodeAnalysis<STEPPABLE> {
+    fn weight(&self) -> usize {
+        size_of_val(&*self.0)
     }
 }
 

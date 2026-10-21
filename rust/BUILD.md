@@ -15,7 +15,7 @@
     cargo build --lib --profile profiling --features performance
     ```
 
-NOTE: The maximum size of the code analysis and hash cache can be modified by calling the set_option method on the interpreter with the key `code-analysis-cache-size` / `hash-cache-size` and the desired size.
+NOTE: The maximum size of the code analysis and hash cache can be modified by calling the set_option method on the interpreter with the key `code-analysis-cache-size` / `hash-cache-size` and the desired size: the total size of the cached code analyses in bytes / the number of cached hashes per input length.
 The size is measured in the number of elements not the number of bytes.
 
 ## Lint
