@@ -136,15 +136,13 @@ impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
             pc += 1;
             match code_byte_type {
                 CodeByteType::JumpDest => {
-                    if no_ops > 0 {
-                        // for_each vectorizes the repeated entry, unlike a for loop.
-                        OpFnData::skip_no_ops_iter(no_ops, pc - 1)
-                            .enumerate()
-                            .for_each(|(i, entry)| {
-                                entries[index + i].write(entry);
-                            });
-                        index += no_ops;
-                    }
+                    // for_each vectorizes the repeated entry, unlike a for loop.
+                    OpFnData::skip_no_ops_iter(no_ops, pc - 1)
+                        .enumerate()
+                        .for_each(|(i, entry)| {
+                            entries[index + i].write(entry);
+                        });
+                    index += no_ops;
                     no_ops = 0;
                     entries[index].write(OpFnData::jump_dest(pc - 1));
                     index += 1;
@@ -172,9 +170,7 @@ impl<const STEPPABLE: bool> CodeAnalysis<STEPPABLE> {
                     index += 1;
                 }
                 CodeByteType::DataOrInvalid => {
-                    // This should only be the case if an invalid opcode was not preceded by a push.
-                    // In this case we don't care what the data contains.
-                    entries[index].write(OpFnData::data(u256::ZERO, pc - 1));
+                    entries[index].write(OpFnData::invalid(pc - 1));
                     index += 1;
                 }
             };
@@ -318,7 +314,7 @@ mod tests {
         );
         assert_eq!(
             *CodeAnalysis::<false>::analyze_code(&[0xc0]),
-            [OpFnData::data(u256::ZERO, 0), OpFnData::terminator(1)]
+            [OpFnData::invalid(0), OpFnData::terminator(1)]
         );
     }
     #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
@@ -351,7 +347,7 @@ mod tests {
             *CodeAnalysis::<false>::analyze_code(&[Opcode::JumpDest as u8, 0xc0]),
             [
                 OpFnData::jump_dest(0),
-                OpFnData::data(u256::ZERO, 1),
+                OpFnData::invalid(1),
                 OpFnData::terminator(2)
             ]
         );
@@ -445,7 +441,7 @@ mod tests {
             *CodeAnalysis::<false>::analyze_code(&[Opcode::Push1 as u8, Opcode::Add as u8, 0xc0]),
             [
                 OpFnData::<false>::func(Opcode::Push1 as u8, (Opcode::Add as u8).into(), 0),
-                OpFnData::data(u256::ZERO, 2),
+                OpFnData::invalid(2),
                 OpFnData::terminator(3),
                 OpFnData::terminator(3),
             ]
@@ -459,7 +455,7 @@ mod tests {
             ]),
             [
                 OpFnData::<false>::func(Opcode::Push1 as u8, (Opcode::Add as u8).into(), 0),
-                OpFnData::data(u256::ZERO, 2),
+                OpFnData::invalid(2),
                 OpFnData::<false>::func(Opcode::Add as u8, u256::ZERO, 3),
                 OpFnData::terminator(4),
                 OpFnData::terminator(4),
@@ -497,7 +493,7 @@ mod tests {
                     (((Opcode::Add as u8 as u64) << 8) + Opcode::Add as u8 as u64).into(),
                     0
                 ),
-                OpFnData::data(u256::ZERO, 3),
+                OpFnData::invalid(3),
                 OpFnData::terminator(4),
                 OpFnData::terminator(4),
                 OpFnData::terminator(4),

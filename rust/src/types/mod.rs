@@ -1,8 +1,8 @@
 mod amount;
 #[cfg(any(feature = "hash-cache", feature = "code-analysis-cache"))]
 mod cache;
+mod code;
 mod code_analysis;
-mod code_reader;
 mod execution_context;
 pub mod hash_cache;
 mod interpreter_allocations;
@@ -19,10 +19,10 @@ mod status_code;
 pub use amount::u256;
 #[cfg(any(feature = "hash-cache", feature = "code-analysis-cache"))]
 pub use cache::Cache;
-pub use code_analysis::{CodeAnalysis, CodeAnalysisCache};
 #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
-pub use code_reader::GetOpcodeError;
-pub use code_reader::{Code, Pc};
+pub use code::GetOpcodeError;
+pub use code::{Code, Pc};
+pub use code_analysis::{CodeAnalysis, CodeAnalysisCache};
 pub use execution_context::*;
 pub use interpreter_allocations::InterpreterAllocationsCache;
 pub use last_call_return_data::LastCallReturnData;
