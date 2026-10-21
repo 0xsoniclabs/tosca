@@ -48,7 +48,7 @@ impl<const STEPPABLE: bool> CodeAnalysisCache<STEPPABLE> {
     // 2^16 / 48 to keep roughly the same memory size
     // default to 2^13 nonetheless for better performance
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
-    const DEFAULT_CACHE_SIZE: usize = 1 << 13;
+    const DEFAULT_CACHE_SIZE: usize = 1 << 14;
 
     #[allow(unused_variables)]
     pub fn new(size: usize) -> Self {
