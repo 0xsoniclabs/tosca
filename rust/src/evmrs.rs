@@ -1,4 +1,7 @@
-use std::{hint, process};
+use std::{
+    hint, process,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 use evmc_vm::{
     EvmcVm, ExecutionContext, ExecutionMessage, ExecutionResult, Revision, SetOptionError,
@@ -14,6 +17,8 @@ use crate::{
         NoOpObserver, ObserverType, hash_cache::HashCache, u256,
     },
 };
+
+static EMPTY_CODE_CALLS: AtomicU64 = AtomicU64::new(0);
 
 pub struct EvmRs {
     observer_type: ObserverType,
@@ -51,6 +56,12 @@ impl EvmcVm for EvmRs {
             // If this is not the case it violates the EVMC spec and is an irrecoverable error.
             process::abort();
         };
+        if code.is_empty() {
+            let calls = EMPTY_CODE_CALLS.fetch_add(1, Ordering::Relaxed) + 1;
+            if calls % 1000 == 0 {
+                eprintln!("evmrs: execute called with empty code {calls} times");
+            }
+        }
         let (mut stack_buffer, mut memory) = self.interpreter_allocations.new_stack_and_memory();
         let code_analysis = CodeAnalysis::new(
             code,
