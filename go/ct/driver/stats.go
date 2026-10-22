@@ -133,7 +133,7 @@ func (s *ruleStatistics) String() string {
 
 	builder.WriteString("rule,num_tests\n")
 	for _, rule := range rules {
-		builder.WriteString(fmt.Sprintf("%s,%d\n", rule, s.data[rule].numTests))
+		fmt.Fprintf(&builder, "%s,%d\n", rule, s.data[rule].numTests)
 	}
 	return builder.String()
 }

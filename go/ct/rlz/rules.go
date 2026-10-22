@@ -141,7 +141,7 @@ func (i *TestCaseEnumerationInfo) String() string {
 	builder.WriteString("Conditions:\n")
 	slices.Sort(i.conditions)
 	for _, condition := range i.conditions {
-		builder.WriteString(fmt.Sprintf("\t%s\n", condition))
+		fmt.Fprintf(&builder, "\t%s\n", condition)
 	}
 	if len(i.conditions) == 0 {
 		builder.WriteString("\t-none-\n")
@@ -150,23 +150,24 @@ func (i *TestCaseEnumerationInfo) String() string {
 	keys := maps.Keys(i.propertyDomains)
 	slices.Sort(keys)
 	for _, key := range keys {
-		builder.WriteString(fmt.Sprintf(
+		fmt.Fprintf(
+			&builder,
 			"\t%s: N=%d, {%s}\n",
 			key,
 			len(i.propertyDomains[key]),
 			strings.Join(i.propertyDomains[key], ", "),
-		))
+		)
 	}
 	if len(i.propertyDomains) == 0 {
 		builder.WriteString("\t-none-\n")
 	}
 	builder.WriteString("Parameters:\n")
 	for i, size := range i.parameterDomainSizes {
-		builder.WriteString(fmt.Sprintf("\t%d: %d\n", i, size))
+		fmt.Fprintf(&builder, "\t%d: %d\n", i, size)
 	}
 	if len(i.parameterDomainSizes) == 0 {
 		builder.WriteString("\t-none-\n")
 	}
-	builder.WriteString(fmt.Sprintf("Total number of cases: %d\n", i.TotalNumberOfCases()))
+	fmt.Fprintf(&builder, "Total number of cases: %d\n", i.TotalNumberOfCases())
 	return builder.String()
 }

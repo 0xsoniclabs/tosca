@@ -280,7 +280,7 @@ func (s *State) String() string {
 	builder := strings.Builder{}
 
 	write := func(pattern string, args ...any) {
-		builder.WriteString(fmt.Sprintf(pattern, args...))
+		fmt.Fprintf(&builder, pattern, args...)
 	}
 
 	write("{\n")

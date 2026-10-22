@@ -36,7 +36,7 @@ func (i Instruction) String() string {
 func (c Code) String() string {
 	var buffer bytes.Buffer
 	for i, instruction := range c {
-		buffer.WriteString(fmt.Sprintf("0x%04x: %v\n", i, instruction))
+		fmt.Fprintf(&buffer, "0x%04x: %v\n", i, instruction)
 	}
 	return buffer.String()
 }

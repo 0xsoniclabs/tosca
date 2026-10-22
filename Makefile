@@ -149,5 +149,5 @@ coverage-report:
 	@go-test-coverage --config .testcoverage.yml
 
 lint-go:
-	@go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
+	@go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
 	@golangci-lint run ./go/...
