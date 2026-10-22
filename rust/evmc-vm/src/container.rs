@@ -218,7 +218,7 @@ mod tests {
             code_size: 0,
             code_hash: std::ptr::null(),
         };
-        let message: ExecutionMessage = (&message).into();
+        let message: &ExecutionMessage = (&message).into();
 
         let host = ::evmc_sys::evmc_host_interface {
             account_exists: None,
@@ -247,7 +247,7 @@ mod tests {
                 .execute(
                     evmc_sys::evmc_revision::EVMC_PETERSBURG,
                     &code,
-                    &message,
+                    message,
                     Some(&mut context)
                 )
                 .status_code(),
@@ -263,7 +263,7 @@ mod tests {
                 .execute(
                     evmc_sys::evmc_revision::EVMC_PETERSBURG,
                     &code,
-                    &message,
+                    message,
                     Some(&mut context)
                 )
                 .status_code(),

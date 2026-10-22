@@ -73,7 +73,7 @@ pub fn check_min_revision(min_revision: Revision, revision: Revision) -> Result<
 /// `Err(FailStatus::StaticModeViolation)` if it is read-only.
 #[inline(always)]
 pub fn check_not_read_only(message: &ExecutionMessage) -> Result<(), FailStatus> {
-    if message.flags & MessageFlags::EVMC_STATIC as u32 != 0 {
+    if message.flags() & MessageFlags::EVMC_STATIC as u32 != 0 {
         std::hint::cold_path();
         return Err(FailStatus::StaticModeViolation);
     }

@@ -89,8 +89,7 @@ mod mock_callbacks {
         message: *const evmc_message,
     ) -> evmc_result {
         let mock = unsafe { &mut *(context as *mut MockExecutionContextTrait) };
-        let message = (unsafe { &*message }).into();
-        mock.call(&message).into()
+        mock.call((unsafe { &*message }).into()).into()
     }
 
     pub unsafe extern "C" fn get_tx_context(context: *mut ffi::c_void) -> evmc_tx_context {

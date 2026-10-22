@@ -11,7 +11,7 @@
 mod container;
 mod types;
 
-use std::{mem::ManuallyDrop, ptr, slice};
+use std::{marker::PhantomData, mem::ManuallyDrop, ptr, slice};
 
 pub use container::{EvmcContainer, SteppableEvmcContainer};
 pub use evmc_sys as ffi;
@@ -151,21 +151,119 @@ pub struct StepResult {
     pub last_call_return_data: Box<[u8]>,
 }
 
-/// EVMC execution message structure.
+/// EVMC execution message structure, a view of an [`ffi::evmc_message`] whose input, code and code
+/// hash live for `'a`.
 #[derive(Debug)]
+#[repr(transparent)]
 pub struct ExecutionMessage<'a> {
-    pub kind: MessageKind,
-    pub flags: u32,
-    pub depth: i32,
-    pub gas: i64,
-    pub recipient: Address,
-    pub sender: Address,
-    pub input: &'a [u8],
-    pub value: Uint256,
-    pub create2_salt: Uint256,
-    pub code_address: Address,
-    pub code: &'a [u8],
-    pub code_hash: Option<Uint256>,
+    raw: ffi::evmc_message,
+    _borrows: PhantomData<&'a [u8]>,
+}
+
+impl<'a> ExecutionMessage<'a> {
+    /// Creates a new [`ExecutionMessage`].
+    pub fn new(
+        kind: MessageKind,
+        flags: u32,
+        depth: i32,
+        gas: i64,
+        recipient: Address,
+        sender: Address,
+        input: &'a [u8],
+        value: Uint256,
+        create2_salt: Uint256,
+        code_address: Address,
+        code: &'a [u8],
+        code_hash: Option<&'a Uint256>,
+    ) -> Self {
+        let (input_data, input_size) = slice_into_raw_parts(input);
+        let (code, code_size) = slice_into_raw_parts(code);
+        Self {
+            raw: ffi::evmc_message {
+                kind,
+                flags,
+                depth,
+                gas,
+                recipient,
+                sender,
+                input_data,
+                input_size,
+                value,
+                create2_salt,
+                code_address,
+                code,
+                code_size,
+                code_hash: code_hash.map_or(ptr::null(), ptr::from_ref),
+            },
+            _borrows: PhantomData,
+        }
+    }
+
+    /// Returns the kind of the call.
+    pub fn kind(&self) -> MessageKind {
+        self.raw.kind
+    }
+
+    /// Returns the [`MessageFlags`] of the call.
+    pub fn flags(&self) -> u32 {
+        self.raw.flags
+    }
+
+    /// Returns the depth of the call.
+    pub fn depth(&self) -> i32 {
+        self.raw.depth
+    }
+
+    /// Returns the gas available to the call.
+    pub fn gas(&self) -> i64 {
+        self.raw.gas
+    }
+
+    /// Returns the account whose code is executed with its storage.
+    pub fn recipient(&self) -> &Address {
+        &self.raw.recipient
+    }
+
+    /// Returns the caller.
+    pub fn sender(&self) -> &Address {
+        &self.raw.sender
+    }
+
+    /// Returns the input data.
+    pub fn input(&self) -> &'a [u8] {
+        // SAFETY:
+        // `input_data` points to `input_size` bytes that live for `'a`.
+        unsafe { slice_from_raw_parts(self.raw.input_data, self.raw.input_size) }
+    }
+
+    /// Returns the transferred value.
+    pub fn value(&self) -> &Uint256 {
+        &self.raw.value
+    }
+
+    /// Returns the salt of a CREATE2 call.
+    pub fn create2_salt(&self) -> &Uint256 {
+        &self.raw.create2_salt
+    }
+
+    /// Returns the account whose code is executed.
+    pub fn code_address(&self) -> &Address {
+        &self.raw.code_address
+    }
+
+    /// Returns the code of a delegated account.
+    pub fn code(&self) -> &'a [u8] {
+        // SAFETY:
+        // `code` points to `code_size` bytes that live for `'a`.
+        unsafe { slice_from_raw_parts(self.raw.code, self.raw.code_size) }
+    }
+
+    /// Returns the hash of the executed code, if the host provided it.
+    pub fn code_hash(&self) -> Option<&'a Uint256> {
+        // SAFETY:
+        // `code_hash` is null or points to a hash that lives for `'a`.
+        unsafe { self.raw.code_hash.as_ref() }
+    }
 }
 
 /// EVMC transaction context structure.
@@ -296,29 +394,7 @@ impl<'a> ExecutionContext<'a> {
 
     /// Call to another account.
     pub fn call(&mut self, message: &ExecutionMessage) -> ExecutionResult {
-        // There is no need to make any kind of copies here, because the caller
-        // won't go out of scope and ensures these pointers remain valid.
-        let (input_data, input_size) = slice_into_raw_parts(message.input);
-        let (code_data, code_size) = slice_into_raw_parts(message.code);
-        // Cannot use a nice from trait here because that complicates memory management,
-        // evmc_message doesn't have a release() method we could abstract it with.
-        let message = ffi::evmc_message {
-            kind: message.kind,
-            flags: message.flags,
-            depth: message.depth,
-            gas: message.gas,
-            recipient: message.recipient,
-            sender: message.sender,
-            input_data,
-            input_size,
-            value: message.value,
-            create2_salt: message.create2_salt,
-            code_address: message.code_address,
-            code: code_data,
-            code_size,
-            code_hash: ptr::null(),
-        };
-        unsafe { ExecutionResult::from_raw(self.host.call.unwrap()(self.context, &message)) }
+        unsafe { ExecutionResult::from_raw(self.host.call.unwrap()(self.context, &message.raw)) }
     }
 
     /// Get block hash of an account.
@@ -500,26 +576,11 @@ extern "C" fn release_stack_step_result(result: *const ffi::evmc_step_result) {
     }
 }
 
-impl<'a> From<&'a ffi::evmc_message> for ExecutionMessage<'a> {
+impl<'a> From<&'a ffi::evmc_message> for &'a ExecutionMessage<'a> {
     fn from(message: &'a ffi::evmc_message) -> Self {
-        ExecutionMessage {
-            kind: message.kind,
-            flags: message.flags,
-            depth: message.depth,
-            gas: message.gas,
-            recipient: message.recipient,
-            sender: message.sender,
-            input: unsafe { slice_from_raw_parts(message.input_data, message.input_size) },
-            value: message.value,
-            create2_salt: message.create2_salt,
-            code_address: message.code_address,
-            code: unsafe { slice_from_raw_parts(message.code, message.code_size) },
-            code_hash: if message.code_hash.is_null() {
-                None
-            } else {
-                Some(unsafe { *message.code_hash })
-            },
-        }
+        // SAFETY:
+        // `ExecutionMessage` is a transparent wrapper of `ffi::evmc_message`.
+        unsafe { &*ptr::from_ref(message).cast() }
     }
 }
 
@@ -696,19 +757,19 @@ mod tests {
             code_hash: std::ptr::null(),
         };
 
-        let ret: ExecutionMessage = (&msg).into();
+        let ret: &ExecutionMessage = (&msg).into();
 
-        assert_eq!(ret.kind, msg.kind);
-        assert_eq!(ret.flags, msg.flags);
-        assert_eq!(ret.depth, msg.depth);
-        assert_eq!(ret.gas, msg.gas);
-        assert_eq!(ret.recipient, msg.recipient);
-        assert_eq!(ret.sender, msg.sender);
-        assert_eq!(ret.input, &[]);
-        assert_eq!(ret.value, msg.value);
-        assert_eq!(ret.create2_salt, msg.create2_salt);
-        assert_eq!(ret.code_address, msg.code_address);
-        assert_eq!(ret.code, &[]);
+        assert_eq!(ret.kind(), msg.kind);
+        assert_eq!(ret.flags(), msg.flags);
+        assert_eq!(ret.depth(), msg.depth);
+        assert_eq!(ret.gas(), msg.gas);
+        assert_eq!(*ret.recipient(), msg.recipient);
+        assert_eq!(*ret.sender(), msg.sender);
+        assert_eq!(ret.input(), &[]);
+        assert_eq!(*ret.value(), msg.value);
+        assert_eq!(*ret.create2_salt(), msg.create2_salt);
+        assert_eq!(*ret.code_address(), msg.code_address);
+        assert_eq!(ret.code(), &[]);
     }
 
     #[test]
@@ -737,19 +798,19 @@ mod tests {
             code_hash: std::ptr::null(),
         };
 
-        let ret: ExecutionMessage = (&msg).into();
+        let ret: &ExecutionMessage = (&msg).into();
 
-        assert_eq!(ret.kind, msg.kind);
-        assert_eq!(ret.flags, msg.flags);
-        assert_eq!(ret.depth, msg.depth);
-        assert_eq!(ret.gas, msg.gas);
-        assert_eq!(ret.recipient, msg.recipient);
-        assert_eq!(ret.sender, msg.sender);
-        assert_eq!(ret.input, input);
-        assert_eq!(ret.value, msg.value);
-        assert_eq!(ret.create2_salt, msg.create2_salt);
-        assert_eq!(ret.code_address, msg.code_address);
-        assert_eq!(ret.code, &[]);
+        assert_eq!(ret.kind(), msg.kind);
+        assert_eq!(ret.flags(), msg.flags);
+        assert_eq!(ret.depth(), msg.depth);
+        assert_eq!(ret.gas(), msg.gas);
+        assert_eq!(*ret.recipient(), msg.recipient);
+        assert_eq!(*ret.sender(), msg.sender);
+        assert_eq!(ret.input(), input);
+        assert_eq!(*ret.value(), msg.value);
+        assert_eq!(*ret.create2_salt(), msg.create2_salt);
+        assert_eq!(*ret.code_address(), msg.code_address);
+        assert_eq!(ret.code(), &[]);
     }
 
     #[test]
@@ -778,19 +839,19 @@ mod tests {
             code_hash: std::ptr::null(),
         };
 
-        let ret: ExecutionMessage = (&msg).into();
+        let ret: &ExecutionMessage = (&msg).into();
 
-        assert_eq!(ret.kind, msg.kind);
-        assert_eq!(ret.flags, msg.flags);
-        assert_eq!(ret.depth, msg.depth);
-        assert_eq!(ret.gas, msg.gas);
-        assert_eq!(ret.recipient, msg.recipient);
-        assert_eq!(ret.sender, msg.sender);
-        assert_eq!(ret.input, &[]);
-        assert_eq!(ret.value, msg.value);
-        assert_eq!(ret.create2_salt, msg.create2_salt);
-        assert_eq!(ret.code_address, msg.code_address);
-        assert_eq!(ret.code, code);
+        assert_eq!(ret.kind(), msg.kind);
+        assert_eq!(ret.flags(), msg.flags);
+        assert_eq!(ret.depth(), msg.depth);
+        assert_eq!(ret.gas(), msg.gas);
+        assert_eq!(*ret.recipient(), msg.recipient);
+        assert_eq!(*ret.sender(), msg.sender);
+        assert_eq!(ret.input(), &[]);
+        assert_eq!(*ret.value(), msg.value);
+        assert_eq!(*ret.create2_salt(), msg.create2_salt);
+        assert_eq!(*ret.code_address(), msg.code_address);
+        assert_eq!(ret.code(), code);
     }
 
     unsafe extern "C" fn get_dummy_tx_context(
@@ -909,20 +970,20 @@ mod tests {
         let host_context = std::ptr::null_mut();
         let mut exe_context = ExecutionContext::new(&host, host_context);
 
-        let message = ExecutionMessage {
-            kind: MessageKind::EVMC_CALL,
-            flags: 0,
-            depth: 0,
-            gas: 6566,
-            recipient: test_addr,
-            sender: test_addr,
-            input: &[],
-            value: Uint256::default(),
-            create2_salt: Uint256::default(),
-            code_address: test_addr,
-            code: &[],
-            code_hash: None,
-        };
+        let message = ExecutionMessage::new(
+            MessageKind::EVMC_CALL,
+            0,
+            0,
+            6566,
+            test_addr,
+            test_addr,
+            &[],
+            Uint256::default(),
+            Uint256::default(),
+            test_addr,
+            &[],
+            None,
+        );
 
         let b = exe_context.call(&message);
 
@@ -942,20 +1003,20 @@ mod tests {
 
         let data = [0xc0, 0xff, 0xfe];
 
-        let message = ExecutionMessage {
-            kind: MessageKind::EVMC_CALL,
-            flags: 0,
-            depth: 0,
-            gas: 6566,
-            recipient: test_addr,
-            sender: test_addr,
-            input: &data,
-            value: Uint256::default(),
-            create2_salt: Uint256::default(),
-            code_address: test_addr,
-            code: &[],
-            code_hash: None,
-        };
+        let message = ExecutionMessage::new(
+            MessageKind::EVMC_CALL,
+            0,
+            0,
+            6566,
+            test_addr,
+            test_addr,
+            &data,
+            Uint256::default(),
+            Uint256::default(),
+            test_addr,
+            &[],
+            None,
+        );
 
         let b = exe_context.call(&message);
 

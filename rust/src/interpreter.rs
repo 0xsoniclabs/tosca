@@ -473,7 +473,7 @@ impl<'a> Interpreter<'a, false> {
             hash_cache,
             parked: Parked {
                 pc: Pc::new(code_analysis, 0),
-                state: GasAndSize::new(Gas::new(message.gas)?, Stack::empty(stack_buffer)),
+                state: GasAndSize::new(Gas::new(message.gas())?, Stack::empty(stack_buffer)),
             },
             stack: Some(stack_buffer),
         })
@@ -500,7 +500,7 @@ impl<'a> Interpreter<'a, true> {
     ) -> Result<Self, FailStatus> {
         let mut stack = Stack::empty(stack_buffer);
         stack.reset_to(init_stack);
-        let state = GasAndSize::new(Gas::new(message.gas)?, stack);
+        let state = GasAndSize::new(Gas::new(message.gas())?, stack);
         memory.reset_to(init_memory);
         Ok(Self {
             exec_status: ExecStatus::Running,
@@ -1110,7 +1110,7 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
             pc,
             gas_left,
             stack,
-            |interpreter| interpreter.message.recipient,
+            |interpreter| *interpreter.message.recipient(),
             2,
         )?;
         next!(interpreter, pc, gas_left, stack)
@@ -1164,7 +1164,7 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
             pc,
             gas_left,
             stack,
-            |interpreter| interpreter.message.sender,
+            |interpreter| *interpreter.message.sender(),
             2,
         )?;
         next!(interpreter, pc, gas_left, stack)
@@ -1182,7 +1182,7 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
             pc,
             gas_left,
             stack,
-            |interpreter| interpreter.message.value,
+            |interpreter| *interpreter.message.value(),
             2,
         )?;
         next!(interpreter, pc, gas_left, stack)
@@ -1199,7 +1199,7 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
         let (push_location, [offset]) = stack.pop_with_location()?;
         let (offset, overflow) = offset.into_u64_with_overflow();
         let offset = offset as usize;
-        let call_data = interpreter.message.input;
+        let call_data = interpreter.message.input();
         if overflow || offset >= call_data.len() {
             push_location.push(u256::ZERO);
         } else if let Some(word) = call_data[offset..].first_chunk() {
@@ -1227,7 +1227,7 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
             pc,
             gas_left,
             stack,
-            |interpreter| interpreter.message.input.len(),
+            |interpreter| interpreter.message.input().len(),
             2,
         )?;
         next!(interpreter, pc, gas_left, stack)
@@ -1259,7 +1259,7 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
         if len != u256::ZERO {
             let len = u64::try_from(len).map_err(|_| FailStatus::InvalidMemoryAccess)?;
 
-            let src = interpreter.message.input.get_within_bounds(offset, len);
+            let src = interpreter.message.input().get_within_bounds(offset, len);
             let dest = interpreter
                 .memory
                 .get_mut_slice(dest_offset, len, &mut gas_left)?;
@@ -1608,7 +1608,7 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
         check_min_revision(Revision::EVMC_ISTANBUL, interpreter.revision)?;
         gas_left.consume(5)?;
         stack.check_overflow(1)?; // Check for stack overflow before querying the host
-        let addr = interpreter.message.recipient;
+        let addr = *interpreter.message.recipient();
         stack.push(interpreter.context.get_balance(&addr))?;
         pc.next();
         next!(interpreter, pc, gas_left, stack)
@@ -1745,7 +1745,7 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
         }
         let (push_location, [key]) = stack.pop_with_location()?;
         let key = key.into();
-        let addr = &interpreter.message.recipient;
+        let addr = interpreter.message.recipient();
         if interpreter.revision >= Revision::EVMC_BERLIN {
             if interpreter.context.access_storage(addr, &key) == AccessStatus::EVMC_ACCESS_COLD {
                 gas_left.consume(2_100)?;
@@ -1864,7 +1864,7 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
         let (push_location, [key]) = stack.pop_with_location()?;
         let value = interpreter
             .context
-            .get_transient_storage(&interpreter.message.recipient, &key.into());
+            .get_transient_storage(interpreter.message.recipient(), &key.into());
         push_location.push(value);
         pc.next();
         next!(interpreter, pc, gas_left, stack)
@@ -1882,7 +1882,7 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
         gas_left.consume(100)?;
         let [value, key] = stack.pop()?;
         interpreter.context.set_transient_storage(
-            &interpreter.message.recipient,
+            interpreter.message.recipient(),
             &key.into(),
             &value.into(),
         );
@@ -1975,7 +1975,7 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
         if u256::from(
             interpreter
                 .context
-                .get_balance(&interpreter.message.recipient),
+                .get_balance(interpreter.message.recipient()),
         ) > u256::ZERO
             && !interpreter.context.account_exists(&addr)
         {
@@ -1984,7 +1984,7 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
 
         let destructed = interpreter
             .context
-            .selfdestruct(&interpreter.message.recipient, &addr);
+            .selfdestruct(interpreter.message.recipient(), &addr);
         if interpreter.revision <= Revision::EVMC_BERLIN && destructed {
             interpreter.gas_refund.add(24_000);
         }
@@ -2008,7 +2008,7 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
         }
         let [value, key] = stack.pop()?;
         let key = key.into();
-        let addr = &interpreter.message.recipient;
+        let addr = interpreter.message.recipient();
 
         let (dyn_gas_1, dyn_gas_2, dyn_gas_3, refund_1, refund_2, refund_3) =
             if interpreter.revision >= Revision::EVMC_LONDON {
@@ -2124,7 +2124,7 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
         topics_uint256.reverse();
         interpreter
             .context
-            .emit_log(&interpreter.message.recipient, data, &topics_uint256);
+            .emit_log(interpreter.message.recipient(), data, &topics_uint256);
         pc.next();
         next!(interpreter, pc, gas_left, stack)
     }
@@ -2169,7 +2169,7 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
         if value
             > interpreter
                 .context
-                .get_balance(&interpreter.message.recipient)
+                .get_balance(interpreter.message.recipient())
                 .into()
         {
             interpreter.last_call_return_data = LastCallReturnData::Slice(&[]);
@@ -2181,24 +2181,24 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
         let gas_limit = gas_left.as_u64() - gas_left.as_u64() / 64;
         gas_left.consume(gas_limit)?;
 
-        let message = ExecutionMessage {
-            kind: if CREATE2 {
+        let message = ExecutionMessage::new(
+            if CREATE2 {
                 MessageKind::EVMC_CREATE2
             } else {
                 MessageKind::EVMC_CREATE
             },
-            flags: interpreter.message.flags,
-            depth: interpreter.message.depth + 1,
-            gas: gas_limit.cast_signed(),
-            recipient: u256::ZERO.into(), // ignored
-            sender: interpreter.message.recipient,
-            input: init_code,
-            value: value.into(),
-            create2_salt: salt.into(),
-            code_address: u256::ZERO.into(), // ignored
-            code: &[],
-            code_hash: None,
-        };
+            interpreter.message.flags(),
+            interpreter.message.depth() + 1,
+            gas_limit.cast_signed(),
+            u256::ZERO.into(), // ignored
+            *interpreter.message.recipient(),
+            init_code,
+            value.into(),
+            salt.into(),
+            u256::ZERO.into(), // ignored
+            &[],
+            None,
+        );
         let result = interpreter.context.call(&message);
 
         gas_left.add(result.gas_left())?;
@@ -2265,7 +2265,7 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
             > u256::from(
                 interpreter
                     .context
-                    .get_balance(&interpreter.message.recipient),
+                    .get_balance(interpreter.message.recipient()),
             )
         {
             interpreter.last_call_return_data = LastCallReturnData::Slice(&[]);
@@ -2275,35 +2275,35 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
         }
 
         let call_message = if CODE {
-            ExecutionMessage {
-                kind: MessageKind::EVMC_CALLCODE,
-                flags: interpreter.message.flags,
-                depth: interpreter.message.depth + 1,
-                gas: (endowment + stipend).cast_signed(),
-                recipient: interpreter.message.recipient,
-                sender: interpreter.message.recipient,
+            ExecutionMessage::new(
+                MessageKind::EVMC_CALLCODE,
+                interpreter.message.flags(),
+                interpreter.message.depth() + 1,
+                (endowment + stipend).cast_signed(),
+                *interpreter.message.recipient(),
+                *interpreter.message.recipient(),
                 input,
-                value: value.into(),
-                create2_salt: u256::ZERO.into(), // ignored
-                code_address: addr,
-                code: &[],
-                code_hash: None,
-            }
+                value.into(),
+                u256::ZERO.into(), // ignored
+                addr,
+                &[],
+                None,
+            )
         } else {
-            ExecutionMessage {
-                kind: MessageKind::EVMC_CALL,
-                flags: interpreter.message.flags,
-                depth: interpreter.message.depth + 1,
-                gas: (endowment + stipend).cast_signed(),
-                recipient: addr,
-                sender: interpreter.message.recipient,
+            ExecutionMessage::new(
+                MessageKind::EVMC_CALL,
+                interpreter.message.flags(),
+                interpreter.message.depth() + 1,
+                (endowment + stipend).cast_signed(),
+                addr,
+                *interpreter.message.recipient(),
                 input,
-                value: value.into(),
-                create2_salt: u256::ZERO.into(), // ignored
-                code_address: addr,
-                code: &[],
-                code_hash: None,
-            }
+                value.into(),
+                u256::ZERO.into(), // ignored
+                addr,
+                &[],
+                None,
+            )
         };
 
         let result = interpreter.context.call(&call_message);
@@ -2366,35 +2366,35 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
         endowment = min(endowment, limit); // cap gas at all but one 64th of gas left
 
         let call_message = if DELEGATE {
-            ExecutionMessage {
-                kind: MessageKind::EVMC_DELEGATECALL,
-                flags: interpreter.message.flags,
-                depth: interpreter.message.depth + 1,
-                gas: endowment.cast_signed(),
-                recipient: interpreter.message.recipient,
-                sender: interpreter.message.sender,
+            ExecutionMessage::new(
+                MessageKind::EVMC_DELEGATECALL,
+                interpreter.message.flags(),
+                interpreter.message.depth() + 1,
+                endowment.cast_signed(),
+                *interpreter.message.recipient(),
+                *interpreter.message.sender(),
                 input,
-                value: interpreter.message.value,
-                create2_salt: u256::ZERO.into(), // ignored
-                code_address: addr,
-                code: &[],
-                code_hash: None,
-            }
+                *interpreter.message.value(),
+                u256::ZERO.into(), // ignored
+                addr,
+                &[],
+                None,
+            )
         } else {
-            ExecutionMessage {
-                kind: MessageKind::EVMC_CALL,
-                flags: MessageFlags::EVMC_STATIC as u32,
-                depth: interpreter.message.depth + 1,
-                gas: endowment.cast_signed(),
-                recipient: addr,
-                sender: interpreter.message.recipient,
+            ExecutionMessage::new(
+                MessageKind::EVMC_CALL,
+                MessageFlags::EVMC_STATIC as u32,
+                interpreter.message.depth() + 1,
+                endowment.cast_signed(),
+                addr,
+                *interpreter.message.recipient(),
                 input,
-                value: u256::ZERO.into(),        // ignored
-                create2_salt: u256::ZERO.into(), // ignored
-                code_address: addr,
-                code: &[],
-                code_hash: None,
-            }
+                u256::ZERO.into(), // ignored
+                u256::ZERO.into(), // ignored
+                addr,
+                &[],
+                None,
+            )
         };
 
         let result = interpreter.context.call(&call_message);
@@ -2862,17 +2862,17 @@ mod tests {
             .expect_call()
             .times(1)
             .withf(move |call_message| {
-                call_message.kind == MessageKind::EVMC_CALL
-                    && call_message.flags == 0
-                    && call_message.depth == message.depth + 1
-                    && call_message.gas == gas.cast_signed()
-                    && call_message.sender == message.recipient
-                    && call_message.recipient == Address::from(addr)
-                    && call_message.input == input
-                    && call_message.value == Uint256::from(value)
-                    && call_message.create2_salt == Uint256::from(u256::ZERO)
-                    && call_message.code_address == Address::from(addr)
-                    && call_message.code.is_empty()
+                call_message.kind() == MessageKind::EVMC_CALL
+                    && call_message.flags() == 0
+                    && call_message.depth() == message.depth + 1
+                    && call_message.gas() == gas.cast_signed()
+                    && *call_message.sender() == message.recipient
+                    && *call_message.recipient() == Address::from(addr)
+                    && call_message.input() == input
+                    && *call_message.value() == Uint256::from(value)
+                    && *call_message.create2_salt() == Uint256::from(u256::ZERO)
+                    && *call_message.code_address() == Address::from(addr)
+                    && call_message.code().is_empty()
             })
             .returning(move |_| {
                 ExecutionResult::new(

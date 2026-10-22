@@ -79,7 +79,8 @@ extern "C" fn __evmc_step_n(
     // SAFETY:
     // `message` is not null. The caller must make sure that is points to a valid
     // `ExecutionMessage`.
-    let execution_message = ExecutionMessage::from(unsafe { ref_from_ptr_scoped(message, &token) });
+    let execution_message: &ExecutionMessage =
+        unsafe { ref_from_ptr_scoped(message, &token) }.into();
 
     let code_ref = if code.is_null() {
         &[]
@@ -138,7 +139,7 @@ extern "C" fn __evmc_step_n(
         container.step_n(
             revision,
             code_ref,
-            &execution_message,
+            execution_message,
             execution_context.as_mut(),
             status,
             pc,

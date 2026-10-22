@@ -54,7 +54,7 @@ impl EvmcVm for EvmRs {
         let (mut stack_buffer, mut memory) = self.interpreter_allocations.new_stack_and_memory();
         let code_analysis = CodeAnalysis::new(
             code,
-            message.code_hash.map(u256::from),
+            message.code_hash().copied().map(u256::from),
             &self.code_analysis_cache_non_steppable,
         );
         let interpreter = Interpreter::new(
@@ -128,7 +128,7 @@ impl SteppableEvmcVm for EvmRs {
                 },
                 revision,
                 pc,
-                gas_left: message.gas,
+                gas_left: message.gas(),
                 gas_refund,
                 output: Box::default(),
                 stack: stack.to_owned(),
@@ -150,7 +150,7 @@ impl SteppableEvmcVm for EvmRs {
             self.interpreter_allocations.new_stack_and_memory();
         let code_analysis = CodeAnalysis::new(
             code,
-            message.code_hash.map(u256::from),
+            message.code_hash().copied().map(u256::from),
             &self.code_analysis_cache_steppable,
         );
         let interpreter = Interpreter::new_steppable(

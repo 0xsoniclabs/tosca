@@ -75,22 +75,22 @@ impl Default for MockExecutionMessage {
     }
 }
 
-impl From<MockExecutionMessage> for ExecutionMessage<'_> {
+impl From<MockExecutionMessage> for ExecutionMessage<'static> {
     fn from(value: MockExecutionMessage) -> Self {
-        Self {
-            kind: value.kind,
-            flags: value.flags,
-            depth: value.depth,
-            gas: value.gas,
-            recipient: value.recipient,
-            sender: value.sender,
-            input: value.input,
-            value: value.value,
-            create2_salt: value.create2_salt,
-            code_address: value.code_address,
-            code: value.code,
-            code_hash: value.code_hash.copied(),
-        }
+        Self::new(
+            value.kind,
+            value.flags,
+            value.depth,
+            value.gas,
+            value.recipient,
+            value.sender,
+            value.input,
+            value.value,
+            value.create2_salt,
+            value.code_address,
+            value.code,
+            value.code_hash,
+        )
     }
 }
 
@@ -175,17 +175,17 @@ mod tests {
     fn execution_message_from_mock_execution_message_copies_all_fields() {
         let mock = message(&[1], &[2], Some(&CODE_HASH));
         let message = ExecutionMessage::from(mock.clone());
-        assert_eq!(message.kind, mock.kind);
-        assert_eq!(message.flags, mock.flags);
-        assert_eq!(message.depth, mock.depth);
-        assert_eq!(message.gas, mock.gas);
-        assert_eq!(message.recipient, mock.recipient);
-        assert_eq!(message.sender, mock.sender);
-        assert_eq!(message.input, mock.input);
-        assert_eq!(message.value, mock.value);
-        assert_eq!(message.create2_salt, mock.create2_salt);
-        assert_eq!(message.code_address, mock.code_address);
-        assert_eq!(message.code, mock.code);
-        assert_eq!(message.code_hash, Some(CODE_HASH));
+        assert_eq!(message.kind(), mock.kind);
+        assert_eq!(message.flags(), mock.flags);
+        assert_eq!(message.depth(), mock.depth);
+        assert_eq!(message.gas(), mock.gas);
+        assert_eq!(*message.recipient(), mock.recipient);
+        assert_eq!(*message.sender(), mock.sender);
+        assert_eq!(message.input(), mock.input);
+        assert_eq!(*message.value(), mock.value);
+        assert_eq!(*message.create2_salt(), mock.create2_salt);
+        assert_eq!(*message.code_address(), mock.code_address);
+        assert_eq!(message.code(), mock.code);
+        assert_eq!(message.code_hash(), Some(&CODE_HASH));
     }
 }
