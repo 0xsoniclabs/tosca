@@ -22,7 +22,7 @@ func TestHash_GetRandomHash(t *testing.T) {
 	hashes := []tosca.Hash{}
 	for i := range 10 {
 		hashes = append(hashes, GetRandomHash(rnd))
-		for j := 0; j < i; j++ {
+		for j := range i {
 			if hashes[i] == hashes[j] {
 				t.Errorf("random hashes are not random, got %v and %v", hashes[i], hashes[j])
 			}

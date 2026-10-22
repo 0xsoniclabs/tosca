@@ -25,10 +25,8 @@ type Config struct {
 // configuration for production purposes.
 func NewInterpreter(Config) (*lfvm, error) {
 	return newVm(config{
-		ConversionConfig: ConversionConfig{
-			WithSuperInstructions: false,
-		},
-		WithShaCache: true,
+		WithSuperInstructions: false,
+		WithShaCache:          true,
 	})
 }
 
@@ -52,10 +50,8 @@ func RegisterExperimentalInterpreterConfigurations() error {
 			for _, mode := range []string{"", "-stats", "-logging"} {
 
 				config := config{
-					ConversionConfig: ConversionConfig{
-						WithSuperInstructions: si == "-si",
-					},
-					WithShaCache: shaCache != "-no-sha-cache",
+					WithSuperInstructions: si == "-si",
+					WithShaCache:          shaCache != "-no-sha-cache",
 				}
 
 				switch mode {
@@ -80,7 +76,7 @@ func RegisterExperimentalInterpreterConfigurations() error {
 	}
 
 	configs["lfvm-no-code-cache"] = config{
-		ConversionConfig: ConversionConfig{CacheSize: -1},
+		CacheSize: -1,
 	}
 
 	for name, config := range configs {

@@ -133,8 +133,7 @@ func solve(problem string) (string, error) {
 	cmd.Stdin = strings.NewReader(problem)
 	output, err := cmd.Output()
 	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 			return "", fmt.Errorf("z3 failed: %w\n%s%s", err, output, exitErr.Stderr)
 		}
 		return "", fmt.Errorf("failed to run z3: %w", err)

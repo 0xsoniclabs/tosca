@@ -355,26 +355,22 @@ func TestInstructions_BalanceOperations(t *testing.T) {
 
 func TestInstructions_ParameterValuesArePushedCorrectly(t *testing.T) {
 	params := tosca.Parameters{
-		BlockParameters: tosca.BlockParameters{
-			ChainID:     tosca.Word{1},
-			BlockNumber: 2,
-			Timestamp:   3,
-			Coinbase:    tosca.Address{4},
-			GasLimit:    tosca.Gas(5),
-			PrevRandao:  tosca.Hash{6},
-			BaseFee:     tosca.Value{7},
-			BlobBaseFee: tosca.Value{8},
-			Revision:    tosca.R13_Cancun,
-		},
-		TransactionParameters: tosca.TransactionParameters{
-			Origin:   tosca.Address{9},
-			GasPrice: tosca.Value{10},
-		},
-		Recipient: tosca.Address{13},
-		Sender:    tosca.Address{14},
-		Input:     tosca.Data{15},
-		Value:     tosca.Value{16},
-		Code:      tosca.Code{17},
+		ChainID:     tosca.Word{1},
+		BlockNumber: 2,
+		Timestamp:   3,
+		Coinbase:    tosca.Address{4},
+		GasLimit:    tosca.Gas(5),
+		PrevRandao:  tosca.Hash{6},
+		BaseFee:     tosca.Value{7},
+		BlobBaseFee: tosca.Value{8},
+		Revision:    tosca.R13_Cancun,
+		Origin:      tosca.Address{9},
+		GasPrice:    tosca.Value{10},
+		Recipient:   tosca.Address{13},
+		Sender:      tosca.Address{14},
+		Input:       tosca.Data{15},
+		Value:       tosca.Value{16},
+		Code:        tosca.Code{17},
 	}
 	tests := map[string]struct {
 		operation func(*context)

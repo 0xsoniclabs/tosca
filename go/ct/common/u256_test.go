@@ -480,7 +480,7 @@ func TestU256_RandU256(t *testing.T) {
 	rnd := rand.New()
 	for i := range 10 {
 		rands = append(rands, RandU256(rnd))
-		for j := 0; j < i; j++ {
+		for j := range i {
 			if rands[i] == rands[j] {
 				t.Errorf("random U256 are not random, got %v and %v", rands[i], rands[j])
 			}

@@ -485,8 +485,8 @@ func pushCallArguments(
 
 func pushToStack(values []*big.Int) []byte {
 	code := []byte{}
-	for i := len(values) - 1; i >= 0; i-- {
-		valueBytes := values[i].Bytes()
+	for _, value := range slices.Backward(values) {
+		valueBytes := value.Bytes()
 		if len(valueBytes) == 0 {
 			valueBytes = []byte{0}
 		}

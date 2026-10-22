@@ -113,8 +113,7 @@ func TestSfvm_InterpreterReturnsErrorWhenExecutingUnsupportedRevision(t *testing
 		t.Fatalf("sfvm is not registered: %v", err)
 	}
 
-	params := tosca.Parameters{}
-	params.Revision = newestSupportedRevision + 1
+	params := tosca.Parameters{Revision: newestSupportedRevision + 1}
 
 	_, err = vm.Run(params)
 	if want, got := fmt.Sprintf("unsupported revision %d", params.Revision), err.Error(); want != got {
@@ -128,9 +127,9 @@ func TestSfvm_Run_AcceptsNewestSupportedRevision(t *testing.T) {
 	require.NoError(err)
 
 	result, err := interpreter.Run(tosca.Parameters{
-		BlockParameters: tosca.BlockParameters{Revision: newestSupportedRevision},
-		Gas:             10,
-		Code:            tosca.Code{byte(vm.STOP)},
+		Revision: newestSupportedRevision,
+		Gas:      10,
+		Code:     tosca.Code{byte(vm.STOP)},
 	})
 
 	require.NoError(err)

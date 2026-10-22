@@ -53,8 +53,7 @@ func TestLfvm_InterpreterReturnsErrorWhenExecutingUnsupportedRevision(t *testing
 		t.Fatalf("lfvm is not registered: %v", err)
 	}
 
-	params := tosca.Parameters{}
-	params.Revision = newestSupportedRevision + 1
+	params := tosca.Parameters{Revision: newestSupportedRevision + 1}
 
 	_, err = vm.Run(params)
 	if want, got := fmt.Sprintf("unsupported revision %d", params.Revision), err.Error(); want != got {
@@ -64,7 +63,7 @@ func TestLfvm_InterpreterReturnsErrorWhenExecutingUnsupportedRevision(t *testing
 
 func TestLfvm_newVm_returnsErrorWithWrongConfiguration(t *testing.T) {
 	config := config{
-		ConversionConfig: ConversionConfig{CacheSize: maxCachedCodeLength / 2},
+		CacheSize: maxCachedCodeLength / 2,
 	}
 	_, err := newVm(config)
 	if err == nil {

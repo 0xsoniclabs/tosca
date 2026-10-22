@@ -69,8 +69,7 @@ func TestCtAdapter_ReturnsErrorForUnsupportedRevisions(t *testing.T) {
 	c := NewConformanceTestingTarget()
 	_, err := c.StepN(s, 1)
 
-	var e *tosca.ErrUnsupportedRevision
-	if !errors.As(err, &e) {
+	if _, ok := errors.AsType[*tosca.ErrUnsupportedRevision](err); !ok {
 		t.Errorf("unexpected error, wanted %v, got %v", want, err)
 	}
 }

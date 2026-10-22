@@ -117,14 +117,10 @@ func TestEvmcInterpreter_BlobHashCanBeRead(t *testing.T) {
 	}
 
 	params := tosca.Parameters{
-		Gas: 20000,
-		BlockParameters: tosca.BlockParameters{
-			Revision: tosca.R13_Cancun,
-		},
-		TransactionParameters: tosca.TransactionParameters{
-			BlobHashes: []tosca.Hash{{2}},
-		},
-		Code: code,
+		Gas:        20000,
+		Revision:   tosca.R13_Cancun,
+		BlobHashes: []tosca.Hash{{2}},
+		Code:       code,
 	}
 
 	evm, err := tosca.NewInterpreter("evmzero")
