@@ -11,26 +11,15 @@
 package interpreter_test
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 
 	_ "github.com/0xsoniclabs/tosca/go/interpreter/evmrs"
 	_ "github.com/0xsoniclabs/tosca/go/interpreter/geth"
-	"github.com/0xsoniclabs/tosca/go/interpreter/lfvm"
 	_ "github.com/0xsoniclabs/tosca/go/interpreter/sfvm"
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"golang.org/x/exp/maps"
 )
-
-func init() {
-	// Experimental LFVM configurations should be covered by integration tests
-	// as they might be used by down-stream tools and for debugging.
-	err := lfvm.RegisterExperimentalInterpreterConfigurations()
-	if err != nil {
-		panic(fmt.Errorf("failed to register experimental LFVM configurations: %v", err))
-	}
-}
 
 // getAllInterpreterVariantsForTests returns all registered interpreter variants
 // that should be covered in integration tests.

@@ -101,7 +101,7 @@ type TransactionContext interface {
 	// GetBlockHash returns the hash of the block with the given number.
 	GetBlockHash(number int64) Hash
 
-	// -- legacy API needed by LFVM and Geth, to be removed in the future ---
+	// -- legacy API needed by Geth, to be removed in the future ---
 
 	// TODO: split into two interfaces: ExtendedTransactionContext with the
 	// legacy methods and TransactionContext with the current methods
@@ -201,23 +201,4 @@ type ErrUnsupportedRevision struct {
 
 func (e *ErrUnsupportedRevision) Error() string {
 	return fmt.Sprintf("unsupported revision %d", e.Revision)
-}
-
-// ProfilingInterpreter is an optional extension to the Interpreter interface
-// above which may be implemented by interpreters collecting statistical data
-// on their executions.
-type ProfilingInterpreter interface {
-	Interpreter
-
-	// ResetProfile resets the operation statistic collected by the underlying
-	// Interpreter implementation. Use this, for instance, at the beginning of
-	// a benchmark. It should not be called while running operations on the
-	// Interpreter in parallel.
-	ResetProfile()
-
-	// DumpProfile prints a snapshot of the profiling data collected since the
-	// last reset to stdout. In the future this interface will be changed to
-	// return the result instead of printing it.
-	// TODO: produce the result as a string
-	DumpProfile()
 }
