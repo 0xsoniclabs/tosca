@@ -28,7 +28,7 @@ import (
 
 // LoadEvmcInterpreter attempts to load an Interpreter implementation from a
 // given library. The `library` parameter should name the library file, while
-// the actual path to the library should be enforced using an rpath (see evmone
+// the actual path to the library should be enforced using an rpath (see evmrs
 // implementation for an example).
 func LoadEvmcInterpreter(library string) (*EvmcInterpreter, error) {
 	vm, err := evmc.Load(library)

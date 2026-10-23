@@ -680,11 +680,6 @@ func TestNoReturnDataForCreate(t *testing.T) {
 
 	// For every variant of interpreter
 	for _, variant := range getAllInterpreterVariantsForTests() {
-
-		if skipTestForVariant(t.Name(), variant) {
-			continue
-		}
-
 		for _, revision := range revisions {
 
 			for _, test := range tests {
@@ -760,11 +755,6 @@ func TestExtCodeHashOnEmptyAccount(t *testing.T) {
 
 	// For every variant of interpreter
 	for _, variant := range getAllInterpreterVariantsForTests() {
-
-		if skipTestForVariant(t.Name(), variant) {
-			continue
-		}
-
 		for _, revision := range revisions {
 			for name, test := range tests {
 

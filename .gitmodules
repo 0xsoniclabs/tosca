@@ -1,30 +1,3 @@
-[submodule "third_party/evmone"]
-	path = third_party/evmone
-	url = https://github.com/ethereum/evmone.git
 [submodule "third_party/evmc"]
 	path = third_party/evmc
 	url = https://github.com/0xsoniclabs/evmc.git
-[submodule "third_party/intx"]
-	path = third_party/intx
-	url = https://github.com/chfast/intx.git
-[submodule "third_party/googletest"]
-	path = third_party/googletest
-	url = https://github.com/google/googletest.git
-[submodule "third_party/ethash"]
-	path = third_party/ethash
-	url = https://github.com/chfast/ethash.git
-[submodule "third_party/mimalloc"]
-	path = third_party/mimalloc
-	url = https://github.com/microsoft/mimalloc.git
-[submodule "third_party/google_benchmark"]
-	path = third_party/google_benchmark
-	url = https://github.com/google/benchmark.git
-[submodule "third_party/gperftools"]
-	path = third_party/gperftools
-	url = https://github.com/gperftools/gperftools.git
-[submodule "third_party/abseil-cpp"]
-	path = third_party/abseil-cpp
-	url = https://github.com/abseil/abseil-cpp.git
-[submodule "third_party/tracy"]
-	path = third_party/tracy
-	url = https://github.com/wolfpld/tracy.git

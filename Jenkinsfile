@@ -46,12 +46,6 @@ pipeline {
             }
         }
 
-        stage('Check C++ sources formatting') {
-            steps {
-                sh 'find cpp/ -not -path "cpp/build/*" \\( -iname *.h -o -iname *.cc \\) | xargs clang-format-19 --dry-run -Werror'
-            }
-        }
-
         stage('Build Go') {
             steps {
                 sh 'make tosca-go'
@@ -74,28 +68,9 @@ pipeline {
             }
         }
 
-        stage('CT regression tests evmzero') {
-            steps {
-                sh 'go run ./go/ct/driver regressions evmzero'
-            }
-        }
-
         stage('LFVM race condition tests') {
             steps {
                 sh 'GORACE="halt_on_error=1" go test --race ./go/interpreter/lfvm/...'
-            }
-        }
-
-        stage('Run C++ tests') {
-            steps {
-                sh 'make test-cpp-asan'
-            }
-        }
-
-        stage('Test C++ coverage support') {
-            steps {
-                sh 'make tosca-cpp-coverage'
-                sh 'go test -v  -run ^TestDumpCppCoverageData$ ./go/lib/cpp/ --expect-coverage'
             }
         }
 

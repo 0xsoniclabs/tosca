@@ -1,5 +1,4 @@
 use std::{
-    cmp::Ordering,
     collections::HashMap,
     error::Error,
     fs,
@@ -12,7 +11,7 @@ use serde::Deserialize;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
-/// Run Go interpreter benchmarks for evmzero, lfvm and geth as well as for evmrs with different
+/// Run Go interpreter benchmarks for lfvm and geth as well as for evmrs with different
 /// feature sets.
 ///
 /// Requirements:
@@ -38,7 +37,7 @@ struct CargoToml {
     features: HashMap<String, Vec<String>>,
 }
 
-const NON_RUST_INTERPRETERS: [&str; 3] = ["evmzero", "lfvm", "geth"];
+const NON_RUST_INTERPRETERS: [&str; 2] = ["lfvm", "geth"];
 
 fn main() {
     if let Err(err) = run() {
@@ -180,16 +179,8 @@ fn run_benchstat(output_dir: &str) -> Result<(), Box<dyn Error>> {
     let mut files: Vec<_> = fs::read_dir(output_dir)?
         .map(|d| d.unwrap().file_name())
         .collect();
-    // sort evmzero (baseline), evmrs..., geth, lfvm
-    files.sort_by(|n1, n2| {
-        if n1 == "evmzero" {
-            Ordering::Less
-        } else if n2 == "evmzero" {
-            Ordering::Greater
-        } else {
-            n1.cmp(n2)
-        }
-    });
+    // benchstat compares against the first file, which this makes the evmrs baseline run
+    files.sort();
     let output = Command::new("benchstat")
         .args(files)
         .current_dir(output_dir)

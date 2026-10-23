@@ -80,13 +80,9 @@ override:
   - threshold: 0
     path: go/geth_adapter
   - threshold: 0
-    path: go/interpreter/evmzero
-  - threshold: 0
     path: go/interpreter/evmrs
   - threshold: 0
     path: go/interpreter/geth
-  - threshold: 0
-    path: go/interpreter/evmone
   - threshold: 0
     path: go/integration_test/processor
   - threshold: 0
