@@ -107,7 +107,7 @@ func (s *stack) String() string {
 		b.WriteString("0x")
 		bytes := z.Bytes32()
 		for i, cur := range bytes {
-			b.WriteString(fmt.Sprintf("%02x", cur))
+			fmt.Fprintf(&b, "%02x", cur)
 			if (i+1)%8 == 0 {
 				b.WriteString(" ")
 			}
@@ -117,7 +117,7 @@ func (s *stack) String() string {
 
 	b := strings.Builder{}
 	for i := 0; i < s.len(); i++ {
-		b.WriteString(fmt.Sprintf("    [%4d] %v\n", s.len()-i-1, toHex(s.peekN(i))))
+		fmt.Fprintf(&b, "    [%4d] %v\n", s.len()-i-1, toHex(s.peekN(i)))
 	}
 	return b.String()
 }

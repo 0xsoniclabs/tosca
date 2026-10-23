@@ -108,7 +108,7 @@ func TestBytes_RandomBytesProducesRandom(t *testing.T) {
 	bytes := []Bytes{}
 	for i := range 5 {
 		bytes = append(bytes, RandomBytes(rnd, 100))
-		for j := 0; j < i; j++ {
+		for j := range i {
 			if bytes[i] == bytes[j] {
 				t.Errorf("random bytes are not random, got %v and %v", bytes[i], bytes[j])
 			}

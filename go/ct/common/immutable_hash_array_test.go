@@ -156,7 +156,7 @@ func TestINmmutableHashArray_NewRandomImmutableHashArray(t *testing.T) {
 		hashes = append(hashes, NewRandomImmutableHashArray(rnd))
 	}
 	for i := range 10 {
-		for j := 0; j < i; j++ {
+		for j := range i {
 			if hashes[i].Equal(hashes[j]) {
 				t.Errorf("random hashes are not random, got %v and %v", hashes[i], hashes[j])
 			}

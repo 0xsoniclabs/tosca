@@ -152,7 +152,7 @@ func (c *Code) String() string {
 // - Data found in the code is printed as decimal numbers (to differentiate from unused opcodes).
 func (c *Code) ToHumanReadableString(start int, length int) string {
 	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("len(%d)", len(c.code)))
+	fmt.Fprintf(&builder, "len(%d)", len(c.code))
 	if start >= len(c.code) {
 		return builder.String()
 	}

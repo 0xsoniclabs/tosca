@@ -110,9 +110,7 @@ func (e *TestEVM) RunWithGas(code []byte, input []byte, initialGas tosca.Gas) (R
 func (e *TestEVM) runInternal(code []byte, input []byte, gas tosca.Gas, readOnly bool) (tosca.Result, error) {
 
 	params := tosca.Parameters{
-		BlockParameters: tosca.BlockParameters{
-			Revision: e.revision,
-		},
+		Revision: e.revision,
 		Context: &runContextAdapter{
 			StateDB: e.state,
 			evm:     e,

@@ -38,8 +38,8 @@ func TestEvmcInterpreter_RunDerivesHostContextFromParameters(t *testing.T) {
 			runContext.EXPECT().GetNonce(tosca.Address{}).Return(uint64(1))
 
 			result, err := interpreter.Run(tosca.Parameters{
-				Context:               runContext,
-				TransactionParameters: tosca.TransactionParameters{BlobHashes: hashes},
+				Context:    runContext,
+				BlobHashes: hashes,
 			})
 
 			require.NoError(t, err)

@@ -68,7 +68,7 @@ func (l *Logs) Diff(other *Logs) (res []string) {
 
 	minLength := min(len(other.Entries), len(l.Entries))
 
-	for i := 0; i < minLength; i++ {
+	for i := range minLength {
 		aEntry, bEntry := l.Entries[i], other.Entries[i]
 		if !slices.Equal(aEntry.Topics, bEntry.Topics) {
 			res = append(res, fmt.Sprintf("Different topics for log entry %d:\n\t%x\n\tvs\n\t%x\n", i, aEntry.Topics, bEntry.Topics))
