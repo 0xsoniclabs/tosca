@@ -151,7 +151,6 @@ result=0
 add_license_to_files ".go" "//" || result=1
 add_license_to_files "Jenkinsfile" "//" || result=1
 add_license_to_files ".h" "//" || result=1
-add_license_to_files ".cc" "//" || result=1
 add_license_to_files "go.mod" "//" || result=1
 add_license_to_files ".yml" "#" || result=1
 add_license_to_files "BUILD" "#" || result=1

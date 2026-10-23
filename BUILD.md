@@ -11,9 +11,8 @@ git submodule update --init --recursive
 - Go toolchain, minimum version 1.27
     - Ubuntu/Debian package: `golang-go`
     - Snap package: `go`
-- C/C++ toolchain, Clang >= 16 and Gcc >= 11.4
+- C toolchain and libclang, needed by cgo and the Rust EVMC bindings
     - Ubuntu/Debian package: `clang`
-    - Recommended: install `clang-format`, `clangd`, and `gdb` for development
 - Rust toolchain >= 1.97.0
     - [install Rust](https://rustup.rs/)
     - Recommended: install `rust-analyzer` VSCode extension
@@ -22,9 +21,6 @@ git submodule update --init --recursive
       ```sh
       go install github.com/golang/mock/mockgen@v1.6.0
       ```
-- [CMake](https://cmake.org/)
-    - Ubuntu/Debian package: `cmake`
-    - Snap package: `cmake`
 
 ### Go Setup Remarks
 
@@ -42,67 +38,6 @@ Use the provided Makefile to build and test the project.
 make
 make test
 ```
-
-## Development Experience C++
-
-Open the `cpp` subdirectory in VSCode:
-- Install recommended extensions: press `F1` → *Show Recommended Extensions*
-
-### Build / Run in VSCode
-
-Select the wanted compiler (i.e. kit), build configuration and build target in VSCode's status line.
-The selected target can be build via the *Build* button in the status line, or by pressing `F7`.
-
-### Debug in VSCode
-
-Pressing the 🐜 button in VSCode's status line launches the currently selected target in the debugger.
-The same can be achieved by pressing `Ctrl + F5`.
-
-### Build / Run Manually
-
-To build different configurations, invoke CMake in the `cpp` subdirectory:
-
-```sh
-# Debug Configuration (with AddressSanitizer)
-cmake -Bbuild -DCMAKE_BUILD_TYPE=Debug -DTOSCA_ASAN=ON
-cmake --build build --parallel
-
-# Release Configuration
-cmake -BBuild -DCMAKE_BUILD_TYPE=Release -DTOSCA_ASAN=OFF
-cmake --build build --parallel
-
-# Run all tests
-ctest --test-dir build --output-on-failure
-
-# Run individual test
-ctest --test-dir build --output-on-failure -R <test-name>
-```
-
-`ctest` executes each unit test in isolation which is relatively slow to execute.
-Alternatively, you can just run the corresponding unit test binary.
-For instance:
-
-```sh
-# Run specific test binary directly
-./build/vm/evmzero/uint256_test
-
-# Build and run specific test binary directly
-cmake --build build --parallel --target uint256_test && ./build/vm/evmzero/uint256_test
-```
-
-> Note: Invoking ctest does **not** trigger compilation.
-> You have to invoke the build process beforehand.
-> 
-> ```sh
-> cmake --build build --parallel && ctest --test-dir build --output-on-failure
-> ```
-
-> Note: For OSX, add the following argument to the initial CMake invocation:
-> ```
-> -DCMAKE_SHARED_LIBRARY_SUFFIX_CXX=.so
-> ```
-
-> Note: VSCode's multi-root workspace feature does not play nice with these extensions.
 
 ## Running Benchmarks
 
@@ -134,14 +69,10 @@ BenchmarkInc/1/lfvm-12  	  124447	      8744 ns/op	    4330 B/op	      17 allocs
 BenchmarkInc/1/lfvm-si-12         	  140642	      8472 ns/op	    4330 B/op	      17 allocs/op
 BenchmarkInc/1/lfvm-no-sha-cache-12         	  132420	      9165 ns/op	    4330 B/op	      17 allocs/op
 BenchmarkInc/1/lfvm-no-code-cache-12        	  137041	      8330 ns/op	    4330 B/op	      17 allocs/op
-BenchmarkInc/1/evmone-12                    	  193581	      6250 ns/op	    1088 B/op	      15 allocs/op
-BenchmarkInc/1/evmone-basic-12              	  186457	      6330 ns/op	    1088 B/op	      15 allocs/op
-BenchmarkInc/1/evmone-advanced-12           	  136111	      7381 ns/op	    1088 B/op	      15 allocs/op
-BenchmarkInc/1/evmzero-12                   	  162552	      7317 ns/op	    1088 B/op	      15 allocs/op
 ```
 
 The columns are as follows:
- - the name of the benchmark, using `/` as a separator between benchmarks and sub-benchmarks. In Tosca's setup, the first part of the name is the name of the benchmark (e.g. `BenchmarkInc`), the second part the input size (e.g. `10`), and the last part the EVM implementation (e.g. `evmone-basic`) followed by the number of cores used to run the benchmark (e.g. `-12`); the latter is added by Go's benchmark infrastructure and has no effect if the benchmark is not using multiple go routines.
+ - the name of the benchmark, using `/` as a separator between benchmarks and sub-benchmarks. In Tosca's setup, the first part of the name is the name of the benchmark (e.g. `BenchmarkInc`), the second part the input size (e.g. `10`), and the last part the EVM implementation (e.g. `lfvm-si`) followed by the number of cores used to run the benchmark (e.g. `-12`); the latter is added by Go's benchmark infrastructure and has no effect if the benchmark is not using multiple go routines.
  - the number of times the benchmark was executed
  - the average time per execution
  - the average number of bytes allocated per execution (only when using `-benchmem`)
@@ -156,14 +87,14 @@ The `-bench` flag can be used to filter benchmarks by their name using regex exp
 Thus, the command
 
 ```sh
-go test ./go/vm/test -run=NONE -bench=Inc/1/zero
+go test ./go/vm/test -run=NONE -bench=Inc/1/si
 ```
 
 is running the benchmarks
 
 ```
-BenchmarkInc/1/evmzero-12
-BenchmarkInc/10/evmzero-12
+BenchmarkInc/1/lfvm-si-12
+BenchmarkInc/10/lfvm-si-12
 ```
 
 since the individual parts of the benchmark name are matched one-by-one.
@@ -173,7 +104,7 @@ since the individual parts of the benchmark name are matched one-by-one.
 Go has an integrated CPU profiler that can be enabled using the `-cpuprofile` flag:
 
 ```sh
-go test ./go/vm/test -run=NONE -bench Fib/20/evmzero -cpuprofile cpu.log
+go test ./go/vm/test -run=NONE -bench Fib/20/lfvm -cpuprofile cpu.log
 ```
 
 This command runs the benchmark and collects CPU performance data which can be shown in tabular form using
@@ -190,7 +121,7 @@ go tool pprof -http "localhost:8000" ./cpu.log
 
 which starts a web-server at port `8000` hosting an interactive set of charts to investigate the collected profiling data.
 
-If symbols for the C++ libraries are missing, make sure the library is built including those symbols and that in some go file in the `./go/vm/test` package the following import is present:
+If symbols for native libraries such as evmrs are missing, make sure the library is built including those symbols and that in some go file in the `./go/vm/test` package the following import is present:
 
 ```
 _ "github.com/ianlancetaylor/cgosymbolizer"
@@ -232,34 +163,6 @@ More about coverage in [the docs folder](docs/coverage.md)
 To run the the CT driver code coverage simply run `make ct-coverage-lfvm` or `make ct-coverage-geth`, these commands will create the folder `Tosca/go/build/coverage/` and a sub folder with the corresponding interpreter's name. In this directory an instrumented version of the driver will be built and then run. The reports of the coverage of this run will also be in this directory, where lastly an HTML version of the report will be added as well. As more interpreter implementations are added to the Tosca project, they should also be added to the makefile.
 
 
-### C++ Code Unit Test Coverage
-
-Current code coverage infrastructure uses GNU gcov system. This is supported in both Gcc and Clang, although Clang target gcov version may not be the installed one. For this reason the current infrastructure is currently enabled for Gcc only. 
-
-Code coverage depends on the following tools:
-- lcov
-- genhtml
-Both commands can be installed in Ubuntu with the command: `apt install lcov`
-
-Code coverage can be triggered by using the following command:
-```sh
-make clean # required if already configured using another compiler Toolchain
-CC=gcc CXX=g++ make test-cpp-coverage
-```
-The project will compile an instrumented debug version, to run the C++ unit tests, and to finally print a coverage report of the C++ code. Such report looks something like:
-```
-...
-Processing file vm/evmzero/stack_test.cc
-  lines=57 hit=57 functions=28 hit=28
-Overall coverage rate:
-  lines......: 85.8% (3380 of 3938 lines)
-  functions......: 82.8% (2057 of 2483 functions)
-```
-
-The report will be generated in HTML form to allow visualization of each line of code coverage for each C++ file in the project. The entry HTML page to the report is located at the C++ build folder: `cpp/build/coverage/index.html`
-
-In VSCode, line by line coverage can be visualized using the extension [gcov-viewer](https://marketplace.visualstudio.com/items?itemName=JacquesLucke.gcov-viewer)
-
 
 ## Fuzzing
 
@@ -272,7 +175,6 @@ The ct Evm.StepN interface is used to evaluate N instructions in different EVM i
 - Crash test: FuzzLfvm will execute instructions one at the time looking for a panic. ```make fuzz-lfvm```
 - Differential tests; execute instruction in two VM implementations and compare state results in addition to panic.
    - FuzzDifferentialLfvmVsGeth: ```make fuzz-lfvm-diff```
-   - FuzzDifferentialEvmzeroVsGeth: ```make fuzz-evmzero-diff``` (disabled, issue #549)
 
 
 ## Static analysis
@@ -286,7 +188,3 @@ Currently, two different static analysis tools are used:
 - [StaticCheck](https://staticcheck.dev/) Finds other [errors](https://staticcheck.dev/docs/checks/) related to styling and good practices. 
 
 Lints can be disabled as described [here](https://golangci-lint.run/usage/false-positives/). Please use `//nolint:pass` where pass is the linter pass that discovers the error. Do not ignore all passes as one line may hide more than one error.
-
-### C++
-
-There is currently no infrastructure to run static analysis for C++ code in this project.

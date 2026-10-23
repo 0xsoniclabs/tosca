@@ -15,9 +15,7 @@ import (
 	"slices"
 	"strings"
 
-	_ "github.com/0xsoniclabs/tosca/go/interpreter/evmone"
 	_ "github.com/0xsoniclabs/tosca/go/interpreter/evmrs"
-	_ "github.com/0xsoniclabs/tosca/go/interpreter/evmzero"
 	_ "github.com/0xsoniclabs/tosca/go/interpreter/geth"
 	"github.com/0xsoniclabs/tosca/go/interpreter/lfvm"
 	_ "github.com/0xsoniclabs/tosca/go/interpreter/sfvm"
@@ -42,15 +40,4 @@ func getAllInterpreterVariantsForTests() []string {
 		maps.Keys(tosca.GetAllRegisteredInterpreters()),
 		func(s string) bool { return strings.Contains(s, "logging") },
 	)
-}
-
-// skipTestForVariant returns true, if the given test should be skipped for
-// the given variant.
-func skipTestForVariant(testName string, variant string) bool {
-	disabledTest := map[string][]string{
-		"TestNoReturnDataForCreate": {
-			"evmone", "evmone-basic", "evmone-advanced",
-		},
-	}
-	return slices.Contains(disabledTest[testName], variant)
 }
