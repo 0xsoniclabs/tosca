@@ -8,9 +8,9 @@
 // On the date above, in accordance with the Business Source License, use of
 // this software will be governed by the GNU Lesser General Public License v3.
 
-// Runs the Conformance Tests against one interpreter per build, once a week for each of evmrs, lfvm,
-// sfvm and geth. The schedule and the toolchain are this repository's, because a Jenkins dockerfile
-// agent is resolved against the pipeline's own repository and only a pipeline in Tosca can build on
+// Runs the Conformance Tests against one interpreter per build, once a week for each of evmrs, sfvm
+// and geth. The schedule and the toolchain are this repository's, because a Jenkins dockerfile agent
+// is resolved against the pipeline's own repository and only a pipeline in Tosca can build on
 // Tosca's CI/Dockerfile.jenkins.
 @Library('shared-library') _
 
@@ -31,7 +31,6 @@ pipeline {
     triggers {
         parameterizedCron('''
             @weekly %TargetInterpreter=sfvm;FullMode=true
-            @weekly %TargetInterpreter=lfvm;FullMode=true
             @weekly %TargetInterpreter=geth;FullMode=true
             @weekly %TargetInterpreter=evmrs;FullMode=true
         ''')
@@ -51,7 +50,7 @@ pipeline {
         )
         choice(
             name: 'TargetInterpreter',
-            choices: ['sfvm', 'geth', 'evmrs', 'lfvm'],
+            choices: ['sfvm', 'geth', 'evmrs'],
             description: 'Interpreter to run the Conformance Tests against.'
         )
         booleanParam(

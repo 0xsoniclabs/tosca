@@ -101,7 +101,7 @@ type TransactionContext interface {
 	// GetBlockHash returns the hash of the block with the given number.
 	GetBlockHash(number int64) Hash
 
-	// -- legacy API needed by LFVM and Geth, to be removed in the future ---
+	// -- legacy API needed by Geth, to be removed in the future ---
 
 	// TODO: split into two interfaces: ExtendedTransactionContext with the
 	// legacy methods and TransactionContext with the current methods

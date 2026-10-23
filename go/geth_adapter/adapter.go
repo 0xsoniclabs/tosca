@@ -343,7 +343,7 @@ func gethToVMErrors(err error, gas tosca.Gas) (tosca.CallResult, error) {
 		geth.ErrNonceUintOverflow:
 		// In these cases, the caller get its gas back.
 		// TODO: this seems to be a geth implementation quirk that got
-		// transferred into the LFVM implementation; this should be fixed.
+		// transferred into the Tosca interpreters; this should be fixed.
 		return tosca.CallResult{
 			GasLeft: gas,
 			Success: false,
@@ -547,7 +547,7 @@ func (a *runContextAdapter) AccessStorage(addr tosca.Address, key tosca.Key) tos
 	return tosca.ColdAccess
 }
 
-// -- legacy API needed by LFVM and Geth, to be removed in the future ---
+// -- legacy API needed by Geth, to be removed in the future ---
 
 func (a *runContextAdapter) GetCommittedStorage(addr tosca.Address, key tosca.Key) tosca.Word {
 	_, committed := a.evm.StateDB.GetStateAndCommittedState(common.Address(addr), common.Hash(key))

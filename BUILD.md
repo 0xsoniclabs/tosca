@@ -65,14 +65,10 @@ The command produces benchmark results in a table format:
 pkg: github.com/Fantom-foundation/Tosca/go/vm/test
 cpu: Intel(R) Core(TM) i7-5820K CPU @ 3.30GHz
 BenchmarkInc/1/geth-12  	  121488	     10529 ns/op	    1768 B/op	      16 allocs/op
-BenchmarkInc/1/lfvm-12  	  124447	      8744 ns/op	    4330 B/op	      17 allocs/op
-BenchmarkInc/1/lfvm-si-12         	  140642	      8472 ns/op	    4330 B/op	      17 allocs/op
-BenchmarkInc/1/lfvm-no-sha-cache-12         	  132420	      9165 ns/op	    4330 B/op	      17 allocs/op
-BenchmarkInc/1/lfvm-no-code-cache-12        	  137041	      8330 ns/op	    4330 B/op	      17 allocs/op
 ```
 
 The columns are as follows:
- - the name of the benchmark, using `/` as a separator between benchmarks and sub-benchmarks. In Tosca's setup, the first part of the name is the name of the benchmark (e.g. `BenchmarkInc`), the second part the input size (e.g. `10`), and the last part the EVM implementation (e.g. `lfvm-si`) followed by the number of cores used to run the benchmark (e.g. `-12`); the latter is added by Go's benchmark infrastructure and has no effect if the benchmark is not using multiple go routines.
+ - the name of the benchmark, using `/` as a separator between benchmarks and sub-benchmarks. In Tosca's setup, the first part of the name is the name of the benchmark (e.g. `BenchmarkInc`), the second part the input size (e.g. `10`), and the last part the EVM implementation (e.g. `sfvm`) followed by the number of cores used to run the benchmark (e.g. `-12`); the latter is added by Go's benchmark infrastructure and has no effect if the benchmark is not using multiple go routines.
  - the number of times the benchmark was executed
  - the average time per execution
  - the average number of bytes allocated per execution (only when using `-benchmem`)
@@ -87,14 +83,14 @@ The `-bench` flag can be used to filter benchmarks by their name using regex exp
 Thus, the command
 
 ```sh
-go test ./go/vm/test -run=NONE -bench=Inc/1/si
+go test ./go/vm/test -run=NONE -bench=Inc/1/sf
 ```
 
 is running the benchmarks
 
 ```
-BenchmarkInc/1/lfvm-si-12
-BenchmarkInc/10/lfvm-si-12
+BenchmarkInc/1/sfvm-12
+BenchmarkInc/10/sfvm-12
 ```
 
 since the individual parts of the benchmark name are matched one-by-one.
@@ -104,7 +100,7 @@ since the individual parts of the benchmark name are matched one-by-one.
 Go has an integrated CPU profiler that can be enabled using the `-cpuprofile` flag:
 
 ```sh
-go test ./go/vm/test -run=NONE -bench Fib/20/lfvm -cpuprofile cpu.log
+go test ./go/vm/test -run=NONE -bench Fib/20/sfvm -cpuprofile cpu.log
 ```
 
 This command runs the benchmark and collects CPU performance data which can be shown in tabular form using
@@ -142,11 +138,8 @@ which places the binary `benchstat` into your `$GOPATH/bin` directory.
 The tool produces reports on the impact of code changes on the performance of benchmarks in the following format:
 
 ```
-name                          old time/op  new time/op  delta
-Fib/20/lfvm-12                21.6ms ± 8%  21.1ms ± 2%    ~     (p=0.417 n=10+7)
-Fib/20/lfvm-si-12             21.7ms ± 3%  21.1ms ± 2%  -2.66%  (p=0.004 n=9+8)
-Fib/20/lfvm-no-sha-cache-12   21.4ms ± 6%  21.0ms ± 1%    ~     (p=0.165 n=10+10)
-Fib/20/lfvm-no-code-cache-12  21.2ms ± 3%  20.7ms ± 3%  -2.17%  (p=0.006 n=9+10)
+name            old time/op  new time/op  delta
+Fib/20/sfvm-12  21.7ms ± 3%  21.1ms ± 2%  -2.66%  (p=0.004 n=9+8)
 ```
 
 For details on how to use it, please refer to the [Example](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat#hdr-Example) section of the tool's documentation page.
@@ -160,7 +153,7 @@ More about coverage in [the docs folder](docs/coverage.md)
 
 ### CT Driver Code coverage
 
-To run the the CT driver code coverage simply run `make ct-coverage-lfvm` or `make ct-coverage-geth`, these commands will create the folder `Tosca/go/build/coverage/` and a sub folder with the corresponding interpreter's name. In this directory an instrumented version of the driver will be built and then run. The reports of the coverage of this run will also be in this directory, where lastly an HTML version of the report will be added as well. As more interpreter implementations are added to the Tosca project, they should also be added to the makefile.
+To run the the CT driver code coverage simply run `make ct-coverage-sfvm` or `make ct-coverage-geth`, these commands will create the folder `Tosca/go/build/coverage/` and a sub folder with the corresponding interpreter's name. In this directory an instrumented version of the driver will be built and then run. The reports of the coverage of this run will also be in this directory, where lastly an HTML version of the report will be added as well. As more interpreter implementations are added to the Tosca project, they should also be added to the makefile.
 
 
 
@@ -172,9 +165,9 @@ Go provides fuzzing support through its standard library. Fuzzing attempts to fi
 
 The ct Evm.StepN interface is used to evaluate N instructions in different EVM implementations. There are 2 Fuzzer tests against this interface:
 
-- Crash test: FuzzLfvm will execute instructions one at the time looking for a panic. ```make fuzz-lfvm```
+- Crash test: FuzzSfvm will execute instructions one at the time looking for a panic. ```make fuzz-sfvm```
 - Differential tests; execute instruction in two VM implementations and compare state results in addition to panic.
-   - FuzzDifferentialLfvmVsGeth: ```make fuzz-lfvm-diff```
+   - FuzzDifferentialSfvmVsGeth: ```make fuzz-sfvm-diff```
 
 
 ## Static analysis

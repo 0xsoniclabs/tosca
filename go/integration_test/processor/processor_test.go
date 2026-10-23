@@ -26,7 +26,6 @@ import (
 	_ "github.com/0xsoniclabs/tosca/go/processor/geth"   // < registers geth processor for testing
 	_ "github.com/0xsoniclabs/tosca/go/processor/opera"  // < registers opera processor for testing
 
-	_ "github.com/0xsoniclabs/tosca/go/interpreter/lfvm" // < registers lfvm interpreter for testing
 	_ "github.com/0xsoniclabs/tosca/go/interpreter/sfvm" // < registers sfvm interpreter for testing
 )
 
@@ -220,9 +219,9 @@ func TestGetProcessors_ContainsMainConfigurations(t *testing.T) {
 	// and interpreters are registered and available for testing.
 	all := maps.Keys(getProcessors())
 	wanted := []string{
-		"opera/geth", "opera/lfvm", "opera/sfvm",
-		"floria/geth", "floria/lfvm", "floria/sfvm",
-		"geth-sonic/geth", "geth-sonic/lfvm", "geth-sonic/sfvm",
+		"opera/geth", "opera/sfvm",
+		"floria/geth", "floria/sfvm",
+		"geth-sonic/geth", "geth-sonic/sfvm",
 	}
 	for _, n := range wanted {
 		if !slices.Contains(all, n) {
