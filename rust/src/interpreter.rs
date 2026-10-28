@@ -2062,6 +2062,7 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
         std::cfg_select! {
             feature = "fn-ptr-conversion-dispatch" => {
                 stack.push(pc.get_push_data())?;
+                pc.next();
             }
             _ => {
                 pc.next();

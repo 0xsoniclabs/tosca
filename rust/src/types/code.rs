@@ -137,17 +137,23 @@ impl<'a, const STEPPABLE: bool> Pc<'a, STEPPABLE> {
         }
     }
 
+    /// Returns the entry at the counter.
+    // TODO: technically this method is not safe, because the invariant it relies on can be broken
+    // by calling only safe public methods (calling next() until the pc is out of bounds).
+    #[cfg(feature = "fn-ptr-conversion-dispatch")]
+    fn entry(self) -> &'a OpFnData<STEPPABLE> {
+        // SAFETY:
+        // The counter always points at a valid entry (see the documentation of Pc).
+        unsafe { self.entry.as_ref() }
+    }
+
     /// Returns the handler of the entry at the counter. The analysis ends with a terminator entry
     /// that stops execution and the counter can never advance past it, so there is always an entry
     /// to dispatch to. Invalid opcodes hold the handler for [crate::types::Opcode::Invalid], hence
     /// no error handling is needed either.
-    // TODO: technically this method is not safe, because the invariant it relies on can be broken
-    // by calling only safe public methods (calling next() until the pc is out of bounds).
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     pub fn get(self) -> OpFn<STEPPABLE> {
-        // SAFETY:
-        // The counter always points at a valid entry (see the documentation of Pc).
-        unsafe { self.entry.as_ref() }.get_func()
+        self.entry().get_func()
     }
 
     /// Advances the counter to the next entry of the analysis.
@@ -167,27 +173,16 @@ impl<'a, const STEPPABLE: bool> Pc<'a, STEPPABLE> {
         }
     }
 
-    /// Returns the push data that the current push entry holds and advances the counter to the next
-    /// instruction.
+    /// Returns the push data that the current push entry holds.
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
-    pub fn get_push_data(&mut self) -> u256 {
-        // SAFETY:
-        // The counter always points at a valid entry (see the documentation of Pc).
-        let data = unsafe { self.entry.as_ref() }.get_data();
-        // SAFETY:
-        // A push entry is never the last entry because the analysis ends with a terminator.
-        self.entry = unsafe { self.entry.add(1) };
-        data
+    pub fn get_push_data(self) -> u256 {
+        self.entry().get_data()
     }
 
     /// Advances to the jump destination behind the no-ops, whose distance the entry holds.
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     pub fn jump_to_jumpdest(&mut self) {
-        // SAFETY:
-        // The counter always points at a valid entry (see the documentation of Pc).
-        let offset = unsafe { self.entry.as_ref() }
-            .get_data()
-            .into_u64_saturating();
+        let offset = self.entry().get_data().into_u64_saturating();
         // SAFETY:
         // A skip-no-ops entry holds the distance to the following jump dest entry, which is in
         // bounds.
@@ -197,11 +192,7 @@ impl<'a, const STEPPABLE: bool> Pc<'a, STEPPABLE> {
     /// Returns the code offset of the counter.
     pub fn code_offset(self) -> usize {
         std::cfg_select! {
-            feature = "fn-ptr-conversion-dispatch" => {
-                // SAFETY:
-                // The counter always points at a valid entry (see the documentation of Pc).
-                unsafe { self.entry.as_ref() }.get_code_offset()
-            }
+            feature = "fn-ptr-conversion-dispatch" => self.entry().get_code_offset(),
             _ => self.offset,
         }
     }
@@ -376,20 +367,16 @@ mod tests {
 
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     #[rstest]
-    #[case::full(&[Opcode::Push2 as u8, 1, 2, ADD], 0x0102u32.into(), 3)]
-    #[case::thirty_two_bytes(&[[Opcode::Push32 as u8].as_slice(), &[0xff; 32]].concat(), u256::MAX, 33)]
-    #[case::past_end_is_zero_padded(&[Opcode::Push2 as u8, 1], 0x0100u32.into(), 3)]
-    #[case::before_a_jump_dest(&[PUSH1, 1, DEST], 1u8.into(), 2)]
-    fn pc_get_push_data_returns_the_data_and_advances_to_the_next_entry(
+    #[case::full(&[Opcode::Push2 as u8, 1, 2, ADD], 0x0102u32.into())]
+    #[case::thirty_two_bytes(&[[Opcode::Push32 as u8].as_slice(), &[0xff; 32]].concat(), u256::MAX)]
+    #[case::past_end_is_zero_padded(&[Opcode::Push2 as u8, 1], 0x0100u32.into())]
+    fn pc_get_push_data_returns_the_data_of_the_entry(
         #[case] bytes: &[u8],
         #[case] expected: u256,
-        #[case] code_offset: usize,
     ) {
         let cache = CodeAnalysisCache::default();
         let analysis = CodeAnalysis::new(bytes, None, &cache);
-        let mut pc = Pc::<false>::new(&analysis, 0);
-        assert_eq!(pc.get_push_data(), expected);
-        assert_eq!(pc.code_offset(), code_offset);
+        assert_eq!(Pc::<false>::new(&analysis, 0).get_push_data(), expected);
     }
 
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
@@ -400,7 +387,7 @@ mod tests {
         let cache = CodeAnalysisCache::default();
         let analysis = CodeAnalysis::new(&bytes, None, &cache);
         let mut pc = Pc::<false>::new(&analysis, 0);
-        pc.get_push_data();
+        pc.next();
         pc.jump_to_jumpdest();
         // The no-ops report the code offset of the jump dest too, so only the handler tells them
         // apart.
