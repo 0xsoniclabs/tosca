@@ -754,10 +754,14 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
     pub extern "C-unwind" fn skip_no_ops<'a>(
         interpreter: &mut Interpreter<'a, STEPPABLE>,
         mut pc: Pc<'a, STEPPABLE>,
-        gas_left: Gas,
+        mut gas_left: Gas,
         stack: Stack<'_>,
     ) -> OpFnResult<'a, STEPPABLE> {
         pc.jump_to_jumpdest();
+        if !STEPPABLE {
+            gas_left.consume(1)?;
+            pc.next();
+        }
         next!(interpreter, pc, gas_left, stack)
     }
 
