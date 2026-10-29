@@ -1,5 +1,6 @@
 [target.x86_64-unknown-linux-gnu]
-rustflags = ["-C", "target-cpu=x86-64-v3"]
+# align-loops starts every loop on a 64-byte line, so that the dispatch loop never spans two
+rustflags = ["-C", "target-cpu=x86-64-v3", "-C", "llvm-args=-align-loops=64"]
 
 [target.aarch64-apple-darwin]
 # allow dynamic lookup of symbols
