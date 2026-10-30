@@ -2472,6 +2472,8 @@ mod tests {
         Uint256,
     };
     use mockall::predicate;
+    #[cfg(feature = "fn-ptr-conversion-dispatch")]
+    use rstest::rstest;
 
     use crate::{
         interpreter::Interpreter,
@@ -2479,6 +2481,12 @@ mod tests {
             CodeAnalysis, CodeAnalysisCache, GasAndSize, Memory, MockExecutionContextTrait,
             MockExecutionMessage, NoOpObserver, Opcode, Stack, hash_cache::HashCache, u256,
         },
+    };
+    #[cfg(feature = "fn-ptr-conversion-dispatch")]
+    use crate::{
+        interpreter::{Exit, OpFn, Parked, get_jumptable},
+        types::{Code, ExecStatus, LastCallReturnData, Pc},
+        utils::{Gas, GasRefund},
     };
 
     #[test]
@@ -2829,6 +2837,66 @@ mod tests {
         .unwrap();
         let result: ExecutionResult = interpreter.run(&mut NoOpObserver());
         assert_eq!(result.status_code(), StatusCode::EVMC_OUT_OF_GAS);
+    }
+
+    #[cfg(feature = "fn-ptr-conversion-dispatch")]
+    #[rstest]
+    #[case::charges_and_skips_the_jump_dest(get_jumptable::<false>()[Opcode::Stop as usize], 3, 0)]
+    #[case::stops_on_the_jump_dest_when_steppable(
+        get_jumptable::<true>()[Opcode::JumpDest as usize],
+        2,
+        1
+    )]
+    fn interpreter_skip_no_ops_skips_the_jump_dest_unless_steppable<const STEPPABLE: bool>(
+        #[case] expected_op: OpFn<STEPPABLE>,
+        #[case] expected_code_offset: usize,
+        #[case] expected_gas_left: u64,
+    ) {
+        let code_analysis_cache = CodeAnalysisCache::<STEPPABLE>::default();
+        let hash_cache = HashCache::default();
+        let mut context = MockExecutionContextTrait::new();
+        let message = MockExecutionMessage::default().into();
+        let code = [
+            Opcode::Push1 as u8,
+            0,
+            Opcode::JumpDest as u8,
+            Opcode::Stop as u8,
+        ];
+        let analysis = CodeAnalysis::new(&code, None, &code_analysis_cache);
+        let (mut stack_buffer, mut memory) = (Stack::new_buffer(), Memory::new());
+        let mut pc = Pc::new(&analysis, 0);
+        pc.next();
+        // Built field by field because only the fields are generic over STEPPABLE. Zero steps end
+        // a steppable chain after the handler with `tail-call`.
+        let mut interpreter = Interpreter {
+            exec_status: ExecStatus::Running,
+            message: &message,
+            context: &mut context,
+            revision: Revision::EVMC_ISTANBUL,
+            code: Code::new(&code, &analysis),
+            gas_refund: GasRefund::new(0),
+            output: Box::default(),
+            memory: &mut memory,
+            last_call_return_data: LastCallReturnData::Slice(&[]),
+            steps: Some(0),
+            hash_cache: &hash_cache,
+            parked: Parked {
+                pc,
+                state: GasAndSize::new(Gas::new(0).unwrap(), Stack::empty(&mut stack_buffer)),
+            },
+            stack: None,
+        };
+        let stack = Stack::empty(&mut stack_buffer);
+        let (pc, state) =
+            match Interpreter::skip_no_ops(&mut interpreter, pc, Gas::new(1).unwrap(), stack) {
+                Ok(next) => next,
+                // With `tail-call` the non-steppable handler dispatches on to STOP, which parks.
+                Err(Exit::Stopped) => (interpreter.parked.pc, interpreter.parked.state),
+                Err(Exit::Failed(err)) => panic!("{err:?}"),
+            };
+        assert!(std::ptr::fn_addr_eq(pc.get(), expected_op));
+        assert_eq!(pc.code_offset(), expected_code_offset);
+        assert_eq!(state.gas().as_u64(), expected_gas_left);
     }
 
     #[test]
