@@ -182,7 +182,9 @@ impl<'a, const STEPPABLE: bool> Pc<'a, STEPPABLE> {
     /// Advances to the jump destination behind the no-ops, whose distance the entry holds.
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     pub fn jump_to_jumpdest(&mut self) {
-        let offset = self.entry().get_data().into_u64_saturating();
+        // The analysis writes the distance from a u64, so it never overflows. Unlike saturating,
+        // taking the low 64 bits does not read the upper bytes.
+        let offset = self.entry().get_data().into_u64_with_overflow().0;
         // SAFETY:
         // A skip-no-ops entry holds the distance to the following jump dest entry, which is in
         // bounds.
