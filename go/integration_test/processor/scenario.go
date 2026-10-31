@@ -141,10 +141,6 @@ func (c *scenarioContext) IsNewContract(addr tosca.Address) bool {
 	return ok
 }
 
-func (c *scenarioContext) HasEmptyStorage(addr tosca.Address) bool {
-	return len(c.current[addr].Storage) == 0
-}
-
 func (c *scenarioContext) AccountExists(addr tosca.Address) bool {
 	return c.GetBalance(addr) != tosca.Value{} || c.GetNonce(addr) != 0 || c.GetCodeSize(addr) != 0
 }

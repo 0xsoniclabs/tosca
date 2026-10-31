@@ -34,8 +34,6 @@ type WorldState interface {
 	GetCodeSize(Address) int
 	SetCode(Address, Code)
 
-	// HasEmptyStorage returns whether the account has an empty storage.
-	HasEmptyStorage(Address) bool
 	GetStorage(Address, Key) Word
 	SetStorage(Address, Key, Word) StorageStatus
 

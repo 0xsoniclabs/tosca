@@ -323,20 +323,6 @@ func (mr *MockRunContextMockRecorder) GetTransientStorage(arg0, arg1 any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTransientStorage", reflect.TypeOf((*MockRunContext)(nil).GetTransientStorage), arg0, arg1)
 }
 
-// HasEmptyStorage mocks base method.
-func (m *MockRunContext) HasEmptyStorage(arg0 Address) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HasEmptyStorage", arg0)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// HasEmptyStorage indicates an expected call of HasEmptyStorage.
-func (mr *MockRunContextMockRecorder) HasEmptyStorage(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasEmptyStorage", reflect.TypeOf((*MockRunContext)(nil).HasEmptyStorage), arg0)
-}
-
 // HasSelfDestructed mocks base method.
 func (m *MockRunContext) HasSelfDestructed(addr Address) bool {
 	m.ctrl.T.Helper()
@@ -724,20 +710,6 @@ func (m *MockTransactionContext) GetTransientStorage(arg0 Address, arg1 Key) Wor
 func (mr *MockTransactionContextMockRecorder) GetTransientStorage(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTransientStorage", reflect.TypeOf((*MockTransactionContext)(nil).GetTransientStorage), arg0, arg1)
-}
-
-// HasEmptyStorage mocks base method.
-func (m *MockTransactionContext) HasEmptyStorage(arg0 Address) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HasEmptyStorage", arg0)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// HasEmptyStorage indicates an expected call of HasEmptyStorage.
-func (mr *MockTransactionContextMockRecorder) HasEmptyStorage(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasEmptyStorage", reflect.TypeOf((*MockTransactionContext)(nil).HasEmptyStorage), arg0)
 }
 
 // HasSelfDestructed mocks base method.

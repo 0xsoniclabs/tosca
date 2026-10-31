@@ -85,6 +85,7 @@ func gasTestScenarios() map[string]Scenario {
 			},
 		},
 		"AccessListOnlyAddresses": {
+			Parameters: tosca.BlockParameters{Revision: tosca.R09_Berlin},
 			Before: WorldState{
 				{1}: Account{Balance: tosca.NewValue(100), Nonce: 4},
 				{2}: Account{Balance: tosca.NewValue(0)},
@@ -113,6 +114,7 @@ func gasTestScenarios() map[string]Scenario {
 			},
 		},
 		"AccessList": {
+			Parameters: tosca.BlockParameters{Revision: tosca.R09_Berlin},
 			Before: WorldState{
 				{1}: Account{Balance: tosca.NewValue(100), Nonce: 4},
 				{2}: Account{Balance: tosca.NewValue(0)},

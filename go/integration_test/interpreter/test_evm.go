@@ -227,11 +227,6 @@ func (a *runContextAdapter) IsNewContract(addr tosca.Address) bool {
 	return true
 }
 
-func (a *runContextAdapter) HasEmptyStorage(tosca.Address) bool {
-	// not relevant for interpreter tests
-	return true
-}
-
 func (a *runContextAdapter) CreateSnapshot() tosca.Snapshot {
 	// ignored in interpreter tests
 	return 0
