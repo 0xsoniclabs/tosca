@@ -21,6 +21,7 @@ import (
 	. "github.com/0xsoniclabs/tosca/go/ct/rlz"
 	"github.com/0xsoniclabs/tosca/go/ct/spc"
 	"github.com/0xsoniclabs/tosca/go/ct/st"
+	"github.com/0xsoniclabs/tosca/go/interpreter/evmzero"
 	"github.com/0xsoniclabs/tosca/go/interpreter/geth"
 	"github.com/0xsoniclabs/tosca/go/interpreter/lfvm"
 	"github.com/0xsoniclabs/tosca/go/interpreter/sfvm"
@@ -29,9 +30,10 @@ import (
 )
 
 var evms = map[string]ct.Evm{
-	"geth": geth.NewConformanceTestingTarget(),
-	"lfvm": lfvm.NewConformanceTestingTarget(),
-	"sfvm": sfvm.NewConformanceTestingTarget(),
+	"geth":    geth.NewConformanceTestingTarget(),
+	"lfvm":    lfvm.NewConformanceTestingTarget(),
+	"sfvm":    sfvm.NewConformanceTestingTarget(),
+	"evmzero": evmzero.NewConformanceTestingTarget(),
 }
 
 func TestCt_ExplicitCases(t *testing.T) {

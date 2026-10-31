@@ -21,7 +21,7 @@ import (
 
 // LoadSteppableEvmcInterpreter attempts to load an Interpreter implementation from a
 // given library. The `library` parameter should name the library file, while
-// the actual path to the library should be enforced using an rpath (see evmrs
+// the actual path to the library should be enforced using an rpath (see evmone
 // implementation for an example).
 func LoadSteppableEvmcInterpreter(library string) (*SteppableEvmcInterpreter, error) {
 	vm, err := evmc.LoadSteppable(library)
