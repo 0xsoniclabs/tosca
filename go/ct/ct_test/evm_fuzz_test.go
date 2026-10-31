@@ -20,6 +20,7 @@ import (
 	. "github.com/0xsoniclabs/tosca/go/ct/common"
 	"github.com/0xsoniclabs/tosca/go/ct/st"
 	"github.com/0xsoniclabs/tosca/go/interpreter/geth"
+	"github.com/0xsoniclabs/tosca/go/interpreter/lfvm"
 	"github.com/0xsoniclabs/tosca/go/interpreter/sfvm"
 	"github.com/0xsoniclabs/tosca/go/tosca"
 )
@@ -32,9 +33,22 @@ func FuzzGeth(f *testing.F) {
 	fuzzVm(geth.NewConformanceTestingTarget(), f)
 }
 
+// FuzzLfvm is a fuzzing test for lfvm
+func FuzzLfvm(f *testing.F) {
+	fuzzVm(lfvm.NewConformanceTestingTarget(), f)
+}
+
 // FuzzSfvm is a fuzzing test for sfvm
 func FuzzSfvm(f *testing.F) {
 	fuzzVm(sfvm.NewConformanceTestingTarget(), f)
+}
+
+// FuzzDifferentialLfvmVsGeth compares state output between lfvm and geth
+func FuzzDifferentialLfvmVsGeth(f *testing.F) {
+	differentialFuzz(f,
+		lfvm.NewConformanceTestingTarget(),
+		geth.NewConformanceTestingTarget(),
+	)
 }
 
 // FuzzDifferentialSfvmVsGeth compares state output between sfvm and geth
@@ -86,6 +100,14 @@ func differentialFuzz(f *testing.F, testeeVm, referenceVm ct.Evm) {
 
 		if testeeResultState.Gas != referenceResultState.Gas {
 			t.Fatal("invalid result, gas does not match reference gas:", errorReportString(state, testeeResultState, referenceResultState))
+		}
+
+		// Hack: lfvm does a pc transformation, but for code smaller than the required jump the pc will point to a different location
+		// - Geth will point to pc+offset, whenever it is an overflow
+		// - Lfvm will point min(pc+offset, len(code))
+		if testeeResultState.Pc == uint16(len(opCodes)) &&
+			testeeResultState.Pc != referenceResultState.Pc {
+			testeeResultState.Pc = referenceResultState.Pc
 		}
 
 		if !testeeResultState.Eq(referenceResultState) {

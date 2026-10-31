@@ -70,6 +70,8 @@ override:
 
   # packages
   - threshold:  100
+    path: go/interpreter/lfvm
+  - threshold:  100
     path: go/interpreter/sfvm
   - threshold: 0
     path: go/ct/spc

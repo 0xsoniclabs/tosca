@@ -11,6 +11,7 @@
 package interpreter_test
 
 import (
+	_ "github.com/0xsoniclabs/tosca/go/interpreter/lfvm"
 	_ "github.com/0xsoniclabs/tosca/go/interpreter/sfvm"
 	"github.com/0xsoniclabs/tosca/go/tosca"
 )
