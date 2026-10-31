@@ -28,6 +28,7 @@ impl InterpreterAllocationsCache {
 
     /// Puts the [`StackBuffer`] and the [`Memory`] back so that a later run can take over their
     /// allocations, or frees them without `alloc-reuse`.
+    #[inline(always)]
     #[allow(clippy::unused_self)]
     pub fn release_stack_and_memory(&self, stack_buffer: Box<StackBuffer>, memory: Memory) {
         std::cfg_select! {

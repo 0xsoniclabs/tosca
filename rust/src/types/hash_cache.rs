@@ -49,6 +49,7 @@ impl HashCache {
     }
 
     /// Returns the Keccak-256 hash of `data`, taken from the cache if present.
+    #[inline(always)]
     #[allow(clippy::unused_self)]
     pub fn hash(&self, data: &[u8]) -> u256 {
         std::cfg_select! {
