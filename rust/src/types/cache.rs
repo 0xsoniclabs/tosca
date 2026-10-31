@@ -39,6 +39,7 @@ where
     /// provided `FnOnce` to insert it first. The referenced key is only cloned if the value is not
     /// present in the cache.
     #[cfg(feature = "hash-cache")]
+    #[inline(always)]
     pub fn get_or_insert_ref<Q>(&self, key: &Q, f: impl FnOnce() -> V) -> V
     where
         K: std::borrow::Borrow<Q>,
