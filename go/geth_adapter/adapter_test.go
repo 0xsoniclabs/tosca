@@ -20,7 +20,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/0xsoniclabs/tosca/go/interpreter/sfvm"
+	"github.com/0xsoniclabs/tosca/go/interpreter/lfvm"
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/tracing"
@@ -47,7 +47,7 @@ func TestGethAdapter_RunContextAdapterImplementsRunContextInterface(t *testing.T
 }
 
 func TestGethAdapter_NewGethInterpreterFactoryReturnsNonNilValues(t *testing.T) {
-	interpreter, err := sfvm.NewInterpreter(sfvm.Config{})
+	interpreter, err := lfvm.NewInterpreter(lfvm.Config{})
 	require.NoError(t, err, "Failed to create interpreter")
 	factory := NewGethInterpreterFactory(interpreter)
 	require.NotNil(t, factory, "Factory should not be nil")

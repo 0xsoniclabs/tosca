@@ -209,7 +209,12 @@ func benchmark(b *testing.B, example examples.Example, arg int) {
 		if err != nil {
 			b.Fatalf("failed to load %s interpreter: %v", variant, err)
 		}
+		if pvm, ok := evm.(tosca.ProfilingInterpreter); ok {
+			pvm.ResetProfile()
+		}
+		active := false
 		b.Run(variant, func(b *testing.B) {
+			active = true
 			for i := 0; i < b.N; i++ {
 				got, err := example.RunOn(evm, arg)
 				if err != nil {
@@ -221,5 +226,8 @@ func benchmark(b *testing.B, example examples.Example, arg int) {
 				}
 			}
 		})
+		if pvm, ok := evm.(tosca.ProfilingInterpreter); active && ok {
+			pvm.DumpProfile()
+		}
 	}
 }

@@ -16,7 +16,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/0xsoniclabs/tosca/go/interpreter/sfvm"
+	"github.com/0xsoniclabs/tosca/go/interpreter/lfvm"
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"github.com/0xsoniclabs/tosca/go/tosca/vm"
 	"golang.org/x/sync/errgroup"
@@ -38,7 +38,7 @@ func BenchmarkParallel_StressTests(b *testing.B) {
 		for codeName, code := range codes {
 			for _, numCalls := range []int{1, 10, 100, 1000, 10000} {
 				b.Run(fmt.Sprintf("%s-%s-%d", interpreterName, codeName, numCalls), func(b *testing.B) {
-					hash := sfvm.Keccak256(code)
+					hash := lfvm.Keccak256(code)
 					errs, _ := errgroup.WithContext(context.Background())
 					errs.SetLimit(-1) // set limit of max goroutines to unlimited
 
@@ -53,7 +53,7 @@ func BenchmarkParallel_StressTests(b *testing.B) {
 									// code has to be different for each call
 									localCode = append(localCode, uint32ToBytes(uint32(i))...)
 									localCode = append(localCode, byte(vm.STOP)) // stop
-									localHash = sfvm.Keccak256(localCode)
+									localHash = lfvm.Keccak256(localCode)
 								}
 
 								params := tosca.Parameters{
