@@ -26,9 +26,11 @@ import (
 	"github.com/0xsoniclabs/tosca/go/ct/spc"
 	"github.com/0xsoniclabs/tosca/go/ct/st"
 	"github.com/0xsoniclabs/tosca/go/interpreter/evmrs"
+	"github.com/0xsoniclabs/tosca/go/interpreter/evmzero"
 	"github.com/0xsoniclabs/tosca/go/interpreter/geth"
 	"github.com/0xsoniclabs/tosca/go/interpreter/lfvm"
 	"github.com/0xsoniclabs/tosca/go/interpreter/sfvm"
+	"github.com/0xsoniclabs/tosca/go/lib/cpp"
 	"github.com/0xsoniclabs/tosca/go/lib/rust"
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	"github.com/dsnet/golib/unitconv"
@@ -55,13 +57,15 @@ var RunCmd = cliUtils.AddCommonFlags(cli.Command{
 })
 
 var evms = map[string]ct.Evm{
-	"lfvm":  lfvm.NewConformanceTestingTarget(),
-	"sfvm":  sfvm.NewConformanceTestingTarget(),
-	"geth":  geth.NewConformanceTestingTarget(),
-	"evmrs": evmrs.NewConformanceTestingTarget(),
+	"lfvm":    lfvm.NewConformanceTestingTarget(),
+	"sfvm":    sfvm.NewConformanceTestingTarget(),
+	"geth":    geth.NewConformanceTestingTarget(),
+	"evmzero": evmzero.NewConformanceTestingTarget(),
+	"evmrs":   evmrs.NewConformanceTestingTarget(),
 }
 
 func doRun(context *cli.Context) error {
+	defer cpp.DumpCppCoverageData()
 	defer rust.DumpRustCoverageData(os.Getenv("LLVM_PROFILE_FILE"))
 
 	jobCount := cliUtils.JobsFlag.Fetch(context)

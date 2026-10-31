@@ -9,7 +9,10 @@ RUN apt-get update && apt-get install -y \
   make \
   wget \
   clang-19 \
+  clang-format-19 \
   build-essential \
+  cmake \
+  lcov \
   z3 \
   && rm -rf /var/lib/apt/lists/*
 RUN gcc --version
@@ -41,3 +44,6 @@ RUN mkdir -p /.cache && chmod 777 /.cache
 RUN curl -Os https://cli.codecov.io/latest/linux/codecov && \
   chmod +x codecov && \
   mv codecov /usr/local/bin
+
+# Evmone uses hunter and requires a writable cache directory
+RUN mkdir /.hunter && chmod 777 /.hunter
