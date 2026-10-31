@@ -1,5 +1,5 @@
 # --------------------------------------------------------------------------
-# Makefile for the Fantom Tosca
+# Makefile for the Fantom Tosca - long format EVM
 #
 # v1.0 (2023/03/28) - Initial version
 #
@@ -40,9 +40,9 @@ ct-coverage-go:
 	go tool cover -html ${GOCOVERDIR}/cover.out -o coverage.html ;\
 	echo "Coverage report generated in coverage.html"
 
-ct-coverage-sfvm: TOSCA_GO_COVERAGE_EVM=sfvm
-ct-coverage-sfvm: EXTRA_PACKAGES=github.com/0xsoniclabs/tosca/go/interpreter/sfvm
-ct-coverage-sfvm: ct-coverage-go
+ct-coverage-lfvm: TOSCA_GO_COVERAGE_EVM=lfvm
+ct-coverage-lfvm: EXTRA_PACKAGES=github.com/0xsoniclabs/tosca/go/interpreter/lfvm
+ct-coverage-lfvm: ct-coverage-go
 
 ct-coverage-geth: TOSCA_GO_COVERAGE_EVM=geth
 ct-coverage-geth: EXTRA_PACKAGES=github.com/ethereum/go-ethereum/core/vm/...
@@ -74,11 +74,11 @@ clean-rust:
 license-headers:
 	cd ./scripts/license; ./add_license_header.sh
 
-fuzz-sfvm:
-	go test -fuzz=FuzzSfvm ./go/ct/ct_test/
+fuzz-lfvm:
+	go test -fuzz=FuzzLfvm ./go/ct/
 
-fuzz-sfvm-diff:
-	go test -fuzz=FuzzDifferentialSfvmVsGeth ./go/ct/ct_test/
+fuzz-lfvm-diff:
+	go test -fuzz=FuzzDifferentialLfvmVsGeth ./go/ct/
 
 test-coverage: test-go coverage-report
 

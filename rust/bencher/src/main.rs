@@ -11,7 +11,7 @@ use serde::Deserialize;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
-/// Run Go interpreter benchmarks for sfvm and geth as well as for evmrs with different
+/// Run Go interpreter benchmarks for lfvm and geth as well as for evmrs with different
 /// feature sets.
 ///
 /// Requirements:
@@ -37,7 +37,7 @@ struct CargoToml {
     features: HashMap<String, Vec<String>>,
 }
 
-const NON_RUST_INTERPRETERS: [&str; 2] = ["sfvm", "geth"];
+const NON_RUST_INTERPRETERS: [&str; 2] = ["lfvm", "geth"];
 
 fn main() {
     if let Err(err) = run() {

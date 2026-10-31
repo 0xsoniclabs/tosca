@@ -95,7 +95,7 @@ cargo build --features mimalloc,hash-cache
         --run none --bench ^Benchmark[a-zA-Z]+/./evmrs \
         --timeout 1h --count 20
     ```
-    - Run benchmarks for sfvm, geth and evmrs with different feature combinations compare times and store results in `./output/benches/<time>#<git ref>#<runs>`.
+    - Run benchmarks for lfvm, geth and evmrs with different feature combinations compare times and store results in `./output/benches/<time>#<git ref>#<runs>`.
     ```sh
     cargo run --package bencher
     ```

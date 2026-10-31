@@ -9,7 +9,7 @@
 // this software will be governed by the GNU Lesser General Public License v3.
 
 // Runs the Go unit tests under the race detector, three times a week and over every package - the
-// PR pipeline can only afford sfvm. The schedule and the toolchain are this repository's, because a
+// PR pipeline can only afford lfvm. The schedule and the toolchain are this repository's, because a
 // Jenkins dockerfile agent is resolved against the pipeline's own repository and only a pipeline in
 // Tosca can build on Tosca's CI/Dockerfile.jenkins.
 @Library('shared-library') _

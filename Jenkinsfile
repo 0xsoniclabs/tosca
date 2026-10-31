@@ -62,15 +62,15 @@ pipeline {
             }
         }
 
-        stage('CT regression tests sfvm') {
+        stage('CT regression tests LFVM') {
             steps {
-                sh 'go run ./go/ct/driver regressions sfvm'
+                sh 'go run ./go/ct/driver regressions lfvm'
             }
         }
 
-        stage('sfvm race condition tests') {
+        stage('LFVM race condition tests') {
             steps {
-                sh 'GORACE="halt_on_error=1" go test --race ./go/interpreter/sfvm/...'
+                sh 'GORACE="halt_on_error=1" go test --race ./go/interpreter/lfvm/...'
             }
         }
 
