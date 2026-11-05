@@ -314,20 +314,25 @@ impl u256 {
     }
 
     // ethnum has no support for addmod and mulmod yet (see https://github.com/nlordell/ethnum-rs/issues/10)
+    #[inline(always)]
     pub fn addmod(s1: Self, s2: Self, m: Self) -> Self {
         if m == u256::ZERO {
             return u256::ZERO;
         }
-        let s1 = bnum::types::U256::from_le_bytes(s1.0.to_le_bytes());
-        let s1 = U512::cast_from(s1);
-        let s2 = bnum::types::U256::from_le_bytes(s2.0.to_le_bytes());
-        let s2 = U512::cast_from(s2);
-        let m = bnum::types::U256::from_le_bytes(m.0.to_le_bytes());
-        let m = U512::cast_from(m);
-
-        Self(U256::from_le_bytes(
-            bnum::types::U256::cast_from((s1 + s2).rem(m)).to_le_bytes(),
-        ))
+        let (lo, carry) = s1.0.overflowing_add(s2.0);
+        let hi = if carry {
+            U256::MAX % m.0 + 1
+        } else {
+            U256::ZERO
+        };
+        let lo = lo % m.0;
+        // addition does not overflow:
+        // - if m > 2^255: hi = 2^256 - m and lo < m, so hi + lo < 2^256
+        // - else:         hi <= m and lo < m,        so hi + lo < 2^256
+        let sum = hi + lo;
+        // hi <= m and lo < m, so sum < 2m subtracting m once gives sum < m
+        let res = if sum >= m.0 { sum - m.0 } else { sum };
+        Self(res)
     }
 
     // ethnum has no support for addmod and mulmod yet (see https://github.com/nlordell/ethnum-rs/issues/10)
@@ -725,6 +730,10 @@ mod tests {
     #[case::addmod_carries_out_of_256_bits(
         u256::addmod(u256::MAX, u256::ONE, u256::from(7u8)),
         u256::from(2u8)
+    )]
+    #[case::addmod_subtracts_the_modulus_from_the_reduced_sum(
+        u256::addmod(u256::MAX, u256::from(3u8), SIGNED_MIN + u256::ONE),
+        u256::ZERO
     )]
     #[case::addmod_by_zero_is_zero(u256::addmod(u256::ONE, u256::ONE, u256::ZERO), u256::ZERO)]
     #[case::mulmod(
