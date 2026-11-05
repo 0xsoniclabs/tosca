@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use crate::{
     Opcode,
     interpreter::{self, OpFn},
@@ -15,7 +13,7 @@ use crate::{
 // opcodes cannot have the same function pointer because then they would do the same thing. This
 // means that comparing function pointers for equality is equivalent to comparing the opcodes they
 // implement for equality.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[cfg_attr(
     test,
     derive(PartialEq),
@@ -99,16 +97,6 @@ impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
     /// Returns the code offset.
     pub fn get_code_offset(&self) -> usize {
         self.code_offset as usize
-    }
-}
-
-impl<const STEPPABLE: bool> Debug for OpFnData<STEPPABLE> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("OpFnData")
-            .field("func", &(self.func as *const u8))
-            .field("data", &self.data)
-            .field("code_offset", &self.code_offset)
-            .finish()
     }
 }
 
