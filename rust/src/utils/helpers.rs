@@ -19,21 +19,10 @@ pub trait SliceExt {
 
 impl SliceExt for [u8] {
     fn get_within_bounds(&self, offset: u256, len: u64) -> &[u8] {
-        if len == 0 {
-            return &[];
-        }
-        let (offset, offset_overflow) = offset.into_u64_with_overflow();
-        if offset_overflow {
-            return &[];
-        }
-        let offset = offset as usize;
-        let len = len as usize;
-        let end = offset.saturating_add(len);
-        if offset >= self.len() {
-            &[]
-        } else {
-            &self[offset..min(end, self.len())]
-        }
+        let rest = self
+            .get(offset.into_u64_saturating() as usize..)
+            .unwrap_or_default();
+        &rest[..min(len as usize, rest.len())]
     }
 
     fn copy_padded(&mut self, src: &[u8], gas_left: &mut Gas) -> Result<(), FailStatus> {
@@ -93,6 +82,7 @@ mod tests {
     #[case::sub_slice_past_end(&[1, 2, 3], u256::ONE, 5, &[2, 3])]
     #[case::offset_at_end(&[1], u256::ONE, 1, &[])]
     #[case::offset_overflows_u64(&[1], u256::MAX, 1, &[])]
+    #[case::offset_overflows_u64_to_zero(&[1], u256::from(u64::MAX) + u256::ONE, 1, &[])]
     #[case::offset_past_end(&[1], u256::from(u64::MAX), 1, &[])]
     #[case::end_overflows_usize(&[1, 2, 3], u256::ONE, u64::MAX, &[2, 3])]
     fn get_within_bounds_clamps_to_the_slice(

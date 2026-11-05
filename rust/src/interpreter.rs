@@ -2258,8 +2258,8 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
             .get_mut_slice(args_offset, args_len, &mut gas_left)?;
 
         let limit = gas_left.as_u64() - gas_left.as_u64() / 64;
-        let mut endowment = gas.into_u64_saturating();
-        endowment = min(endowment, limit); // cap gas at all but one 64th of gas left
+        // cap gas at all but one 64th of gas left
+        let endowment = min(gas.into_u64_saturating(), limit);
 
         let stipend: u64 = if value == u256::ZERO { 0 } else { 2_300 };
         gas_left.add(stipend.cast_signed())?;
@@ -2277,36 +2277,27 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
             next!(interpreter, pc, gas_left, stack);
         }
 
-        let call_message = if CODE {
-            ExecutionMessage {
-                kind: MessageKind::EVMC_CALLCODE,
-                flags: interpreter.message.flags,
-                depth: interpreter.message.depth + 1,
-                gas: (endowment + stipend).cast_signed(),
-                recipient: interpreter.message.recipient,
-                sender: interpreter.message.recipient,
-                input,
-                value: value.into(),
-                create2_salt: u256::ZERO.into(), // ignored
-                code_address: addr,
-                code: &[],
-                code_hash: None,
-            }
-        } else {
-            ExecutionMessage {
-                kind: MessageKind::EVMC_CALL,
-                flags: interpreter.message.flags,
-                depth: interpreter.message.depth + 1,
-                gas: (endowment + stipend).cast_signed(),
-                recipient: addr,
-                sender: interpreter.message.recipient,
-                input,
-                value: value.into(),
-                create2_salt: u256::ZERO.into(), // ignored
-                code_address: addr,
-                code: &[],
-                code_hash: None,
-            }
+        let call_message = ExecutionMessage {
+            kind: if CODE {
+                MessageKind::EVMC_CALLCODE
+            } else {
+                MessageKind::EVMC_CALL
+            },
+            flags: interpreter.message.flags,
+            depth: interpreter.message.depth + 1,
+            gas: (endowment + stipend).cast_signed(),
+            recipient: if CODE {
+                interpreter.message.recipient
+            } else {
+                addr
+            },
+            sender: interpreter.message.recipient,
+            input,
+            value: value.into(),
+            create2_salt: u256::ZERO.into(), // ignored
+            code_address: addr,
+            code: &[],
+            code_hash: None,
         };
 
         let result = interpreter.context.call(&call_message);
@@ -2365,8 +2356,8 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
             .get_mut_slice(args_offset, args_len, &mut gas_left)?;
 
         let limit = gas_left.as_u64() - gas_left.as_u64() / 64;
-        let mut endowment = gas.into_u64_saturating();
-        endowment = min(endowment, limit); // cap gas at all but one 64th of gas left
+        // cap gas at all but one 64th of gas left
+        let endowment = min(gas.into_u64_saturating(), limit);
 
         let call_message = if DELEGATE {
             ExecutionMessage {
