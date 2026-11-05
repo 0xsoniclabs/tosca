@@ -1904,11 +1904,9 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
         check_min_revision(Revision::EVMC_CANCUN, interpreter.revision)?;
         gas_left.consume(3)?;
         let [len, offset, dest_offset] = stack.pop()?;
-        if len != u256::ZERO {
-            interpreter
-                .memory
-                .copy_within(offset, dest_offset, len, &mut gas_left)?;
-        }
+        interpreter
+            .memory
+            .copy_within(offset, dest_offset, len, &mut gas_left)?;
         pc.next();
         next!(interpreter, pc, gas_left, stack)
     }

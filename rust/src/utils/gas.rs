@@ -21,7 +21,6 @@ impl GasRefund {
     }
 
     /// Adds `gas`, which may be negative, to the refund, wrapping on overflow.
-    #[inline(always)]
     pub fn add(&mut self, gas: i64) {
         self.0 = self.0.wrapping_add(gas);
     }
@@ -100,7 +99,6 @@ impl Gas {
     }
 
     /// Consumes the cost of transferring `value`, which is only charged if `value` is non-zero.
-    #[inline(always)]
     pub fn consume_positive_value_cost(&mut self, value: &u256) -> Result<(), FailStatus> {
         if *value != u256::ZERO {
             self.consume(9_000)?;
@@ -110,7 +108,6 @@ impl Gas {
 
     /// Consumes the cost of transferring `value` to `addr`, which is only charged if `value` is
     /// non-zero and `addr` does not exist.
-    #[inline(always)]
     pub fn consume_value_to_empty_account_cost(
         &mut self,
         value: &u256,
@@ -166,7 +163,6 @@ impl Gas {
     }
 
     /// Consumes the cost of copying `len` bytes, which is 3 per started word.
-    #[inline(always)]
     pub fn consume_copy_cost(&mut self, len: u64) -> Result<(), FailStatus> {
         let cost = word_size(len)? * 3; // does not overflow because word_size divides by 32
         self.consume(cost)

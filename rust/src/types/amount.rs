@@ -296,6 +296,7 @@ impl u256 {
         }
     }
 
+    #[inline(always)]
     pub fn sdiv(self, rhs: Self) -> Self {
         if rhs == u256::ZERO {
             return u256::ZERO;
@@ -304,6 +305,7 @@ impl u256 {
         Self(self.0.as_i256().wrapping_div(rhs.0.as_i256()).as_u256())
     }
 
+    #[inline(always)]
     pub fn srem(self, rhs: Self) -> Self {
         if rhs == u256::ZERO {
             return u256::ZERO;
@@ -329,22 +331,23 @@ impl u256 {
     }
 
     // ethnum has no support for addmod and mulmod yet (see https://github.com/nlordell/ethnum-rs/issues/10)
+    #[inline(always)]
     pub fn mulmod(s1: Self, s2: Self, m: Self) -> Self {
         if m == u256::ZERO {
             return u256::ZERO;
         }
         let s1 = bnum::types::U256::from_le_bytes(s1.0.to_le_bytes());
-        let s1 = U512::cast_from(s1);
         let s2 = bnum::types::U256::from_le_bytes(s2.0.to_le_bytes());
-        let s2 = U512::cast_from(s2);
+        let (lo, hi) = s1.widening_mul(s2);
+        let product = (U512::cast_from(hi) << 256u32) | U512::cast_from(lo);
         let m = bnum::types::U256::from_le_bytes(m.0.to_le_bytes());
         let m = U512::cast_from(m);
 
-        Self(U256::from_le_bytes(
-            bnum::types::U256::cast_from((s1 * s2).rem(m)).to_le_bytes(),
-        ))
+        let res = bnum::types::U256::cast_from(product.rem(m));
+        Self(U256::from_le_bytes(res.to_le_bytes()))
     }
 
+    #[inline(always)]
     pub fn pow(self, exp: Self) -> Self {
         let mut exp = exp.0;
         let mut base = self.0;
