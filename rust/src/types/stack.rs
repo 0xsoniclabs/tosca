@@ -80,7 +80,6 @@ impl<'s> Stack<'s> {
     }
 
     /// Lends `buffer` out as an empty stack.
-    #[inline(always)]
     pub fn empty(buffer: &'s mut StackBuffer) -> Self {
         Self { buffer, size: 0 }
     }
@@ -204,7 +203,6 @@ impl<'s> Stack<'s> {
     }
 
     /// Fails with [`FailStatus::StackOverflow`] if fewer than `num_elements` slots are free.
-    #[inline(always)]
     pub fn check_overflow(&self, num_elements: usize) -> Result<(), FailStatus> {
         // len <= CAPACITY (invariant), so this does not underflow
         if Self::CAPACITY - self.len() < num_elements {

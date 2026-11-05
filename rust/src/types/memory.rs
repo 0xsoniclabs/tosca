@@ -9,7 +9,6 @@ use crate::{
 pub struct Memory(Vec<u8>);
 
 impl Memory {
-    #[inline(always)]
     pub fn new() -> Self {
         Self(Vec::new())
     }
@@ -117,6 +116,7 @@ impl Memory {
         Ok(byte)
     }
 
+    #[inline(always)]
     pub fn copy_within(
         &mut self,
         src_offset: u256,
@@ -124,6 +124,9 @@ impl Memory {
         len: u256,
         gas_left: &mut Gas,
     ) -> Result<(), FailStatus> {
+        if len == u256::ZERO {
+            return Ok(());
+        }
         let (src_offset, src_overflow) = src_offset.into_u64_with_overflow();
         let (dest_offset, dest_overflow) = dest_offset.into_u64_with_overflow();
         let (len, len_overflow) = len.into_u64_with_overflow();
@@ -369,14 +372,14 @@ mod tests {
         let mut gas_left = Gas::new(0).unwrap();
         assert_eq!(
             mem.copy_within(u256::ONE, u256::ZERO, u256::ZERO, &mut gas_left),
-            Err(FailStatus::OutOfGas)
+            Ok(())
         );
 
         let mut mem = Memory::new();
         let mut gas_left = Gas::new(0).unwrap();
         assert_eq!(
             mem.copy_within(u256::ZERO, u256::ONE, u256::ZERO, &mut gas_left),
-            Err(FailStatus::OutOfGas)
+            Ok(())
         );
 
         let mut mem = Memory::new();
@@ -390,7 +393,7 @@ mod tests {
         let mut gas_left = Gas::new(1_000_000).unwrap();
         assert_eq!(
             mem.copy_within(u256::MAX, u256::ZERO, u256::ZERO, &mut gas_left),
-            Err(FailStatus::OutOfGas)
+            Ok(())
         );
 
         let mut mem = Memory::new();

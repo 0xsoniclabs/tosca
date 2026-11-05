@@ -18,7 +18,6 @@ pub trait SliceExt {
 }
 
 impl SliceExt for [u8] {
-    #[inline(always)]
     fn get_within_bounds(&self, offset: u256, len: u64) -> &[u8] {
         if len == 0 {
             return &[];
@@ -37,7 +36,6 @@ impl SliceExt for [u8] {
         }
     }
 
-    #[inline(always)]
     fn copy_padded(&mut self, src: &[u8], gas_left: &mut Gas) -> Result<(), FailStatus> {
         gas_left.consume_copy_cost(self.len() as u64)?;
         let len = min(src.len(), self.len());
@@ -60,7 +58,6 @@ pub fn word_size(byte_len: u64) -> Result<u64, FailStatus> {
 
 /// Checks if the given `revision` is at least `min_revision`. Returns `Ok(())` if it is, or
 /// `Err(FailStatus::UndefinedInstruction)` if it is not.
-#[inline(always)]
 pub fn check_min_revision(min_revision: Revision, revision: Revision) -> Result<(), FailStatus> {
     if revision < min_revision {
         std::hint::cold_path();
@@ -71,7 +68,6 @@ pub fn check_min_revision(min_revision: Revision, revision: Revision) -> Result<
 
 /// Checks if the given `message` is not read-only. Returns `Ok(())` if it is not read-only, or
 /// `Err(FailStatus::StaticModeViolation)` if it is read-only.
-#[inline(always)]
 pub fn check_not_read_only(message: &ExecutionMessage) -> Result<(), FailStatus> {
     if message.flags & MessageFlags::EVMC_STATIC as u32 != 0 {
         std::hint::cold_path();
