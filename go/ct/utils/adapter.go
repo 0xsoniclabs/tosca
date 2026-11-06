@@ -221,10 +221,6 @@ func (c *ctRunContext) CreateContract(tosca.Address) {
 	panic("should not be needed")
 }
 
-func (c *ctRunContext) HasEmptyStorage(tosca.Address) bool {
-	panic("should not be needed")
-}
-
 func (c *ctRunContext) SetNonce(tosca.Address, uint64) {
 	panic("should not be needed")
 }
