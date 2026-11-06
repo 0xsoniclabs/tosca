@@ -1445,13 +1445,21 @@ func TestRunContextAdapter_ConvertRevision(t *testing.T) {
 }
 
 func TestRunContextAdapter_ConvertRevisionReturnsUnsupportedRevisionError(t *testing.T) {
-	rules := params.Rules{
-		IsHomestead: true,
+	tests := map[string]params.Rules{
+		"before Istanbul": {IsHomestead: true},
+		"Amsterdam":       {IsOsaka: true, IsAmsterdam: true},
+		"Bogota":          {IsOsaka: true, IsBogota: true},
+		"UBT":             {IsOsaka: true, IsUBT: true},
 	}
-	_, err := convertRevision(rules)
-	targetError := &tosca.ErrUnsupportedRevision{}
-	if !errors.As(err, &targetError) {
-		t.Errorf("Expected unsupported revision error, got %v", err)
+
+	for name, rules := range tests {
+		t.Run(name, func(t *testing.T) {
+			_, err := convertRevision(rules)
+			targetError := &tosca.ErrUnsupportedRevision{}
+			if !errors.As(err, &targetError) {
+				t.Errorf("Expected unsupported revision error, got %v", err)
+			}
+		})
 	}
 }
 
