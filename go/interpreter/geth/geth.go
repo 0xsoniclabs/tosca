@@ -42,6 +42,7 @@ func (m *gethVm) Run(parameters tosca.Parameters) (tosca.Result, error) {
 		return tosca.Result{}, &tosca.ErrUnsupportedRevision{Revision: parameters.Revision}
 	}
 	evm, contract, stateDb := createGethInterpreterContext(parameters)
+	defer evm.Release()
 
 	output, err := evm.Run(contract, parameters.Input, false)
 

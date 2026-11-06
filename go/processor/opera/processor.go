@@ -159,6 +159,7 @@ func (p *processor) Run(
 
 	stateDb := geth_adapter.NewStateDB(context)
 	evm := geth.NewEVM(blockCtx, stateDb, &chainConfig, config)
+	defer evm.Release()
 	evm.TxContext = txCtx
 
 	// -- start of execution --

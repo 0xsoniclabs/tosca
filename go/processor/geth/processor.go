@@ -75,6 +75,7 @@ func (p *Processor) Run(
 	config := newEVMConfig(p.Interpreter, p.EthereumCompatible)
 	config.NoBaseFee = internal // Disable base fee check for internal transactions
 	evm := vm.NewEVM(blockContext, stateDB, chainConfig, config)
+	defer evm.Release()
 	evm.TxContext = txContext
 
 	msg := transactionToMessage(transaction, gasPrice, blobHashes)
