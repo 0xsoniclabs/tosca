@@ -58,11 +58,11 @@ func (m *MockCallContextInterceptor) EXPECT() *MockCallContextInterceptorMockRec
 }
 
 // Call mocks base method.
-func (m *MockCallContextInterceptor) Call(env *vm.EVM, me, addr common.Address, data []byte, gas uint64, value *uint256.Int) ([]byte, uint64, error) {
+func (m *MockCallContextInterceptor) Call(env *vm.EVM, me, addr common.Address, data []byte, gas vm.GasBudget, value *uint256.Int) ([]byte, vm.GasBudget, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Call", env, me, addr, data, gas, value)
 	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].(uint64)
+	ret1, _ := ret[1].(vm.GasBudget)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
@@ -74,11 +74,11 @@ func (mr *MockCallContextInterceptorMockRecorder) Call(env, me, addr, data, gas,
 }
 
 // CallCode mocks base method.
-func (m *MockCallContextInterceptor) CallCode(env *vm.EVM, me, addr common.Address, data []byte, gas uint64, value *uint256.Int) ([]byte, uint64, error) {
+func (m *MockCallContextInterceptor) CallCode(env *vm.EVM, me, addr common.Address, data []byte, gas vm.GasBudget, value *uint256.Int) ([]byte, vm.GasBudget, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CallCode", env, me, addr, data, gas, value)
 	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].(uint64)
+	ret1, _ := ret[1].(vm.GasBudget)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
@@ -90,12 +90,12 @@ func (mr *MockCallContextInterceptorMockRecorder) CallCode(env, me, addr, data, 
 }
 
 // Create mocks base method.
-func (m *MockCallContextInterceptor) Create(env *vm.EVM, me common.Address, data []byte, gas uint64, value *uint256.Int) ([]byte, common.Address, uint64, error) {
+func (m *MockCallContextInterceptor) Create(env *vm.EVM, me common.Address, data []byte, gas vm.GasBudget, value *uint256.Int) ([]byte, common.Address, vm.GasBudget, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Create", env, me, data, gas, value)
 	ret0, _ := ret[0].([]byte)
 	ret1, _ := ret[1].(common.Address)
-	ret2, _ := ret[2].(uint64)
+	ret2, _ := ret[2].(vm.GasBudget)
 	ret3, _ := ret[3].(error)
 	return ret0, ret1, ret2, ret3
 }
@@ -107,12 +107,12 @@ func (mr *MockCallContextInterceptorMockRecorder) Create(env, me, data, gas, val
 }
 
 // Create2 mocks base method.
-func (m *MockCallContextInterceptor) Create2(env *vm.EVM, me common.Address, code []byte, gas uint64, value, salt *uint256.Int) ([]byte, common.Address, uint64, error) {
+func (m *MockCallContextInterceptor) Create2(env *vm.EVM, me common.Address, code []byte, gas vm.GasBudget, value, salt *uint256.Int) ([]byte, common.Address, vm.GasBudget, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Create2", env, me, code, gas, value, salt)
 	ret0, _ := ret[0].([]byte)
 	ret1, _ := ret[1].(common.Address)
-	ret2, _ := ret[2].(uint64)
+	ret2, _ := ret[2].(vm.GasBudget)
 	ret3, _ := ret[3].(error)
 	return ret0, ret1, ret2, ret3
 }
@@ -124,11 +124,11 @@ func (mr *MockCallContextInterceptorMockRecorder) Create2(env, me, code, gas, va
 }
 
 // DelegateCall mocks base method.
-func (m *MockCallContextInterceptor) DelegateCall(env *vm.EVM, me, addr common.Address, data []byte, gas uint64) ([]byte, uint64, error) {
+func (m *MockCallContextInterceptor) DelegateCall(env *vm.EVM, me, addr common.Address, data []byte, gas vm.GasBudget) ([]byte, vm.GasBudget, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DelegateCall", env, me, addr, data, gas)
 	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].(uint64)
+	ret1, _ := ret[1].(vm.GasBudget)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
@@ -140,11 +140,11 @@ func (mr *MockCallContextInterceptorMockRecorder) DelegateCall(env, me, addr, da
 }
 
 // StaticCall mocks base method.
-func (m *MockCallContextInterceptor) StaticCall(env *vm.EVM, me, addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
+func (m *MockCallContextInterceptor) StaticCall(env *vm.EVM, me, addr common.Address, input []byte, gas vm.GasBudget) ([]byte, vm.GasBudget, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StaticCall", env, me, addr, input, gas)
 	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].(uint64)
+	ret1, _ := ret[1].(vm.GasBudget)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
