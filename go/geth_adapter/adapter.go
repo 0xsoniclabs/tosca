@@ -220,7 +220,11 @@ func undoRefundShift(stateDB geth.StateDB, err error, refundShift uint64) {
 }
 
 func convertRevision(rules params.Rules) (tosca.Revision, error) {
-	if rules.IsOsaka {
+	// Geth's fork flags beyond Osaka are not necessarily activated in order, so
+	// each of them has to be rejected individually.
+	if rules.IsAmsterdam || rules.IsBogota || rules.IsUBT {
+		return tosca.Revision(-1), &tosca.ErrUnsupportedRevision{Revision: tosca.R15_Osaka + 1}
+	} else if rules.IsOsaka {
 		return tosca.R15_Osaka, nil
 	} else if rules.IsPrague {
 		return tosca.R14_Prague, nil
