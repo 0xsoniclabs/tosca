@@ -179,11 +179,29 @@ extern "C" fn __evmc_execute(
 
 #[cfg(test)]
 mod tests {
-    use evmc_vm::ffi::{evmc_capabilities_flagset, evmc_set_option_result};
+    use std::{
+        ptr,
+        sync::atomic::{AtomicPtr, Ordering},
+    };
 
-    use crate::ffi::{
-        EVMC_CAPABILITY,
-        evmc_vm::{__evmc_destroy, __evmc_get_capabilities, __evmc_set_option, evmc_create_evmrs},
+    use evmc_vm::{
+        ExecutionResult, StatusCode,
+        ffi::{
+            evmc_address, evmc_capabilities_flagset, evmc_host_context, evmc_host_interface,
+            evmc_message, evmc_result, evmc_revision, evmc_set_option_result, evmc_uint256be,
+            evmc_vm as evmc_vm_t,
+        },
+    };
+
+    use crate::{
+        ffi::{
+            EVMC_CAPABILITY,
+            evmc_vm::{
+                __evmc_destroy, __evmc_execute, __evmc_get_capabilities, __evmc_set_option,
+                evmc_create_evmrs,
+            },
+        },
+        types::{MockExecutionMessage, Opcode},
     };
 
     #[test]
@@ -213,6 +231,64 @@ mod tests {
             __evmc_set_option(vm, c"key".as_ptr(), c"value".as_ptr()),
             evmc_set_option_result::EVMC_SET_OPTION_SUCCESS,
         );
+        __evmc_destroy(vm);
+    }
+
+    #[test]
+    fn execute_can_reenter_the_same_instance() {
+        static VM: AtomicPtr<evmc_vm_t> = AtomicPtr::new(ptr::null_mut());
+        static HOST: evmc_host_interface = evmc_host_interface {
+            account_exists: None,
+            get_storage: None,
+            set_storage: None,
+            get_balance: Some(get_balance),
+            get_code_size: None,
+            get_code_hash: None,
+            copy_code: None,
+            selfdestruct: None,
+            call: Some(call),
+            get_tx_context: None,
+            get_block_hash: None,
+            emit_log: None,
+            access_account: None,
+            access_storage: None,
+            get_transient_storage: None,
+            set_transient_storage: None,
+        };
+        extern "C" fn get_balance(
+            _: *mut evmc_host_context,
+            _: *const evmc_address,
+        ) -> evmc_uint256be {
+            evmc_uint256be::default()
+        }
+        extern "C" fn call(
+            context: *mut evmc_host_context,
+            message: *const evmc_message,
+        ) -> evmc_result {
+            let vm = VM.load(Ordering::Relaxed);
+            let revision = evmc_revision::EVMC_ISTANBUL;
+            __evmc_execute(vm, &HOST, context, revision, message, ptr::null(), 0)
+        }
+
+        let vm = evmc_create_evmrs();
+        VM.store(vm, Ordering::Relaxed);
+        let mut code = [Opcode::Push1 as u8, 0].repeat(7);
+        code.push(Opcode::Call as u8);
+        let message = MockExecutionMessage::default().to_evmc_message();
+        // SAFETY:
+        // The result comes straight from `__evmc_execute`.
+        let result = unsafe {
+            ExecutionResult::from_raw(__evmc_execute(
+                vm,
+                &HOST,
+                ptr::null_mut(),
+                evmc_revision::EVMC_ISTANBUL,
+                &message,
+                code.as_ptr(),
+                code.len(),
+            ))
+        };
+        assert_eq!(result.status_code(), StatusCode::EVMC_SUCCESS);
         __evmc_destroy(vm);
     }
 }
