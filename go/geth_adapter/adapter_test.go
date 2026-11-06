@@ -1252,7 +1252,13 @@ func TestGethAdapter_CallForwardsToTheRightKind(t *testing.T) {
 			calls := NewMockCallContextInterceptor(ctrl)
 			test.setup(calls)
 
+			// Geth derives the address of a create target before consulting the
+			// call interceptor, requiring access to the sender's nonce.
+			stateDb := NewMockStateDb(ctrl)
+			stateDb.EXPECT().GetNonce(sender).Return(uint64(0)).AnyTimes()
+
 			evm := newEVMWithPassingChainConfig()
+			evm.StateDB = stateDb
 			evm.CallInterceptor = calls
 			adapter := &runContextAdapter{evm: evm, caller: sender}
 
