@@ -22,9 +22,9 @@ use crate::{
 pub struct OpFnData<const STEPPABLE: bool> {
     /// The handler of the opcode.
     func: OpFn<STEPPABLE>,
-    /// The push data, or for a skip-no-ops entry the distance to the jump destination.
+    /// The push data.
     data: u256,
-    /// The code offset of the instruction, or for padding that of the jump destination behind it.
+    /// The code offset of the instruction.
     code_offset: u64,
 }
 
@@ -44,17 +44,6 @@ impl<const STEPPABLE: bool> OpFnData<STEPPABLE> {
     /// so that executing it fails without a separate check during dispatch.
     pub fn invalid(code_offset: usize) -> Self {
         Self::func(Opcode::Invalid as u8, u256::ZERO, code_offset)
-    }
-
-    /// Returns the `count` padding entries in front of a jump destination: a skip-no-ops entry
-    /// followed by no-ops, or nothing if `count` is zero. They all report the code offset of that
-    /// jump destination, which is the only offset reachable through them.
-    pub fn skip_no_ops_iter(count: usize, code_offset: usize) -> impl Iterator<Item = Self> {
-        let skip_no_ops = Self::func(Opcode::SkipNoOps as u8, (count as u64).into(), code_offset);
-        let no_op = Self::func(Opcode::NoOp as u8, u256::ZERO, code_offset);
-        std::iter::once(skip_no_ops)
-            .take(count.min(1))
-            .chain(std::iter::repeat_n(no_op, count.saturating_sub(1)))
     }
 
     /// Creates a new [`OpFnData`] for a jump destination.
@@ -127,29 +116,6 @@ mod tests {
         );
     }
 
-    #[rstest]
-    #[case::zero(0, 4, vec![])]
-    #[case::one(1, 5, vec![OpFnData::func(Opcode::SkipNoOps as u8, 1u8.into(), 5)])]
-    #[case::three(
-        3,
-        7,
-        vec![
-            OpFnData::func(Opcode::SkipNoOps as u8, 3u8.into(), 7),
-            OpFnData::func(Opcode::NoOp as u8, u256::ZERO, 7),
-            OpFnData::func(Opcode::NoOp as u8, u256::ZERO, 7),
-        ]
-    )]
-    fn op_fn_data_skip_no_ops_iter_returns_count_padding_entries_all_with_the_code_offset_of_the_jump_dest(
-        #[case] count: usize,
-        #[case] code_offset: usize,
-        #[case] expected: Vec<OpFnData<false>>,
-    ) {
-        assert_eq!(
-            OpFnData::skip_no_ops_iter(count, code_offset).collect::<Vec<_>>(),
-            expected
-        );
-    }
-
     #[test]
     fn op_fn_data_jump_dest_holds_the_jump_dest_handler_zero_data_and_the_code_offset() {
         assert_eq!(
@@ -171,11 +137,6 @@ mod tests {
     #[case::invalid(OpFnData::invalid(0), CodeByteType::DataOrInvalid)]
     #[case::opcode(OpFnData::func(ADD, u256::ZERO, 0), CodeByteType::Opcode)]
     #[case::push(OpFnData::func(Opcode::Push1 as u8, u256::ONE, 0), CodeByteType::Opcode)]
-    #[case::skip_no_ops(
-        OpFnData::func(Opcode::SkipNoOps as u8, u256::ONE, 0),
-        CodeByteType::Opcode
-    )]
-    #[case::no_op(OpFnData::func(Opcode::NoOp as u8, u256::ZERO, 0), CodeByteType::Opcode)]
     #[case::terminator(OpFnData::terminator(0), CodeByteType::Opcode)]
     fn op_fn_data_code_byte_type_derives_the_type_from_the_handler(
         #[case] entry: OpFnData<false>,

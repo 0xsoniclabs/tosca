@@ -119,8 +119,9 @@ pub struct Pc<'a, const STEPPABLE: bool> {
 impl<'a, const STEPPABLE: bool> Pc<'a, STEPPABLE> {
     /// Creates a new [`Pc`] for the instruction at `code_offset`.
     pub fn new(code_analysis: &'a CodeAnalysis<STEPPABLE>, code_offset: usize) -> Self {
+        // Dispatch reads the entry unchecked; offsets past the code all map to a terminator.
         #[cfg(feature = "fn-ptr-conversion-dispatch")]
-        let code_offset = code_analysis.analysis_offset(code_offset);
+        let code_offset = code_offset.min(code_analysis.len() - 1);
         Self::at(code_analysis, code_offset)
     }
 
@@ -149,8 +150,8 @@ impl<'a, const STEPPABLE: bool> Pc<'a, STEPPABLE> {
 
     /// Returns the handler of the entry at the counter. The analysis ends with a terminator entry
     /// that stops execution and the counter can never advance past it, so there is always an entry
-    /// to dispatch to. Invalid opcodes hold the handler for [crate::types::Opcode::Invalid], hence
-    /// no error handling is needed either.
+    /// to dispatch to. Invalid opcodes and push data hold the handler for
+    /// [crate::types::Opcode::Invalid], hence no error handling is needed either.
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
     pub fn get(self) -> OpFn<STEPPABLE> {
         self.entry().get_func()
@@ -179,16 +180,13 @@ impl<'a, const STEPPABLE: bool> Pc<'a, STEPPABLE> {
         self.entry().get_data()
     }
 
-    /// Advances to the jump destination behind the no-ops, whose distance the entry holds.
+    /// Advances the counter past the push at it and the `N` entries of its push data.
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
-    pub fn jump_to_jumpdest(&mut self) {
-        // The analysis writes the distance from a u64, so it never overflows. Unlike saturating,
-        // taking the low 64 bits does not read the upper bytes.
-        let offset = self.entry().get_data().into_u64_with_overflow().0;
+    pub fn next_after_push<const N: usize>(&mut self) {
         // SAFETY:
-        // A skip-no-ops entry holds the distance to the following jump dest entry, which is in
-        // bounds.
-        self.entry = unsafe { self.entry.add(offset as usize) };
+        // The analysis has an entry for every byte of push data, and terminators past the end of
+        // the code as far as a push there reaches, so the entry after the data is in bounds.
+        self.entry = unsafe { self.entry.add(1 + N) };
     }
 
     /// Returns the code offset of the counter.
@@ -262,10 +260,6 @@ mod tests {
         let mut pc = Pc::new(&analysis, 0);
         assert_eq!(code.try_jump(&mut pc, dest), expected);
         assert_eq!(pc.code_offset(), code_offset);
-        // The padding in front of a jump dest reports its code offset too, so only the entry after
-        // the counter tells them apart.
-        pc.next();
-        assert_eq!(pc.code_offset(), code_offset + 1);
     }
 
     #[cfg(not(feature = "fn-ptr-conversion-dispatch"))]
@@ -301,14 +295,7 @@ mod tests {
 
     #[rstest]
     #[case::opcode(&[ADD], 0, 0)]
-    #[cfg_attr(
-        not(feature = "fn-ptr-conversion-dispatch"),
-        case::push_data_byte(&[PUSH1, 0xff], 1, 1)
-    )]
-    #[cfg_attr(
-        feature = "fn-ptr-conversion-dispatch",
-        case::push_data_maps_to_the_push(&[PUSH1, 0xff], 1, 0)
-    )]
+    #[case::push_data_byte(&[PUSH1, 0xff], 1, 1)]
     #[case::after_push_data(&[PUSH1, 0xff, ADD], 2, 2)]
     #[case::end_of_code(&[ADD], 1, 1)]
     #[cfg_attr(
@@ -333,9 +320,11 @@ mod tests {
     #[rstest]
     #[case::opcode(&[ADD], 0, Opcode::Add)]
     #[case::push(&[PUSH1, 0xff], 0, Opcode::Push1)]
+    #[case::push_data(&[PUSH1, 0xff], 1, Opcode::Invalid)]
     #[case::jump_dest(&[DEST], 0, Opcode::JumpDest)]
     #[case::invalid(&[0xc0], 0, Opcode::Invalid)]
     #[case::terminator(&[ADD], 1, Opcode::Stop)]
+    #[case::push_data_past_the_end(&[Opcode::Push2 as u8, 1], 2, Opcode::Stop)]
     fn pc_get_returns_the_handler_of_the_entry(
         #[case] bytes: &[u8],
         #[case] offset: usize,
@@ -351,14 +340,7 @@ mod tests {
 
     #[rstest]
     #[case::opcode(&[ADD, ADD], 1)]
-    #[cfg_attr(
-        not(feature = "fn-ptr-conversion-dispatch"),
-        case::push(&[PUSH1, 0xff, ADD], 1)
-    )]
-    #[cfg_attr(
-        feature = "fn-ptr-conversion-dispatch",
-        case::push_skips_its_data(&[PUSH1, 0xff, ADD], 2)
-    )]
+    #[case::push(&[PUSH1, 0xff, ADD], 1)]
     fn pc_next_advances_to_the_next_entry(#[case] bytes: &[u8], #[case] expected: usize) {
         let cache = CodeAnalysisCache::default();
         let analysis = CodeAnalysis::<false>::new(bytes, None, &cache);
@@ -382,41 +364,36 @@ mod tests {
     }
 
     #[cfg(feature = "fn-ptr-conversion-dispatch")]
-    #[test]
-    fn pc_jump_to_jumpdest_skips_the_no_ops() {
-        let bytes = [Opcode::Push3 as u8, 0xff, 0xff, 0xff, DEST, ADD];
-        // Analysis entries: Push3, SkipNoOps(3), NoOp, NoOp, JumpDest, Add, Stop
+    #[rstest]
+    #[case::followed_by_an_opcode(&[Opcode::Push2 as u8, 1, 2, ADD], 2, Opcode::Add, 3)]
+    #[case::data_past_the_end(&[Opcode::Push2 as u8, 1], 2, Opcode::Stop, 3)]
+    #[case::thirty_two_bytes_past_the_end(&[Opcode::Push32 as u8], 32, Opcode::Stop, 33)]
+    fn pc_next_after_push_skips_the_push_data(
+        #[case] bytes: &[u8],
+        #[case] n: usize,
+        #[case] expected_op: Opcode,
+        #[case] expected_code_offset: usize,
+    ) {
         let cache = CodeAnalysisCache::default();
-        let analysis = CodeAnalysis::new(&bytes, None, &cache);
+        let analysis = CodeAnalysis::new(bytes, None, &cache);
         let mut pc = Pc::<false>::new(&analysis, 0);
-        pc.next();
-        pc.jump_to_jumpdest();
-        // The no-ops report the code offset of the jump dest too, so only the handler tells them
-        // apart.
+        match n {
+            2 => pc.next_after_push::<2>(),
+            32 => pc.next_after_push::<32>(),
+            _ => unreachable!(),
+        }
         assert!(std::ptr::fn_addr_eq(
             pc.get(),
-            crate::interpreter::get_jumptable::<false>()[DEST as usize]
+            crate::interpreter::get_jumptable::<false>()[expected_op as usize]
         ));
-        pc.next();
-        assert_eq!(pc.code_offset(), 5);
+        assert_eq!(pc.code_offset(), expected_code_offset);
     }
 
     #[rstest]
-    #[cfg_attr(
-        not(feature = "fn-ptr-conversion-dispatch"),
-        case::one_entry_per_byte(&[PUSH1, 0xff, ADD], &[0, 1, 2, 3])
-    )]
+    #[case::one_entry_per_byte(&[PUSH1, 0xff, ADD], &[0, 1, 2, 3])]
     #[cfg_attr(
         feature = "fn-ptr-conversion-dispatch",
-        case::push_data_has_no_entry(&[PUSH1, 0xff, ADD], &[0, 2, 3])
-    )]
-    #[cfg_attr(
-        feature = "fn-ptr-conversion-dispatch",
-        case::padding_reports_the_jump_dest(&[PUSH1, 0xff, DEST], &[0, 2, 2, 3])
-    )]
-    #[cfg_attr(
-        feature = "fn-ptr-conversion-dispatch",
-        case::terminator_after_zero_padded_push_data(&[Opcode::Push2 as u8, 1], &[0, 3])
+        case::terminator_after_zero_padded_push_data(&[Opcode::Push2 as u8, 1], &[0, 1, 3])
     )]
     fn pc_code_offset_returns_the_code_offset_of_each_entry(
         #[case] bytes: &[u8],
