@@ -14,7 +14,7 @@ use crate::{
     ffi::{
         LifetimeToken,
         evmc_vm::{self, EVMC_CAPABILITY},
-        ref_from_ptr_scoped, ref_mut_from_ptr_scoped, slice_from_raw_parts_scoped,
+        ref_from_ptr_scoped, slice_from_raw_parts_scoped,
     },
 };
 
@@ -93,9 +93,10 @@ extern "C" fn __evmc_step_n(
     // SAFETY:
     // `instance` is not null. The caller must make sure that it points to a valid
     // `SteppableEvmcContainer::<EvmRs>` (which is the case it it was created with
-    // evmc_create_steppable_evmrs) an the pointer is unique.
+    // evmc_create_steppable_evmrs). The container is only borrowed shared, because nested calls
+    // and other threads execute on the same instance.
     let container =
-        unsafe { ref_mut_from_ptr_scoped(instance as *mut SteppableEvmcContainer<EvmRs>, &token) };
+        unsafe { ref_from_ptr_scoped(instance as *const SteppableEvmcContainer<EvmRs>, &token) };
 
     panic::catch_unwind(|| {
         let mut execution_context = if host.is_null() {

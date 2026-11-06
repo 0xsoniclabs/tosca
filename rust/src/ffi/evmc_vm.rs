@@ -142,10 +142,10 @@ extern "C" fn __evmc_execute(
 
     // SAFETY:
     // `instance` is not null. The caller must make sure that `instance` points to a valid
-    // `EvmcContainer::<EvmRs>` (which is the case it it was created with evmc_create_evmrs) and the
-    // pointer is unique.
-    let container =
-        unsafe { ref_mut_from_ptr_scoped(instance as *mut EvmcContainer<EvmRs>, &token) };
+    // `EvmcContainer::<EvmRs>` (which is the case it it was created with evmc_create_evmrs). The
+    // container is only borrowed shared, because nested calls and other threads execute on the
+    // same instance.
+    let container = unsafe { ref_from_ptr_scoped(instance as *const EvmcContainer<EvmRs>, &token) };
 
     panic::catch_unwind(|| {
         let mut execution_context = if host.is_null() {
