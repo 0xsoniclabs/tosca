@@ -27,6 +27,7 @@ import (
 	stateless "github.com/ethereum/go-ethereum/core/stateless"
 	tracing "github.com/ethereum/go-ethereum/core/tracing"
 	types "github.com/ethereum/go-ethereum/core/types"
+	bal "github.com/ethereum/go-ethereum/core/types/bal"
 	vm "github.com/ethereum/go-ethereum/core/vm"
 	params "github.com/ethereum/go-ethereum/params"
 	uint256 "github.com/holiman/uint256"
@@ -305,18 +306,6 @@ func (mr *MockStateDbMockRecorder) CreateContract(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateContract", reflect.TypeOf((*MockStateDb)(nil).CreateContract), arg0)
 }
 
-// EmitLogsForBurnAccounts mocks base method.
-func (m *MockStateDb) EmitLogsForBurnAccounts() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "EmitLogsForBurnAccounts")
-}
-
-// EmitLogsForBurnAccounts indicates an expected call of EmitLogsForBurnAccounts.
-func (mr *MockStateDbMockRecorder) EmitLogsForBurnAccounts() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EmitLogsForBurnAccounts", reflect.TypeOf((*MockStateDb)(nil).EmitLogsForBurnAccounts))
-}
-
 // Empty mocks base method.
 func (m *MockStateDb) Empty(arg0 common.Address) bool {
 	m.ctrl.T.Helper()
@@ -346,15 +335,17 @@ func (mr *MockStateDbMockRecorder) Exist(arg0 any) *gomock.Call {
 }
 
 // Finalise mocks base method.
-func (m *MockStateDb) Finalise(arg0 bool) {
+func (m *MockStateDb) Finalise(rules params.Rules) *bal.ConstructionBlockAccessList {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Finalise", arg0)
+	ret := m.ctrl.Call(m, "Finalise", rules)
+	ret0, _ := ret[0].(*bal.ConstructionBlockAccessList)
+	return ret0
 }
 
 // Finalise indicates an expected call of Finalise.
-func (mr *MockStateDbMockRecorder) Finalise(arg0 any) *gomock.Call {
+func (mr *MockStateDbMockRecorder) Finalise(rules any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalise", reflect.TypeOf((*MockStateDb)(nil).Finalise), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalise", reflect.TypeOf((*MockStateDb)(nil).Finalise), rules)
 }
 
 // GetBalance mocks base method.
@@ -614,6 +605,18 @@ func (mr *MockStateDbMockRecorder) SetTransientState(addr, key, value any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTransientState", reflect.TypeOf((*MockStateDb)(nil).SetTransientState), addr, key, value)
 }
 
+// SetTxContext mocks base method.
+func (m *MockStateDb) SetTxContext(thash common.Hash, ti int, blockAccessIndex uint32) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetTxContext", thash, ti, blockAccessIndex)
+}
+
+// SetTxContext indicates an expected call of SetTxContext.
+func (mr *MockStateDbMockRecorder) SetTxContext(thash, ti, blockAccessIndex any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTxContext", reflect.TypeOf((*MockStateDb)(nil).SetTxContext), thash, ti, blockAccessIndex)
+}
+
 // SlotInAccessList mocks base method.
 func (m *MockStateDb) SlotInAccessList(addr common.Address, slot common.Hash) (bool, bool) {
 	m.ctrl.T.Helper()
@@ -667,6 +670,18 @@ func (m *MockStateDb) SubRefund(arg0 uint64) {
 func (mr *MockStateDbMockRecorder) SubRefund(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SubRefund", reflect.TypeOf((*MockStateDb)(nil).SubRefund), arg0)
+}
+
+// Touch mocks base method.
+func (m *MockStateDb) Touch(arg0 common.Address) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Touch", arg0)
+}
+
+// Touch indicates an expected call of Touch.
+func (mr *MockStateDbMockRecorder) Touch(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Touch", reflect.TypeOf((*MockStateDb)(nil).Touch), arg0)
 }
 
 // Witness mocks base method.
