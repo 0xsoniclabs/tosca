@@ -42,6 +42,7 @@ func (a ctAdapter) StepN(state *st.State, numSteps int) (*st.State, error) {
 	}
 
 	evm, contract, stateDb := createGethInterpreterContext(parameters)
+	defer evm.Release()
 	stateDb.SetRefund(uint64(state.GasRefund))
 
 	evm.CallInterceptor = &callInterceptor{parameters, stateDb, state.ReadOnly}
@@ -57,7 +58,7 @@ func (a ctAdapter) StepN(state *st.State, numSteps int) (*st.State, error) {
 		Input:              state.CallData.ToBytes(),
 		Status:             geth_vm.Running,
 		Pc:                 uint64(state.Pc),
-		Stack:              convertCtStackToGethStack(state),
+		Stack:              convertCtStackToGethStack(state, evm.NewStack()),
 		Memory:             memory,
 		LastCallReturnData: state.LastCallReturnData.ToBytes(),
 	}
@@ -121,8 +122,7 @@ func convertGethMemoryToCtMemory(state *geth_vm.InterpreterState) *st.Memory {
 	return memory
 }
 
-func convertCtStackToGethStack(state *st.State) *geth_vm.Stack {
-	stack := geth_vm.NewStack()
+func convertCtStackToGethStack(state *st.State, stack *geth_vm.Stack) *geth_vm.Stack {
 	for i := state.Stack.Size() - 1; i >= 0; i-- {
 		val := state.Stack.Get(i).Uint256()
 		stack.Push(&val)
