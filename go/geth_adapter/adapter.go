@@ -393,12 +393,6 @@ func (a *runContextAdapter) IsNewContract(addr tosca.Address) bool {
 	return a.evm.StateDB.IsNewContract(common.Address(addr))
 }
 
-func (a *runContextAdapter) HasEmptyStorage(addr tosca.Address) bool {
-	// The storage is empty if the root is the empty or zero hash.
-	rootHash := a.evm.StateDB.GetStorageRoot(common.Address(addr))
-	return rootHash == common.Hash{} || rootHash == types.EmptyRootHash
-}
-
 func (a *runContextAdapter) AccountExists(addr tosca.Address) bool {
 	return a.evm.StateDB.Exist(common.Address(addr))
 }

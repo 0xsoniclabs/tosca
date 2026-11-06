@@ -687,33 +687,6 @@ func TestRunContextAdapter_BooleanChecksReturnCorrectValues(t *testing.T) {
 		want         bool
 		functionCall func(adapter *runContextAdapter) bool
 	}{
-		"hasEmptyStorage-empty": {
-			primingMock: func(stateDb *MockStateDb) {
-				stateDb.EXPECT().GetStorageRoot(common.Address{0x42}).Return(common.Hash{})
-			},
-			want: true,
-			functionCall: func(adapter *runContextAdapter) bool {
-				return adapter.HasEmptyStorage(tosca.Address{0x42})
-			},
-		},
-		"hasEmptyStorage-emptyHash": {
-			primingMock: func(stateDb *MockStateDb) {
-				stateDb.EXPECT().GetStorageRoot(common.Address{0x42}).Return(types.EmptyRootHash)
-			},
-			want: true,
-			functionCall: func(adapter *runContextAdapter) bool {
-				return adapter.HasEmptyStorage(tosca.Address{0x42})
-			},
-		},
-		"hasEmptyStorage-nonEmpty": {
-			primingMock: func(stateDb *MockStateDb) {
-				stateDb.EXPECT().GetStorageRoot(common.Address{0x42}).Return(common.Hash{0x01})
-			},
-			want: false,
-			functionCall: func(adapter *runContextAdapter) bool {
-				return adapter.HasEmptyStorage(tosca.Address{0x42})
-			},
-		},
 		"hasSelfdestructed-true": {
 			primingMock: func(stateDb *MockStateDb) {
 				stateDb.EXPECT().HasSelfDestructed(common.Address{0x42}).Return(true)
