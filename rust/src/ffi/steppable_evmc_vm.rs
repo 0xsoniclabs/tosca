@@ -14,7 +14,7 @@ use crate::{
     ffi::{
         LifetimeToken,
         evmc_vm::{self, EVMC_CAPABILITY},
-        ref_from_ptr_scoped, ref_mut_from_ptr_scoped, slice_from_raw_parts_scoped,
+        ref_from_ptr_scoped, slice_from_raw_parts_scoped,
     },
 };
 
@@ -93,9 +93,10 @@ extern "C" fn __evmc_step_n(
     // SAFETY:
     // `instance` is not null. The caller must make sure that it points to a valid
     // `SteppableEvmcContainer::<EvmRs>` (which is the case it it was created with
-    // evmc_create_steppable_evmrs) an the pointer is unique.
+    // evmc_create_steppable_evmrs). The container is only borrowed shared, because nested calls
+    // and other threads execute on the same instance.
     let container =
-        unsafe { ref_mut_from_ptr_scoped(instance as *mut SteppableEvmcContainer<EvmRs>, &token) };
+        unsafe { ref_from_ptr_scoped(instance as *const SteppableEvmcContainer<EvmRs>, &token) };
 
     panic::catch_unwind(|| {
         let mut execution_context = if host.is_null() {
@@ -166,11 +167,102 @@ extern "C" fn __evmc_step_n(
 
 #[cfg(test)]
 mod tests {
-    use crate::ffi::steppable_evmc_vm::{__evmc_steppable_destroy, evmc_create_steppable_evmrs};
+    use std::{
+        ffi::c_void,
+        ptr,
+        sync::atomic::{AtomicPtr, Ordering},
+    };
+
+    use evmc_vm::{
+        Address, ExecutionResult, StepResult, StepStatusCode,
+        ffi::{
+            evmc_address, evmc_host_context, evmc_host_interface, evmc_message, evmc_result,
+            evmc_revision, evmc_step_status_code, evmc_uint256be, evmc_vm_steppable,
+        },
+    };
+
+    use crate::{
+        ffi::steppable_evmc_vm::{
+            __evmc_step_n, __evmc_steppable_destroy, evmc_create_steppable_evmrs,
+        },
+        types::{MockExecutionMessage, Opcode},
+    };
 
     #[test]
     fn create_destroy() {
         let vm = evmc_create_steppable_evmrs();
+        __evmc_steppable_destroy(vm);
+    }
+
+    #[test]
+    fn step_n_can_reenter_the_same_instance() {
+        static VM: AtomicPtr<evmc_vm_steppable> = AtomicPtr::new(ptr::null_mut());
+        static HOST: evmc_host_interface = evmc_host_interface {
+            account_exists: None,
+            get_storage: None,
+            set_storage: None,
+            get_balance: Some(get_balance),
+            get_code_size: None,
+            get_code_hash: None,
+            copy_code: None,
+            selfdestruct: None,
+            call: Some(call),
+            get_tx_context: None,
+            get_block_hash: None,
+            emit_log: None,
+            access_account: None,
+            access_storage: None,
+            get_transient_storage: None,
+            set_transient_storage: None,
+        };
+        extern "C" fn get_balance(
+            _: *mut evmc_host_context,
+            _: *const evmc_address,
+        ) -> evmc_uint256be {
+            evmc_uint256be::default()
+        }
+        extern "C" fn call(
+            context: *mut evmc_host_context,
+            message: *const evmc_message,
+        ) -> evmc_result {
+            let result = step_n(context.cast(), message, &[], 1);
+            ExecutionResult::new(result.status_code, 0, 0, Box::default(), Address::default())
+                .into()
+        }
+        fn step_n(
+            context: *mut c_void,
+            message: *const evmc_message,
+            code: &[u8],
+            steps: i32,
+        ) -> StepResult {
+            StepResult::from(__evmc_step_n(
+                VM.load(Ordering::Relaxed),
+                &HOST,
+                context,
+                evmc_revision::EVMC_ISTANBUL,
+                message,
+                code.as_ptr(),
+                code.len(),
+                evmc_step_status_code::EVMC_STEP_RUNNING,
+                0,
+                0,
+                ptr::null_mut(),
+                0,
+                ptr::null_mut(),
+                0,
+                ptr::null_mut(),
+                0,
+                steps,
+            ))
+        }
+
+        let vm = evmc_create_steppable_evmrs();
+        VM.store(vm, Ordering::Relaxed);
+        let mut code = [Opcode::Push1 as u8, 0].repeat(7);
+        code.push(Opcode::Call as u8);
+        let message = MockExecutionMessage::default().to_evmc_message();
+        let result = step_n(ptr::null_mut(), &message, &code, 9);
+        assert_eq!(result.step_status_code, StepStatusCode::EVMC_STEP_STOPPED);
         __evmc_steppable_destroy(vm);
     }
 }
