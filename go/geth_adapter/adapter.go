@@ -69,7 +69,7 @@ func (a *gethInterpreterAdapter) Interpret(contract *geth.Contract, input []byte
 	// interpreter). To circumvent this, this adapter encodes the read-only mode
 	// into the highest bit of the gas value (see Call function below). This section
 	// is eliminating this encoded information again.
-	readOnly, contract.Gas = decodeReadOnlyFromGas(a.evm.GetDepth(), readOnly, contract.Gas)
+	readOnly, contract.Gas.ExecutionGas = decodeReadOnlyFromGas(a.evm.GetDepth(), readOnly, contract.Gas.ExecutionGas)
 
 	// Track the recursive call depth of this Call within a transaction.
 	// A maximum limit of params.CallCreateDepth must be enforced.
@@ -141,7 +141,7 @@ func (a *gethInterpreterAdapter) Interpret(contract *geth.Contract, input []byte
 		Kind:                  tosca.Call, // < this might be wrong, but seems to be unused
 		Static:                readOnly,
 		Depth:                 a.evm.GetDepth() - 1,
-		Gas:                   tosca.Gas(contract.Gas),
+		Gas:                   tosca.Gas(contract.Gas.ExecutionGas),
 		Recipient:             tosca.Address(contract.Address()),
 		Sender:                tosca.Address(contract.Caller()),
 		Input:                 input,
@@ -155,11 +155,13 @@ func (a *gethInterpreterAdapter) Interpret(contract *geth.Contract, input []byte
 		return nil, fmt.Errorf("internal interpreter error: %v", err)
 	}
 
-	// Update gas levels.
+	// Update gas levels. Tosca interpreters are unaware of the state-gas
+	// dimension introduced by EIP-8037, so the gas left is reported as regular
+	// gas, leaving the state reservoir of this frame untouched.
 	if result.GasLeft > 0 {
-		contract.Gas = uint64(result.GasLeft)
+		contract.Gas.ExecutionGas = uint64(result.GasLeft)
 	} else {
-		contract.Gas = 0
+		contract.Gas.ExecutionGas = 0
 	}
 
 	// Update refunds.
@@ -251,14 +253,17 @@ func (a *runContextAdapter) Call(kind tosca.CallKind, parameter tosca.CallParame
 	if err != nil {
 		return tosca.CallResult{}, fmt.Errorf("unsupported revision: %w", err)
 	}
-	gas := encodeReadOnlyInGas(uint64(parameter.Gas), parameter.CodeAddress, revision, a.readOnly)
+	// Nested calls are funded from the regular gas dimension only, since Tosca
+	// interpreters are unaware of the state-gas dimension of EIP-8037.
+	gas := geth.NewGasBudget(
+		encodeReadOnlyInGas(uint64(parameter.Gas), parameter.CodeAddress, revision, a.readOnly), 0)
 
 	// Documentation of the parameters can be found here: t.ly/yhxC
 	toAddr := common.Address(parameter.Recipient)
 
 	var (
 		output         []byte
-		returnGas      uint64
+		returnGas      geth.GasBudget
 		createdAddress tosca.Address
 	)
 	switch kind {
@@ -294,7 +299,7 @@ func (a *runContextAdapter) Call(kind tosca.CallKind, parameter tosca.CallParame
 
 	// Safe-guard against accidental introduction of gas. The lower limit needs
 	// to be checked since tosca.Gas is a signed value.
-	gasLeft := max(0, min(tosca.Gas(returnGas), parameter.Gas))
+	gasLeft := max(0, min(tosca.Gas(returnGas.ExecutionGas), parameter.Gas))
 
 	return tosca.CallResult{
 		Output:         output,
