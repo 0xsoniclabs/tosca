@@ -1,0 +1,66 @@
+// Copyright (c) 2025 Sonic Operations Ltd
+//
+// Use of this software is governed by the Business Source License included
+// in the LICENSE file and at soniclabs.com/bsl11.
+//
+// Change Date: 2028-4-16
+//
+// On the date above, in accordance with the Business Source License, use of
+// this software will be governed by the GNU Lesser General Public License v3.
+
+package geth_processor
+
+import (
+	"slices"
+	"testing"
+
+	"github.com/0xsoniclabs/tosca/go/geth_adapter"
+	"github.com/0xsoniclabs/tosca/go/tosca"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/params"
+	"go.uber.org/mock/gomock"
+)
+
+func TestPreCompiledContract_ReturnsStateGasUnchanged(t *testing.T) {
+	const executionGas, stateGas = 10_000, 300
+
+	account := common.Address{1}
+	setBalance := slices.Concat(setBalanceMethodID, common.LeftPadBytes(account[:], 32), make([]byte, 32))
+
+	tests := map[string]struct {
+		caller  common.Address
+		wantErr error
+		want    vm.GasBudget
+	}{
+		"success": {
+			caller: driverAddress,
+			want:   vm.NewGasBudget(executionGas-params.CallValueTransferGas, stateGas),
+		},
+		"failure": {
+			caller:  common.Address{2},
+			wantErr: vm.ErrExecutionReverted,
+			want:    vm.NewGasBudget(0, stateGas),
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			context := tosca.NewMockTransactionContext(ctrl)
+			context.EXPECT().GetBalance(tosca.Address(account)).AnyTimes()
+			context.EXPECT().SetBalance(tosca.Address(account), tosca.Value{}).AnyTimes()
+
+			_, got, err := PreCompiledContract{}.Run(
+				geth_adapter.NewStateDB(context), vm.BlockContext{}, vm.TxContext{},
+				test.caller, setBalance, vm.NewGasBudget(executionGas, stateGas),
+			)
+			if err != test.wantErr {
+				t.Errorf("unexpected error, wanted %v, got %v", test.wantErr, err)
+			}
+			if got != test.want {
+				t.Errorf("unexpected gas budget, wanted %v, got %v", test.want, got)
+			}
+		})
+	}
+}

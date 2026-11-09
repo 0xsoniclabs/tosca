@@ -159,20 +159,6 @@ func (mr *MockWorldStateMockRecorder) GetStorage(arg0, arg1 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStorage", reflect.TypeOf((*MockWorldState)(nil).GetStorage), arg0, arg1)
 }
 
-// HasEmptyStorage mocks base method.
-func (m *MockWorldState) HasEmptyStorage(arg0 Address) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HasEmptyStorage", arg0)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// HasEmptyStorage indicates an expected call of HasEmptyStorage.
-func (mr *MockWorldStateMockRecorder) HasEmptyStorage(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasEmptyStorage", reflect.TypeOf((*MockWorldState)(nil).HasEmptyStorage), arg0)
-}
-
 // IsNewContract mocks base method.
 func (m *MockWorldState) IsNewContract(arg0 Address) bool {
 	m.ctrl.T.Helper()

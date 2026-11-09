@@ -27,6 +27,7 @@ import (
 	stateless "github.com/ethereum/go-ethereum/core/stateless"
 	tracing "github.com/ethereum/go-ethereum/core/tracing"
 	types "github.com/ethereum/go-ethereum/core/types"
+	bal "github.com/ethereum/go-ethereum/core/types/bal"
 	vm "github.com/ethereum/go-ethereum/core/vm"
 	params "github.com/ethereum/go-ethereum/params"
 	uint256 "github.com/holiman/uint256"
@@ -58,11 +59,11 @@ func (m *MockCallContextInterceptor) EXPECT() *MockCallContextInterceptorMockRec
 }
 
 // Call mocks base method.
-func (m *MockCallContextInterceptor) Call(env *vm.EVM, me, addr common.Address, data []byte, gas uint64, value *uint256.Int) ([]byte, uint64, error) {
+func (m *MockCallContextInterceptor) Call(env *vm.EVM, me, addr common.Address, data []byte, gas vm.GasBudget, value *uint256.Int) ([]byte, vm.GasBudget, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Call", env, me, addr, data, gas, value)
 	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].(uint64)
+	ret1, _ := ret[1].(vm.GasBudget)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
@@ -74,11 +75,11 @@ func (mr *MockCallContextInterceptorMockRecorder) Call(env, me, addr, data, gas,
 }
 
 // CallCode mocks base method.
-func (m *MockCallContextInterceptor) CallCode(env *vm.EVM, me, addr common.Address, data []byte, gas uint64, value *uint256.Int) ([]byte, uint64, error) {
+func (m *MockCallContextInterceptor) CallCode(env *vm.EVM, me, addr common.Address, data []byte, gas vm.GasBudget, value *uint256.Int) ([]byte, vm.GasBudget, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CallCode", env, me, addr, data, gas, value)
 	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].(uint64)
+	ret1, _ := ret[1].(vm.GasBudget)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
@@ -90,12 +91,12 @@ func (mr *MockCallContextInterceptorMockRecorder) CallCode(env, me, addr, data, 
 }
 
 // Create mocks base method.
-func (m *MockCallContextInterceptor) Create(env *vm.EVM, me common.Address, data []byte, gas uint64, value *uint256.Int) ([]byte, common.Address, uint64, error) {
+func (m *MockCallContextInterceptor) Create(env *vm.EVM, me common.Address, data []byte, gas vm.GasBudget, value *uint256.Int) ([]byte, common.Address, vm.GasBudget, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Create", env, me, data, gas, value)
 	ret0, _ := ret[0].([]byte)
 	ret1, _ := ret[1].(common.Address)
-	ret2, _ := ret[2].(uint64)
+	ret2, _ := ret[2].(vm.GasBudget)
 	ret3, _ := ret[3].(error)
 	return ret0, ret1, ret2, ret3
 }
@@ -107,12 +108,12 @@ func (mr *MockCallContextInterceptorMockRecorder) Create(env, me, data, gas, val
 }
 
 // Create2 mocks base method.
-func (m *MockCallContextInterceptor) Create2(env *vm.EVM, me common.Address, code []byte, gas uint64, value, salt *uint256.Int) ([]byte, common.Address, uint64, error) {
+func (m *MockCallContextInterceptor) Create2(env *vm.EVM, me common.Address, code []byte, gas vm.GasBudget, value, salt *uint256.Int) ([]byte, common.Address, vm.GasBudget, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Create2", env, me, code, gas, value, salt)
 	ret0, _ := ret[0].([]byte)
 	ret1, _ := ret[1].(common.Address)
-	ret2, _ := ret[2].(uint64)
+	ret2, _ := ret[2].(vm.GasBudget)
 	ret3, _ := ret[3].(error)
 	return ret0, ret1, ret2, ret3
 }
@@ -124,11 +125,11 @@ func (mr *MockCallContextInterceptorMockRecorder) Create2(env, me, code, gas, va
 }
 
 // DelegateCall mocks base method.
-func (m *MockCallContextInterceptor) DelegateCall(env *vm.EVM, me, addr common.Address, data []byte, gas uint64) ([]byte, uint64, error) {
+func (m *MockCallContextInterceptor) DelegateCall(env *vm.EVM, me, addr common.Address, data []byte, gas vm.GasBudget) ([]byte, vm.GasBudget, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DelegateCall", env, me, addr, data, gas)
 	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].(uint64)
+	ret1, _ := ret[1].(vm.GasBudget)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
@@ -140,11 +141,11 @@ func (mr *MockCallContextInterceptorMockRecorder) DelegateCall(env, me, addr, da
 }
 
 // StaticCall mocks base method.
-func (m *MockCallContextInterceptor) StaticCall(env *vm.EVM, me, addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
+func (m *MockCallContextInterceptor) StaticCall(env *vm.EVM, me, addr common.Address, input []byte, gas vm.GasBudget) ([]byte, vm.GasBudget, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StaticCall", env, me, addr, input, gas)
 	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].(uint64)
+	ret1, _ := ret[1].(vm.GasBudget)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
@@ -305,18 +306,6 @@ func (mr *MockStateDbMockRecorder) CreateContract(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateContract", reflect.TypeOf((*MockStateDb)(nil).CreateContract), arg0)
 }
 
-// EmitLogsForBurnAccounts mocks base method.
-func (m *MockStateDb) EmitLogsForBurnAccounts() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "EmitLogsForBurnAccounts")
-}
-
-// EmitLogsForBurnAccounts indicates an expected call of EmitLogsForBurnAccounts.
-func (mr *MockStateDbMockRecorder) EmitLogsForBurnAccounts() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EmitLogsForBurnAccounts", reflect.TypeOf((*MockStateDb)(nil).EmitLogsForBurnAccounts))
-}
-
 // Empty mocks base method.
 func (m *MockStateDb) Empty(arg0 common.Address) bool {
 	m.ctrl.T.Helper()
@@ -346,15 +335,17 @@ func (mr *MockStateDbMockRecorder) Exist(arg0 any) *gomock.Call {
 }
 
 // Finalise mocks base method.
-func (m *MockStateDb) Finalise(arg0 bool) {
+func (m *MockStateDb) Finalise(rules params.Rules) *bal.ConstructionBlockAccessList {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Finalise", arg0)
+	ret := m.ctrl.Call(m, "Finalise", rules)
+	ret0, _ := ret[0].(*bal.ConstructionBlockAccessList)
+	return ret0
 }
 
 // Finalise indicates an expected call of Finalise.
-func (mr *MockStateDbMockRecorder) Finalise(arg0 any) *gomock.Call {
+func (mr *MockStateDbMockRecorder) Finalise(rules any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalise", reflect.TypeOf((*MockStateDb)(nil).Finalise), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalise", reflect.TypeOf((*MockStateDb)(nil).Finalise), rules)
 }
 
 // GetBalance mocks base method.
@@ -468,20 +459,6 @@ func (m *MockStateDb) GetStateAndCommittedState(arg0 common.Address, arg1 common
 func (mr *MockStateDbMockRecorder) GetStateAndCommittedState(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStateAndCommittedState", reflect.TypeOf((*MockStateDb)(nil).GetStateAndCommittedState), arg0, arg1)
-}
-
-// GetStorageRoot mocks base method.
-func (m *MockStateDb) GetStorageRoot(addr common.Address) common.Hash {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetStorageRoot", addr)
-	ret0, _ := ret[0].(common.Hash)
-	return ret0
-}
-
-// GetStorageRoot indicates an expected call of GetStorageRoot.
-func (mr *MockStateDbMockRecorder) GetStorageRoot(addr any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStorageRoot", reflect.TypeOf((*MockStateDb)(nil).GetStorageRoot), addr)
 }
 
 // GetTransientState mocks base method.
@@ -614,6 +591,18 @@ func (mr *MockStateDbMockRecorder) SetTransientState(addr, key, value any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTransientState", reflect.TypeOf((*MockStateDb)(nil).SetTransientState), addr, key, value)
 }
 
+// SetTxContext mocks base method.
+func (m *MockStateDb) SetTxContext(thash common.Hash, ti int, blockAccessIndex uint32) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetTxContext", thash, ti, blockAccessIndex)
+}
+
+// SetTxContext indicates an expected call of SetTxContext.
+func (mr *MockStateDbMockRecorder) SetTxContext(thash, ti, blockAccessIndex any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTxContext", reflect.TypeOf((*MockStateDb)(nil).SetTxContext), thash, ti, blockAccessIndex)
+}
+
 // SlotInAccessList mocks base method.
 func (m *MockStateDb) SlotInAccessList(addr common.Address, slot common.Hash) (bool, bool) {
 	m.ctrl.T.Helper()
@@ -667,6 +656,18 @@ func (m *MockStateDb) SubRefund(arg0 uint64) {
 func (mr *MockStateDbMockRecorder) SubRefund(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SubRefund", reflect.TypeOf((*MockStateDb)(nil).SubRefund), arg0)
+}
+
+// Touch mocks base method.
+func (m *MockStateDb) Touch(arg0 common.Address) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Touch", arg0)
+}
+
+// Touch indicates an expected call of Touch.
+func (mr *MockStateDbMockRecorder) Touch(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Touch", reflect.TypeOf((*MockStateDb)(nil).Touch), arg0)
 }
 
 // Witness mocks base method.
