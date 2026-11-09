@@ -1731,7 +1731,7 @@ impl<'i, const STEPPABLE: bool> Interpreter<'i, STEPPABLE> {
         gas_left.consume(3)?;
         let [value, offset] = stack.pop()?;
 
-        let dest = interpreter.memory.get_mut_byte(offset, &mut gas_left)?;
+        let [dest] = interpreter.memory.get_mut_array(offset, &mut gas_left)?;
         *dest = value.least_significant_byte();
         pc.next();
         next!(interpreter, pc, gas_left, stack)
