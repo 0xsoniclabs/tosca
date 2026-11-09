@@ -1446,10 +1446,11 @@ func TestRunContextAdapter_ConvertRevision(t *testing.T) {
 
 func TestRunContextAdapter_ConvertRevisionReturnsUnsupportedRevisionError(t *testing.T) {
 	tests := map[string]params.Rules{
-		"before Istanbul": {IsHomestead: true},
-		"Amsterdam":       {IsOsaka: true, IsAmsterdam: true},
-		"Bogota":          {IsOsaka: true, IsBogota: true},
-		"UBT":             {IsOsaka: true, IsUBT: true},
+		"before Istanbul":  {IsHomestead: true},
+		"Amsterdam":        {IsOsaka: true, IsAmsterdam: true},
+		"Bogota":           {IsOsaka: true, IsBogota: true},
+		"UBT":              {IsOsaka: true, IsUBT: true},
+		"UBT before Osaka": {IsShanghai: true, IsUBT: true},
 	}
 
 	for name, rules := range tests {
