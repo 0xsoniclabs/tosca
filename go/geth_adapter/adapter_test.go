@@ -840,7 +840,7 @@ func TestRunContextAdapter_Call_LeftGasIsConstraintByZeroAndInputGas(t *testing.
 		for gasOut := tosca.Gas(-100); gasOut < tosca.Gas(100); gasOut++ {
 			any := gomock.Any()
 			calls.EXPECT().Call(any, any, any, any, geth.NewGasBudget(uint64(gasIn), 0), any).Return(
-				nil, geth.NewGasBudget(uint64(gasOut), 0), nil,
+				nil, geth.NewGasBudget(uint64(gasOut), 7), nil,
 			)
 
 			evm := newEVMWithPassingChainConfig()
@@ -1686,6 +1686,7 @@ func TestGethAdapter_IsPrecompiledContractDependsOnRevision(t *testing.T) {
 
 func TestGethAdapter_InterpreterReturnsAreHandledCorrectly(t *testing.T) {
 	contractGas := tosca.Gas(100)
+	stateGas := uint64(7)
 	tests := map[string]struct {
 		returnedResult      tosca.Result
 		returnedError       error
@@ -1788,7 +1789,7 @@ func TestGethAdapter_InterpreterReturnsAreHandledCorrectly(t *testing.T) {
 			}
 
 			address := tosca.Address{0x42}
-			contract := geth.NewContract(common.Address(address), common.Address(address), nil, geth.NewGasBudget(uint64(contractGas), 0), nil)
+			contract := geth.NewContract(common.Address(address), common.Address(address), nil, geth.NewGasBudget(uint64(contractGas), stateGas), nil)
 			result, err := adapter.Interpret(contract, []byte{}, false)
 
 			require.Equal(t, test.expectedOutput, result, "Output should match expected output")
@@ -1798,6 +1799,7 @@ func TestGethAdapter_InterpreterReturnsAreHandledCorrectly(t *testing.T) {
 				require.ErrorContains(t, err, test.expectedError.Error(), "Error should match expected error")
 			}
 			require.Equal(t, test.expectedContractGas, tosca.Gas(contract.Gas.ExecutionGas), "Contract gas should match expected value")
+			require.Equal(t, stateGas, contract.Gas.StateGas, "State gas should be left untouched")
 		})
 	}
 }
