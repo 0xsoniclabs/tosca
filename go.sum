@@ -1,5 +1,5 @@
-github.com/0xsoniclabs/go-ethereum v0.0.0-20261118192104-b24f07ee2441 h1:TtRJtqYDoqwROWQf9+2HSKJe8XciW+F0Ez6Od4iolok=
-github.com/0xsoniclabs/go-ethereum v0.0.0-20261118192104-b24f07ee2441/go.mod h1:UgurD1+WJErJiVUBGQM9Q2wP+BwxsY7c15uAveKQ2YE=
+github.com/0xsoniclabs/go-ethereum v0.0.0-20261119185743-2d2527a19cc6 h1:gpSFJ0t/z9c8yLHGBpVv3SMBSGaDe9NGiRQj6d6sN/o=
+github.com/0xsoniclabs/go-ethereum v0.0.0-20261119185743-2d2527a19cc6/go.mod h1:UgurD1+WJErJiVUBGQM9Q2wP+BwxsY7c15uAveKQ2YE=
 github.com/DataDog/zstd v1.5.7 h1:ybO8RBeh29qrxIhCA9E8gKY6xfONU9T6G6aP9DTKfLE=
 github.com/DataDog/zstd v1.5.7/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
 github.com/ProjectZKM/Ziren/crates/go-runtime/zkvm_runtime v0.0.0-20251001021608-1fe7b43fc4d6 h1:1zYrtlhrZ6/b6SAjLSfKzWtdgqK0U+HtH/VcBWh1BaU=
