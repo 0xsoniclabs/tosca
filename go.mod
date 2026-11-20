@@ -68,6 +68,6 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
-replace github.com/ethereum/go-ethereum => github.com/0xsoniclabs/go-ethereum v0.0.0-20261119185743-2d2527a19cc6
+replace github.com/ethereum/go-ethereum => github.com/0xsoniclabs/go-ethereum v0.0.0-20261120094246-1d388d218ec0
 
 replace github.com/ethereum/evmc/v11 => ./third_party/evmc
