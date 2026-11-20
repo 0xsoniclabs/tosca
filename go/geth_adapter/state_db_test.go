@@ -16,6 +16,7 @@ import (
 	"github.com/0xsoniclabs/tosca/go/tosca"
 	common "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
@@ -91,4 +92,41 @@ func TestStateDB_GetStateAndCommittedStateReturnsOriginalAndCurrentState(t *test
 	state, committed := stateDB.GetStateAndCommittedState(common.Address(address), common.Hash(key))
 	require.Equal(t, original, tosca.Word(state))
 	require.Equal(t, current, tosca.Word(committed))
+}
+
+func TestStateDB_FunctionsNotAccessingTheContext(t *testing.T) {
+	tests := map[string]func(*StateDB){
+		"CreateAccount":      func(db *StateDB) { db.CreateAccount(common.Address{1}) },
+		"Touch":              func(db *StateDB) { db.Touch(common.Address{1}) },
+		"Witness":            func(db *StateDB) { db.Witness() },
+		"GetCreatedContract": func(db *StateDB) { db.GetCreatedContract() },
+		"SetRefund":          func(db *StateDB) { db.SetRefund(1) },
+		"AddRefund":          func(db *StateDB) { db.AddRefund(1) },
+		"SubRefund":          func(db *StateDB) { db.SubRefund(0) },
+		"GetRefund":          func(db *StateDB) { db.GetRefund() },
+	}
+
+	for name, call := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			call(NewStateDB(tosca.NewMockTransactionContext(ctrl)))
+		})
+	}
+}
+
+func TestStateDB_UnimplementedFunctionsPanic(t *testing.T) {
+	tests := map[string]func(*StateDB){
+		"AddPreimage":  func(db *StateDB) { db.AddPreimage(common.Hash{}, nil) },
+		"AccessEvents": func(db *StateDB) { db.AccessEvents() },
+		"SetTxContext": func(db *StateDB) { db.SetTxContext(common.Hash{}, 0, 0) },
+		"Finalise":     func(db *StateDB) { db.Finalise(params.Rules{}) },
+	}
+
+	for name, call := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			db := NewStateDB(tosca.NewMockTransactionContext(ctrl))
+			require.PanicsWithValue(t, "not implemented", func() { call(db) })
+		})
+	}
 }
