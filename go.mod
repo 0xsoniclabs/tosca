@@ -17,7 +17,7 @@ toolchain go1.27.3
 require (
 	github.com/dsnet/golib/unitconv v1.0.2
 	github.com/ethereum/evmc/v11 v11.0.0
-	github.com/ethereum/go-ethereum v1.17.1
+	github.com/ethereum/go-ethereum v1.17.10
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/holiman/uint256 v1.3.2
 	github.com/stretchr/testify v1.12.1
